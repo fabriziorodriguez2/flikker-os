@@ -12,7 +12,10 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "npm run start:dev --workspace=apps/api",
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:api\""
   },
   "repository": {
     "type": "git",
@@ -25,5 +28,11 @@
   "bugs": {
     "url": "https://github.com/fabriziorodriguez2/flikker-os/issues"
   },
-  "homepage": "https://github.com/fabriziorodriguez2/flikker-os#readme"
+  "homepage": "https://github.com/fabriziorodriguez2/flikker-os#readme",
+  "dependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "devDependencies": {
+    "turbo": "^2.8.20"
+  }
 }
