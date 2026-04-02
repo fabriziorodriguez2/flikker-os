@@ -12,10 +12,14 @@
     "doc": "docs"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "dev:web": "npm run dev --workspace=apps/web",
     "dev:api": "npm run start:dev --workspace=apps/api",
-    "dev": "concurrently \"npm run dev:web\" \"npm run dev:api\""
+    "dev": "concurrently \"npm run dev:web\" \"npm run dev:api\"",
+    "typecheck": "npm run typecheck --workspace=apps/api && npm run typecheck --workspace=apps/web",
+    "lint": "npm run lint:check --workspace=apps/api && npm run lint:check --workspace=apps/web",
+    "test": "npm run test --workspace=apps/api",
+    "test:cov": "npm run test:cov --workspace=apps/api",
+    "ci": "npm run typecheck && npm run lint && npm run test"
   },
   "repository": {
     "type": "git",

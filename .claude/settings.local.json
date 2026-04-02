@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx prisma:*)",
+      "Bash(npx tsc:*)",
+      "Bash(timeout 10 npm run start)",
+      "Bash(timeout 12 npm run start)",
+      "Bash(node -e \"require\\(''dotenv''\\)\")",
+      "Bash(timeout 15 npm run start)",
+      "Bash(node -e \":*)",
+      "Bash(npm install:*)",
+      "Bash(npm test:*)",
+      "Bash(npx jest:*)",
+      "Bash(awk '{print}')",
+      "Bash(npm run:*)",
+      "Bash(true find:*)",
+      "Bash(npx next:*)",
+      "Bash(npx prettier:*)",
+      "Bash(docker compose:*)"
+    ]
+  }
+}
