@@ -7,6 +7,7 @@ export interface SessionUser {
   email: string;
   firstName: string;
   lastName: string;
+  isPlatformAdmin?: boolean;
 }
 
 export interface SessionMembership {

@@ -16,7 +16,9 @@
       "Bash(true find:*)",
       "Bash(npx next:*)",
       "Bash(npx prettier:*)",
-      "Bash(docker compose:*)"
+      "Bash(docker compose:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(npx eslint:*)"
     ]
   }
 }

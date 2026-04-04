@@ -4,7 +4,13 @@ import { setSession, type Session } from '@/lib/auth';
 interface LoginResponse {
   accessToken: string;
   refreshToken: string;
-  user: { id: string; email: string; firstName: string; lastName: string };
+  user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    isPlatformAdmin?: boolean;
+  };
   memberships: {
     businessId: string;
     role: string;
