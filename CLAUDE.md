@@ -2,519 +2,567 @@
 
 ## 1. Propósito de este archivo
 
-Este archivo define cómo debe trabajar Claude Code dentro de este repositorio.
+Este archivo define cómo debe trabajar Codex dentro de este repositorio.
 
-No es un documento de producto.
-No es un documento de arquitectura detallada.
-Es una guía operativa obligatoria para colaborar sin romper el proyecto.
+Su función no es describir todo el producto ni toda la arquitectura.
+Su función es actuar como manual operativo del agente para colaborar sin romper el foco del MVP, sin abrir scope innecesario y sin introducir caos técnico.
 
-Claude debe leer este archivo antes de proponer o modificar código.
-
----
-
-## 2. Contexto del proyecto
-
-Este repositorio pertenece a Flikker OS.
-
-Flikker OS es un sistema multi-tenant de reputación local y presencia digital para negocios locales.
-
-El sistema está orientado a:
-
-- captación de reseñas por QR / links / campañas
-- tracking de eventos
-- gestión de reseñas
-- respuestas asistidas
-- widgets de prueba social
-- generación de activos a partir de reseñas
-- operación interna por cuenta
-- futura capa de analytics, billing y robustez
-
-La prioridad actual es construir una base sólida y usable, no un producto visualmente perfecto.
+Codex debe usar este archivo como guardrail principal antes de proponer, modificar o extender código.
 
 ---
 
-## 3. Documentos que debes leer antes de cambios importantes
+## 2. Qué es Flikker en esta etapa
 
-Antes de tocar módulos relevantes, lee:
+Flikker, en esta etapa, es un MVP multi-tenant orientado a validar un flujo operativo simple de reputación:
 
-1. `ARCHITECTURE.md`
-2. `PRODUCT_SCOPE.md`
-3. `README.md`
-4. `docs/modules/*.md` del módulo afectado, si existen
-5. `docs/adr/*.md` si el cambio toca decisiones base
+`negocio activo -> campaña o QR trazable -> evento -> reseña cargada manualmente -> reseña destacada o respondida -> widget embebido -> métricas mínimas`
 
-Si no leíste estos documentos, no asumas comportamiento.
+### Qué sí es
+
+- una app web interna con backend modular
+- un sistema con tenancy desde el día uno
+- una herramienta para crear campañas trazables
+- una base operativa de reseñas
+- una capa mínima para responder reseñas
+- una forma simple de exponer prueba social con widgets
+- una capa básica de métricas para validar uso
+
+### Qué no es
+
+- una plataforma completa de reputación local
+- un CRM
+- un content studio
+- un sistema avanzado de IA
+- un producto de analytics amplio
+- un sistema de billing
+- una suite de client success
+- un page builder
+- un sistema de automatizaciones complejas
+
+Si una propuesta empuja a Flikker hacia alguna de esas direcciones en esta fase, está fuera de foco salvo pedido explícito.
 
 ---
 
-## 4. Reglas no negociables de trabajo
+## 3. Scope actual del MVP
+
+El scope actual del MVP incluye solo lo necesario para cerrar el flujo principal.
+
+### En scope
+
+- auth
+- memberships
+- business activo
+- campaigns
+- QR o link trazable
+- tracking básico de eventos
+- carga manual de reseñas
+- listado y detalle de reseñas
+- respuesta mínima a reseñas
+- reseñas destacadas
+- widgets embebibles simples
+- métricas mínimas del flujo
+
+### Fuera de scope por ahora
+
+- IA avanzada de respuestas
+- plantillas complejas
+- workflows de aprobación complejos
+- content studio
+- assets de marketing
+- analytics avanzadas
+- health score
+- billing
+- planes y límites comerciales
+- client success
+- onboarding interno complejo
+- automatizaciones complejas
+- integraciones grandes
+
+### Regla
+
+Codex no debe construir features fuera de este scope sin instrucción explícita.
+
+---
+
+## 4. Stack real del repo
+
+### Frontend
+
+- Next.js
+- TypeScript
+- App Router
+- Tailwind CSS
+
+### Backend
+
+- NestJS
+- TypeScript
+
+### Base de datos
+
+- PostgreSQL
+
+### ORM
+
+- Prisma
+
+### Testing
+
+- tests unitarios en TypeScript
+- tests de integración y contrato en API
+- E2E mínimo del flujo principal
+
+### Regla
+
+No reabrir decisiones de stack sin un problema real y documentable.
+
+---
+
+## 5. Convenciones generales de trabajo
 
 ### Regla 1
 
-Nunca empieces escribiendo código grande sin devolver antes un plan corto y concreto.
+Pensar antes de tocar.
 
-Siempre debes devolver primero:
+### Regla 2
+
+Mantener los cambios enfocados.
+
+### Regla 3
+
+No tocar archivos no relacionados.
+
+### Regla 4
+
+No construir por anticipación.
+
+### Regla 5
+
+Priorizar claridad, seguridad y mantenibilidad sobre sofisticación.
+
+### Regla 6
+
+Si una tarea es grande, dividirla antes de implementarla.
+
+### Regla 7
+
+Si algo puede resolverse manualmente sin romper el MVP, no automatizarlo todavía.
+
+### Regla 8
+
+No introducir nuevas dependencias sin justificar claramente:
+
+- por qué hacen falta ahora
+- qué problema resuelven
+- por qué no alcanza con el stack actual
+
+### Regla 9
+
+Siempre listar riesgos y pendientes al cerrar una tarea.
+
+---
+
+## 6. Regla de plan previo antes de tocar código
+
+Antes de hacer cambios relevantes, Codex debe devolver primero un plan corto y concreto.
+
+Ese plan debe incluir:
 
 - objetivo
 - archivos a tocar
 - pasos
 - riesgos
 - tests a crear o correr
+- qué no se tocará
+
+### Regla práctica
+
+No empezar escribiendo código grande sin ese plan previo.
+
+### Excepción razonable
+
+Si la tarea es mínima, localizada y de bajo riesgo, el plan puede ser breve, pero igual debe existir.
+
+---
+
+## 7. Regla de PRs chicos y una sola intención de cambio
+
+Cada tanda de trabajo debe tener una sola intención principal.
+
+Ejemplos válidos:
+
+- agregar un endpoint puntual
+- cerrar un flujo mínimo de un módulo
+- ajustar una validación
+- corregir tenancy en una query
+- sumar una pantalla mínima necesaria
+
+Ejemplos inválidos:
+
+- mezclar migration + refactor grande + UI grande
+- mezclar auth + billing + refactor transversal
+- mezclar redesign visual + cambio de reglas de negocio
+- tocar muchos módulos sin un hilo claro
+
+### Regla
+
+Si una tarea pide demasiado en una sola tanda, dividir antes de implementar.
+
+---
+
+## 8. Reglas estrictas de tenancy y permisos
+
+Multi-tenancy y permisos son obligatorios desde el día uno.
+
+### Reglas no negociables
+
+1. Nunca confiar en el frontend para tenancy.
+2. Nunca confiar en el rol enviado por el cliente.
+3. Toda ruta privada debe validar el `business` activo.
+4. Toda entidad sensible debe quedar scopeada a `businessId` o derivarse de una entidad que ya lo tenga.
+5. Nunca devolver datos de otro tenant por conocer un ID.
+6. Los permisos se resuelven en backend.
+7. Toda query sensible debe revisar membership y rol.
+8. Los endpoints públicos nunca deben filtrar datos internos del tenant.
+
+### Riesgos que Codex debe revisar siempre
+
+- acceso cross-tenant por ID directo
+- falta de filtro por `businessId`
+- relaciones entre entidades de distintos negocios
+- widgets públicos exponiendo metadata interna
+- permisos resueltos solo en frontend
+
+---
+
+## 9. Reglas para migrations
+
+Las migrations deben ser chicas, claras y justificadas.
+
+### Regla 1
+
+No mezclar migration + refactor grande + UI grande en la misma tanda.
 
 ### Regla 2
 
-Trabaja en tandas chicas, mergeables y revisables.
-
-Evita cambios gigantes.
+No abrir tablas o columnas para futuros congelados.
 
 ### Regla 3
 
-No mezcles demasiadas cosas a la vez.
-
-No combines en una sola tanda:
-
-- migraciones + lógica compleja + UI grande
-- refactor general + feature nueva
-- auth + billing + tenancy
-- rediseño visual + cambio crítico de negocio
+No modelar complejidad por anticipación.
 
 ### Regla 4
 
-Respeta estrictamente multi-tenancy.
-
-Nunca asumas acceso por frontend.
-Nunca dejes datos de un negocio visibles para otro.
-Nunca confíes solo en client-side checks.
+Nombrar migraciones de forma entendible.
 
 ### Regla 5
 
-El backend manda en permisos y reglas.
+Revisar siempre:
 
-El frontend no es fuente de verdad para:
-
-- tenancy
-- roles
-- permisos
-- restricciones críticas
-- validaciones de negocio
+- claves foráneas
+- índices mínimos necesarios
+- nullability
+- defaults
+- impacto en tenancy
 
 ### Regla 6
 
-El frontend debe ser mínimo indispensable.
-
-Cuando una feature necesite UI:
-
-- construye solo la UI mínima necesaria para operar y validar el flujo
-- no sobre-diseñes
-- no metas animaciones innecesarias
-- no conviertas una pantalla interna en un proyecto visual separado
-- prioriza claridad, velocidad y mantenimiento
-
-Yo luego puedo embellecer el frontend manualmente.
-
-### Regla 7
-
-No toques archivos no relacionados.
-
-Si una tarea es puntual, mantén el diff enfocado.
-
-### Regla 8
-
-No inventes reglas de negocio.
-
-Si una restricción no está en los documentos ni en el ticket, deja explícita la duda en tu plan.
-
-### Regla 9
-
-Siempre deja el módulo más consistente que antes.
-
-No introduzcas deuda gratuita.
-
-### Regla 10
-
-Al terminar, resume:
-
-- qué cambiaste
-- qué falta
-- edge cases detectados
-- riesgos pendientes
+Si la tarea es solo de modelo, no adelantar UI ni refactors laterales salvo pedido explícito.
 
 ---
 
-## 5. Estilo esperado de colaboración
+## 10. Reglas para tests
 
-Quiero que trabajes como un staff engineer prudente.
+Codex debe pensar en tests cada vez que implementa algo relevante.
 
-Eso implica:
+### Obligatoriedad mínima
 
-- pensar antes de tocar
-- dividir antes de implementar
-- no entusiasmarte con refactors masivos
-- respetar el alcance
-- avisar riesgos
-- priorizar mantenibilidad sobre brillantez innecesaria
+No se considera bien cerrada una tarea si rompe:
 
-Tu objetivo no es impresionar.
-Tu objetivo es avanzar sin caos.
+- typecheck
+- lint
+- tests relacionados
 
----
+### Qué testear primero
 
-## 6. Orden correcto para implementar cualquier módulo
-
-Cuando te pida construir o modificar un módulo, sigue este orden:
-
-1. entender objetivo funcional
-2. revisar reglas de negocio
-3. proponer plan
-4. definir o ajustar modelo de datos
-5. definir DTOs / contratos
-6. implementar servicios / lógica
-7. agregar tests
-8. recién después agregar frontend mínimo indispensable
-9. actualizar docs si corresponde
-
-No inviertas este orden salvo pedido explícito.
-
----
-
-## 7. Qué debes revisar siempre
-
-En cualquier cambio relevante revisa:
-
-- tenancy
-- permisos
-- naming
+- reglas puras
 - validaciones
-- errores
-- migraciones
-- edge cases
-- consistencia de tipos
-- tests afectados
-- impacto en otros módulos
-- documentación desactualizada
+- permisos
+- tenancy
+- endpoints críticos
+- flujo principal del MVP
 
----
+### Prioridades de testing
 
-## 8. Convenciones de repo
+#### Unit
 
-### Monorepo
+Para:
 
-Estructura base:
+- helpers
+- validaciones puras
+- reglas simples de estado
 
-```txt
-apps/
-  web/
-  api/
-packages/
-  ui/
-  config/
-  types/
-docs/
-  modules/
-  adr/
-  runbooks/
-```
+#### Integration
 
-### Estructura del proyecto
+Para:
 
-### Backend
+- auth
+- switch business
+- campaigns
+- tracking básico
+- reviews
+- responses mínimas
+- widgets
+- bloqueo cross-tenant
 
-**Ubicación:** `apps/api`
+#### Contract
 
-Se trabaja por módulos de dominio dentro de: `src/modules/`
+Para endpoints críticos de API.
 
-### Cada módulo debe agrupar
+#### E2E
 
-- dto
-- controllers
-- services
-- repositories
-- tests
-- module file
+Mínimo obligatorio:
 
----
-
-### Frontend
-
-**Ubicación:** `apps/web`
-
-### Stack
-
-- Next.js
-- TypeScript
-- App Router
-- shadcn/ui
-- Tailwind
-
-### Regla clave
-
-El frontend se construye **solo cuando habilita un flujo real**.
-
----
-
-### Packages compartidos
-
-Ubicación: `packages/`
-
-- `packages/ui` → componentes compartidos
-- `packages/config` → configuración común
-- `packages/types` → tipos compartidos (solo cuando tenga sentido)
-
----
-
-## 9. Convenciones de código
-
-### Generales
-
-- TypeScript estricto
-- Nombres claros
-- Funciones chicas si se puede
-- Evitar duplicación tonta
-- Comentarios solo si agregan contexto real
-- No hardcodear valores sensibles
-- No dejar TODOs vacíos sin contexto
-
----
-
-### Backend
-
-- DTOs explícitos
-- Validación declarativa
-- Servicios con responsabilidad clara
-- Lógica de negocio fuera de controladores
-- Guards / policies para permisos
-- Errores consistentes
-
----
-
-### Frontend
-
-- Componentes simples
-- Formularios claros
-- Estados de loading / error / success razonables
-- Evitar sobrecomponentización prematura
-- Evitar efectos visuales irrelevantes en pantallas internas
-
----
-
-## 10. Regla explícita sobre diseño frontend
-
-### Importante
-
-El frontend **NO debe intentar quedar “terminado visualmente”** en cada feature.
-
-Debe resolver el flujo con el menor costo de complejidad posible.
+`login -> campaña -> QR o link -> evento -> reseña -> widget`
 
 ### Regla
 
-Si una vista necesita:
-
-- tabla → hacer tabla simple
-- filtro → hacerlo básico
-- formulario → limpio y funcional
-
-NO buscar perfección visual.
-
-El refinamiento vendrá después.
-
-### Aplica especialmente a
-
-- Paneles internos
-- CRUDs
-- Dashboards preliminares
-- Vistas de administración
-- Formularios de configuración
+Si no se agregan tests por una razón válida, Codex debe decirlo explícitamente.
 
 ---
 
-## 11. Testing
+## 11. Módulos activos y módulos congelados
 
-Siempre que implementes algo, define qué pruebas corresponden.
+### Módulos activos
 
-### Prioridades
+- auth
+- memberships
+- businesses
+- campaigns
+- tracking o events
+- reviews
+- responses mínimas
+- widgets
+- analytics mínimas
 
-- Unit tests → reglas puras
-- Integration tests → servicios y DB
-- Contract tests → endpoints críticos
+### Módulos congelados
 
-### Flujos sensibles
+- billing
+- content studio
+- assets de marketing
+- IA avanzada de responses
+- approvals complejos
+- analytics avanzadas
+- health score
+- client success
+- onboarding interno complejo
+- notifications complejas
+- automatizaciones complejas
+- CRM
+- inbox omnicanal
 
-Si tocas algo crítico:
+### Regla
 
-- mencionar si merece E2E
-
-### Regla de cierre
-
-No se considera terminado si:
-
-- rompe typecheck
-- rompe lint
-- rompe tests relacionados
-- deja migraciones incoherentes
-
----
-
-## 12. Migraciones
-
-### Reglas
-
-- Mantenerlas chicas y claras
-- No mezclar muchas tablas si no hace falta
-- Nombres entendibles
-- Revisar relaciones e índices
-- No modificar schema de forma caótica
-
-### Importante
-
-Si la tarea es solo de modelo:
-
-NO adelantar UI ni lógica (salvo que se pida)
+No crear carpetas, tablas, servicios o endpoints para módulos congelados salvo pedido explícito.
 
 ---
 
-## 13. Seguridad
+## 12. Convenciones para frontend
 
-Siempre revisar:
+El frontend del MVP debe ser mínimo y funcional.
 
-- Tenant scoping en backend
-- Roles / permisos
-- Validación de inputs
-- Sanitización si hay contenido público
-- Rate limit en endpoints públicos (si aplica)
-- Exposición accidental de datos
-- Secrets por entorno (nunca hardcodeados)
+### Sí hacer
 
----
+- formularios simples
+- tablas simples
+- feedback claro de loading, error y success
+- pantallas que permitan operar el flujo
 
-## 14. Cuándo frenar y preguntar
+### No hacer
 
-NO avanzar directo si detectas:
+- rediseños visuales grandes sin necesidad
+- animaciones irrelevantes
+- componentes hiperabstractos prematuros
+- dashboards lindos sin datos confiables
+- builder visual complejo para widgets
 
-- Ambigüedad de negocio relevante
-- Conflicto con `ARCHITECTURE.md`
-- Riesgo de romper multi-tenancy
-- Necesidad de refactor masivo
-- Decisión arquitectónica no documentada
-- Contradicción con `PRODUCT_SCOPE.md`
+### Regla
 
-### En esos casos
-
-Explicar el conflicto primero en el plan.
+El frontend existe para habilitar el flujo, no para competir por polish visual en esta etapa.
 
 ---
 
-## 15. Formato de respuesta antes de implementar
+## 13. Formato en que Codex debe responder
 
-Cuando se pide una tarea relevante, responder con:
+Cuando reciba un pedido técnico relevante, Codex debe responder de forma ordenada y breve.
 
-- Objetivo
-- Archivos a tocar
-- Plan por pasos
-- Riesgos
-- Tests a crear/correr
-- Qué NO se tocará
+### Antes de implementar
 
-Luego:
+Debe incluir:
 
-- Esperar aprobación  
-  o
-- Ejecutar solo el primer paso (si se indicó)
+- objetivo
+- archivos a tocar
+- plan por pasos
+- riesgos
+- tests
+- qué no se tocará
+
+### Después de implementar
+
+Debe incluir:
+
+- cambios realizados
+- archivos tocados
+- tests corridos
+- riesgos
+- pendientes
+- siguiente subpaso recomendado
+
+### Regla
+
+Siempre listar riesgos y pendientes, aunque sean pocos.
 
 ---
 
-## 16. Formato de cierre tras implementar
+## 14. Checklist antes de cerrar una tarea
 
-Siempre responder con:
+Antes de cerrar, Codex debe revisar:
 
-- Cambios realizados
-- Archivos tocados
-- Tests corridos
-- Deuda pendiente
-- Edge cases detectados
-- Siguiente subpaso recomendado
+- el cambio cumple el scope del MVP
+- no se tocaron archivos no relacionados
+- no se mezclaron demasiadas intenciones en la misma tanda
+- tenancy sigue correcta
+- permisos siguen correctos
+- DTOs y validaciones siguen consistentes
+- no se introdujeron dependencias nuevas sin justificar
+- migraciones, si existen, son chicas y coherentes
+- typecheck, lint y tests relacionados no quedan rotos
+- la documentación relevante quedó actualizada si correspondía
+- quedaron explícitos riesgos y pendientes
 
 ---
 
-## 17. Anti-patrones prohibidos
+## 15. Errores que Codex no debe cometer
 
 Evitar completamente:
 
-- Hacer toda la feature de una
-- Tocar muchos archivos sin justificar
-- Mezclar UI, migraciones y lógica en una sola tanda
-- Resolver permisos desde frontend
-- Asumir un solo tenant
-- Crear componentes enormes sin necesidad
-- Refactors cosméticos prematuros
-- Mover carpetas sin razón fuerte
-- Inventar modelos fuera del producto
+- tocar archivos no relacionados
+- construir features fuera del scope
+- mezclar migration + refactor grande + UI grande
+- introducir nuevas dependencias sin justificar
+- resolver tenancy desde frontend
+- asumir un solo tenant
+- hacer refactors cosméticos grandes
+- abrir infraestructura nueva sin necesidad real
+- modelar módulos congelados "por si después hacen falta"
+- hacer cambios gigantes sin dividir la tarea
+- cerrar una tarea sin listar riesgos y pendientes
+- esconder dudas importantes en vez de explicitarlas
 
 ---
 
-## 18. Prioridades actuales del proyecto
+## 16. Qué hacer si una tarea es demasiado grande
 
-Orden de prioridad:
+Si la tarea es demasiado grande para una sola tanda segura:
 
-1. Fundación técnica
-2. Auth
-3. Memberships / tenancy
-4. Businesses / branches
-5. Campaigns / QR codes
-6. Reviews
-7. Responses
-8. Widgets
-9. Operación
-10. Analytics
-11. Billing
-12. Robustez
+1. dividir en subpasos mergeables
+2. proponer primero la tanda más chica que cierre valor real
+3. explicitar riesgos y dependencias
+4. no intentar resolver todo de una
 
 ### Regla
 
-Si hay conflicto, priorizar lo más cercano al núcleo operativo.
+Siempre preferir avance pequeño, usable y seguro sobre avance enorme e incierto.
 
 ---
 
-## 19. Cómo pensar el frontend
+## 17. Criterio de calidad del repo
 
-### Guideline oficial
+El estándar de este repo no es complejidad.
+Es progreso ordenado.
 
-1. Utilidad
-2. Claridad
-3. Estética (después)
+Queremos:
 
-### Regla clave
+- código claro
+- cambios chicos
+- flujo usable
+- tenancy correcta
+- seguridad razonable
+- backend sólido
+- frontend suficiente
 
-Entre:
+No queremos:
 
-- pantalla simple que funciona
-- pantalla compleja más linda
-
-👉 Elegir siempre la simple que funciona
-
----
-
-## 20. Qué hacer si la tarea es demasiado grande
-
-- No resolver todo de una
-- Dividir en subpasos mergeables
-- Proponer primera tanda pequeña y segura
-- Priorizar:
-  - base de datos
-  - contratos
-  - dominio  
-    antes que UI
+- brillantez innecesaria
+- amplitud prematura
+- arquitectura inflada
+- documentación desacoplada del scope real
 
 ---
 
-## 21. Meta de calidad
+## 18. Plantilla corta de respuesta de Codex ante un pedido técnico
 
-Queremos velocidad, pero sin caos.
+```md
+Objetivo
+- [resumir qué se busca resolver]
 
-### Estándar del proyecto
+Archivos a tocar
+- [archivo 1]
+- [archivo 2]
 
-- Código claro
-- Flujo usable
-- Seguridad razonable
-- Tenancy correcto
-- Base mantenible
-- Frontend suficiente (no inflado)
+Plan
+1. [paso 1]
+2. [paso 2]
+3. [paso 3]
+
+Riesgos
+- [riesgo 1]
+- [riesgo 2]
+
+Tests
+- [test a crear o correr]
+
+No voy a tocar
+- [fuera de alcance en esta tanda]
+```
+
+---
+
+## 19. Plantilla de plan de implementación
+
+```md
+Objetivo
+- [objetivo funcional concreto]
+
+Alcance
+- [qué entra]
+- [qué no entra]
+
+Archivos o áreas afectadas
+- [ruta o módulo]
+- [ruta o módulo]
+
+Plan por pasos
+1. Revisar reglas de negocio y contratos existentes.
+2. Ajustar modelo de datos o DTOs si hace falta.
+3. Implementar lógica de dominio o endpoint mínimo.
+4. Agregar o actualizar tests relacionados.
+5. Sumar frontend mínimo solo si el flujo lo necesita.
+6. Verificar tenancy, permisos y errores.
+
+Riesgos
+- [riesgo técnico]
+- [riesgo de negocio]
+
+Tests a crear o correr
+- [unit]
+- [integration]
+- [contract o E2E si aplica]
+
+Fuera de alcance
+- [feature o refactor que no se tocará]
+
+Pendientes esperables
+- [pendiente 1]
+- [pendiente 2]
+```

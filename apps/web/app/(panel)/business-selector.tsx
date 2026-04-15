@@ -8,12 +8,14 @@ interface BusinessSelectorProps {
   memberships: SessionMembership[];
   activeBusinessId: string | null;
   activeBusinessName: string | null;
+  collapsed?: boolean;
 }
 
 export default function BusinessSelector({
   memberships,
   activeBusinessId,
   activeBusinessName,
+  collapsed = false,
 }: BusinessSelectorProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -35,10 +37,17 @@ export default function BusinessSelector({
     }
   }
 
+  const label = activeBusinessName ?? 'Negocio';
+  const compactLabel = label.slice(0, 1).toUpperCase();
+
   if (memberships.length <= 1) {
-    return (
-      <p className="text-sm font-medium text-zinc-900 truncate">
-        {activeBusinessName ?? 'Sin negocio'}
+    return collapsed ? (
+      <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-muted)] text-sm font-semibold text-[color:var(--foreground)]">
+        {compactLabel}
+      </div>
+    ) : (
+      <p className="truncate text-sm font-semibold text-[color:var(--foreground)]">
+        {label}
       </p>
     );
   }
@@ -48,27 +57,42 @@ export default function BusinessSelector({
       <button
         onClick={() => setOpen(!open)}
         disabled={loading}
-        className="w-full text-left text-sm font-medium text-zinc-900 truncate hover:text-zinc-600 transition-colors disabled:opacity-50"
+        title={collapsed ? label : undefined}
+        className={`flikker-focus-ring flex items-center justify-between gap-3 rounded-xl bg-[color:var(--surface)] text-left font-semibold text-[color:var(--foreground)] disabled:opacity-50 ${
+          collapsed ? 'h-9 w-9 justify-center border border-[color:var(--border)] text-sm' : 'w-full text-sm'
+        }`}
       >
-        {activeBusinessName ?? 'Seleccionar negocio'}
-        <span className="ml-1 text-xs text-zinc-400">▼</span>
+        {collapsed ? (
+          <span>{compactLabel}</span>
+        ) : (
+          <>
+            <span className="truncate">{label}</span>
+            <span className="text-xs text-[color:var(--text-soft)]">▾</span>
+          </>
+        )}
       </button>
 
       {open && (
-        <div className="absolute top-full left-0 mt-1 w-full bg-white border border-zinc-200 rounded-lg shadow-lg z-50">
+        <div
+          className={`absolute top-full z-50 mt-2 overflow-hidden rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--shadow-soft)] ${
+            collapsed ? 'left-full ml-3 w-60' : 'left-0 w-full'
+          }`}
+        >
           {memberships.map((m) => (
             <button
               key={m.businessId}
               onClick={() => selectBusiness(m.businessId)}
               disabled={loading}
-              className={`w-full text-left px-3 py-2 text-sm transition-colors first:rounded-t-lg last:rounded-b-lg ${
+              className={`w-full px-4 py-3 text-left text-sm transition-colors ${
                 m.businessId === activeBusinessId
-                  ? 'bg-zinc-100 text-zinc-900 font-medium'
-                  : 'text-zinc-600 hover:bg-zinc-50'
+                  ? 'bg-[color:var(--brand-soft)] text-[color:var(--brand-primary)]'
+                  : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-muted)]'
               }`}
             >
-              {m.business.name}
-              <span className="ml-1 text-xs text-zinc-400">{m.role}</span>
+              <div className="font-medium">{m.business.name}</div>
+              <div className="mt-1 text-xs text-[color:var(--text-soft)]">
+                {m.role} · {m.business.slug}
+              </div>
             </button>
           ))}
         </div>

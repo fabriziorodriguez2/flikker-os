@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { SessionMembership } from '@/lib/auth';
+import BrandLogo from '@/components/brand/brand-logo';
+import ThemeToggle from '@/components/theme/theme-toggle';
 
 interface SelectBusinessProps {
   memberships: SessionMembership[];
@@ -28,30 +30,39 @@ export default function SelectBusiness({ memberships, userName }: SelectBusiness
   }
 
   return (
-    <div className="min-h-screen bg-zinc-50 flex items-center justify-center">
-      <div className="w-full max-w-sm">
-        <div className="bg-white border border-zinc-200 rounded-xl px-8 py-10 shadow-sm">
-          <h1 className="text-xl font-semibold text-zinc-900">Flikker OS</h1>
-          <p className="text-sm text-zinc-500 mt-1">
-            Hola, {userName}. Seleccioná un negocio para continuar.
+    <div className="relative flex min-h-screen items-center justify-center bg-[color:var(--background)] px-4 py-10">
+      <div className="absolute right-4 top-4 z-10 md:right-6 md:top-6">
+        <ThemeToggle />
+      </div>
+
+      <div className="w-full max-w-lg">
+        <div className="flikker-card rounded-[28px] px-7 py-8 md:px-8 md:py-9">
+          <div className="flex justify-center">
+            <BrandLogo width={168} height={143} className="h-auto w-[148px] sm:w-[168px]" />
+          </div>
+          <h1 className="mt-4 text-3xl font-semibold text-[color:var(--foreground)]">
+            Elegí un negocio
+          </h1>
+          <p className="mt-2 text-sm leading-6 text-[color:var(--text-muted)]">
+            Hola, {userName}. Selecciona un negocio para continuar.
           </p>
 
-          <div className="mt-6 flex flex-col gap-2">
+          <div className="mt-6 flex flex-col gap-3">
             {memberships.map((m) => (
               <button
                 key={m.businessId}
                 onClick={() => handleSelect(m.businessId)}
                 disabled={loading !== null}
-                className="w-full text-left px-4 py-3 rounded-lg border border-zinc-200 hover:border-zinc-400 hover:bg-zinc-50 transition-colors disabled:opacity-50"
+                className="w-full rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface)] px-5 py-4 text-left hover:border-[color:var(--brand-accent)] hover:bg-[color:var(--surface-muted)] disabled:opacity-50"
               >
-                <p className="text-sm font-medium text-zinc-900">
+                <p className="text-base font-semibold text-[color:var(--foreground)]">
                   {m.business.name}
                 </p>
-                <p className="text-xs text-zinc-500 mt-0.5">
+                <p className="mt-1 text-xs uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                   {m.role} · {m.business.slug}
                 </p>
                 {loading === m.businessId && (
-                  <p className="text-xs text-zinc-400 mt-1">Cargando...</p>
+                  <p className="mt-2 text-xs text-[color:var(--brand-accent)]">Cargando...</p>
                 )}
               </button>
             ))}

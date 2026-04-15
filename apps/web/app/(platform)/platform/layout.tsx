@@ -1,6 +1,7 @@
 import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
+import SessionExpiryHandler from '@/components/auth/session-expiry-handler';
 
 export default async function PlatformLayout({
   children,
@@ -13,6 +14,7 @@ export default async function PlatformLayout({
 
   return (
     <div className="min-h-screen bg-zinc-50">
+      <SessionExpiryHandler />
       <header className="bg-white border-b border-zinc-200 px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-4">
           <span className="text-sm font-semibold text-zinc-900">

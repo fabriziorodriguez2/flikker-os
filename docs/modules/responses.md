@@ -1,108 +1,104 @@
 # responses.md
 
-## 1. Propósito del módulo
+## 1. Objetivo
 
-El módulo `responses` resuelve la capa operativa de respuesta a reseñas dentro de Flikker OS.
+El módulo `responses` existe para registrar operación real sobre reseñas.
 
-Su objetivo no es solo “guardar un texto de respuesta”, sino permitir que un negocio responda de forma:
+En esta etapa, su trabajo es simple:
 
-- rápida
-- consistente con su tono
-- segura
-- auditable
-- escalable operativamente
+- guardar el texto de una respuesta
+- dejar constancia de quién respondió
+- registrar cuándo se respondió
+- marcar si una reseña quedó respondida o no
 
-Este módulo cubre la generación asistida, edición, aprobación, publicación y trazabilidad de respuestas a reseñas.
-
-En términos prácticos, convierte una review en una acción operativa concreta.
+Este módulo no existe para vender magia de IA.
+Existe para que el equipo pueda operar reseñas reales de forma ordenada.
 
 ---
 
-## 2. Qué representa una response
+## 2. Qué resuelve y qué no
 
-Una `response` es la respuesta oficial o propuesta a una reseña.
+### Qué resuelve en el MVP
 
-Dependiendo del flujo, una respuesta puede existir en distintos estados:
+- creación manual de una respuesta
+- edición simple de una respuesta
+- registro de autor de la respuesta
+- registro de fecha de respuesta
+- cambio de estado entre no respondida y respondida
+- posibilidad opcional de usar un texto sugerido simple, si existe, sin volverlo eje del módulo
 
-- borrador generado por IA
-- borrador creado manualmente
-- respuesta editada por un operador
-- respuesta aprobada
-- respuesta publicada
-- respuesta descartada
+### Qué no resuelve ahora
 
-Este módulo también contempla que una misma review pueda tener:
+- motor IA de respuestas
+- versionado avanzado
+- workflow de aprobar o publicar
+- SLA
+- alertas
+- escalado automático
+- policies complejas por rating o tono
+- publicación externa automatizada
 
-- varias versiones de propuesta
-- una respuesta final elegida
-- historial de cambios
-- aprobación previa antes de publicar
+### Regla
 
----
-
-## 3. Objetivo funcional
-
-El objetivo del módulo es permitir que el negocio pueda:
-
-- redactar respuestas más rápido
-- mantener consistencia de tono
-- tratar mejor reseñas negativas
-- evitar respuestas impulsivas o malas
-- guardar historial de cambios
-- controlar quién responde y qué se publica
-- medir tiempos de respuesta a futuro
-
-Sin este módulo, el sistema puede mostrar reviews, pero no puede ayudar a operarlas bien.
+Si una idea de producto convierte este módulo en un sistema editorial complejo, está fuera del alcance del MVP.
 
 ---
 
-## 4. Alcance del módulo
+## 3. Modelo mínimo
 
-### Incluye
+El modelo debe ser lo bastante chico como para sostener operación real sin complejidad extra.
 
-- creación manual de respuestas
-- sugerencias asistidas por IA
-- edición de borradores
-- versiones de respuesta
-- aprobación opcional
-- publicación o marcado de publicada
-- descarte de propuestas
-- historial
-- notas operativas básicas
-- reglas por score / severidad en el futuro cercano
+### 3.1 Response
 
-### No incluye todavía
+Entidad principal del módulo.
 
-- publicación automática masiva real a plataformas externas complejas
-- inbox omnicanal
-- chat interno grande
-- moderación compleja multi-etapa enterprise
-- workflows BPM gigantes
-- modelos avanzados de scoring emocional
-- entrenamiento custom complejo por cliente en fase temprana
+Campos mínimos sugeridos:
+
+- `id`
+- `businessId`
+- `reviewId`
+- `content`
+- `respondedByUserId`
+- `respondedAt`
+- `createdAt`
+- `updatedAt`
+
+### Notas
+
+- `businessId` puede persistirse o derivarse desde la review según el diseño final
+- `content` es el texto real usado o registrado
+- `respondedByUserId` deja trazabilidad operativa mínima
+- `respondedAt` marca el momento de respuesta
+
+### 3.2 Estado operativo
+
+No hace falta un workflow complejo.
+Alcanza con un estado simple a nivel operativo:
+
+- `not_responded`
+- `responded`
+
+Esto puede vivir:
+
+- en `Review`
+- como estado derivado desde existencia de `Response`
+
+Lo importante es que el sistema pueda responder una pregunta simple:
+
+**esta reseña ya fue respondida o no**
+
+### 3.3 Texto sugerido simple opcional
+
+Si se desea, puede existir una ayuda mínima como:
+
+- texto base editable
+- sugerencia simple no persistida
+
+Pero no debe convertirse en motor central del módulo.
 
 ---
 
-## 5. Rol del módulo dentro de la arquitectura
-
-`responses` depende directamente del módulo de `reviews` y vive dentro del contexto de negocio.
-
-Orden natural:
-
-1. auth
-2. users
-3. memberships
-4. businesses
-5. reviews
-6. responses
-7. analytics
-8. notifications
-
-Este módulo está cerca del corazón del valor del producto, porque reduce el tiempo y la fricción de responder.
-
----
-
-## 6. Reglas de negocio principales
+## 4. Reglas mínimas
 
 ### Regla 1
 
@@ -110,888 +106,160 @@ Toda response pertenece a una `review`.
 
 ### Regla 2
 
-Toda response hereda el contexto de tenancy desde la review y el business.
+Una response no puede existir para una review de otro negocio.
 
 ### Regla 3
 
-No se debe permitir responder una review de otro business.
+La operación principal es registrar respuesta real, no una propuesta editorial.
 
 ### Regla 4
 
-Puede existir más de una propuesta de respuesta para una misma review, pero debe haber una única respuesta final activa/publicada por review, salvo diseño futuro especial.
+Si se guarda una response, la reseña asociada debe poder considerarse respondida.
 
 ### Regla 5
 
-Una respuesta puede originarse manualmente o mediante IA.
+Debe poder saberse quién respondió y cuándo.
 
 ### Regla 6
 
-Las respuestas sensibles, especialmente ante reseñas negativas, pueden requerir aprobación antes de marcarse como listas o publicadas.
+No hace falta publicar automáticamente nada en plataformas externas para validar este módulo.
 
 ### Regla 7
 
-No se deben borrar físicamente respuestas en operación normal; se descartan o se versionan.
+No hace falta soporte para múltiples aprobaciones, múltiples versiones ni historial sofisticado en esta etapa.
 
 ### Regla 8
 
-Cada cambio importante de texto debería poder quedar auditado.
-
-### Regla 9
-
-El tono sugerido debe poder variar por negocio y eventualmente por score o plantilla.
-
-### Regla 10
-
-Una response no debe asumir que ya fue publicada externamente si el sistema aún no integra esa publicación real.
-
-### Regla 11
-
-Debe quedar claro si algo es:
-
-- sugerencia
-- borrador editable
-- respuesta final
-- respuesta publicada
-- respuesta descartada
-
-### Regla 12
-
-El sistema debe permitir intervención humana siempre; la IA asiste, no manda sola.
+Permisos y tenancy se validan siempre en backend.
 
 ---
 
-## 7. Casos de uso principales
+## 5. Endpoints mínimos
 
-### Caso de uso 1 — Generar sugerencia con IA
+Los endpoints deben alcanzar para registrar y consultar la operación básica.
 
-Un operador abre una review y pide una propuesta de respuesta.
+### Privados
 
-### Caso de uso 2 — Crear respuesta manual
+- `POST /responses`
+  Crear respuesta manual para una review.
 
-Un usuario redacta una respuesta sin usar IA.
+- `GET /reviews/:reviewId/response`
+  Obtener la respuesta asociada si existe.
 
-### Caso de uso 3 — Editar borrador
+- `PATCH /responses/:responseId`
+  Editar respuesta existente.
 
-Se modifica una propuesta antes de aprobarla o publicarla.
+- `POST /reviews/:reviewId/mark-responded`
+  Marcar reseña como respondida si el sistema permite esa acción incluso sin texto persistido.
 
-### Caso de uso 4 — Aprobar respuesta
-
-Un rol autorizado valida el contenido antes de su uso final.
-
-### Caso de uso 5 — Marcar como publicada
-
-Se registra que la respuesta ya fue usada/publicada.
-
-### Caso de uso 6 — Descartar propuesta
-
-Una sugerencia mala o irrelevante se descarta sin borrarla.
-
-### Caso de uso 7 — Ver historial de versiones
-
-Se consulta cómo fue cambiando la propuesta.
-
-### Caso de uso 8 — Escalar caso negativo
-
-Una review delicada requiere revisión especial antes de responder.
-
----
-
-## 8. Entidades del módulo
-
-## 8.1 Response
-
-Entidad principal del módulo.
-
-Campos sugeridos:
-
-- `id`
-- `businessId`
-- `reviewId`
-- `status`
-- `source`
-- `content`
-- `language` (opcional)
-- `tone` (opcional)
-- `isFinal`
-- `isPublished`
-- `publishedAt` (opcional)
-- `approvedAt` (opcional)
-- `approvedByUserId` (opcional)
-- `createdByUserId` (opcional)
-- `lastEditedByUserId` (opcional)
-- `discardedAt` (opcional)
-- `discardReason` (opcional)
-- `createdAt`
-- `updatedAt`
-
-### Explicación de campos
-
-- `source`: indica si viene de IA, plantilla o manual
-- `isFinal`: indica si fue elegida como la respuesta final de trabajo
-- `isPublished`: indica si ya fue publicada o marcada como usada
-- `status`: expresa la etapa operativa
-
----
-
-## 8.2 ResponseVersion
-
-Sirve para histórico y trazabilidad de cambios.
-
-Campos sugeridos:
-
-- `id`
-- `responseId`
-- `versionNumber`
-- `content`
-- `changeReason` (opcional)
-- `editedByUserId` (opcional)
-- `createdAt`
-
-### Nota
-
-Si el MVP necesita velocidad extrema, se puede arrancar sin esta tabla y crearla apenas el flujo madure.
-Pero idealmente conviene contemplarla desde diseño.
-
----
-
-## 8.3 ResponseTemplate
-
-Plantillas reutilizables por negocio.
-
-Campos sugeridos:
-
-- `id`
-- `businessId`
-- `name`
-- `status`
-- `category` (opcional)
-- `minRating` (opcional)
-- `maxRating` (opcional)
-- `tone`
-- `content`
-- `isDefault`
-- `createdByUserId`
-- `createdAt`
-- `updatedAt`
-
-### Ejemplos de uso
-
-- plantilla para 5 estrellas
-- plantilla para queja leve
-- plantilla para reseña sin texto
-- plantilla para reseña negativa escalable
-
----
-
-## 8.4 ResponsePolicy
-
-Opcional a futuro si se quiere separar reglas operativas.
-
-Campos sugeridos:
-
-- `id`
-- `businessId`
-- `requiresApprovalBelowRating`
-- `autoSuggestEnabled`
-- `defaultTone`
-- `escalateNegativeReviews`
-- `negativeThreshold`
-- `createdAt`
-- `updatedAt`
-
-### Nota
-
-En MVP puede vivir dentro de settings de negocio.
-
----
-
-## 9. Modelo de estados
-
-Estados sugeridos para `response.status`:
-
-- `draft`
-- `pending_approval`
-- `approved`
-- `published`
-- `discarded`
-
-### Significado
-
-#### `draft`
-
-Respuesta en preparación. Puede venir de IA o manual.
-
-#### `pending_approval`
-
-Respuesta que requiere revisión de un rol superior.
-
-#### `approved`
-
-Respuesta validada y lista para uso/publicación.
-
-#### `published`
-
-Respuesta ya publicada o marcada como usada externamente.
-
-#### `discarded`
-
-Respuesta descartada, retenida solo para histórico.
-
-### Reglas
-
-- `published` no debería seguir editándose libremente
-- `discarded` no debe volver a mostrarse como candidata principal
-- `approved` puede pasar a `published`
-- `draft` puede reescribirse varias veces
-- `pending_approval` sirve especialmente para negativas o políticas internas
-
----
-
-## 10. Origen de la respuesta
-
-Campo sugerido: `source`
-
-Valores posibles:
-
-- `manual`
-- `ai_generated`
-- `template`
-- `ai_template_based`
-
-### Motivo
-
-Distinguir cómo nació la respuesta sirve para auditoría, análisis y mejora futura del producto.
-
----
-
-## 11. Relaciones con otros módulos
-
-### Con `reviews`
-
-Cada response pertenece a una review.
-
-### Con `businesses`
-
-Toda response existe dentro de un business.
-
-### Con `users`
-
-Usuarios crean, editan, aprueban o publican respuestas.
-
-### Con `analytics`
-
-A futuro puede medir:
-
-- tiempo hasta primera propuesta
-- tiempo hasta publicación
-- tasa de respuesta
-- uso de IA vs manual
-
-### Con `notifications`
-
-Puede disparar alertas cuando una review negativa requiere respuesta o aprobación.
-
-### Con `templates`
-
-Las plantillas ayudan a generar borradores consistentes.
-
----
-
-## 12. Diseño de tenancy
-
-Este módulo debe ser estrictamente tenant-scoped.
-
-### Reglas
-
-- no acceder a responses de reviews ajenas
-- no permitir crear response sobre review de otro business
-- no aprobar/publicar fuera del scope autorizado
-- si la review define business, la response debe heredar ese mismo business
-- nunca confiar en `businessId` del frontend si ya se puede derivar desde la review
-
-### Recomendación
-
-Derivar `businessId` desde `reviewId` cuando se pueda para reducir riesgos de inconsistencia.
-
----
-
-## 13. Permisos sugeridos
-
-### Platform Admin
-
-Puede:
-
-- ver todas las respuestas
-- intervenir en casos especiales
-- auditar historial
-
-### Business Owner
-
-Puede:
-
-- ver respuestas
-- crear
-- editar
-- aprobar
-- marcar publicadas
-- gestionar plantillas
-
-### Business Admin
-
-Puede:
-
-- crear
-- editar
-- aprobar
-- publicar
-- descartar
-
-### Operator
-
-Puede:
-
-- generar sugerencias
-- crear manualmente
-- editar borradores
-- enviar a aprobación
-- tal vez publicar si la política lo permite
-
-### Viewer
-
-Puede:
-
-- leer respuestas e historial visible
-- no editar
-- no aprobar
-- no publicar
-
----
-
-## 14. Campos mínimos para MVP
-
-Para crear una response en MVP, mínimo sugerido:
-
-- `reviewId`
-- `content`
-- `source`
-- `status` inicial por default `draft`
-
-Campos opcionales:
-
-- `tone`
-- `language`
-- `createdByUserId`
-
-### Motivo
-
-Permitir avanzar rápido sin bloquear el flujo por metadata excesiva.
-
----
-
-## 15. Validaciones de negocio
-
-### `reviewId`
-
-- requerido
-- debe existir
-- debe pertenecer al tenant correcto
-
-### `content`
-
-- requerido
-- trim automático
-- no vacío luego del trim
-- longitud máxima razonable
-
-### `source`
-
-- requerido
-- enum válido
-
-### `status`
-
-- enum válido
-
-### `tone`
-
-- opcional
-- enum o string controlado si se normaliza luego
-
-### Aprobación
-
-- no cualquiera puede aprobar
-- `approvedByUserId` solo debe existir si el estado y el permiso lo justifican
-
-### Publicación
-
-- `publishedAt` solo debe existir si `isPublished = true` o `status = published`
-
----
-
-## 16. Reglas de actualización
-
-### Se puede actualizar
-
-- contenido de borradores
-- tono
-- estado
-- flags de final/publicada
-- razón de descarte
-- metadata de aprobación
-
-### Debe cuidarse especialmente
-
-- editar contenido ya publicado
-- múltiples respuestas marcadas como finales
-- aprobar sin permiso
-- cambiar business indirectamente
-- perder historial de cambios
-
-### Recomendación
-
-Cuando cambie el contenido de una respuesta ya existente:
-
-- crear versión nueva
-- actualizar `lastEditedByUserId`
-- auditar el cambio si el historial es importante
-
----
-
-## 17. Endpoints sugeridos
-
-## 17.1 Crear respuesta manual
-
-### `POST /responses`
-
-### Request ejemplo
-
-```json
-{
-  "reviewId": "rev_123",
-  "content": "¡Muchas gracias por tu reseña! Nos alegra saber que tu experiencia fue tan buena.",
-  "source": "manual"
-}
-```
-
-### Response ejemplo
-
-```json
-{
-  "id": "res_123",
-  "reviewId": "rev_123",
-  "status": "draft",
-  "source": "manual",
-  "isFinal": false,
-  "isPublished": false,
-  "createdAt": "2026-03-29T12:00:00.000Z"
-}
-```
-
-## 17.2 Generar sugerencia con IA
-
-### `POST /responses/generate`
-
-### Request ejemplo
-
-```json
-{
-  "reviewId": "rev_123",
-  "tone": "warm_professional"
-}
-```
-
-### Comportamiento esperado
-
-- toma la review
-- usa tono/configuración del negocio si existe
-- genera borrador
-- guarda `source = ai_generated`
-- deja estado `draft`
-
-## 17.3 Listar respuestas por review
-
-### `GET /reviews/:reviewId/responses`
-
-### Uso
-
-Ver historial de propuestas y respuesta final asociadas a una review.
-
-## 17.4 Obtener response por ID
-
-### `GET /responses/:responseId`
-
-## 17.5 Actualizar contenido de response
-
-### `PATCH /responses/:responseId`
-
-## 17.6 Enviar a aprobación
-
-### `POST /responses/:responseId/request-approval`
-
-### Uso
-
-Mover una `draft` a `pending_approval`.
-
-## 17.7 Aprobar response
-
-### `POST /responses/:responseId/approve`
-
-### Uso
-
-Cambiar a `approved`.
-
-## 17.8 Marcar como publicada
-
-### `POST /responses/:responseId/publish`
-
-### Uso
-
-Registrar que ya fue publicada o utilizada.
-
-### Nota
-
-En MVP esto puede ser solo un cambio de estado, sin integración externa real.
-
-## 17.9 Descartar response
-
-### `POST /responses/:responseId/discard`
-
-### Uso
-
-Descartar sugerencia sin hard delete.
-
-## 17.10 Marcar como final
-
-### `POST /responses/:responseId/mark-final`
-
-### Uso
-
-Seleccionar la propuesta elegida para esa review.
+- `POST /reviews/:reviewId/mark-not-responded`
+  Revertir el estado si se marcó por error.
 
 ### Regla
 
-Debe haber a lo sumo una final por review.
+No abrir endpoints de:
 
-## 18. DTOs sugeridos
+- generate con IA
+- request approval
+- approve
+- publish
+- discard
+- mark final
 
-### `CreateResponseDto`
+Todo eso queda fuera del MVP.
 
-- `reviewId`
-- `content`
-- `source`
-- `tone?`
-- `language?`
+---
 
-### `GenerateResponseDto`
+## 6. UI mínima
 
-- `reviewId`
-- `tone?`
-- `templateId?`
+La UI debe vivir pegada a la reseña, no como un sistema separado complejo.
 
-### `UpdateResponseDto`
+### Pantallas o bloques mínimos
 
-- `content?`
-- `tone?`
-- `status?`
-
-### `ApproveResponseDto`
-
-- `note?`
-
-### `DiscardResponseDto`
-
-- `reason?`
-
-### `ResponseFiltersDto`
-
-- `reviewId?`
-- `status?`
-- `source?`
-- `page?`
-- `limit?`
-
-## 19. Eventos internos posibles
-
-- `response.created`
-- `response.generated`
-- `response.updated`
-- `response.approval_requested`
-- `response.approved`
-- `response.published`
-- `response.discarded`
-- `response.marked_final`
-
-### Estos eventos pueden servir para
-
-- activity log
-- analytics
-- alertas
-- métricas de SLA
-- seguimiento interno
-
-## 20. Auditoría
-
-### Acciones que deberían auditarse
-
-- generación IA
-- creación manual
-- edición de contenido
-- cambio de estado
-- aprobación
-- publicación
-- descarte
-- marcado como final
-
-### Campos útiles
-
-- `actorUserId`
-- `businessId`
-- `reviewId`
-- `responseId`
-- `action`
-- `previousValue` resumido
-- `newValue` resumido
-- `timestamp`
-
-## 21. Edge cases a contemplar
-
-### Caso 1
-
-Dos operadores generan respuesta para la misma review.
-
-### Solución
-
-- permitir múltiples borradores
-- marcar una sola como final
-
-### Caso 2
-
-Se intenta aprobar una respuesta ya descartada.
-
-### Solución
-
-- bloquear transición inválida
-
-### Caso 3
-
-Se edita una respuesta ya publicada.
-
-### Solución
-
-- restringir edición o generar nueva versión / no permitir según política
-
-### Caso 4
-
-Review negativa requiere aprobación obligatoria.
-
-### Solución
-
-- política por negocio o rating threshold
-
-### Caso 5
-
-Se elimina o cambia la review asociada.
-
-### Solución
-
-- no permitir romper integridad
-- `response` siempre ligada a review existente
-
-### Caso 6
-
-La IA genera texto malo o riesgoso.
-
-### Solución
-
-- siempre revisión humana
-- IA produce `draft`, no publicación directa por defecto
-
-### Caso 7
-
-Múltiples respuestas finales para una misma review.
-
-### Solución
-
-- constraint lógica y/o transacción que garantice una sola final
-
-### Caso 8
-
-No hay integración real con Google u otra plataforma todavía.
-
-### Solución
-
-- separar claramente `approved` de `published`
-- si `published` es manual, dejarlo explícito
-
-## 22. Qué NO hacer en este módulo
-
-- no publicar automáticamente respuestas sensibles sin control
-- no borrar historial por comodidad
-- no mezclar este módulo con inbox omnicanal todavía
-- no asumir integración externa completa desde el día uno
-- no dejar permisos ambiguos de aprobación
-- no permitir inconsistencias entre review y business
-- no confiar en frontend para validar seguridad o tenancy
-
-## 23. UI mínima necesaria
-
-La UI debe ser operativa y muy simple.
-
-### Pantallas mínimas sugeridas
-
-### 1. Panel de respuestas dentro de la review
-
-Debe mostrar:
-
-- contenido de la review
-- respuestas existentes
-- estado
-- autor / origen
-- acción de editar / generar / aprobar / publicar
-
-### 2. Editor de respuesta
+#### 1. Sección de respuesta dentro del detalle de review
 
 Debe permitir:
 
-- ver borrador
-- editar texto
+- ver si la reseña está respondida o no
+- ver el texto de respuesta si existe
+- ver quién respondió
+- ver cuándo respondió
+
+#### 2. Editor simple
+
+Debe permitir:
+
+- escribir respuesta
+- editarla
 - guardar
-- descartar
-- enviar a aprobación
 
-### 3. Acción de generar con IA
+#### 3. Acción rápida
 
-Botón simple que cree una propuesta.
+Debe permitir:
 
-### 4. Historial básico
+- marcar respondida
+- marcar no respondida si se necesita corregir
 
-Mostrar versiones o al menos propuestas anteriores si existen.
+### Regla UI
 
-### Regla UI oficial
+No construir un composer complejo.
+No construir un flujo editorial.
+No construir un centro de IA.
 
-Nada de experiencia visual compleja.  
-Nada de composer sofisticado estilo soporte enterprise.  
-Solo flujo claro para:
+La UI debe resolver operación real con el menor costo posible.
 
-- generar
-- editar
-- aprobar
-- marcar publicada
+---
 
-## 24. Datos demo sugeridos
+## 7. Tests mínimos
 
-### Ejemplo 1
+### Unit
 
-- `reviewId: rev_001`
-- `source: ai_generated`
-- `status: draft`
-- `content: "¡Gracias por tu reseña! Nos alegra saber que disfrutaste tu experiencia con nosotros."`
+- validación de campos mínimos
+- regla simple de estado respondida o no respondida
 
-### Ejemplo 2
+### Integration
 
-- `reviewId: rev_002`
-- `source: manual`
-- `status: approved`
-- `content: "Lamentamos lo ocurrido y agradecemos que nos lo hayas comentado. Queremos ayudarte a resolverlo."`
+- crear response sobre review del tenant correcto
+- impedir crear response sobre review ajena
+- editar response
+- marcar review como respondida
+- revertir marca si aplica
+- persistir `respondedByUserId` y `respondedAt`
 
-### Ejemplo 3
-
-- `reviewId: rev_003`
-- `source: template`
-- `status: published`
-- `content: "Muchas gracias por tu confianza y por tomarte el tiempo de dejarnos tu opinión."`
-
-## 25. Tests mínimos recomendados
-
-### Unit tests
-
-- validación de transiciones de estado
-- regla de una sola final por review
-- helpers de tono o selección de plantilla si existen
-
-### Integration tests
-
-- crear response sobre review accesible
-- impedir crear sobre review ajena
-- generar draft con IA
-- editar borrador
-- solicitar aprobación
-- aprobar con permisos correctos
-- impedir aprobación sin permiso
-- descartar sin borrar
-- marcar una sola response como final
-
-### Contract / API tests
+### Contract
 
 - `POST /responses`
-- `POST /responses/generate`
-- `GET /reviews/:reviewId/responses`
-- `PATCH /responses/:id`
-- `POST /responses/:id/approve`
-- `POST /responses/:id/publish`
-- `POST /responses/:id/discard`
-- `POST /responses/:id/mark-final`
+- `GET /reviews/:reviewId/response`
+- `PATCH /responses/:responseId`
+- `POST /reviews/:reviewId/mark-responded`
 
-### E2E futuros
+### E2E mínimo relacionado
 
 - login
-- abrir review
-- generar propuesta
-- editar
-- aprobar
-- marcar como publicada
+- entrar al negocio
+- abrir reseña
+- guardar respuesta
+- ver reseña marcada como respondida
 
-## 26. Orden recomendado de implementación
+---
 
-- definir relación `Review -> Response`
-- schema Prisma de `Response`
-- DTOs
-- service para creación / edición / cambio de estado
-- guards / policies
-- endpoints principales
-- tests integración
-- generación IA básica
-- frontend mínimo dentro de detalle de review
-- versions / templates si la tanda lo permite
+## 8. Qué se congela explícitamente
 
-## 27. Definición de “done” del módulo
+Queda congelado por ahora:
 
-El módulo `responses` está suficientemente listo cuando:
+- motor IA
+- prompts complejos
+- versionado avanzado
+- approvals
+- publish workflow
+- SLA
+- alertas
+- escalado automático
+- policies por tono o score
+- métricas avanzadas de tiempo de respuesta
+- historial editorial sofisticado
 
-- se puede crear respuesta manual
-- se puede generar sugerencia IA
-- se puede editar un borrador
-- se puede aprobar o descartar
-- se puede marcar como final / publicada
-- respeta tenancy
-- no permite responder reviews ajenas
-- tiene tests mínimos
-- tiene UI mínima operativa dentro de una review
+### Regla final
 
-## 28. Recomendación operativa importante
-
-En el MVP conviene que la publicación externa real no sea el primer problema a resolver.
-
-Primero hay que dejar bien resuelto:
-
-- `draft`
-- edición
-- aprobación
-- `final`
-- registro operativo de “ya respondida”
-
-Después se conecta publicación externa real si aporta valor suficiente.
-
-## 29. Resumen práctico
-
-`responses` es uno de los módulos donde más valor perceptible puede generar Flikker OS.
-
-### La prioridad acá es
-
-- velocidad operativa
-- consistencia de tono
-- control humano
-- historial razonable
-- permisos correctos
-- tenancy correcto
-- UI mínima sin sobrecomplicar
+`responses` en este MVP no es una promesa de automatización inteligente.
+Es una capa simple para registrar que una reseña fue respondida, con texto, autor y fecha.

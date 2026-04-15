@@ -1,7 +1,10 @@
-import { getSession } from "@/lib/auth";
-import { apiFetch } from "@/lib/api";
-import { redirect } from "next/navigation";
-import Link from "next/link";
+import { getSession } from '@/lib/auth';
+import { apiFetch, isUnauthorizedApiError } from '@/lib/api';
+import { redirect } from 'next/navigation';
+import PageHeader from '@/components/ui/page-header';
+import SectionCard from '@/components/ui/section-card';
+import MetricCard from '@/components/ui/metric-card';
+import CampaignCard from '@/components/campaigns/campaign-card';
 
 interface Campaign {
   id: string;
@@ -14,17 +17,9 @@ interface Campaign {
   _count: { qrCodes: number; scanEvents: number };
 }
 
-const STATUS_COLORS: Record<string, string> = {
-  ACTIVE: "bg-green-100 text-green-700",
-  DRAFT: "bg-zinc-100 text-zinc-600",
-  PAUSED: "bg-yellow-100 text-yellow-700",
-  COMPLETED: "bg-blue-100 text-blue-700",
-  ARCHIVED: "bg-red-100 text-red-600",
-};
-
 export default async function CampaignsPage() {
   const session = await getSession();
-  if (!session?.activeBusinessId) redirect("/dashboard");
+  if (!session?.activeBusinessId) redirect('/dashboard');
 
   const { accessToken, activeBusinessId } = session;
 
@@ -32,104 +27,112 @@ export default async function CampaignsPage() {
   let error: string | null = null;
 
   try {
-    campaigns = await apiFetch<Campaign[]>("/campaigns", accessToken, {
+    campaigns = await apiFetch<Campaign[]>('/campaigns', accessToken, {
       businessId: activeBusinessId,
     });
   } catch (e) {
-    error = e instanceof Error ? e.message : "Error al cargar campanas";
+    if (isUnauthorizedApiError(e)) redirect('/session-expired');
+    error = e instanceof Error ? e.message : 'Error al cargar campañas';
   }
 
   if (error) {
     return (
-      <div className="max-w-4xl">
-        <h1 className="text-2xl font-semibold text-zinc-900">Campanas</h1>
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-700">{error}</p>
+      <div className="mx-auto max-w-4xl">
+        <PageHeader
+          eyebrow="Campañas"
+          title="Campañas"
+          subtitle="No pudimos cargar las campañas del negocio activo."
+        />
+        <div
+          className="mt-6 rounded-[24px] border px-5 py-4 text-sm text-[color:var(--danger-text)]"
+          style={{
+            backgroundColor: 'var(--danger-bg)',
+            borderColor: 'rgba(161,45,58,0.16)',
+          }}
+        >
+          {error}
         </div>
       </div>
     );
   }
 
+  const activeCount = campaigns.filter((campaign) => campaign.status === 'ACTIVE').length;
+  const totalScans = campaigns.reduce(
+    (sum, campaign) => sum + campaign._count.scanEvents,
+    0,
+  );
+  const totalQrs = campaigns.reduce(
+    (sum, campaign) => sum + campaign._count.qrCodes,
+    0,
+  );
+
   return (
-    <div className="max-w-5xl">
-      <h1 className="text-2xl font-semibold text-zinc-900">Campanas</h1>
-      <p className="text-sm text-zinc-500 mt-1">
-        {campaigns.length} campana{campaigns.length !== 1 ? "s" : ""}
-      </p>
+    <div className="mx-auto max-w-6xl space-y-6">
+      <PageHeader
+        eyebrow="Campañas"
+        title="Campañas"
+        subtitle="Links y QR del negocio activo."
+      />
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <div className="flikker-card rounded-[28px] p-6 md:p-7">
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--text-soft)]">
+            Resumen
+          </p>
+          <h2 className="mt-3 text-2xl font-semibold text-[color:var(--foreground)]">
+            Estado de campañas
+          </h2>
+          <p className="mt-3 text-sm leading-6 text-[color:var(--text-muted)]">
+            Cantidad, uso y estado de los activos trazables.
+          </p>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <MetricCard label="Campañas" value={campaigns.length} />
+            <MetricCard label="Activas" value={activeCount} tone="accent" />
+            <MetricCard label="Scans" value={totalScans} />
+          </div>
+        </div>
+
+        <SectionCard
+          title="Datos rápidos"
+          description="Vista general del módulo."
+        >
+          <div className="grid gap-3 sm:grid-cols-3">
+            <MetricCard
+              label="QR"
+              value={totalQrs}
+              hint="Activos vinculados"
+              tone="accent"
+            />
+            <MetricCard
+              label="Scans"
+              value={totalScans}
+              hint="Eventos registrados"
+            />
+            <MetricCard
+              label="Activas"
+              value={activeCount}
+              hint="Listas para usar"
+              tone="warm"
+            />
+          </div>
+        </SectionCard>
+      </section>
 
       {campaigns.length === 0 ? (
-        <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-8 text-center">
-          <p className="text-zinc-500">No hay campanas creadas.</p>
+        <div className="flikker-card rounded-[28px] px-6 py-10 text-center">
+          <h2 className="text-2xl font-semibold text-[color:var(--foreground)]">
+            Todavía no hay campañas
+          </h2>
+          <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-[color:var(--text-muted)]">
+            Cuando crees links o QR, vas a verlos acá.
+          </p>
         </div>
       ) : (
-        <div className="mt-6 overflow-x-auto rounded-lg border border-zinc-200 bg-white">
-          <table className="w-full text-sm">
-            <thead className="bg-zinc-50 border-b border-zinc-200">
-              <tr>
-                <th className="text-left px-4 py-3 font-medium text-zinc-600">
-                  Nombre
-                </th>
-                <th className="text-left px-4 py-3 font-medium text-zinc-600">
-                  Estado
-                </th>
-                <th className="text-left px-4 py-3 font-medium text-zinc-600">
-                  Canal
-                </th>
-                <th className="text-left px-4 py-3 font-medium text-zinc-600">
-                  Sucursal
-                </th>
-                <th className="text-right px-4 py-3 font-medium text-zinc-600">
-                  QRs
-                </th>
-                <th className="text-right px-4 py-3 font-medium text-zinc-600">
-                  Scans
-                </th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {campaigns.map((c) => (
-                <tr key={c.id} className="hover:bg-zinc-50">
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-zinc-900">{c.name}</div>
-                    <div className="text-xs text-zinc-400">{c.slug}</div>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLORS[c.status] ?? "bg-zinc-100 text-zinc-600"}`}
-                    >
-                      {c.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-zinc-600">
-                    {c.channel.replace(/_/g, " ")}
-                    {c.enableLanding && (
-                      <span className="ml-1 text-xs text-blue-500">
-                        + landing
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-500">
-                    {c.branch?.name ?? "-"}
-                  </td>
-                  <td className="px-4 py-3 text-right text-zinc-600">
-                    {c._count.qrCodes}
-                  </td>
-                  <td className="px-4 py-3 text-right text-zinc-600">
-                    {c._count.scanEvents}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <Link
-                      href={`/dashboard/campaigns/${c.id}`}
-                      className="text-xs text-blue-600 hover:underline"
-                    >
-                      Ver stats
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="space-y-4">
+          {campaigns.map((campaign) => (
+            <CampaignCard key={campaign.id} campaign={campaign} />
+          ))}
         </div>
       )}
     </div>

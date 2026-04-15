@@ -18,6 +18,7 @@
     "typecheck": "npm run typecheck --workspace=apps/api && npm run typecheck --workspace=apps/web",
     "lint": "npm run lint:check --workspace=apps/api && npm run lint:check --workspace=apps/web",
     "test": "npm run test --workspace=apps/api",
+    "test:e2e:web": "playwright test",
     "test:cov": "npm run test:cov --workspace=apps/api",
     "ci": "npm run typecheck && npm run lint && npm run test"
   },
@@ -37,6 +38,7 @@
     "concurrently": "^9.2.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "turbo": "^2.8.20"
   }
 }

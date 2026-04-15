@@ -1,6 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import BrandPreviewCard from '@/components/settings/brand-preview-card';
+import ColorSwatch from '@/components/settings/color-swatch';
+import SettingsFormSection from '@/components/settings/settings-form-section';
+import MetricCard from '@/components/ui/metric-card';
+import PageHeader from '@/components/ui/page-header';
 import { useCanMutate } from '../../role-context';
 
 interface Business {
@@ -36,14 +41,12 @@ interface BrandProfile {
 export default function SettingsPage() {
   const canMutate = useCanMutate();
 
-  // Business info state
   const [business, setBusiness] = useState<Business | null>(null);
   const [bizLoading, setBizLoading] = useState(true);
   const [bizSaving, setBizSaving] = useState(false);
   const [bizMessage, setBizMessage] = useState<string | null>(null);
   const [bizError, setBizError] = useState<string | null>(null);
 
-  // Business form fields
   const [bizName, setBizName] = useState('');
   const [bizIndustry, setBizIndustry] = useState('');
   const [bizDescription, setBizDescription] = useState('');
@@ -51,14 +54,11 @@ export default function SettingsPage() {
   const [bizPhone, setBizPhone] = useState('');
   const [bizEmail, setBizEmail] = useState('');
 
-  // Brand profile state
-  const [brand, setBrand] = useState<BrandProfile | null>(null);
   const [brandLoading, setBrandLoading] = useState(true);
   const [brandSaving, setBrandSaving] = useState(false);
   const [brandMessage, setBrandMessage] = useState<string | null>(null);
   const [brandError, setBrandError] = useState<string | null>(null);
 
-  // Brand form fields
   const [logoUrl, setLogoUrl] = useState('');
   const [primaryColor, setPrimaryColor] = useState('');
   const [secondaryColor, setSecondaryColor] = useState('');
@@ -93,7 +93,6 @@ export default function SettingsPage() {
       const res = await fetch('/api/proxy/businesses/current/brand');
       if (!res.ok) throw new Error('Error al cargar perfil de marca');
       const data: BrandProfile = await res.json();
-      setBrand(data);
       setLogoUrl(data.logoUrl ?? '');
       setPrimaryColor(data.primaryColor ?? '');
       setSecondaryColor(data.secondaryColor ?? '');
@@ -191,147 +190,305 @@ export default function SettingsPage() {
   }
 
   const inputClass =
-    'rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200';
+    'mt-2 w-full rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-colors placeholder:text-[color:var(--text-soft)] focus:border-[color:var(--brand-accent)] focus:ring-2 focus:ring-[color:rgba(145,136,245,0.14)]';
+  const textareaClass = `${inputClass} min-h-[112px] resize-y`;
+  const actionButtonClass =
+    'inline-flex items-center rounded-[16px] bg-[color:var(--brand-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,4,65,0.18)] transition-colors hover:bg-[color:var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60';
+
+  const businessFieldsFilled = [
+    bizWebsite,
+    bizPhone,
+    bizEmail,
+    bizDescription,
+    bizIndustry,
+  ].filter((value) => value.trim()).length;
+
+  const brandFieldsFilled = [
+    logoUrl,
+    primaryColor,
+    secondaryColor,
+    shortBio,
+    signatureText,
+    googleBusinessProfileUrl,
+    defaultReviewRedirectUrl,
+  ].filter((value) => value.trim()).length;
 
   return (
-    <div className="max-w-3xl space-y-8">
-      <h1 className="text-2xl font-semibold text-zinc-900">Configuración</h1>
+    <div className="space-y-8">
+      <PageHeader
+        eyebrow="Configuración"
+        title="Negocio y marca"
+        subtitle="Datos del negocio y perfil de marca."
+      />
 
-      {/* Business info form */}
-      <form onSubmit={handleSaveBusiness} className="rounded-xl border border-zinc-200 bg-white p-5">
-        <h2 className="text-sm font-medium text-zinc-900 mb-4">Información del negocio</h2>
+      <section className="grid gap-4 lg:grid-cols-4">
+        <MetricCard
+          label="Negocio"
+          value={business?.name ?? (bizLoading ? '...' : '-')}
+          tone="accent"
+          hint={business?.status === 'ACTIVE' ? 'Activo' : business?.status ?? 'Sin estado'}
+        />
+        <MetricCard
+          label="Datos completos"
+          value={bizLoading ? '...' : `${businessFieldsFilled}/5`}
+          hint="Sitio, teléfono, email, industria y descripción"
+        />
+        <MetricCard
+          label="Marca"
+          value={brandLoading ? '...' : `${brandFieldsFilled}/7`}
+          hint="Logo, colores y enlaces"
+        />
+        <MetricCard
+          label="Slug"
+          value={business?.slug ?? (bizLoading ? '...' : '-')}
+          hint="Identificador del negocio"
+        />
+      </section>
 
-        {bizLoading ? (
-          <p className="text-sm text-zinc-500">Cargando...</p>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-zinc-600">Nombre</label>
-                <input value={bizName} onChange={(e) => setBizName(e.target.value)} className={inputClass} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-zinc-600">Industria</label>
-                <input value={bizIndustry} onChange={(e) => setBizIndustry(e.target.value)} className={inputClass} />
-              </div>
-              <div className="flex flex-col gap-1 sm:col-span-2">
-                <label className="text-xs font-medium text-zinc-600">Descripción</label>
-                <textarea value={bizDescription} onChange={(e) => setBizDescription(e.target.value)} rows={2} className={inputClass} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-zinc-600">Website</label>
-                <input value={bizWebsite} onChange={(e) => setBizWebsite(e.target.value)} className={inputClass} />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-zinc-600">Teléfono</label>
-                <input value={bizPhone} onChange={(e) => setBizPhone(e.target.value)} className={inputClass} />
-              </div>
-              <div className="flex flex-col gap-1 sm:col-span-2">
-                <label className="text-xs font-medium text-zinc-600">Email</label>
-                <input type="email" value={bizEmail} onChange={(e) => setBizEmail(e.target.value)} className={inputClass} />
-              </div>
-            </div>
+      <div className="grid gap-8 xl:grid-cols-[minmax(0,1.2fr)_380px]">
+        <div className="space-y-8">
+          <form onSubmit={handleSaveBusiness}>
+            <SettingsFormSection
+              eyebrow="Negocio"
+              title="Datos generales"
+              description="Información básica del negocio."
+              footer={
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm text-[color:var(--text-muted)]">
+                    {bizError ? (
+                      <span className="text-[color:var(--danger-text)]">{bizError}</span>
+                    ) : bizMessage ? (
+                      <span className="text-[color:var(--success-text)]">{bizMessage}</span>
+                    ) : (
+                      'Estos datos se usan en el panel y en salidas públicas.'
+                    )}
+                  </div>
 
-            <div className="mt-3 text-xs text-zinc-400">
-              Slug: {business?.slug} · País: {business?.country} · Zona: {business?.timezone} · Moneda: {business?.currency}
-            </div>
-
-            {bizError && <p className="mt-3 text-sm text-red-600">{bizError}</p>}
-            {bizMessage && <p className="mt-3 text-sm text-green-600">{bizMessage}</p>}
-
-            {canMutate && (
-              <button
-                type="submit" disabled={bizSaving}
-                className="mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-zinc-900 text-white hover:bg-zinc-700 transition-colors disabled:opacity-50"
-              >
-                {bizSaving ? 'Guardando...' : 'Guardar negocio'}
-              </button>
-            )}
-          </>
-        )}
-      </form>
-
-      {/* Brand profile form */}
-      <form onSubmit={handleSaveBrand} className="rounded-xl border border-zinc-200 bg-white p-5">
-        <h2 className="text-sm font-medium text-zinc-900 mb-4">Perfil de marca</h2>
-
-        {brandLoading ? (
-          <p className="text-sm text-zinc-500">Cargando...</p>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1 sm:col-span-2">
-                <label className="text-xs font-medium text-zinc-600">URL del logo</label>
-                <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} className={inputClass} placeholder="https://..." />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-zinc-600">Color primario</label>
-                <div className="flex items-center gap-2">
-                  <input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className={inputClass + ' flex-1'} placeholder="#FF6B00" />
-                  {primaryColor && (
-                    <div className="w-8 h-8 rounded border border-zinc-200" style={{ backgroundColor: primaryColor }} />
-                  )}
+                  {canMutate ? (
+                    <button type="submit" disabled={bizSaving || bizLoading} className={actionButtonClass}>
+                      {bizSaving ? 'Guardando...' : 'Guardar negocio'}
+                    </button>
+                  ) : null}
                 </div>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-zinc-600">Color secundario</label>
-                <div className="flex items-center gap-2">
-                  <input value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} className={inputClass + ' flex-1'} placeholder="#1A1A1A" />
-                  {secondaryColor && (
-                    <div className="w-8 h-8 rounded border border-zinc-200" style={{ backgroundColor: secondaryColor }} />
-                  )}
+              }
+            >
+              {bizLoading ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="h-24 animate-pulse rounded-[22px] bg-[color:var(--surface-muted)]" />
+                  <div className="h-24 animate-pulse rounded-[22px] bg-[color:var(--surface-muted)]" />
+                  <div className="h-32 animate-pulse rounded-[22px] bg-[color:var(--surface-muted)] sm:col-span-2" />
+                  <div className="h-24 animate-pulse rounded-[22px] bg-[color:var(--surface-muted)]" />
+                  <div className="h-24 animate-pulse rounded-[22px] bg-[color:var(--surface-muted)]" />
                 </div>
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-zinc-600">Tono de voz</label>
-                <input value={toneOfVoice} onChange={(e) => setToneOfVoice(e.target.value)} className={inputClass} placeholder="friendly, professional, casual..." />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-zinc-600">WhatsApp URL</label>
-                <input value={whatsappUrl} onChange={(e) => setWhatsappUrl(e.target.value)} className={inputClass} placeholder="https://wa.me/..." />
-              </div>
-              <div className="flex flex-col gap-1 sm:col-span-2">
-                <label className="text-xs font-medium text-zinc-600">Bio corta</label>
-                <textarea value={shortBio} onChange={(e) => setShortBio(e.target.value)} rows={2} maxLength={280} className={inputClass} placeholder="Descripción corta para perfiles y reseñas..." />
-                <span className="text-xs text-zinc-400">{shortBio.length}/280</span>
-              </div>
-              <div className="flex flex-col gap-1 sm:col-span-2">
-                <label className="text-xs font-medium text-zinc-600">Firma</label>
-                <input value={signatureText} onChange={(e) => setSignatureText(e.target.value)} maxLength={120} className={inputClass} placeholder="Equipo de..." />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-zinc-600">Google Business Profile URL</label>
-                <input value={googleBusinessProfileUrl} onChange={(e) => setGoogleBusinessProfileUrl(e.target.value)} className={inputClass} placeholder="https://g.page/..." />
-              </div>
-              <div className="flex flex-col gap-1">
-                <label className="text-xs font-medium text-zinc-600">URL redirección reseñas</label>
-                <input value={defaultReviewRedirectUrl} onChange={(e) => setDefaultReviewRedirectUrl(e.target.value)} className={inputClass} placeholder="https://g.page/.../review" />
-              </div>
-            </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        Nombre del negocio
+                      </label>
+                      <input value={bizName} onChange={(e) => setBizName(e.target.value)} className={inputClass} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        Industria
+                      </label>
+                      <input value={bizIndustry} onChange={(e) => setBizIndustry(e.target.value)} className={inputClass} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        Descripción corta
+                      </label>
+                      <textarea value={bizDescription} onChange={(e) => setBizDescription(e.target.value)} rows={4} className={textareaClass} />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        Sitio web
+                      </label>
+                      <input value={bizWebsite} onChange={(e) => setBizWebsite(e.target.value)} className={inputClass} placeholder="https://..." />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        Teléfono
+                      </label>
+                      <input value={bizPhone} onChange={(e) => setBizPhone(e.target.value)} className={inputClass} />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        Email de contacto
+                      </label>
+                      <input type="email" value={bizEmail} onChange={(e) => setBizEmail(e.target.value)} className={inputClass} />
+                    </div>
+                  </div>
 
-            {/* Logo preview */}
-            {brand?.logoUrl && (
-              <div className="mt-4">
-                <p className="text-xs font-medium text-zinc-600 mb-2">Preview logo</p>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={brand.logoUrl} alt="Logo" className="w-16 h-16 rounded-lg border border-zinc-200 object-cover" />
-              </div>
-            )}
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="rounded-[22px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">Slug</p>
+                      <p className="mt-3 text-sm font-semibold text-[color:var(--foreground)]">{business?.slug ?? '-'}</p>
+                    </div>
+                    <div className="rounded-[22px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">País y moneda</p>
+                      <p className="mt-3 text-sm font-semibold text-[color:var(--foreground)]">
+                        {business?.country ?? '-'} · {business?.currency ?? '-'}
+                      </p>
+                    </div>
+                    <div className="rounded-[22px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">Zona horaria</p>
+                      <p className="mt-3 text-sm font-semibold text-[color:var(--foreground)]">{business?.timezone ?? '-'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </SettingsFormSection>
+          </form>
 
-            {brandError && <p className="mt-3 text-sm text-red-600">{brandError}</p>}
-            {brandMessage && <p className="mt-3 text-sm text-green-600">{brandMessage}</p>}
+          <form onSubmit={handleSaveBrand}>
+            <SettingsFormSection
+              eyebrow="Marca"
+              title="Perfil de marca"
+              description="Logo, colores y enlaces base."
+              footer={
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="text-sm text-[color:var(--text-muted)]">
+                    {brandError ? (
+                      <span className="text-[color:var(--danger-text)]">{brandError}</span>
+                    ) : brandMessage ? (
+                      <span className="text-[color:var(--success-text)]">{brandMessage}</span>
+                    ) : (
+                      'Estos datos se usan en widgets y superficies públicas.'
+                    )}
+                  </div>
 
-            {canMutate && (
-              <button
-                type="submit" disabled={brandSaving}
-                className="mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-zinc-900 text-white hover:bg-zinc-700 transition-colors disabled:opacity-50"
-              >
-                {brandSaving ? 'Guardando...' : 'Guardar marca'}
-              </button>
-            )}
-          </>
-        )}
-      </form>
+                  {canMutate ? (
+                    <button type="submit" disabled={brandSaving || brandLoading} className={actionButtonClass}>
+                      {brandSaving ? 'Guardando...' : 'Guardar marca'}
+                    </button>
+                  ) : null}
+                </div>
+              }
+            >
+              {brandLoading ? (
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="h-24 animate-pulse rounded-[22px] bg-[color:var(--surface-muted)] sm:col-span-2" />
+                  <div className="h-24 animate-pulse rounded-[22px] bg-[color:var(--surface-muted)]" />
+                  <div className="h-24 animate-pulse rounded-[22px] bg-[color:var(--surface-muted)]" />
+                  <div className="h-32 animate-pulse rounded-[22px] bg-[color:var(--surface-muted)] sm:col-span-2" />
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        URL del logo
+                      </label>
+                      <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} className={inputClass} placeholder="https://..." />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        Color primario
+                      </label>
+                      <input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className={inputClass} placeholder="#9188F5" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        Color secundario
+                      </label>
+                      <input value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} className={inputClass} placeholder="#000441" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        Tono de voz
+                      </label>
+                      <input value={toneOfVoice} onChange={(e) => setToneOfVoice(e.target.value)} className={inputClass} placeholder="cercano, profesional, directo..." />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        URL de WhatsApp
+                      </label>
+                      <input value={whatsappUrl} onChange={(e) => setWhatsappUrl(e.target.value)} className={inputClass} placeholder="https://wa.me/..." />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        Bio corta
+                      </label>
+                      <textarea
+                        value={shortBio}
+                        onChange={(e) => setShortBio(e.target.value)}
+                        rows={4}
+                        maxLength={280}
+                        className={textareaClass}
+                        placeholder="Descripción breve del negocio..."
+                      />
+                      <p className="mt-2 text-xs text-[color:var(--text-soft)]">{shortBio.length}/280</p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        Firma
+                      </label>
+                      <input
+                        value={signatureText}
+                        onChange={(e) => setSignatureText(e.target.value)}
+                        maxLength={120}
+                        className={inputClass}
+                        placeholder="Equipo de..."
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        Google Business Profile
+                      </label>
+                      <input
+                        value={googleBusinessProfileUrl}
+                        onChange={(e) => setGoogleBusinessProfileUrl(e.target.value)}
+                        className={inputClass}
+                        placeholder="https://g.page/..."
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                        URL por defecto para reseñas
+                      </label>
+                      <input
+                        value={defaultReviewRedirectUrl}
+                        onChange={(e) => setDefaultReviewRedirectUrl(e.target.value)}
+                        className={inputClass}
+                        placeholder="https://g.page/.../review"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <ColorSwatch label="Primario" value={primaryColor} />
+                    <ColorSwatch label="Secundario" value={secondaryColor} />
+                  </div>
+                </div>
+              )}
+            </SettingsFormSection>
+          </form>
+        </div>
+
+        <div className="space-y-6">
+          <BrandPreviewCard
+            businessName={bizName.trim() || business?.name || 'Tu negocio'}
+            logoUrl={logoUrl}
+            primaryColor={primaryColor}
+            secondaryColor={secondaryColor}
+            shortBio={shortBio}
+            signatureText={signatureText}
+          />
+
+          <div className="rounded-[28px] border border-[color:var(--border)] bg-[color:var(--surface)] p-6 shadow-[var(--shadow-card)]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--text-soft)]">
+              Incluye
+            </p>
+            <ul className="mt-4 space-y-3 text-sm leading-7 text-[color:var(--text-muted)]">
+              <li>Nombre, contacto y descripción del negocio</li>
+              <li>Logo, colores y firma</li>
+              <li>Enlaces base para reseñas y perfil público</li>
+            </ul>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

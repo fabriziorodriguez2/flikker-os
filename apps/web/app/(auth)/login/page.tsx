@@ -2,6 +2,7 @@
 
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import BrandLogo from '@/components/brand/brand-logo';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -39,16 +40,26 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="w-full max-w-sm">
-      <div className="bg-white border border-zinc-200 rounded-xl px-8 py-10 shadow-sm">
-        <div className="mb-8">
-          <h1 className="text-xl font-semibold text-zinc-900">Flikker OS</h1>
-          <p className="text-sm text-zinc-500 mt-1">Iniciá sesión para continuar</p>
+    <div className="w-full max-w-[420px]">
+      <div className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)] px-6 py-7 shadow-[var(--shadow-card)] sm:px-8 sm:py-8">
+        <div className="mb-8 flex flex-col items-center text-center">
+          <BrandLogo
+            priority
+            width={182}
+            height={155}
+            className="h-auto w-[150px] sm:w-[182px]"
+          />
+          <h1 className="mt-5 text-2xl font-semibold text-[color:var(--foreground)]">
+            Iniciar sesión
+          </h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="flex flex-col gap-1">
-            <label htmlFor="email" className="text-sm font-medium text-zinc-700">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="flex flex-col gap-2">
+            <label
+              htmlFor="email"
+              className="text-sm font-medium text-[color:var(--foreground)]"
+            >
               Email
             </label>
             <input
@@ -58,13 +69,16 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
+              className="flikker-input flikker-focus-ring px-4 py-3 text-sm"
               placeholder="tu@email.com"
             />
           </div>
 
-          <div className="flex flex-col gap-1">
-            <label htmlFor="password" className="text-sm font-medium text-zinc-700">
+          <div className="flex flex-col gap-2">
+            <label
+              htmlFor="password"
+              className="text-sm font-medium text-[color:var(--foreground)]"
+            >
               Contraseña
             </label>
             <input
@@ -74,21 +88,27 @@ export default function LoginPage() {
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
-              placeholder="••••••••"
+              className="flikker-input flikker-focus-ring px-4 py-3 text-sm"
+              placeholder="********"
             />
           </div>
 
-          {error && (
-            <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          {error ? (
+            <p
+              className="rounded-[16px] border px-4 py-3 text-sm text-[color:var(--danger-text)]"
+              style={{
+                backgroundColor: 'var(--danger-bg)',
+                borderColor: 'rgba(161,45,58,0.16)',
+              }}
+            >
               {error}
             </p>
-          )}
+          ) : null}
 
           <button
             type="submit"
             disabled={loading}
-            className="mt-2 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="w-full rounded-[16px] bg-[color:var(--brand-primary)] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[color:var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {loading ? 'Ingresando...' : 'Ingresar'}
           </button>

@@ -1,6 +1,11 @@
-import { getSession } from '@/lib/auth';
+import { clearSession, getSession, setSession } from '@/lib/auth';
 
 const API_URL = process.env.API_URL ?? 'http://localhost:3000';
+
+interface RefreshResponse {
+  accessToken: string;
+  refreshToken: string;
+}
 
 /**
  * Generic proxy to the backend API.
@@ -35,11 +40,58 @@ async function handler(
       ? await request.text()
       : undefined;
 
-  const res = await fetch(`${API_URL}${backendPath}${qs}`, {
-    method: request.method,
-    headers,
-    body,
-  });
+  const sendRequest = (accessToken: string, businessId: string | null) => {
+    const nextHeaders: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${accessToken}`,
+    };
+
+    if (businessId) {
+      nextHeaders['x-business-id'] = businessId;
+    }
+
+    return fetch(`${API_URL}${backendPath}${qs}`, {
+      method: request.method,
+      headers: nextHeaders,
+      body,
+    });
+  };
+
+  let res = await sendRequest(session.accessToken, session.activeBusinessId);
+
+  if (res.status === 401 && session.refreshToken) {
+    try {
+      const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: session.refreshToken }),
+      });
+
+      if (!refreshRes.ok) {
+        throw new Error('Session expired');
+      }
+
+      const refreshedTokens = (await refreshRes.json()) as RefreshResponse;
+      const refreshedSession = {
+        ...session,
+        accessToken: refreshedTokens.accessToken,
+        refreshToken: refreshedTokens.refreshToken,
+      };
+
+      await setSession(refreshedSession);
+      res = await sendRequest(
+        refreshedSession.accessToken,
+        refreshedSession.activeBusinessId,
+      );
+    } catch {
+      await clearSession();
+      return Response.json({ message: 'Session expired' }, { status: 401 });
+    }
+  }
+
+  if (res.status === 401) {
+    await clearSession();
+  }
 
   const data = await res.text();
 

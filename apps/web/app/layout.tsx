@@ -1,20 +1,20 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Manrope, Syne } from "next/font/google";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const syne = Syne({
+  variable: "--font-syne",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "Flikker OS",
-  description: "Plataforma de reputación local",
+  title: "Flikker",
+  description: "Panel de reputación local",
 };
 
 export default function RootLayout({
@@ -24,9 +24,26 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      lang="es"
+      className={`${manrope.variable} ${syne.variable} h-full antialiased`}
+      suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              (function() {
+                try {
+                  var theme = localStorage.getItem('flikker-theme');
+                  if (theme === 'light' || theme === 'dark') {
+                    document.documentElement.dataset.theme = theme;
+                  }
+                } catch (e) {}
+              })();
+            `,
+          }}
+        />
+      </head>
       <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );

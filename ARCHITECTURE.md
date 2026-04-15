@@ -2,48 +2,104 @@
 
 ## 1. Propósito de este documento
 
-Este documento congela las decisiones base de arquitectura de Flikker OS para evitar cambios impulsivos durante las primeras semanas de desarrollo.
+Este documento fija la arquitectura oficial del MVP recortado de Flikker.
 
-Flikker OS es un sistema multi-tenant orientado a reputación local, captación de reseñas, respuesta asistida, prueba social embebible y operación interna para cuentas cliente.
+No describe el producto completo ideal.
+Describe la versión que queremos construir y validar ahora, con el menor costo de complejidad posible.
+
+El objetivo es evitar dos errores:
+
+- subestimar seguridad y tenancy
+- sobreconstruir infraestructura, módulos y flujos antes de validar el uso real
 
 Este archivo define:
 
-- stack oficial
-- estructura del monorepo
-- principios de dominio
-- estrategia multi-tenant
-- convenciones de backend y frontend
-- reglas de crecimiento del sistema
-- límites de lo que NO se debe improvisar
+- principios de arquitectura del MVP
+- stack elegido y por qué
+- infraestructura mínima necesaria hoy
+- infraestructura explícitamente pospuesta
+- dominios activos y dominios congelados
+- modelo de tenancy
+- decisiones mínimas de datos
+- eventos mínimos a registrar
+- slice principal end-to-end
+- seguridad mínima no negociable
+- testing mínimo obligatorio
+- qué no construir todavía
 
 ---
 
-## 2. Objetivo del producto a nivel arquitectura
+## 2. Qué estamos construyendo ahora
 
-No estamos construyendo una app aislada de QR ni una simple web de marketing.
+Flikker MVP no es una plataforma completa de reputación local.
 
-Estamos construyendo una plataforma que permita:
+En esta etapa estamos construyendo un sistema multi-tenant simple para validar este flujo:
 
-- generar canales trazables para pedir reseñas
-- registrar eventos y campañas por negocio/sucursal
-- administrar reseñas y su estado operativo
-- asistir la respuesta con IA
-- reutilizar reseñas como prueba social
-- mostrar esa prueba social en widgets
-- soportar operación interna y crecimiento por cuenta
+`negocio activo -> campaña o QR trazable -> evento -> reseña cargada manualmente -> reseña destacada o respondida -> widget embebido -> métricas mínimas`
 
-La arquitectura debe permitir evolucionar desde MVP operable hacia producto más robusto sin reescritura completa.
+Todo lo que no ayude a operar, mostrar o medir ese flujo queda fuera o congelado temporalmente.
 
 ---
 
-## 3. Stack oficial congelado
+## 3. Principios de arquitectura del MVP
+
+### Principio 1
+
+El MVP se diseña para validar un flujo real, no para anticipar todo el roadmap.
+
+### Principio 2
+
+Multi-tenancy y permisos se resuelven bien desde el día uno.
+Eso no se negocia.
+
+### Principio 3
+
+La infraestructura debe ser la mínima necesaria para que el flujo funcione de punta a punta.
+
+### Principio 4
+
+Si algo puede hacerse manual sin romper el valor del MVP, se hace manual.
+
+Ejemplos aceptables en esta etapa:
+
+- carga manual de reseñas
+- marcado manual de reseña respondida
+- selección manual de reseñas para widget
+- activación manual de campañas
+- revisión manual de métricas mínimas
+
+### Principio 5
+
+Frontend mínimo, backend claro.
+
+La prioridad está en:
+
+- modelo de datos
+- tenancy
+- validaciones
+- contratos API
+- flujo usable
+
+### Principio 6
+
+No se agregan servicios, capas ni tablas "por si luego hacen falta" sin una necesidad concreta del MVP.
+
+### Principio 7
+
+Cada módulo activo debe cerrar un slice usable de negocio.
+
+No queremos piezas aisladas.
+Queremos pasos operables del flujo principal.
+
+---
+
+## 4. Stack elegido y por qué
 
 ### Frontend
 
 - Next.js
 - TypeScript
 - App Router
-- shadcn/ui
 - Tailwind CSS
 
 ### Backend
@@ -59,550 +115,720 @@ La arquitectura debe permitir evolucionar desde MVP operable hacia producto más
 
 - Prisma
 
-### Jobs / colas
-
-- BullMQ
-- Redis
-
-### Storage
-
-- Cloudinary para assets visuales
-- S3 compatible opcional en el futuro si hiciera falta storage más general
-
-### Auth
-
-- Auth propia basada en backend + JWT + refresh tokens + RBAC
-- El control de permisos vive en backend, nunca solo en frontend
-
-### Observabilidad
-
-- logs estructurados
-- Sentry en web y api
-- health checks en api
-
 ### Testing
 
-- unit: Vitest o Jest según package
-- integration / contract: Jest + Supertest en api
-- E2E: Playwright en momentos críticos
+- unit tests en TypeScript
+- integration y contract tests en API
+- E2E mínimo del flujo principal
 
-### Infra local de desarrollo
+### Por qué este stack se mantiene
 
-- Docker Compose para:
-  - postgres
-  - redis
-  - mailhog opcional
-  - servicios auxiliares si se suman luego
+- permite velocidad razonable sin inventar base nueva
+- ya está alineado con la estructura del repo
+- soporta bien un backend modular
+- permite multi-tenancy con control fuerte desde API
+- evita reabrir discusiones de stack mientras recortamos alcance
 
----
+### Qué significa "frontend web moderno" en este MVP
 
-## 4. Decisiones congeladas
+No significa frontend sofisticado.
+Significa una app web actual, mantenible y suficientemente clara para operar:
 
-Estas decisiones no deben reabrirse salvo problema real importante:
-
-1. Monorepo con workspaces.
-2. Frontend separado de backend.
-3. PostgreSQL como base central.
-4. Prisma como ORM.
-5. Multi-tenant desde el día uno.
-6. Dominios alineados a negocio, no a “capas genéricas”.
-7. Claude Code trabaja por tandas chicas, nunca en cambios gigantes.
-8. El frontend no se sobreconstruye: solo se hace lo mínimo indispensable para habilitar y validar flujo.
-9. La seguridad de tenancy, permisos y validaciones se resuelve en backend.
-10. No se mezcla refactor general con feature nueva en el mismo PR.
+- login
+- selección de negocio activo
+- campañas
+- reseñas
+- respuestas mínimas
+- widgets
+- métricas básicas
 
 ---
 
-## 5. Estructura del repositorio
+## 5. Infraestructura que sí es necesaria ahora
 
+Necesaria para esta versión:
+
+- aplicación web
+- API backend
+- PostgreSQL
+- variables de entorno por entorno
+- logging estructurado básico
+- manejo razonable de errores
+- migraciones de base de datos
+- generación de QR como imagen o valor descargable desde la app o API
+
+### Observabilidad mínima útil
+
+- logs en backend
+- errores visibles en desarrollo
+- trazabilidad básica de requests críticas
+- health endpoint en API
+
+### Deploy
+
+Puede ser simple.
+No hace falta una arquitectura distribuida para este MVP.
+
+### Assets
+
+No hace falta storage dedicado como prerequisito.
+Si el QR puede generarse bajo demanda o persistirse de forma simple, alcanza.
+
+---
+
+## 6. Infraestructura que se pospone
+
+No es prerequisito del MVP:
+
+- Redis
+- BullMQ u otra cola
+- S3 o storage general dedicado
+- Cloudinary como dependencia obligatoria
+- workers separados
+- event bus
+- webhooks complejos
+- cron jobs no esenciales
+- CDN especializada
+- replicación compleja
+- búsqueda avanzada
+- pipeline de analítica separado
+- observabilidad enterprise
+- feature flags complejos
+
+### Regla
+
+Nada de esto entra como dependencia base salvo que el flujo principal quede bloqueado sin ello.
+
+Hoy no está bloqueado.
+
+---
+
+## 7. Dominios activos del MVP
+
+Los únicos dominios activos de producto para esta etapa son:
+
+### 7.1 Auth y Access
+
+Incluye:
+
+- login
+- sesión
+- memberships
+- roles
+- negocio activo
+
+### 7.2 Businesses
+
+Incluye:
+
+- negocio como tenant principal
+- datos mínimos del negocio
+- estado operativo simple
+
+### 7.3 Campaigns
+
+Incluye:
+
+- campañas trazables
+- QR o link asociado
+- estado simple
+- relación con negocio
+
+### 7.4 Event Tracking mínimo
+
+Incluye:
+
+- registro de scan
+- registro de click o redirect
+- atribución básica a campaña o QR
+
+### 7.5 Reviews
+
+Incluye:
+
+- carga manual
+- listado
+- detalle
+- estado operativo simple
+- marcado como destacada
+- relación opcional con campaign
+
+### 7.6 Responses mínimas
+
+Incluye:
+
+- respuesta manual
+- edición simple
+- marcado de reseña como respondida o con respuesta asociada
+
+No incluye workflow editorial complejo.
+
+### 7.7 Widgets
+
+Incluye:
+
+- widget embebible simple
+- selección manual o desde reseñas destacadas
+- endpoint público controlado
+
+### 7.8 Analytics mínimas
+
+Incluye solo métricas básicas para validar uso:
+
+- cantidad de campañas
+- scans o clicks por campaña
+- cantidad de reseñas cargadas
+- cantidad de reseñas destacadas
+- cantidad de widgets activos
+- impresiones básicas de widget si se instrumentan
+
+---
+
+## 8. Dominios congelados
+
+Estos dominios no se construyen ahora, aunque puedan existir más adelante:
+
+- IA avanzada de respuestas
+- plantillas complejas de responses
+- aprobaciones multietapa
+- content studio
+- assets de marketing
+- client success
+- onboarding interno complejo
+- notifications complejas
+- billing
+- planes y límites comerciales
+- analytics avanzadas
+- health score
+- automatizaciones complejas
+- CRM
+- inbox omnicanal
+- social integrations grandes
+- app móvil
+
+### Regla
+
+Si una decisión de arquitectura favorece a uno de estos dominios pero complica el MVP, se rechaza.
+
+---
+
+## 9. Estructura del repositorio
+
+Se mantiene la estructura general del monorepo:
+
+```txt
 flikker-os/
 ├─ apps/
-│ ├─ web/
-│ └─ api/
+│  ├─ web/
+│  └─ api/
 ├─ packages/
-│ ├─ ui/
-│ ├─ config/
-│ └─ types/
+│  ├─ ui/
+│  ├─ config/
+│  └─ types/
 ├─ docs/
-│ ├─ modules/
-│ ├─ adr/
-│ └─ runbooks/
+│  ├─ modules/
+│  ├─ adr/
+│  └─ runbooks/
 ├─ ARCHITECTURE.md
 ├─ PRODUCT_SCOPE.md
 ├─ CLAUDE.md
 └─ README.md
+```
 
 ### apps/web
 
-Aplicación frontend principal.
+Responsable de:
 
-Responsabilidades:
-
-- shells de app
-- páginas internas
-- pantallas mínimas para operar módulos
-- formularios
-- tablas
-- vistas de dashboard
-- landings públicas cuando existan
+- login
+- navegación interna
+- formularios y listados mínimos
+- pantallas operativas del MVP
+- vista simple de widgets y métricas
 
 ### apps/api
 
-Backend principal.
+Responsable de:
 
-Responsabilidades:
-
-- módulos de dominio
 - auth
-- RBAC
-- tenancy guards
-- validación de DTOs
-- servicios
-- jobs
-- webhooks
-- integraciones
+- tenancy
+- permisos
+- módulos de dominio
+- generación y resolución de QR o links trazables
 - endpoints públicos y privados
 
-### packages/ui
-
-Componentes compartidos de UI.
-
-### packages/config
-
-Configuraciones compartidas:
-
-- tsconfig base
-- eslint
-- prettier
-- env typing
-- constantes cross-project
-
-### packages/types
-
-Tipos compartidos entre frontend y backend cuando valga la pena.
-
-### docs/modules
-
-Documentación funcional y técnica por módulo.
-
-### docs/adr
-
-Architecture Decision Records.
-
-### docs/runbooks
-
-Guías operativas:
-
-- levantar entorno
-- deploy
-- rollback
-- seeds
-- migraciones
-- troubleshooting
-
 ---
 
-### 6. Organización por dominios
+## 10. Organización por dominios
 
-El sistema se organiza por dominios del negocio, no por carpetas abstractas eternas.
-
-Dominios principales:
+Dentro de `apps/api/src/modules`, el backend debe enfocarse en pocos dominios:
 
 - auth
-- users
 - memberships
 - businesses
-- branches
-- brand-profile
 - campaigns
-- qr-codes
-- redirect-events
+- tracking o events
 - reviews
-- review-tags
-- review-status
-- response-templates
 - responses
 - widgets
-- assets
-- analytics
-- onboarding
-- notifications
+- common
+
+### Regla
+
+No abrir módulos vacíos para futuros congelados.
+
+Ejemplos de módulos que no deberían existir todavía:
+
 - billing
-- platform-ops
-
-Cada dominio debe intentar vivir de punta a punta con:
-
-- modelo de datos
-- DTOs
-- reglas
-- servicio
-- controlador
-- tests
-- documentación
+- onboarding
+- assets
+- content
+- analytics avanzada
+- notifications complejas
 
 ---
 
-## 7. Estructura de módulos en backend
+## 11. Modelo de tenancy
 
-Dentro de apps/api/src/modules:
+Multi-tenant desde el día uno sigue siendo obligatorio.
 
-modules/
-├─ auth/
-├─ users/
-├─ memberships/
-├─ businesses/
-├─ branches/
-├─ campaigns/
-├─ reviews/
-├─ responses/
-├─ widgets/
-├─ assets/
-├─ analytics/
-├─ onboarding/
-├─ billing/
-├─ common/
-└─ jobs/
+### Unidad principal de tenancy
 
-Cada módulo debería tender a esta forma:
+El tenant operativo principal es `business`.
 
-reviews/
-├─ dto/
-├─ entities/
-├─ controllers/
-├─ services/
-├─ repositories/
-├─ policies/
-├─ tests/
-└─ reviews.module.ts
+### Modelo mínimo
 
----
-
-## 8. Estrategia multi-tenant
-
-Multi-tenant no es opcional.
+- `users`
+- `businesses`
+- `memberships`
 
 ### Regla principal
 
-Toda entidad de negocio relevante debe quedar scoped a tenant/business desde el diseño inicial.
+Toda entidad de negocio relevante debe quedar asociada a un `businessId` o derivarse inequívocamente de una entidad que ya lo tenga.
 
-### Entidades núcleo para tenancy
+### Entidades que deben quedar scopeadas
 
-- users
-- businesses
-- memberships
-- branches
 - campaigns
+- tracking events
 - reviews
 - responses
 - widgets
-- assets
-- subscriptions
 
-### Principios
+### Reglas no negociables
 
 1. Nunca confiar en filtros del frontend.
-2. Toda query sensible debe llevar scope de negocio.
-3. Los roles se evalúan en backend.
-4. Los usuarios pueden pertenecer a uno o más negocios mediante memberships.
-5. El backend debe validar acceso al tenant actual en cada request privada.
+2. Todo endpoint privado valida acceso al business actual.
+3. Los roles viven y se verifican en backend.
+4. Un usuario puede pertenecer a varios negocios.
+5. El usuario opera siempre sobre un negocio activo.
+6. Ningún recurso de un business puede quedar visible o editable desde otro.
 
-### Modelo
-
-- users
-- businesses
-- memberships
-- roles
-
-### Roles iniciales
+### Roles mínimos
 
 - owner
 - admin
 - operator
 - viewer
 
+No abrir permisos ultra granulares todavía.
+
 ---
 
-## 9. Modelado inicial de base de datos
+## 12. Decisiones de datos mínimas
 
-Orden de modelado recomendado:
+La base de datos debe modelar solo lo necesario para el flujo principal.
+
+### Orden recomendado de modelado
 
 1. users
-2. sessions / refresh tokens
-3. roles / memberships
-4. businesses
-5. branches
-6. brand_profiles
-7. plans
-8. subscriptions
-9. campaigns
-10. qr_codes
-11. redirect_targets
-12. qr_events
-13. review_sources
-14. reviews
-15. review_tags
-16. review_states
-17. review_response_templates
-18. review_responses
-19. response_versions
-20. widgets
-21. 1widget_items
-22. widget_impressions
-23. asset_templates
-24. content_assets
-25. asset_exports
-26. notifications
-27. onboarding_tasks
-28. account_notes
-29. activity_logs
+2. sessions o refresh tokens
+3. businesses
+4. memberships
+5. campaigns
+6. campaign targets o qr references simples
+7. tracking events
+8. reviews
+9. responses
+10. widgets
+11. widget items
 
-### Principios de modelado
+### Entidades mínimas esperadas
 
-- primero entidades estables
-- después tablas derivadas o agregadas
-- analytics compleja sale luego por vistas, jobs o tablas agregadas
-- no meter métricas derivadas en el corazón del modelo demasiado temprano
+#### Business
 
----
+Campos mínimos:
 
-## 10. Contrato entre Frontend y Backend
+- id
+- name
+- slug
+- status
+- createdAt
+- updatedAt
 
-### Regla general
+#### Membership
 
-El frontend consume API explícita.  
-No se acopla directo a la base ni a hacks internos.
+Campos mínimos:
 
-### Backend debe proveer
+- id
+- userId
+- businessId
+- role
+- status
 
-- DTOs claros
-- Validación de inputs
-- Errores consistentes
-- Contratos estables
-- Permisos por endpoint
-- Respuestas pensadas para operación real
+#### Campaign
 
-### Frontend debe hacer
+Campos mínimos:
 
-- Formularios básicos
-- Navegación clara
-- Tablas mínimas
-- Feedback de loading / error / success
-- UX suficiente para usar el sistema
+- id
+- businessId
+- name
+- channel
+- status
+- targetUrl o targetType
+- createdAt
+- updatedAt
 
-### Frontend NO debe hacer al inicio
+#### TrackingEvent
 
-- Animaciones innecesarias
-- Refactors cosméticos grandes
-- Dashboards rebuscados
-- Design system ultra elaborado
-- Resolver lógica sensible de negocio
-- Pantallas “lindas” sin flujo respaldado
+Campos mínimos:
 
----
+- id
+- businessId
+- campaignId
+- eventType
+- occurredAt
+- metadata básica
 
-## 11. Política explícita sobre frontend
+#### Review
 
-El frontend debe ser funcional, limpio y suficiente.
+Campos mínimos:
 
-### Regla oficial del proyecto
+- id
+- businessId
+- campaignId opcional
+- source
+- rating
+- content opcional
+- authorDisplayName opcional
+- reviewedAt
+- status
+- isHighlighted
+- createdAt
+- updatedAt
 
-Cuando una funcionalidad requiera interfaz, se implementará únicamente el frontend mínimo indispensable para:
+#### Response
 
-- usar
-- probar
-- validar el flujo de negocio
+Campos mínimos:
 
-La prioridad está en:
+- id
+- reviewId
+- businessId
+- content
+- status
+- createdByUserId opcional
+- createdAt
+- updatedAt
 
-- dominio
-- datos
-- contratos
-- seguridad
-- operación
+### Nota
 
-El refinamiento visual vendrá después.
+No hace falta modelar ahora:
 
-### Esto significa
+- versiones complejas
+- plantillas
+- policies
+- snapshots ricos
+- tags sofisticados
+- tablas agregadas de analytics
 
-- Si hace falta una tabla → hacer una tabla simple
-- Si hace falta un formulario → hacerlo simple
-- Si hace falta un dashboard → primero KPIs mínimos
-- Si hace falta una vista interna → NO convertirla en producto visual complejo
+#### Widget
 
-### Objetivo del frontend
+Campos mínimos:
 
-Habilitar operación y validación.  
-NO ganar premios de diseño.
+- id
+- businessId
+- name
+- status
+- type
+- selectionMode
+- publicToken
+- createdAt
+- updatedAt
 
----
+#### WidgetItem
 
-## 12. Estrategia de desarrollo
+Campos mínimos:
 
-Se trabaja por **vertical slices**.
+- id
+- widgetId
+- reviewId
+- position
 
-### Orden de desarrollo por feature
+### Regla de modelado
 
-1. Diseño funcional
-2. Modelo de datos
-3. Contrato API
-4. Lógica de dominio
-5. Tests
-6. Frontend mínimo indispensable
-7. Observabilidad
-8. Documentación
-
-### Regla clave
-
-No construir capas sueltas sin cerrar un flujo usable.
+Si un campo no aporta a operar hoy el flujo central, no entra todavía.
 
 ---
 
-## 13. Testing strategy
+## 13. Eventos mínimos a registrar
 
-### Unit
+No hace falta un event bus.
+Hace falta registrar eventos simples y útiles.
 
-Para:
+### Eventos mínimos recomendados
 
-- Validaciones puras
-- Reglas de negocio
-- Mapeos
-- Utilidades
+- `auth.login_succeeded`
+- `auth.business_switched`
+- `campaign.created`
+- `campaign.activated`
+- `tracking.scan_recorded`
+- `tracking.redirect_recorded`
+- `review.created_manual`
+- `review.highlighted`
+- `review.unhighlighted`
+- `response.created`
+- `response.updated`
+- `response.marked_done` o equivalente simple
+- `widget.created`
+- `widget.activated`
+- `widget.public_rendered`
 
-### Integration
+### Cómo registrarlos ahora
 
-Para:
+Puede resolverse de forma simple:
 
-- Servicios con DB
-- Guards
-- Policies
-- Repositorios
-- Jobs
+- logs estructurados
+- tabla de eventos básicos
+- activity log mínimo
 
-### Contract
-
-Para:
-
-- Endpoints críticos
-- Payloads válidos / inválidos
-- Códigos de error
-- Permisos
-
-### E2E
-
-Flujos importantes:
-
-- Login
-- Crear negocio
-- Crear campaña
-- Generar QR
-- Cargar / ver reseñas
-- Responder reseña
-- Ver widget
+No hace falta infraestructura asíncrona para esto.
 
 ---
 
-## 14. Seguridad
+## 14. Slice end-to-end principal
 
-Obligatorio desde el inicio:
+El slice principal que esta arquitectura debe soportar sin atajos rotos es:
 
-- RBAC estricto
-- Tenant scoping en backend
-- Validación DTO
-- Sanitización de contenido visible
-- Rate limits en endpoints públicos
-- Secrets por entorno
-- Logs con correlation id donde tenga sentido
-- Protección de endpoints de widgets y redirecciones públicas
-- Auditoría de acciones sensibles
-
----
-
-## 15. Observabilidad
-
-Mínimo requerido:
-
-- Logs estructurados en API
-- Captura de errores con contexto
-- Health endpoint
-- Sentry
-- Logging útil en jobs y procesos de sincronización
-- Activity log para acciones internas sensibles
-
----
-
-## 16. Criterios para aceptar cambios de arquitectura
-
-Solo se cambia una decisión base si:
-
-- Hay bloqueo técnico serio
-- Afecta mucho velocidad o mantenibilidad
-- Existe evidencia concreta
-- El cambio queda documentado en `docs/adr/`
+1. usuario inicia sesión
+2. selecciona negocio activo
+3. crea campaña
+4. genera QR o link trazable
+5. sistema registra evento público cuando se usa ese acceso
+6. operador carga manualmente una reseña
+7. operador marca reseña como destacada o agrega respuesta simple
+8. crea widget
+9. selecciona reseñas
+10. activa widget
+11. consume embed o endpoint público
+12. consulta métricas mínimas del flujo
 
 ### Regla
 
-Nunca cambiar stack por:
+Toda decisión de arquitectura debe justificarse contra este slice.
 
-- Moda
-- Entusiasmo
-- Aburrimiento
+Si no mejora este flujo, probablemente sobra en esta etapa.
 
 ---
 
-## 17. Qué queda explícitamente fuera por ahora
+## 15. Endpoints públicos que requieren rate limiting
 
-- App móvil
-- CRM grande
-- Inbox omnicanal
-- Automatizaciones complejas de redes sociales
-- Analytics sofisticada prematura
-- Self-service multiempresa completo
-- Builder visual de landing muy avanzado
-- Sistema de billing enterprise complejo
+Aunque el MVP sea simple, los endpoints públicos no pueden quedar abiertos sin protección.
 
----
+### Requieren rate limiting
 
-## 18. Estado actual de prioridad arquitectónica
+- endpoint público de redirect o tracking de campañas o QR
+- endpoint público de render de widget
+- endpoint público de eventos de widget, si existe
+- login
+- refresh token
+- forgot password, si se implementa ahora
 
-### Prioridades reales del proyecto
+### Requieren además validación cuidadosa
 
-1. Fundación técnica
-2. Auth + tenancy
-3. Core negocio
-4. Campañas + QR + tracking
-5. Reseñas
-6. Respuestas
-7. Widgets
-8. Operación interna
-9. Analytics
-10. Billing robusto
+- cualquier endpoint que acepte `publicToken`
+- cualquier endpoint que dispare redirects
+- cualquier endpoint público que registre eventos
+
+### No asumir
+
+No asumir que por ser MVP habrá poco tráfico o poco abuso.
 
 ---
 
-## 19. Resumen ejecutivo de arquitectura
+## 16. Seguridad mínima no negociable
 
-Flikker OS se construye como:
+Obligatoria desde el inicio:
 
-- Monorepo TypeScript
-- Frontend: Next.js
-- Backend: NestJS
-- DB: PostgreSQL
-- ORM: Prisma
+- RBAC en backend
+- tenant scoping en backend
+- validación de DTOs
+- sanitización razonable del contenido público
+- rate limiting en endpoints públicos críticos
+- secrets por entorno
+- tokens y passwords hasheados correctamente
+- control de acceso a widgets privados
+- no exposición de metadata interna en endpoints públicos
 
-### Características clave
+### Regla clave
 
-- Organizado por dominios
-- Multi-tenant desde el inicio
-- Backend fuerte
-- Frontend deliberadamente mínimo
+La seguridad de tenancy no puede depender del frontend.
 
-### Prioridad real
+### En widgets públicos
 
-No es hacerlo lindo.
+Solo exponer:
 
-Es hacerlo:
+- texto permitido
+- rating si corresponde
+- autor visible si corresponde
+- source si corresponde
 
-- Usable
-- Seguro
-- Mantenible
-- Escalable sin caos
+Nunca exponer:
+
+- businessId interno innecesario
+- estados internos de review
+- usuarios internos
+- metadata operativa
+
+---
+
+## 17. Contrato entre frontend y backend
+
+El frontend consume API explícita.
+
+### El backend debe proveer
+
+- DTOs claros
+- validaciones
+- errores consistentes
+- contratos simples
+- respuestas preparadas para uso real
+
+### El frontend debe resolver
+
+- formularios simples
+- tablas simples
+- feedback de loading y error
+- navegación clara
+
+### El frontend no debe resolver
+
+- tenancy
+- permisos
+- validaciones críticas de negocio
+- selección pública segura de widgets
+- reglas de acceso cross-tenant
+
+---
+
+## 18. Testing mínimo obligatorio
+
+No hace falta cobertura enorme.
+Sí hace falta cubrir el flujo principal y los riesgos reales.
+
+### Unit tests
+
+Para:
+
+- validaciones puras
+- helpers de permisos
+- reglas simples de transición de estado
+
+### Integration tests
+
+Para:
+
+- auth y switch business
+- creación de campaña dentro del tenant correcto
+- registro de tracking event
+- carga manual de review
+- creación de response sobre review accesible
+- creación de widget con reviews del mismo business
+- bloqueo de acceso cross-tenant
+
+### Contract tests
+
+Para endpoints críticos:
+
+- login
+- campaigns
+- reviews
+- responses mínimas
+- widgets privados
+- widget público
+
+### E2E mínimo obligatorio
+
+El E2E mínimo del MVP debe cubrir:
+
+1. login
+2. selección de negocio activo
+3. creación de campaña
+4. generación de QR o link
+5. registro de evento público
+6. carga manual de reseña
+7. destacado o respuesta simple
+8. creación y activación de widget
+9. visualización de widget público
+
+Si este E2E no funciona, el MVP todavía no está bien cerrado.
+
+---
+
+## 19. Qué no construir todavía
+
+No construir todavía:
+
+- colas
+- workers
+- event bus
+- Redis
+- almacenamiento dedicado para assets como prerequisito
+- builder visual de widgets
+- múltiples variantes visuales complejas
+- IA avanzada de responses
+- sistema de plantillas amplio
+- aprobaciones complejas
+- publicación automática a plataformas externas
+- analytics con snapshots agregados complejos
+- health score
+- billing
+- client success
+- onboarding interno complejo
+- módulos vacíos para futuros
+- dashboards elaborados sin datos confiables
+- over-modeling de estados y entidades
+
+### Regla operativa
+
+Si se puede resolver manualmente y sigue validando el valor del MVP, se elige la opción manual.
+
+---
+
+## 20. Resumen ejecutivo
+
+La arquitectura del MVP de Flikker debe ser:
+
+- multi-tenant
+- modular
+- relacional
+- segura
+- pequeña
+- operable de punta a punta
+
+No estamos optimizando para amplitud de producto.
+Estamos optimizando para validar un flujo de negocio concreto sin hipotecar el repo con complejidad prematura.
+
+---
+
+## 21. Decisiones congeladas por 6 a 8 semanas
+
+- No introducir Redis.
+- No introducir BullMQ ni colas.
+- No introducir S3 o Cloudinary como dependencia obligatoria del MVP.
+- No abrir dominios de billing, content studio, client success o health score.
+- No construir IA avanzada de responses.
+- No construir workflows de aprobación complejos.
+- No construir analítica avanzada ni tablas agregadas prematuras.
+- No convertir widgets en builder visual.
+- No introducir event bus ni arquitectura orientada a eventos.
+- No abrir más infraestructura de deploy que web, API y PostgreSQL.
+- No abrir permisos ultra granulares.
+- No modelar entidades futuras que no participen en el slice principal.

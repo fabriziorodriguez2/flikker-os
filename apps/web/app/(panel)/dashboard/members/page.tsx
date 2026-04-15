@@ -1,6 +1,10 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
+import AdminStatusBadge from '@/components/admin/admin-status-badge';
+import MetricCard from '@/components/ui/metric-card';
+import PageHeader from '@/components/ui/page-header';
+import SectionCard from '@/components/ui/section-card';
 import { useCanMutate } from '../../role-context';
 
 interface Member {
@@ -22,7 +26,6 @@ export default function MembersPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
-  // Form state
   const [email, setEmail] = useState('');
   const [role, setRole] = useState('OPERATOR');
 
@@ -109,137 +112,227 @@ export default function MembersPage() {
   }
 
   if (loading) {
-    return <p className="text-sm text-zinc-500">Cargando equipo...</p>;
+    return (
+      <div className="mx-auto max-w-6xl space-y-6">
+        <div className="h-4 w-28 animate-pulse rounded-full bg-[color:var(--surface-subtle)]" />
+        <div className="h-12 w-80 animate-pulse rounded-[18px] bg-[color:var(--surface-muted)]" />
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="h-32 animate-pulse rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)]" />
+          <div className="h-32 animate-pulse rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)]" />
+          <div className="h-32 animate-pulse rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)]" />
+        </div>
+        <div className="h-80 animate-pulse rounded-[28px] border border-[color:var(--border)] bg-[color:var(--surface)]" />
+      </div>
+    );
   }
 
+  const activeMembers = members.filter((member) => member.status === 'ACTIVE').length;
+  const admins = members.filter((member) => ['OWNER', 'ADMIN'].includes(member.role)).length;
+
+  const inputClass =
+    'mt-2 w-full rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-colors placeholder:text-[color:var(--text-soft)] focus:border-[color:var(--brand-accent)] focus:ring-2 focus:ring-[color:rgba(145,136,245,0.14)]';
+  const actionButtonClass =
+    'inline-flex items-center rounded-[16px] bg-[color:var(--brand-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,4,65,0.18)] transition-colors hover:bg-[color:var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60';
+
   return (
-    <div className="max-w-4xl">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-semibold text-zinc-900">Equipo</h1>
-        {canMutate && (
-          <button
-            onClick={() => { setShowForm(!showForm); setFormError(null); setEmail(''); setRole('OPERATOR'); }}
-            className="px-3 py-1.5 text-sm font-medium rounded-lg bg-zinc-900 text-white hover:bg-zinc-700 transition-colors"
-          >
-            {showForm ? 'Cancelar' : 'Agregar miembro'}
-          </button>
-        )}
-      </div>
+    <div className="mx-auto max-w-6xl space-y-8">
+      <PageHeader
+        eyebrow="Equipo"
+        title="Equipo"
+        subtitle="Accesos y roles del negocio activo."
+        actions={
+          canMutate ? (
+            <button
+              onClick={() => {
+                setShowForm(!showForm);
+                setFormError(null);
+                setEmail('');
+                setRole('OPERATOR');
+              }}
+              className={actionButtonClass}
+            >
+              {showForm ? 'Cancelar' : 'Agregar miembro'}
+            </button>
+          ) : null
+        }
+      />
 
-      {error && (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3">
-          <p className="text-sm text-red-700">{error}</p>
+      <section className="grid gap-4 lg:grid-cols-3">
+        <MetricCard label="Miembros" value={members.length} tone="accent" hint="Accesos registrados" />
+        <MetricCard label="Activos" value={activeMembers} hint="Pueden operar hoy" />
+        <MetricCard label="Admins y owners" value={admins} tone="warm" hint="Perfiles con más permisos" />
+      </section>
+
+      {(error || message) ? (
+        <div
+          className={`rounded-[24px] border px-5 py-4 text-sm ${
+            error ? 'text-[color:var(--danger-text)]' : 'text-[color:var(--success-text)]'
+          }`}
+        >
+          {error ?? message}
         </div>
-      )}
-      {message && (
-        <div className="mt-4 rounded-lg border border-green-200 bg-green-50 p-3">
-          <p className="text-sm text-green-700">{message}</p>
-        </div>
-      )}
+      ) : null}
 
-      {/* Add form */}
-      {showForm && (
-        <form onSubmit={handleAdd} className="mt-4 rounded-xl border border-zinc-200 bg-white p-5">
-          <h2 className="text-sm font-medium text-zinc-900 mb-4">Agregar miembro</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-zinc-600">Email *</label>
-              <input
-                type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
-                className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
-                placeholder="usuario@email.com"
-              />
+      {showForm ? (
+        <SectionCard
+          title="Agregar miembro"
+          description="Invita a una persona y define su rol."
+        >
+          <form onSubmit={handleAdd} className="space-y-5">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  className={inputClass}
+                  placeholder="usuario@email.com"
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                  Rol
+                </label>
+                <select value={role} onChange={(e) => setRole(e.target.value)} className={inputClass}>
+                  {ROLES.map((value) => (
+                    <option key={value} value={value}>
+                      {value}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
-            <div className="flex flex-col gap-1">
-              <label className="text-xs font-medium text-zinc-600">Rol *</label>
-              <select
-                value={role} onChange={(e) => setRole(e.target.value)}
-                className="rounded-lg border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-500 focus:ring-2 focus:ring-zinc-200"
-              >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>{r}</option>
-                ))}
-              </select>
-            </div>
-          </div>
 
-          {formError && (
-            <p className="mt-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
-              {formError}
-            </p>
-          )}
+            {formError ? (
+              <p className="rounded-[20px] border px-4 py-3 text-sm text-[color:var(--danger-text)]">
+                {formError}
+              </p>
+            ) : null}
 
-          <button
-            type="submit" disabled={saving}
-            className="mt-4 px-4 py-2 text-sm font-medium rounded-lg bg-zinc-900 text-white hover:bg-zinc-700 transition-colors disabled:opacity-50"
-          >
-            {saving ? 'Agregando...' : 'Agregar'}
-          </button>
-        </form>
-      )}
+            <button type="submit" disabled={saving} className={actionButtonClass}>
+              {saving ? 'Agregando...' : 'Agregar miembro'}
+            </button>
+          </form>
+        </SectionCard>
+      ) : null}
 
-      {/* Table */}
-      <div className="mt-4 rounded-xl border border-zinc-200 bg-white overflow-hidden">
+      <SectionCard
+        title="Accesos"
+        description="Listado de miembros y roles."
+      >
         {members.length === 0 ? (
-          <p className="p-5 text-sm text-zinc-500">No hay miembros en este negocio.</p>
+          <div className="rounded-[24px] border border-dashed border-[color:var(--border-strong)] bg-[color:var(--surface-muted)] px-6 py-10 text-center">
+            <h3 className="text-2xl font-semibold text-[color:var(--foreground)]">Todavía no hay miembros</h3>
+            <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-[color:var(--text-muted)]">
+              Cuando agregues miembros, van a aparecer acá.
+            </p>
+          </div>
         ) : (
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-zinc-100 bg-zinc-50">
-                <th className="text-left px-4 py-2.5 font-medium text-zinc-600">Nombre</th>
-                <th className="text-left px-4 py-2.5 font-medium text-zinc-600">Email</th>
-                <th className="text-left px-4 py-2.5 font-medium text-zinc-600">Rol</th>
-                <th className="text-left px-4 py-2.5 font-medium text-zinc-600">Estado</th>
-                <th className="text-right px-4 py-2.5 font-medium text-zinc-600">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {members.map((m) => (
-                <tr key={m.id} className="border-b border-zinc-50 last:border-0">
-                  <td className="px-4 py-3 text-zinc-900">
-                    {m.user.firstName} {m.user.lastName}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-500">{m.user.email}</td>
-                  <td className="px-4 py-3">
+          <>
+            <div className="hidden overflow-hidden rounded-[28px] border border-[color:var(--border)] bg-[color:var(--surface)] lg:block">
+              <div className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_180px_160px_140px] gap-4 border-b border-[color:var(--border)] bg-[color:var(--surface-muted)] px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+                <div>Miembro</div>
+                <div>Email</div>
+                <div>Rol</div>
+                <div>Estado</div>
+                <div className="text-right">Acciones</div>
+              </div>
+
+              <div className="divide-y divide-[color:var(--border)]">
+                {members.map((member) => (
+                  <div
+                    key={member.id}
+                    className="grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_180px_160px_140px] gap-4 px-6 py-5 hover:bg-[color:var(--surface-muted)]/55"
+                  >
+                    <div>
+                      <p className="text-base font-semibold text-[color:var(--foreground)]">
+                        {member.user.firstName} {member.user.lastName}
+                      </p>
+                    </div>
+                    <div className="text-sm text-[color:var(--text-muted)]">{member.user.email}</div>
+                    <div>
+                      {canMutate ? (
+                        <select
+                          value={member.role}
+                          onChange={(e) => handleChangeRole(member.id, e.target.value)}
+                          className="w-full rounded-[14px] border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-sm text-[color:var(--foreground)] outline-none focus:border-[color:var(--brand-accent)]"
+                        >
+                          {ROLES.map((value) => (
+                            <option key={value} value={value}>
+                              {value}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="text-sm text-[color:var(--text-muted)]">{member.role}</span>
+                      )}
+                    </div>
+                    <div>
+                      <AdminStatusBadge tone={member.status === 'ACTIVE' ? 'active' : 'inactive'} label={member.status} />
+                    </div>
+                    <div className="text-right">
+                      {canMutate && member.status === 'ACTIVE' ? (
+                        <button
+                          onClick={() => handleRevoke(member.id)}
+                          className="rounded-full border border-[color:rgba(250,171,75,0.22)] bg-[color:rgba(250,171,75,0.08)] px-3 py-2 text-xs font-semibold text-[color:var(--warning-text)] transition-colors hover:bg-[color:rgba(250,171,75,0.16)]"
+                        >
+                          Revocar
+                        </button>
+                      ) : (
+                        <span className="text-xs text-[color:var(--text-soft)]">-</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-4 lg:hidden">
+              {members.map((member) => (
+                <div key={member.id} className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)] p-5">
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="text-base font-semibold text-[color:var(--foreground)]">
+                        {member.user.firstName} {member.user.lastName}
+                      </p>
+                      <p className="mt-1 text-sm text-[color:var(--text-muted)]">{member.user.email}</p>
+                    </div>
+                    <AdminStatusBadge tone={member.status === 'ACTIVE' ? 'active' : 'inactive'} label={member.status} />
+                  </div>
+
+                  <div className="mt-4">
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">Rol</p>
                     {canMutate ? (
-                      <select
-                        value={m.role}
-                        onChange={(e) => handleChangeRole(m.id, e.target.value)}
-                        className="text-xs border border-zinc-200 rounded px-2 py-1 outline-none"
-                      >
-                        {ROLES.map((r) => (
-                          <option key={r} value={r}>{r}</option>
+                      <select value={member.role} onChange={(e) => handleChangeRole(member.id, e.target.value)} className={inputClass}>
+                        {ROLES.map((value) => (
+                          <option key={value} value={value}>
+                            {value}
+                          </option>
                         ))}
                       </select>
                     ) : (
-                      <span className="text-xs text-zinc-500">{m.role}</span>
+                      <p className="mt-2 text-sm text-[color:var(--text-muted)]">{member.role}</p>
                     )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      m.status === 'ACTIVE'
-                        ? 'bg-green-50 text-green-700'
-                        : 'bg-red-50 text-red-700'
-                    }`}>
-                      {m.status}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {canMutate && m.status === 'ACTIVE' && (
-                      <button
-                        onClick={() => handleRevoke(m.id)}
-                        className="text-xs text-red-600 hover:text-red-800 transition-colors"
-                      >
-                        Revocar
-                      </button>
-                    )}
-                  </td>
-                </tr>
+                  </div>
+
+                  {canMutate && member.status === 'ACTIVE' ? (
+                    <button
+                      onClick={() => handleRevoke(member.id)}
+                      className="mt-5 rounded-full border border-[color:rgba(250,171,75,0.22)] bg-[color:rgba(250,171,75,0.08)] px-4 py-2 text-xs font-semibold text-[color:var(--warning-text)] transition-colors hover:bg-[color:rgba(250,171,75,0.16)]"
+                    >
+                      Revocar acceso
+                    </button>
+                  ) : null}
+                </div>
               ))}
-            </tbody>
-          </table>
+            </div>
+          </>
         )}
-      </div>
+      </SectionCard>
     </div>
   );
 }

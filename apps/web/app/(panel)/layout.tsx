@@ -1,9 +1,13 @@
 import { getSession } from '@/lib/auth';
 import { redirect } from 'next/navigation';
 import Sidebar from './sidebar';
+import MobileNav from './mobile-nav';
 import LogoutButton from './logout-button';
 import SelectBusiness from './select-business';
 import { RoleProvider } from './role-context';
+import ThemeToggle from '@/components/theme/theme-toggle';
+import BrandLogo from '@/components/brand/brand-logo';
+import SessionExpiryHandler from '@/components/auth/session-expiry-handler';
 
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const session = await getSession();
@@ -11,20 +15,21 @@ export default async function PanelLayout({ children }: { children: React.ReactN
 
   const { user, memberships, activeBusinessId } = session;
 
-  // If no business selected and user has multiple, show selector
   if (!activeBusinessId) {
     return (
-      <SelectBusiness
-        memberships={memberships}
-        userName={user.firstName}
-      />
+      <>
+        <SessionExpiryHandler />
+        <SelectBusiness memberships={memberships} userName={user.firstName} />
+      </>
     );
   }
 
-  const currentRole = memberships.find((m) => m.businessId === activeBusinessId)?.role ?? null;
+  const currentRole =
+    memberships.find((m) => m.businessId === activeBusinessId)?.role ?? null;
 
   return (
-    <div className="min-h-screen flex bg-zinc-50">
+    <div className="flikker-app-shell min-h-screen lg:flex">
+      <SessionExpiryHandler />
       <Sidebar
         memberships={memberships}
         activeBusinessId={activeBusinessId}
@@ -32,18 +37,27 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         isPlatformAdmin={user.isPlatformAdmin}
       />
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="bg-white border-b border-zinc-200 px-6 py-3 flex items-center justify-end gap-4">
-          <span className="text-sm text-zinc-500">
-            {user.firstName} {user.lastName}
-          </span>
-          <LogoutButton />
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="sticky top-0 z-10 bg-[color:var(--background)]/96 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--background)]/92">
+          <div className="flex items-center justify-between gap-4 px-4 py-3 md:px-6">
+            <div className="lg:hidden">
+              <BrandLogo width={126} height={107} className="h-auto w-[108px]" />
+            </div>
+
+            <div className="ml-auto flex items-center gap-2">
+              <ThemeToggle />
+              <div className="flikker-control-subtle hidden h-9 items-center rounded-full px-4 text-sm font-medium sm:inline-flex">
+                {user.firstName} {user.lastName}
+              </div>
+              <LogoutButton />
+            </div>
+          </div>
         </header>
 
-        <main className="flex-1 px-6 py-6 overflow-auto">
-          <RoleProvider role={currentRole}>
-            {children}
-          </RoleProvider>
+        <MobileNav />
+
+        <main className="flex-1 overflow-auto px-4 py-5 md:px-6 md:py-6">
+          <RoleProvider role={currentRole}>{children}</RoleProvider>
         </main>
       </div>
     </div>

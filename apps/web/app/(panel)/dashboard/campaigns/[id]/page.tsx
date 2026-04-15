@@ -1,7 +1,11 @@
 import { getSession } from "@/lib/auth";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { redirect } from "next/navigation";
 import Link from "next/link";
+import PageHeader from "@/components/ui/page-header";
+import MetricCard from "@/components/ui/metric-card";
+import SectionCard from "@/components/ui/section-card";
+import CampaignStatusBadge from "@/components/campaigns/campaign-status-badge";
 
 interface Campaign {
   id: string;
@@ -50,6 +54,10 @@ interface CampaignStats {
   byBranch: BranchStat[];
 }
 
+function formatChannel(value: string) {
+  return value.replace(/_/g, " ");
+}
+
 export default async function CampaignDetailPage({
   params,
 }: {
@@ -75,22 +83,31 @@ export default async function CampaignDetailPage({
       }),
     ]);
   } catch (e) {
+    if (isUnauthorizedApiError(e)) {
+      redirect("/session-expired");
+    }
     error = e instanceof Error ? e.message : "Error al cargar datos";
   }
 
   if (error || !campaign || !stats) {
     return (
-      <div className="max-w-4xl">
-        <Link
-          href="/dashboard/campaigns"
-          className="text-sm text-blue-600 hover:underline"
+      <div className="mx-auto max-w-4xl">
+        <div className="text-sm">
+          <Link
+            href="/dashboard/campaigns"
+            className="font-medium text-[color:var(--brand-accent)] hover:text-[color:var(--brand-primary)]"
+          >
+            Volver a campañas
+          </Link>
+        </div>
+        <div
+          className="mt-6 rounded-[24px] border px-5 py-4 text-sm text-[color:var(--danger-text)]"
+          style={{
+            backgroundColor: "var(--danger-bg)",
+            borderColor: "rgba(161,45,58,0.16)",
+          }}
         >
-          &larr; Campanas
-        </Link>
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-4">
-          <p className="text-sm text-red-700">
-            {error ?? "Campana no encontrada"}
-          </p>
+          {error ?? "Campaña no encontrada"}
         </div>
       </div>
     );
@@ -102,219 +119,207 @@ export default async function CampaignDetailPage({
     stats.byDevice.tablet +
     stats.byDevice.unknown;
 
+  const uniqueRate =
+    stats.totalScans > 0
+      ? `${Math.round((stats.uniqueScans / stats.totalScans) * 100)}%`
+      : "-";
+
   return (
-    <div className="max-w-5xl">
-      <Link
-        href="/dashboard/campaigns"
-        className="text-sm text-blue-600 hover:underline"
-      >
-        &larr; Campanas
-      </Link>
-
-      <div className="mt-4 flex items-center gap-3">
-        <h1 className="text-2xl font-semibold text-zinc-900">
-          {campaign.name}
-        </h1>
-        <span className="text-xs px-2 py-0.5 rounded-full bg-zinc-100 text-zinc-600 font-medium">
-          {campaign.status}
-        </span>
-      </div>
-      <p className="text-sm text-zinc-500 mt-1">
-        {campaign.channel.replace(/_/g, " ")}
-        {campaign.branch ? ` · ${campaign.branch.name}` : ""}
-        {campaign.enableLanding ? " · Landing activa" : ""}
-      </p>
-
-      {/* Totals */}
-      <div className="mt-6 grid grid-cols-2 sm:grid-cols-4 gap-4">
-        <StatCard label="Scans totales" value={stats.totalScans} />
-        <StatCard label="Scans unicos" value={stats.uniqueScans} />
-        <StatCard
-          label="Tasa unica"
-          value={
-            stats.totalScans > 0
-              ? `${Math.round((stats.uniqueScans / stats.totalScans) * 100)}%`
-              : "-"
-          }
-        />
-        <StatCard label="Dias con datos" value={stats.byDay.length} />
+    <div className="mx-auto max-w-6xl space-y-6">
+      <div className="text-sm">
+        <Link
+          href="/dashboard/campaigns"
+          className="font-medium text-[color:var(--brand-accent)] hover:text-[color:var(--brand-primary)]"
+        >
+          Volver a campañas
+        </Link>
       </div>
 
-      {/* Device breakdown */}
-      {deviceTotal > 0 && (
-        <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-sm font-medium text-zinc-700 mb-3">
-            Dispositivos
+      <PageHeader
+        eyebrow="Campaña"
+        title={campaign.name}
+        subtitle="Estado, slug y métricas de uso."
+        actions={<CampaignStatusBadge status={campaign.status} />}
+      />
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.15fr)_minmax(0,0.85fr)]">
+        <div className="rounded-[28px] bg-[linear-gradient(135deg,#000441_0%,#27207A_52%,#9188F5_100%)] px-6 py-6 text-white shadow-[0_24px_60px_rgba(0,4,65,0.24)] md:px-7">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
+            Link trazable
+          </p>
+          <h2 className="mt-3 text-4xl font-semibold text-white">
+            /r/{campaign.slug}
           </h2>
-          <div className="grid grid-cols-4 gap-4 text-center">
-            <DeviceStat
-              label="Mobile"
-              value={stats.byDevice.mobile}
-              total={deviceTotal}
-            />
-            <DeviceStat
-              label="Desktop"
-              value={stats.byDevice.desktop}
-              total={deviceTotal}
-            />
-            <DeviceStat
-              label="Tablet"
-              value={stats.byDevice.tablet}
-              total={deviceTotal}
-            />
-            <DeviceStat
-              label="Otro"
-              value={stats.byDevice.unknown}
-              total={deviceTotal}
-            />
+          <p className="mt-3 max-w-2xl text-sm leading-7 text-white/80">
+            {formatChannel(campaign.channel)}
+            {campaign.branch ? ` · ${campaign.branch.name}` : ""}
+            {campaign.enableLanding ? " · Landing activa" : ""}
+          </p>
+
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <div className="rounded-[20px] border border-white/12 bg-white/10 px-4 py-4 backdrop-blur">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-white/70">
+                Scans
+              </div>
+              <div className="mt-2 text-3xl font-semibold text-white">
+                {stats.totalScans}
+              </div>
+            </div>
+            <div className="rounded-[20px] border border-white/12 bg-white/10 px-4 py-4 backdrop-blur">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-white/70">
+                Únicos
+              </div>
+              <div className="mt-2 text-3xl font-semibold text-white">
+                {stats.uniqueScans}
+              </div>
+            </div>
+            <div className="rounded-[20px] border border-white/12 bg-white/10 px-4 py-4 backdrop-blur">
+              <div className="text-xs font-semibold uppercase tracking-[0.16em] text-white/70">
+                Tasa única
+              </div>
+              <div className="mt-2 text-3xl font-semibold text-white">
+                {uniqueRate}
+              </div>
+            </div>
           </div>
         </div>
-      )}
 
-      {/* Daily series */}
-      {stats.byDay.length > 0 && (
-        <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-sm font-medium text-zinc-700 mb-3">
-            Scans por dia (ultimos 30 dias)
-          </h2>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="border-b border-zinc-200">
-                <tr>
-                  <th className="text-left px-3 py-2 font-medium text-zinc-600">
-                    Fecha
-                  </th>
-                  <th className="text-right px-3 py-2 font-medium text-zinc-600">
-                    Total
-                  </th>
-                  <th className="text-right px-3 py-2 font-medium text-zinc-600">
-                    Unicos
-                  </th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-50">
-                {stats.byDay.map((d) => (
-                  <tr key={d.date}>
-                    <td className="px-3 py-2 text-zinc-600">{d.date}</td>
-                    <td className="px-3 py-2 text-right text-zinc-900 font-medium">
-                      {d.total}
-                    </td>
-                    <td className="px-3 py-2 text-right text-zinc-600">
-                      {d.unique}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <SectionCard
+          title="Resumen"
+          description="Uso general de la campaña."
+        >
+          <div className="grid gap-3 sm:grid-cols-3">
+            <MetricCard
+              label="Días con datos"
+              value={stats.byDay.length}
+              hint="Actividad registrada"
+            />
+            <MetricCard
+              label="QR"
+              value={stats.byQrCode.length}
+              hint="Con uso"
+              tone="accent"
+            />
+            <MetricCard
+              label="Sucursales"
+              value={stats.byBranch.length}
+              hint="Con scans"
+              tone="warm"
+            />
           </div>
-        </div>
-      )}
+        </SectionCard>
+      </section>
 
-      {/* QR code breakdown */}
-      {stats.byQrCode.length > 0 && (
-        <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-sm font-medium text-zinc-700 mb-3">
-            Rendimiento por QR
-          </h2>
-          <table className="w-full text-sm">
-            <thead className="border-b border-zinc-200">
-              <tr>
-                <th className="text-left px-3 py-2 font-medium text-zinc-600">
-                  QR
-                </th>
-                <th className="text-right px-3 py-2 font-medium text-zinc-600">
-                  Total
-                </th>
-                <th className="text-right px-3 py-2 font-medium text-zinc-600">
-                  Unicos
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-50">
-              {stats.byQrCode.map((q) => (
-                <tr key={q.qrCodeId}>
-                  <td className="px-3 py-2">
-                    <span className="text-zinc-900">{q.label ?? q.slug}</span>
-                    <span className="ml-2 text-xs text-zinc-400">{q.slug}</span>
-                  </td>
-                  <td className="px-3 py-2 text-right text-zinc-900 font-medium">
-                    {q.total}
-                  </td>
-                  <td className="px-3 py-2 text-right text-zinc-600">
-                    {q.unique}
-                  </td>
-                </tr>
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard label="Scans totales" value={stats.totalScans} />
+        <MetricCard label="Scans únicos" value={stats.uniqueScans} tone="accent" />
+        <MetricCard label="Tasa única" value={uniqueRate} />
+        <MetricCard label="Días con datos" value={stats.byDay.length} tone="warm" />
+      </section>
+
+      {deviceTotal > 0 ? (
+        <SectionCard
+          title="Dispositivos"
+          description="Distribución por tipo de dispositivo."
+        >
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricCard label="Mobile" value={stats.byDevice.mobile} />
+            <MetricCard label="Desktop" value={stats.byDevice.desktop} />
+            <MetricCard label="Tablet" value={stats.byDevice.tablet} />
+            <MetricCard label="Otro" value={stats.byDevice.unknown} />
+          </div>
+        </SectionCard>
+      ) : null}
+
+      {stats.byQrCode.length > 0 ? (
+        <SectionCard
+          title="Por QR"
+          description="Uso por activo trazable."
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            {stats.byQrCode.map((qr) => (
+              <div
+                key={qr.qrCodeId}
+                className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-5"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-lg font-semibold text-[color:var(--foreground)]">
+                      {qr.label ?? qr.slug}
+                    </p>
+                    <p className="mt-1 text-xs uppercase tracking-[0.12em] text-[color:var(--text-soft)]">
+                      {qr.slug}
+                    </p>
+                  </div>
+                  <span className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
+                    QR
+                  </span>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <MetricCard label="Total" value={qr.total} />
+                  <MetricCard label="Únicos" value={qr.unique} tone="accent" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      ) : null}
+
+      {stats.byBranch.length > 0 ? (
+        <SectionCard
+          title="Por sucursal"
+          description="Actividad atribuida por sucursal."
+        >
+          <div className="grid gap-4 md:grid-cols-2">
+            {stats.byBranch.map((branch) => (
+              <div
+                key={branch.branchId}
+                className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-5"
+              >
+                <p className="text-lg font-semibold text-[color:var(--foreground)]">
+                  {branch.branchName}
+                </p>
+                <div className="mt-4 grid grid-cols-2 gap-3">
+                  <MetricCard label="Total" value={branch.total} />
+                  <MetricCard label="Únicos" value={branch.unique} tone="accent" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </SectionCard>
+      ) : null}
+
+      {stats.byDay.length > 0 ? (
+        <SectionCard
+          title="Actividad por día"
+          description="Serie simple de uso."
+        >
+          <div className="overflow-hidden rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)]">
+            <div className="grid grid-cols-[minmax(0,1fr)_120px_120px] gap-3 border-b border-[color:var(--border)] bg-[color:var(--surface-muted)] px-5 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+              <div>Fecha</div>
+              <div className="text-right">Total</div>
+              <div className="text-right">Únicos</div>
+            </div>
+            <div className="divide-y divide-[color:var(--border)]">
+              {stats.byDay.map((day) => (
+                <div
+                  key={day.date}
+                  className="grid grid-cols-[minmax(0,1fr)_120px_120px] gap-3 px-5 py-4 text-sm"
+                >
+                  <div className="text-[color:var(--foreground)]">{day.date}</div>
+                  <div className="text-right font-semibold text-[color:var(--foreground)]">
+                    {day.total}
+                  </div>
+                  <div className="text-right text-[color:var(--text-muted)]">
+                    {day.unique}
+                  </div>
+                </div>
               ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Branch breakdown */}
-      {stats.byBranch.length > 0 && (
-        <div className="mt-6 rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-sm font-medium text-zinc-700 mb-3">
-            Rendimiento por sucursal
-          </h2>
-          <table className="w-full text-sm">
-            <thead className="border-b border-zinc-200">
-              <tr>
-                <th className="text-left px-3 py-2 font-medium text-zinc-600">
-                  Sucursal
-                </th>
-                <th className="text-right px-3 py-2 font-medium text-zinc-600">
-                  Total
-                </th>
-                <th className="text-right px-3 py-2 font-medium text-zinc-600">
-                  Unicos
-                </th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-50">
-              {stats.byBranch.map((b) => (
-                <tr key={b.branchId}>
-                  <td className="px-3 py-2 text-zinc-900">{b.branchName}</td>
-                  <td className="px-3 py-2 text-right text-zinc-900 font-medium">
-                    {b.total}
-                  </td>
-                  <td className="px-3 py-2 text-right text-zinc-600">
-                    {b.unique}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div className="rounded-lg border border-zinc-200 bg-white p-4">
-      <p className="text-xs text-zinc-500">{label}</p>
-      <p className="text-xl font-semibold text-zinc-900 mt-1">{value}</p>
-    </div>
-  );
-}
-
-function DeviceStat({
-  label,
-  value,
-  total,
-}: {
-  label: string;
-  value: number;
-  total: number;
-}) {
-  const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-  return (
-    <div>
-      <p className="text-lg font-semibold text-zinc-900">{value}</p>
-      <p className="text-xs text-zinc-500">
-        {label} ({pct}%)
-      </p>
+            </div>
+          </div>
+        </SectionCard>
+      ) : null}
     </div>
   );
 }

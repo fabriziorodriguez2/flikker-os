@@ -1,26 +1,230 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f6f8fc;
+  --foreground: #0e1238;
+  --surface: #ffffff;
+  --surface-muted: #eef2fb;
+  --surface-subtle: #e4e9f6;
+  --border: #d7dcec;
+  --border-strong: #c6cee6;
+  --text-muted: #5d6786;
+  --text-soft: #7e89ab;
+  --brand-primary: #000441;
+  --brand-accent: #9188f5;
+  --brand-soft: #dce2f0;
+  --brand-warm: #faab4b;
+  --success-bg: #e7f7ef;
+  --success-text: #15663f;
+  --danger-bg: #feeeee;
+  --danger-text: #a12d3a;
+  --warning-bg: #fff4df;
+  --warning-text: #9d5d0e;
+  --shadow-soft: 0 14px 32px rgba(17, 22, 59, 0.06);
+  --shadow-card: 0 4px 16px rgba(17, 22, 59, 0.05);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-subtle: var(--surface-subtle);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text-muted: var(--text-muted);
+  --color-text-soft: var(--text-soft);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-accent: var(--brand-accent);
+  --color-brand-soft: var(--brand-soft);
+  --color-brand-warm: var(--brand-warm);
+  --color-success-bg: var(--success-bg);
+  --color-success-text: var(--success-text);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-text: var(--danger-text);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-text: var(--warning-text);
+  --font-sans: var(--font-manrope);
+  --font-heading: var(--font-syne);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+  :root:not([data-theme='light']) {
+    --background: #090b24;
+    --foreground: #f4f6ff;
+    --surface: #12183d;
+    --surface-muted: #101532;
+    --surface-subtle: #171f4b;
+    --border: rgba(220, 226, 240, 0.14);
+    --border-strong: rgba(220, 226, 240, 0.22);
+    --text-muted: #b9c2e3;
+    --text-soft: #8d98bc;
+    --brand-primary: #dce2f0;
+    --brand-accent: #a49cff;
+    --brand-soft: #1f2755;
+    --brand-warm: #ffbf6d;
+    --success-bg: rgba(44, 123, 77, 0.22);
+    --success-text: #98ebbd;
+    --danger-bg: rgba(157, 51, 67, 0.2);
+    --danger-text: #ffb5c1;
+    --warning-bg: rgba(250, 171, 75, 0.18);
+    --warning-text: #ffd28f;
+    --shadow-soft: 0 18px 36px rgba(0, 0, 0, 0.24);
+    --shadow-card: 0 6px 18px rgba(0, 0, 0, 0.16);
   }
+}
+
+:root[data-theme='dark'] {
+  --background: #090b24;
+  --foreground: #f4f6ff;
+  --surface: #12183d;
+  --surface-muted: #101532;
+  --surface-subtle: #171f4b;
+  --border: rgba(220, 226, 240, 0.14);
+  --border-strong: rgba(220, 226, 240, 0.22);
+  --text-muted: #b9c2e3;
+  --text-soft: #8d98bc;
+  --brand-primary: #dce2f0;
+  --brand-accent: #a49cff;
+  --brand-soft: #1f2755;
+  --brand-warm: #ffbf6d;
+  --success-bg: rgba(44, 123, 77, 0.22);
+  --success-text: #98ebbd;
+  --danger-bg: rgba(157, 51, 67, 0.2);
+  --danger-text: #ffb5c1;
+  --warning-bg: rgba(250, 171, 75, 0.18);
+  --warning-text: #ffd28f;
+  --shadow-soft: 0 18px 36px rgba(0, 0, 0, 0.24);
+  --shadow-card: 0 6px 18px rgba(0, 0, 0, 0.16);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  color-scheme: light dark;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-manrope), sans-serif;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-syne), sans-serif;
+  letter-spacing: -0.03em;
+}
+
+a,
+button,
+input,
+select,
+textarea {
+  transition:
+    color 160ms ease,
+    background-color 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    opacity 160ms ease;
+}
+
+::selection {
+  background: rgba(145, 136, 245, 0.28);
+}
+
+.flikker-app-shell {
+  background: var(--background);
+}
+
+.flikker-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-card);
+}
+
+.flikker-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.flikker-brand-text {
+  font-family: var(--font-syne), sans-serif;
+  letter-spacing: -0.04em;
+}
+
+.flikker-focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(145, 136, 245, 0.24);
+}
+
+.flikker-input {
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+  border-radius: 14px;
+}
+
+.flikker-input::placeholder {
+  color: var(--text-soft);
+}
+
+.flikker-input:focus {
+  outline: none;
+  border-color: var(--brand-accent);
+  box-shadow: 0 0 0 3px rgba(145, 136, 245, 0.16);
+}
+
+.flikker-sidebar-glow {
+  background: var(--surface);
+}
+
+.flikker-control {
+  height: 40px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--foreground);
+  box-shadow: var(--shadow-card);
+}
+
+.flikker-control-subtle {
+  height: 40px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.flikker-glass-tooltip {
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.52);
+  backdrop-filter: blur(18px) saturate(155%);
+  -webkit-backdrop-filter: blur(18px) saturate(155%);
+  box-shadow:
+    0 14px 34px rgba(15, 23, 42, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+
+:root[data-theme='dark'] .flikker-glass-tooltip {
+  border-color: rgba(220, 226, 240, 0.18);
+  background: rgba(18, 24, 61, 0.58);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.flikker-scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.flikker-scrollbar-hidden::-webkit-scrollbar {
+  display: none;
 }
