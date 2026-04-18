@@ -19,6 +19,8 @@ RUN npm run build --workspace=apps/api
 # --- Production stage ---
 FROM node:22-slim
 
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -28,6 +30,8 @@ RUN npm ci --omit=dev
 
 COPY --from=builder /app/apps/api/dist apps/api/dist
 COPY --from=builder /app/apps/api/prisma apps/api/prisma
+COPY --from=builder /app/apps/api/prisma.config.ts apps/api/prisma.config.ts
+COPY --from=builder /app/apps/api/tsconfig.json apps/api/tsconfig.json
 
 RUN npm run prisma:generate --workspace=apps/api
 
