@@ -39,3 +39,15 @@ Onboarding vacío — Studio Nómade en DRAFT, sin branches ni plan
 Multi-tenancy — admin@ en 3 negocios, multi@ en 3 negocios, ops@ en 2
 Membership revocada — revoked@ en Gains con status REVOKED
 Platform admin — admin@ con isPlatformAdmin: true
+
+CONTRASEÑA BASE SUPABASE: qbHK@ZZA%r75sKb
+postgresql://postgres:[YOUR-PASSWORD]@db.qqgcqiyalulcaecpmeem.supabase.co:5432/postgres
+USUARIO PRISMA SUPABASE CONTRASEÑAS: qbHK@ZZA%r75sKb
+DATABASE_URL="postgresql://prisma.qqgcqiyalulcaecpmeem:qbHK@ZZA%r75sKb@aws-1-us-east-1.pooler.supabase.com:5432/postgres"
+JWT_SECRET="6f1f1f7e0f8a9f1d3b7d5a6c0e9f2a4b8c1d3e5f7a9b0c2d4e6f8a1b3c5d7e9"
+API_BASE_URL="https://tu-backend-production.up.railway.app"
+WEB_BASE_URL="https://tu-frontend-production.up.railway.app"
+JWT_ACCESS_EXPIRES_IN="15m"
+JWT_REFRESH_EXPIRES_IN="7d"
+PORT=3000
+NODE_ENV=production
