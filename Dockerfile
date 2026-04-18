@@ -27,7 +27,7 @@ COPY apps/api/package.json apps/api/package.json
 RUN npm ci --omit=dev
 
 COPY --from=builder /app/apps/api/dist apps/api/dist
-COPY apps/api/prisma apps/api/prisma
+COPY --from=builder /app/apps/api/prisma apps/api/prisma
 
 RUN npm run prisma:generate --workspace=apps/api
 
