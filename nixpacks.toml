@@ -1,7 +1,7 @@
 providers = []
 
 [phases.setup]
-nixPkgs = ["nodejs_20"]
+nixPkgs = ["nodejs_22"]
 
 [phases.install]
 cmds = ["npm ci"]
@@ -9,9 +9,9 @@ cmds = ["npm ci"]
 [phases.build]
 dependsOn = ["install"]
 cmds = [
-  "npx prisma generate --schema=apps/api/prisma/schema.prisma",
+  "npm run prisma:generate --workspace=apps/api",
   "npm run build --workspace=apps/api"
 ]
 
 [start]
-cmd = "npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma && npm run start:prod --workspace=apps/api"
+cmd = "npm run prisma:migrate:deploy --workspace=apps/api && npm run start:prod --workspace=apps/api"
