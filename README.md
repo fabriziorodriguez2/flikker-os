@@ -51,3 +51,4 @@ JWT_ACCESS_EXPIRES_IN="15m"
 JWT_REFRESH_EXPIRES_IN="7d"
 PORT=3000
 NODE_ENV=production
+flikker-api-production.up.railway.app
