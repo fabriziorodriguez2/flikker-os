@@ -5,11 +5,11 @@ nixPkgs = ["nodejs_20", "npm-9_x"]
 cmds = ["npm ci"]
 
 [phases.build]
+dependsOn = ["install"]
 cmds = [
   "npx prisma generate --schema=apps/api/prisma/schema.prisma",
-  "npm run build --workspace=apps/api",
-  "npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma"
+  "npm run build --workspace=apps/api"
 ]
 
 [start]
-cmd = "npm run start:prod --workspace=apps/api"
+cmd = "npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma && npm run start:prod --workspace=apps/api"
