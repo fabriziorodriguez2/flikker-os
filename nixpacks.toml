@@ -6,8 +6,10 @@ cmds = ["npm ci"]
 
 [phases.build]
 dependsOn = ["install"]
+dependsOn = ["install"]
 cmds = [
   "npx prisma generate --schema=apps/api/prisma/schema.prisma",
+  "npm run build --workspace=apps/api"
   "npm run build --workspace=apps/api"
 ]
 
