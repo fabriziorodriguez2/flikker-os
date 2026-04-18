@@ -199,7 +199,7 @@ Para considerar esta fase realmente terminada, debe cumplirse lo siguiente:
 
 ## Orden recomendado de implementación
 
-### Paso 1
+### Paso 1.
 
 Cerrar estructura del repo, scripts, aliases y tooling.
 
