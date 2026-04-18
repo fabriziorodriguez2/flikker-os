@@ -1,0 +1,566 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Enums
+// ---------------------------------------------------------------------------
+
+enum MembershipRole {
+  OWNER
+  ADMIN
+  OPERATOR
+  VIEWER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  REVOKED
+}
+
+enum BusinessStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ARCHIVED
+}
+
+enum CampaignChannel {
+  QR_COUNTER
+  QR_TABLE
+  QR_CHECKOUT
+  QR_PACKAGING
+  WHATSAPP
+  EMAIL
+  SMS
+  SOCIAL_BIO
+  WEBSITE
+  IN_PERSON
+  EVENT
+  OTHER
+}
+
+enum DestinationType {
+  GOOGLE_REVIEW
+  CUSTOM_URL
+  LANDING_ONLY
+}
+
+enum ReviewStatus {
+  NEW
+  REVIEWED
+  RESPONDED
+  ARCHIVED
+}
+
+enum ReviewSource {
+  GOOGLE
+  MANUAL
+  IMPORT_CSV
+  WHATSAPP_FEEDBACK
+  EMAIL_FEEDBACK
+  INTERNAL_FORM
+  OTHER
+}
+
+enum WidgetStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum WidgetType {
+  BADGE
+  REVIEW_LIST
+  REVIEW_GRID
+}
+
+// ---------------------------------------------------------------------------
+// User
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  isPlatformAdmin Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  memberships         Membership[]        @relation("UserMemberships")
+  invitedMemberships  Membership[]        @relation("InvitedByUser")
+  sessions            Session[]
+  passwordResetTokens PasswordResetToken[]
+  auditLogs           AuditLog[]
+  createdCampaigns    Campaign[]          @relation("CampaignCreator")
+  createdReviews      Review[]            @relation("ReviewCreator")
+  respondedReviews    Review[]            @relation("ReviewResponder")
+  authoredResponses   Response[]          @relation("ResponseAuthor")
+  statusChanges       ReviewStatusHistory[] @relation("StatusChanger")
+}
+
+// ---------------------------------------------------------------------------
+// Session (refresh token store)
+// ---------------------------------------------------------------------------
+
+model Session {
+  id               String    @id @default(uuid())
+  userId           String
+  refreshTokenHash String
+  userAgent        String?
+  ip               String?
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([refreshTokenHash])
+  @@index([expiresAt])
+}
+
+// ---------------------------------------------------------------------------
+// Business
+// ---------------------------------------------------------------------------
+
+model Business {
+  id                       String         @id @default(uuid())
+  name                     String
+  legalName                String?
+  slug                     String         @unique
+  status                   BusinessStatus @default(DRAFT)
+  industry                 String?
+  description              String?
+  website                  String?
+  phone                    String?
+  email                    String?
+  country                  String
+  timezone                 String
+  currency                 String
+  logoUrl                  String?
+  primaryColor             String?
+  secondaryColor           String?
+  toneOfVoice              String?
+  whatsappUrl              String?
+  shortBio                 String?
+  signatureText            String?
+  googleBusinessProfileUrl String?
+  defaultReviewRedirectUrl String?
+  isActive                 Boolean        @default(true)
+  createdAt                DateTime       @default(now())
+  updatedAt                DateTime       @updatedAt
+  archivedAt               DateTime?
+
+  memberships  Membership[]
+  branches     Branch[]
+  subscription Subscription?
+  auditLogs    AuditLog[]
+  campaigns    Campaign[]
+  qrCodes      QrCode[]
+  scanEvents   ScanEvent[]
+  reviews      Review[]
+  responses    Response[]
+  widgets      Widget[]
+  reviewTags   ReviewTag[]
+}
+
+// ---------------------------------------------------------------------------
+// Branch (physical location of a business)
+// ---------------------------------------------------------------------------
+
+model Branch {
+  id         String   @id @default(uuid())
+  businessId String
+  name       String
+  slug       String
+  address    String?
+  city       String?
+  state      String?
+  phone      String?
+  email      String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business   Business    @relation(fields: [businessId], references: [id])
+  campaigns  Campaign[]
+  qrCodes    QrCode[]
+  scanEvents ScanEvent[]
+  reviews    Review[]
+
+  @@unique([businessId, slug])
+  @@index([businessId])
+}
+
+// ---------------------------------------------------------------------------
+// Membership (user <-> business, with role and status)
+// ---------------------------------------------------------------------------
+
+model Membership {
+  id              String           @id @default(uuid())
+  userId          String
+  businessId      String
+  role            MembershipRole
+  status          MembershipStatus @default(ACTIVE)
+  invitedByUserId String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  user      User     @relation("UserMemberships", fields: [userId], references: [id])
+  business  Business @relation(fields: [businessId], references: [id])
+  invitedBy User?    @relation("InvitedByUser", fields: [invitedByUserId], references: [id])
+
+  @@unique([userId, businessId])
+  @@index([userId])
+  @@index([businessId])
+}
+
+// ---------------------------------------------------------------------------
+// PasswordResetToken
+// ---------------------------------------------------------------------------
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// Plan (logical pricing tiers — no billing integration yet)
+// ---------------------------------------------------------------------------
+
+model Plan {
+  id                 String   @id @default(uuid())
+  name               String
+  slug               String   @unique
+  description        String?
+  maxBranches        Int
+  maxMembers         Int
+  maxCampaigns       Int
+  maxReviewsPerMonth Int
+  priceMonthly       Int      @default(0)
+  trialDays          Int      @default(0)
+  isActive           Boolean  @default(true)
+  displayOrder       Int      @default(0)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  subscriptions Subscription[]
+}
+
+// ---------------------------------------------------------------------------
+// Subscription (business <-> plan, one active per business)
+// ---------------------------------------------------------------------------
+
+model Subscription {
+  id                 String             @id @default(uuid())
+  businessId         String             @unique
+  planId             String
+  status             SubscriptionStatus @default(ACTIVE)
+  currentPeriodStart DateTime
+  currentPeriodEnd   DateTime
+  trialEndsAt        DateTime?
+  canceledAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+  plan     Plan     @relation(fields: [planId], references: [id])
+
+  @@index([planId])
+}
+
+// ---------------------------------------------------------------------------
+// AuditLog
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  businessId  String
+  actorUserId String?
+  action      String
+  entityType  String
+  entityId    String?
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+  actor    User?    @relation(fields: [actorUserId], references: [id])
+
+  @@index([businessId])
+}
+
+// ---------------------------------------------------------------------------
+// Campaign (review acquisition initiative)
+// ---------------------------------------------------------------------------
+
+model Campaign {
+  id              String          @id @default(uuid())
+  businessId      String
+  branchId        String?
+  name            String
+  slug            String
+  description     String?
+  channel         CampaignChannel
+  status          CampaignStatus  @default(DRAFT)
+  destinationType DestinationType
+  destinationUrl  String?
+  enableLanding   Boolean         @default(false)
+  startsAt        DateTime?
+  endsAt          DateTime?
+  createdByUserId String
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  archivedAt      DateTime?
+
+  business  Business    @relation(fields: [businessId], references: [id])
+  branch    Branch?     @relation(fields: [branchId], references: [id])
+  createdBy User        @relation("CampaignCreator", fields: [createdByUserId], references: [id])
+  qrCodes   QrCode[]
+  scanEvents ScanEvent[]
+  reviews    Review[]
+
+  @@unique([businessId, slug])
+  @@index([businessId])
+  @@index([businessId, status])
+}
+
+// ---------------------------------------------------------------------------
+// QrCode (traceable capture asset linked to a campaign)
+// ---------------------------------------------------------------------------
+
+model QrCode {
+  id             String    @id @default(uuid())
+  businessId     String
+  campaignId     String
+  branchId       String?
+  slug           String    @unique
+  label          String?
+  destinationUrl String?
+  isActive       Boolean   @default(true)
+  scannedCount   Int       @default(0)
+  lastScannedAt  DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  business   Business    @relation(fields: [businessId], references: [id])
+  campaign   Campaign    @relation(fields: [campaignId], references: [id])
+  branch     Branch?     @relation(fields: [branchId], references: [id])
+  scanEvents ScanEvent[]
+
+  @@index([campaignId])
+  @@index([businessId])
+}
+
+// ---------------------------------------------------------------------------
+// ScanEvent (immutable record of each QR scan / link click)
+// ---------------------------------------------------------------------------
+
+model ScanEvent {
+  id           String   @id @default(uuid())
+  qrCodeId     String
+  campaignId   String
+  businessId   String
+  branchId     String?
+  ipHash       String?
+  userAgent    String?
+  referer      String?
+  deviceType   String?
+  redirectedTo String?
+  landingShown Boolean  @default(false)
+  isDuplicate  Boolean  @default(false)
+  scannedAt    DateTime
+
+  qrCode   QrCode   @relation(fields: [qrCodeId], references: [id])
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  business Business @relation(fields: [businessId], references: [id])
+  branch   Branch?  @relation(fields: [branchId], references: [id])
+
+  @@index([qrCodeId])
+  @@index([campaignId])
+  @@index([businessId])
+  @@index([scannedAt])
+  @@index([qrCodeId, ipHash, scannedAt])
+}
+
+// ---------------------------------------------------------------------------
+// Review (core review entity — inbox item)
+// ---------------------------------------------------------------------------
+
+model Review {
+  id                 String               @id @default(uuid())
+  businessId         String
+  branchId           String?
+  campaignId         String?
+  source             ReviewSource
+  externalReviewId   String?
+  authorDisplayName  String?
+  rating             Int
+  title              String?
+  content            String?
+  reviewedAt         DateTime
+  ingestedAt         DateTime             @default(now())
+  status             ReviewStatus         @default(NEW)
+  language           String?
+  isHighlighted      Boolean              @default(false)
+  respondedAt        DateTime?
+  respondedByUserId  String?
+  metadataJson       Json?
+  createdByUserId    String?
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+  archivedAt         DateTime?
+
+  business      Business              @relation(fields: [businessId], references: [id])
+  branch        Branch?               @relation(fields: [branchId], references: [id])
+  campaign      Campaign?             @relation(fields: [campaignId], references: [id])
+  createdBy     User?                 @relation("ReviewCreator", fields: [createdByUserId], references: [id])
+  respondedBy   User?                 @relation("ReviewResponder", fields: [respondedByUserId], references: [id])
+  response      Response?
+  tagRelations  ReviewTagRelation[]
+  statusHistory ReviewStatusHistory[]
+
+  @@index([businessId])
+  @@index([businessId, status])
+  @@index([businessId, source])
+  @@index([businessId, rating])
+  @@index([businessId, reviewedAt])
+  @@index([branchId])
+  @@index([campaignId])
+}
+
+// ---------------------------------------------------------------------------
+// Response (manual response attached to a review)
+// ---------------------------------------------------------------------------
+
+model Response {
+  id                String   @id @default(uuid())
+  businessId        String
+  reviewId          String   @unique
+  content           String
+  respondedByUserId String
+  respondedAt       DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  business    Business @relation(fields: [businessId], references: [id])
+  review      Review   @relation(fields: [reviewId], references: [id])
+  respondedBy User     @relation("ResponseAuthor", fields: [respondedByUserId], references: [id])
+
+  @@index([businessId])
+  @@index([reviewId])
+  @@index([respondedByUserId])
+}
+
+// ---------------------------------------------------------------------------
+// ReviewTag (reusable tag per business)
+// ---------------------------------------------------------------------------
+
+model ReviewTag {
+  id         String   @id @default(uuid())
+  businessId String
+  name       String
+  slug       String
+  color      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  business     Business            @relation(fields: [businessId], references: [id])
+  tagRelations ReviewTagRelation[]
+
+  @@unique([businessId, slug])
+  @@index([businessId])
+}
+
+// ---------------------------------------------------------------------------
+// ReviewTagRelation (many-to-many: review <-> tag)
+// ---------------------------------------------------------------------------
+
+model ReviewTagRelation {
+  id        String   @id @default(uuid())
+  reviewId  String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  review Review    @relation(fields: [reviewId], references: [id])
+  tag    ReviewTag @relation(fields: [tagId], references: [id])
+
+  @@unique([reviewId, tagId])
+  @@index([reviewId])
+  @@index([tagId])
+}
+
+// ---------------------------------------------------------------------------
+// ReviewStatusHistory (immutable audit trail of status changes)
+// ---------------------------------------------------------------------------
+
+model ReviewStatusHistory {
+  id              String       @id @default(uuid())
+  reviewId        String
+  fromStatus      ReviewStatus?
+  toStatus        ReviewStatus
+  changedByUserId String?
+  reason          String?
+  createdAt       DateTime     @default(now())
+
+  review    Review @relation(fields: [reviewId], references: [id])
+  changedBy User?  @relation("StatusChanger", fields: [changedByUserId], references: [id])
+
+  @@index([reviewId])
+}
+
+// ---------------------------------------------------------------------------
+// Widget (public social proof surface)
+// ---------------------------------------------------------------------------
+
+model Widget {
+  id             String       @id @default(uuid())
+  businessId     String
+  name           String
+  status         WidgetStatus @default(DRAFT)
+  type           WidgetType
+  publicToken    String       @unique
+  title          String?
+  maxItems       Int          @default(6)
+  showAuthorName Boolean      @default(true)
+  showDate       Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@index([businessId, status])
+}
