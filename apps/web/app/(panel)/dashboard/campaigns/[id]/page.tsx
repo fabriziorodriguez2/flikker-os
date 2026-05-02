@@ -6,6 +6,7 @@ import PageHeader from "@/components/ui/page-header";
 import MetricCard from "@/components/ui/metric-card";
 import SectionCard from "@/components/ui/section-card";
 import CampaignStatusBadge from "@/components/campaigns/campaign-status-badge";
+import { FEATURES } from "@/src/config/features";
 
 interface Campaign {
   id: string;
@@ -152,7 +153,9 @@ export default async function CampaignDetailPage({
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-white/80">
             {formatChannel(campaign.channel)}
-            {campaign.branch ? ` · ${campaign.branch.name}` : ""}
+            {FEATURES.MULTI_LOCAL && campaign.branch
+              ? ` · ${campaign.branch.name}`
+              : ""}
             {campaign.enableLanding ? " · Landing activa" : ""}
           </p>
 
@@ -184,37 +187,46 @@ export default async function CampaignDetailPage({
           </div>
         </div>
 
-        <SectionCard
-          title="Resumen"
-          description="Uso general de la campaña."
-        >
+        <SectionCard title="Resumen" description="Uso general de la campaña.">
           <div className="grid gap-3 sm:grid-cols-3">
             <MetricCard
               label="Días con datos"
               value={stats.byDay.length}
               hint="Actividad registrada"
             />
-            <MetricCard
-              label="QR"
-              value={stats.byQrCode.length}
-              hint="Con uso"
-              tone="accent"
-            />
-            <MetricCard
-              label="Sucursales"
-              value={stats.byBranch.length}
-              hint="Con scans"
-              tone="warm"
-            />
+            {FEATURES.QR_ADVANCED ? (
+              <MetricCard
+                label="QR"
+                value={stats.byQrCode.length}
+                hint="Con uso"
+                tone="accent"
+              />
+            ) : null}
+            {FEATURES.MULTI_LOCAL ? (
+              <MetricCard
+                label="Sucursales"
+                value={stats.byBranch.length}
+                hint="Con scans"
+                tone="warm"
+              />
+            ) : null}
           </div>
         </SectionCard>
       </section>
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Scans totales" value={stats.totalScans} />
-        <MetricCard label="Scans únicos" value={stats.uniqueScans} tone="accent" />
+        <MetricCard
+          label="Scans únicos"
+          value={stats.uniqueScans}
+          tone="accent"
+        />
         <MetricCard label="Tasa única" value={uniqueRate} />
-        <MetricCard label="Días con datos" value={stats.byDay.length} tone="warm" />
+        <MetricCard
+          label="Días con datos"
+          value={stats.byDay.length}
+          tone="warm"
+        />
       </section>
 
       {deviceTotal > 0 ? (
@@ -231,11 +243,8 @@ export default async function CampaignDetailPage({
         </SectionCard>
       ) : null}
 
-      {stats.byQrCode.length > 0 ? (
-        <SectionCard
-          title="Por QR"
-          description="Uso por activo trazable."
-        >
+      {FEATURES.QR_ADVANCED && stats.byQrCode.length > 0 ? (
+        <SectionCard title="Por QR" description="Uso por activo trazable.">
           <div className="grid gap-4 md:grid-cols-2">
             {stats.byQrCode.map((qr) => (
               <div
@@ -266,7 +275,7 @@ export default async function CampaignDetailPage({
         </SectionCard>
       ) : null}
 
-      {stats.byBranch.length > 0 ? (
+      {FEATURES.MULTI_LOCAL && stats.byBranch.length > 0 ? (
         <SectionCard
           title="Por sucursal"
           description="Actividad atribuida por sucursal."
@@ -282,7 +291,11 @@ export default async function CampaignDetailPage({
                 </p>
                 <div className="mt-4 grid grid-cols-2 gap-3">
                   <MetricCard label="Total" value={branch.total} />
-                  <MetricCard label="Únicos" value={branch.unique} tone="accent" />
+                  <MetricCard
+                    label="Únicos"
+                    value={branch.unique}
+                    tone="accent"
+                  />
                 </div>
               </div>
             ))}
@@ -307,7 +320,9 @@ export default async function CampaignDetailPage({
                   key={day.date}
                   className="grid grid-cols-[minmax(0,1fr)_120px_120px] gap-3 px-5 py-4 text-sm"
                 >
-                  <div className="text-[color:var(--foreground)]">{day.date}</div>
+                  <div className="text-[color:var(--foreground)]">
+                    {day.date}
+                  </div>
                   <div className="text-right font-semibold text-[color:var(--foreground)]">
                     {day.total}
                   </div>

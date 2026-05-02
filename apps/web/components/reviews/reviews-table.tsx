@@ -1,6 +1,7 @@
 import Link from "next/link";
 import ReviewRowActions from "./review-row-actions";
 import type { ReviewSummary } from "./types";
+import { FEATURES } from "@/src/config/features";
 
 interface ReviewsTableProps {
   reviews: ReviewSummary[];
@@ -57,7 +58,9 @@ export default function ReviewsTable({ reviews }: ReviewsTableProps) {
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[color:var(--text-muted)]">
-                    <span>{review.authorDisplayName ?? "Autor no informado"}</span>
+                    <span>
+                      {review.authorDisplayName ?? "Autor no informado"}
+                    </span>
                     <span>{formatDate(review.reviewedAt)}</span>
                   </div>
 
@@ -71,15 +74,15 @@ export default function ReviewsTable({ reviews }: ReviewsTableProps) {
                         Destacada
                       </span>
                     ) : null}
-                    {isResponded ? (
+                    {FEATURES.MANUAL_RESPONSES && isResponded ? (
                       <span className="rounded-full bg-[color:var(--success-bg)] px-3 py-1 text-xs font-semibold text-[color:var(--success-text)]">
                         {formatResponder(review)}
                       </span>
-                    ) : (
+                    ) : FEATURES.MANUAL_RESPONSES ? (
                       <span className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1 text-xs font-semibold text-[color:var(--text-muted)]">
                         Sin responder
                       </span>
-                    )}
+                    ) : null}
                   </div>
                 </div>
 
@@ -96,7 +99,9 @@ export default function ReviewsTable({ reviews }: ReviewsTableProps) {
                       ) : null}
                     </div>
                   ) : (
-                    <span className="text-[color:var(--text-soft)]">Sin campaña</span>
+                    <span className="text-[color:var(--text-soft)]">
+                      Sin campaña
+                    </span>
                   )}
                 </div>
 
@@ -104,7 +109,7 @@ export default function ReviewsTable({ reviews }: ReviewsTableProps) {
                   <span className="inline-flex rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
                     {review.status}
                   </span>
-                  {review.respondedAt ? (
+                  {FEATURES.MANUAL_RESPONSES && review.respondedAt ? (
                     <div className="text-xs text-[color:var(--text-muted)]">
                       {formatDate(review.respondedAt)}
                     </div>
@@ -124,7 +129,7 @@ export default function ReviewsTable({ reviews }: ReviewsTableProps) {
                     >
                       Ver detalle
                     </Link>
-                    {!isResponded ? (
+                    {FEATURES.MANUAL_RESPONSES && !isResponded ? (
                       <Link
                         href={`/dashboard/reviews/${review.id}`}
                         className="text-[color:var(--text-muted)] hover:text-[color:var(--foreground)]"
@@ -182,15 +187,17 @@ export default function ReviewsTable({ reviews }: ReviewsTableProps) {
                     Destacada
                   </span>
                 ) : null}
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                    isResponded
-                      ? "bg-[color:var(--success-bg)] text-[color:var(--success-text)]"
-                      : "border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]"
-                  }`}
-                >
-                  {isResponded ? formatResponder(review) : "Sin responder"}
-                </span>
+                {FEATURES.MANUAL_RESPONSES ? (
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      isResponded
+                        ? "bg-[color:var(--success-bg)] text-[color:var(--success-text)]"
+                        : "border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]"
+                    }`}
+                  >
+                    {isResponded ? formatResponder(review) : "Sin responder"}
+                  </span>
+                ) : null}
               </div>
 
               <div className="mt-5 space-y-3">
@@ -206,7 +213,7 @@ export default function ReviewsTable({ reviews }: ReviewsTableProps) {
                   >
                     Ver detalle
                   </Link>
-                  {!isResponded ? (
+                  {FEATURES.MANUAL_RESPONSES && !isResponded ? (
                     <Link
                       href={`/dashboard/reviews/${review.id}`}
                       className="text-[color:var(--text-muted)]"

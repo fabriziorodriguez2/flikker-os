@@ -87,12 +87,26 @@ export class ReviewTagsService {
     }
 
     // Check if already assigned
-    const existing = await this.tagsRepository.findRelation(reviewId, tagId);
+    const existing = await this.tagsRepository.findRelation(
+      businessId,
+      reviewId,
+      tagId,
+    );
     if (existing) {
       throw new ConflictException('Tag is already assigned to this review');
     }
 
-    return this.tagsRepository.assignTag(reviewId, tagId);
+    const relation = await this.tagsRepository.assignTag(
+      businessId,
+      reviewId,
+      tagId,
+    );
+    if (!relation) {
+      throw new BadRequestException(
+        'Review or tag does not belong to business',
+      );
+    }
+    return relation;
   }
 
   async unassignTag(businessId: string, reviewId: string, tagId: string) {
@@ -100,6 +114,6 @@ export class ReviewTagsService {
     const review = await this.reviewsRepository.findOne(businessId, reviewId);
     if (!review) throw new NotFoundException('Review not found');
 
-    await this.tagsRepository.unassignTag(reviewId, tagId);
+    await this.tagsRepository.unassignTag(businessId, reviewId, tagId);
   }
 }

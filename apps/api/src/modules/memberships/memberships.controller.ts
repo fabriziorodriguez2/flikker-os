@@ -15,11 +15,11 @@ import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { FeatureFlagGuard } from '../../common/guards/feature-flag.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import type { AuthenticatedRequest } from '../../common/types/request.types';
 
 @Controller('memberships')
-@UseGuards(JwtGuard, TenantGuard)
 export class MembershipsController {
   constructor(private readonly membershipsService: MembershipsService) {}
 
@@ -27,6 +27,7 @@ export class MembershipsController {
    * Lists all active members of the current business.
    */
   @Get()
+  @UseGuards(JwtGuard, TenantGuard)
   list(@Req() req: AuthenticatedRequest) {
     return this.membershipsService.listForBusiness(req.currentBusinessId!);
   }
@@ -35,6 +36,7 @@ export class MembershipsController {
    * Returns the membership details of a specific user within the current business.
    */
   @Get(':userId')
+  @UseGuards(JwtGuard, TenantGuard)
   findOne(@Req() req: AuthenticatedRequest, @Param('userId') userId: string) {
     return this.membershipsService.findOne(req.currentBusinessId!, userId);
   }
@@ -44,7 +46,7 @@ export class MembershipsController {
    * OWNER can assign any role. ADMIN can only assign OPERATOR or VIEWER.
    */
   @Post()
-  @UseGuards(RolesGuard)
+  @UseGuards(FeatureFlagGuard('MULTI_USER'), JwtGuard, TenantGuard, RolesGuard)
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
   addMember(@Req() req: AuthenticatedRequest, @Body() dto: AddMemberDto) {
     return this.membershipsService.addMember(
@@ -59,7 +61,7 @@ export class MembershipsController {
    * Changes the role of a member — OWNER only.
    */
   @Patch(':id/role')
-  @UseGuards(RolesGuard)
+  @UseGuards(FeatureFlagGuard('MULTI_USER'), JwtGuard, TenantGuard, RolesGuard)
   @Roles(MembershipRole.OWNER)
   updateRole(
     @Req() req: AuthenticatedRequest,
@@ -73,7 +75,7 @@ export class MembershipsController {
    * Revokes a membership — OWNER only.
    */
   @Patch(':id/revoke')
-  @UseGuards(RolesGuard)
+  @UseGuards(FeatureFlagGuard('MULTI_USER'), JwtGuard, TenantGuard, RolesGuard)
   @Roles(MembershipRole.OWNER)
   revoke(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.membershipsService.revoke(req.currentBusinessId!, id);

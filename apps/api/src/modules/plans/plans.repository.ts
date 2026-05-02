@@ -33,6 +33,7 @@ export class PlansRepository {
             maxMembers: true,
             maxCampaigns: true,
             maxReviewsPerMonth: true,
+            messageQuotaMonthly: true,
           },
         },
       },

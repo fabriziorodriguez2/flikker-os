@@ -49,6 +49,7 @@ const mockRepo = {
   findManyByBusiness: jest.fn(),
   findOne: jest.fn(),
   findById: jest.fn(),
+  findByIdInBusiness: jest.fn(),
   findUserByEmail: jest.fn(),
   findExistingMembership: jest.fn(),
   create: jest.fn(),
@@ -238,7 +239,8 @@ describe('MembershipsService', () => {
   describe('updateRole', () => {
     it('changes role directly when target is not an OWNER', async () => {
       mockRepo.findById.mockResolvedValue(mockMembershipFull);
-      mockRepo.updateRole.mockResolvedValue({
+      mockRepo.updateRole.mockResolvedValue({ count: 1 });
+      mockRepo.findByIdInBusiness.mockResolvedValue({
         ...mockMembership,
         role: MembershipRole.OPERATOR,
       });
@@ -249,6 +251,7 @@ describe('MembershipsService', () => {
 
       expect(result.role).toBe(MembershipRole.OPERATOR);
       expect(mockRepo.updateRole).toHaveBeenCalledWith(
+        BUSINESS_ID,
         MEMBERSHIP_ID,
         MembershipRole.OPERATOR,
       );
@@ -315,7 +318,8 @@ describe('MembershipsService', () => {
   describe('revoke', () => {
     it('revokes a non-OWNER active membership directly', async () => {
       mockRepo.findById.mockResolvedValue(mockMembershipFull);
-      mockRepo.revoke.mockResolvedValue({
+      mockRepo.revoke.mockResolvedValue({ count: 1 });
+      mockRepo.findByIdInBusiness.mockResolvedValue({
         ...mockMembership,
         status: MembershipStatus.REVOKED,
       });

@@ -1,12 +1,13 @@
-'use client';
+"use client";
 
-import Link from 'next/link';
-import { usePathname } from 'next/navigation';
-import { useEffect, useState, type ReactNode } from 'react';
-import BusinessSelector from './business-selector';
-import type { SessionMembership } from '@/lib/auth';
-import BrandMark from '@/components/brand/brand-mark';
-import BrandWordmark from '@/components/brand/brand-wordmark';
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useEffect, useState, type ReactElement, type ReactNode } from "react";
+import BusinessSelector from "./business-selector";
+import type { SessionMembership } from "@/lib/auth";
+import BrandMark from "@/components/brand/brand-mark";
+import BrandWordmark from "@/components/brand/brand-wordmark";
+import { FEATURES } from "@/src/config/features";
 
 interface SidebarProps {
   memberships: SessionMembership[];
@@ -15,11 +16,11 @@ interface SidebarProps {
   isPlatformAdmin?: boolean;
 }
 
-const SIDEBAR_STORAGE_KEY = 'flikker-sidebar-collapsed';
+const SIDEBAR_STORAGE_KEY = "flikker-sidebar-collapsed";
 
 function Icon({
   children,
-  className = '',
+  className = "",
 }: {
   children: ReactNode;
   className?: string;
@@ -57,6 +58,15 @@ const CampaignsIcon = () => (
 const ReviewsIcon = () => (
   <Icon>
     <path d="M12 17.3 6.1 20l1.1-6.3L2.5 9.1l6.4-.9L12 2.5l3.1 5.7 6.4.9-4.7 4.6 1.1 6.3z" />
+  </Icon>
+);
+
+const CustomersIcon = () => (
+  <Icon>
+    <circle cx="9" cy="8" r="3" />
+    <path d="M4.5 20a4.5 4.5 0 0 1 9 0" />
+    <path d="M15 7h5" />
+    <path d="M17.5 4.5v5" />
   </Icon>
 );
 
@@ -116,23 +126,42 @@ const PanelExpandIcon = () => (
 );
 
 const NAV_ITEMS = [
-  { href: '/dashboard', label: 'Inicio', icon: <HomeIcon /> },
-  { href: '/dashboard/campaigns', label: 'Campañas', icon: <CampaignsIcon /> },
-  { href: '/dashboard/reviews', label: 'Reseñas', icon: <ReviewsIcon /> },
-  { href: '/dashboard/widgets', label: 'Widgets', icon: <WidgetsIcon /> },
-  { href: '/dashboard/settings', label: 'Configuración', icon: <SettingsIcon /> },
+  { href: "/dashboard", label: "Inicio", icon: <HomeIcon /> },
+  {
+    href: "/dashboard/customers",
+    label: "Pacientes",
+    icon: <CustomersIcon />,
+  },
+  { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon /> },
+  { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
+  { href: "/dashboard/widgets", label: "Widgets", icon: <WidgetsIcon /> },
+  {
+    href: "/dashboard/settings",
+    label: "Configuración",
+    icon: <SettingsIcon />,
+  },
 ];
+
+type NavDefinition = {
+  href: string;
+  label: string;
+  icon: ReactElement;
+};
 
 const SECONDARY_ITEMS = [
-  { href: '/dashboard/branches', label: 'Sucursales', icon: <BranchesIcon /> },
-  { href: '/dashboard/members', label: 'Equipo', icon: <TeamIcon /> },
-];
+  FEATURES.MULTI_LOCAL
+    ? {
+        href: "/dashboard/branches",
+        label: "Sucursales",
+        icon: <BranchesIcon />,
+      }
+    : null,
+  FEATURES.MULTI_USER
+    ? { href: "/dashboard/members", label: "Equipo", icon: <TeamIcon /> }
+    : null,
+].filter((item): item is NavDefinition => Boolean(item));
 
-function SidebarTooltip({
-  label,
-}: {
-  label: string;
-}) {
+function SidebarTooltip({ label }: { label: string }) {
   return (
     <span className="flikker-glass-tooltip pointer-events-none absolute left-[calc(100%+10px)] top-1/2 z-30 -translate-y-1/2 translate-x-1 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-medium text-[color:var(--foreground)] opacity-0 transition-all duration-150 group-hover:translate-x-0 group-hover:opacity-100">
       {label}
@@ -142,11 +171,11 @@ function SidebarTooltip({
 
 function itemClass(isActive: boolean, collapsed: boolean) {
   return `group relative flex items-center rounded-xl transition-colors ${
-    collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5'
+    collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5"
   } ${
     isActive
-      ? 'bg-[color:var(--brand-primary)] text-white'
-      : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface)] hover:text-[color:var(--foreground)]'
+      ? "bg-[color:var(--brand-primary)] text-white"
+      : "text-[color:var(--text-muted)] hover:bg-[color:var(--surface)] hover:text-[color:var(--foreground)]"
   }`;
 }
 
@@ -168,13 +197,15 @@ function NavItem({
       <span
         className={`inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
           active
-            ? 'bg-white/14 text-white'
-            : 'bg-[color:var(--surface-muted)] text-[color:var(--text-soft)]'
+            ? "bg-white/14 text-white"
+            : "bg-[color:var(--surface-muted)] text-[color:var(--text-soft)]"
         }`}
       >
         {icon}
       </span>
-      {!collapsed ? <span className="truncate text-sm font-medium">{label}</span> : null}
+      {!collapsed ? (
+        <span className="truncate text-sm font-medium">{label}</span>
+      ) : null}
       <SidebarTooltip label={label} />
     </Link>
   );
@@ -212,8 +243,8 @@ export default function Sidebar({
 }: SidebarProps) {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(() => {
-    if (typeof window === 'undefined') return false;
-    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === 'true';
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
   });
 
   useEffect(() => {
@@ -227,18 +258,27 @@ export default function Sidebar({
   return (
     <aside
       className={`flikker-sidebar-glow sticky top-0 hidden h-screen shrink-0 overflow-hidden border-r border-[color:var(--border)] transition-[width] duration-200 lg:flex lg:flex-col ${
-        collapsed ? 'w-[76px]' : 'w-[236px]'
+        collapsed ? "w-[76px]" : "w-[236px]"
       }`}
     >
-      <div className={`${collapsed ? 'px-3 py-5' : 'px-5 py-5'}`}>
-        <div className={`flex items-center ${collapsed ? 'justify-center' : 'justify-between gap-3'}`}>
+      <div className={`${collapsed ? "px-3 py-5" : "px-5 py-5"}`}>
+        <div
+          className={`flex items-center ${collapsed ? "justify-center" : "justify-between gap-3"}`}
+        >
           {collapsed ? (
             <BrandMark width={56} height={44} className="h-auto w-[28px]" />
           ) : (
-            <BrandWordmark width={196} height={60} className="h-auto w-[136px]" />
+            <BrandWordmark
+              width={196}
+              height={60}
+              className="h-auto w-[136px]"
+            />
           )}
           {!collapsed ? (
-            <SidebarActionButton label="Colapsar menú" onClick={() => setCollapsed(true)}>
+            <SidebarActionButton
+              label="Colapsar menú"
+              onClick={() => setCollapsed(true)}
+            >
               <PanelCollapseIcon />
             </SidebarActionButton>
           ) : null}
@@ -246,7 +286,10 @@ export default function Sidebar({
 
         {collapsed ? (
           <div className="mt-4 flex justify-center">
-            <SidebarActionButton label="Expandir menú" onClick={() => setCollapsed(false)}>
+            <SidebarActionButton
+              label="Expandir menú"
+              onClick={() => setCollapsed(false)}
+            >
               <PanelExpandIcon />
             </SidebarActionButton>
           </div>
@@ -265,8 +308,8 @@ export default function Sidebar({
         <nav className="flex flex-col gap-1">
           {NAV_ITEMS.map((item) => {
             const isActive =
-              item.href === '/dashboard'
-                ? pathname === '/dashboard'
+              item.href === "/dashboard"
+                ? pathname === "/dashboard"
                 : pathname.startsWith(item.href);
 
             return (
@@ -304,34 +347,40 @@ export default function Sidebar({
             <Link
               href="/platform"
               className={`group relative flex items-center rounded-xl border border-[color:rgba(250,171,75,0.22)] bg-[color:rgba(250,171,75,0.08)] text-[color:var(--warning-text)] transition-colors hover:bg-[color:rgba(250,171,75,0.14)] ${
-                collapsed ? 'justify-center px-2 py-2.5' : 'gap-3 px-3 py-2.5'
+                collapsed ? "justify-center px-2 py-2.5" : "gap-3 px-3 py-2.5"
               }`}
             >
               <span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[color:rgba(250,171,75,0.14)]">
                 <PlatformIcon />
               </span>
-              {!collapsed ? <span className="truncate text-sm font-medium">Platform</span> : null}
+              {!collapsed ? (
+                <span className="truncate text-sm font-medium">Platform</span>
+              ) : null}
               <SidebarTooltip label="Platform" />
             </Link>
           </div>
         ) : null}
       </div>
 
-      <div className={`border-t border-[color:var(--border)] ${collapsed ? 'px-3 py-3' : 'px-5 py-4'}`}>
+      <div
+        className={`border-t border-[color:var(--border)] ${collapsed ? "px-3 py-3" : "px-5 py-4"}`}
+      >
         {collapsed ? (
           <div
             title={userName}
             className="mx-auto flex h-9 w-9 items-center justify-center rounded-full bg-[color:var(--surface-muted)] text-[11px] font-semibold tracking-[0.06em] text-[color:var(--text-muted)]"
           >
             {userName
-              .split(' ')
+              .split(" ")
               .filter(Boolean)
               .slice(0, 2)
               .map((part) => part[0])
-              .join('')}
+              .join("")}
           </div>
         ) : (
-          <p className="truncate text-sm font-medium text-[color:var(--foreground)]">{userName}</p>
+          <p className="truncate text-sm font-medium text-[color:var(--foreground)]">
+            {userName}
+          </p>
         )}
       </div>
     </aside>

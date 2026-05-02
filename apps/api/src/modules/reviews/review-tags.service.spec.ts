@@ -200,6 +200,16 @@ describe('ReviewTagsService', () => {
       const result = await service.assignTag(BUSINESS_ID, REVIEW_ID, TAG_ID);
 
       expect(result.reviewId).toBe(REVIEW_ID);
+      expect(mockTagsRepo.findRelation).toHaveBeenCalledWith(
+        BUSINESS_ID,
+        REVIEW_ID,
+        TAG_ID,
+      );
+      expect(mockTagsRepo.assignTag).toHaveBeenCalledWith(
+        BUSINESS_ID,
+        REVIEW_ID,
+        TAG_ID,
+      );
     });
 
     it('throws NotFoundException if review missing', async () => {
@@ -239,7 +249,11 @@ describe('ReviewTagsService', () => {
 
       await service.unassignTag(BUSINESS_ID, REVIEW_ID, TAG_ID);
 
-      expect(mockTagsRepo.unassignTag).toHaveBeenCalledWith(REVIEW_ID, TAG_ID);
+      expect(mockTagsRepo.unassignTag).toHaveBeenCalledWith(
+        BUSINESS_ID,
+        REVIEW_ID,
+        TAG_ID,
+      );
     });
 
     it('throws NotFoundException if review missing', async () => {

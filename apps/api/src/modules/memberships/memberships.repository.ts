@@ -50,6 +50,20 @@ export class MembershipsRepository {
     });
   }
 
+  findByIdInBusiness(businessId: string, id: string) {
+    return this.prisma.membership.findFirst({
+      where: { id, businessId },
+      select: {
+        id: true,
+        role: true,
+        status: true,
+        user: {
+          select: { id: true, email: true, firstName: true, lastName: true },
+        },
+      },
+    });
+  }
+
   findUserByEmail(email: string) {
     return this.prisma.user.findUnique({
       where: { email },
@@ -84,10 +98,14 @@ export class MembershipsRepository {
     });
   }
 
-  reactivate(id: string, role: MembershipRole) {
-    return this.prisma.membership.update({
-      where: { id },
+  async reactivate(businessId: string, id: string, role: MembershipRole) {
+    await this.prisma.membership.updateMany({
+      where: { id, businessId },
       data: { role, status: MembershipStatus.ACTIVE },
+    });
+
+    return this.prisma.membership.findFirstOrThrow({
+      where: { id, businessId },
       select: {
         id: true,
         role: true,
@@ -100,33 +118,17 @@ export class MembershipsRepository {
     });
   }
 
-  updateRole(id: string, role: MembershipRole) {
-    return this.prisma.membership.update({
-      where: { id },
+  updateRole(businessId: string, id: string, role: MembershipRole) {
+    return this.prisma.membership.updateMany({
+      where: { id, businessId },
       data: { role },
-      select: {
-        id: true,
-        role: true,
-        status: true,
-        user: {
-          select: { id: true, email: true, firstName: true, lastName: true },
-        },
-      },
     });
   }
 
-  revoke(id: string) {
-    return this.prisma.membership.update({
-      where: { id },
+  revoke(businessId: string, id: string) {
+    return this.prisma.membership.updateMany({
+      where: { id, businessId },
       data: { status: MembershipStatus.REVOKED },
-      select: {
-        id: true,
-        role: true,
-        status: true,
-        user: {
-          select: { id: true, email: true, firstName: true, lastName: true },
-        },
-      },
     });
   }
 
@@ -191,7 +193,7 @@ export class MembershipsRepository {
           return 'LIMIT_REACHED' as const;
         }
         return tx.membership.update({
-          where: { id: existing.id },
+          where: { userId_businessId: { userId: data.userId, businessId } },
           data: { role: data.role, status: MembershipStatus.ACTIVE },
           select: MembershipsRepository.MEMBER_SELECT,
         });
@@ -223,9 +225,13 @@ export class MembershipsRepository {
       });
       if (ownerCount <= 1) return 'LAST_OWNER' as const;
 
-      return tx.membership.update({
-        where: { id: membershipId },
+      await tx.membership.updateMany({
+        where: { id: membershipId, businessId },
         data: { role: newRole },
+      });
+
+      return tx.membership.findFirstOrThrow({
+        where: { id: membershipId, businessId },
         select: {
           id: true,
           role: true,
@@ -253,9 +259,13 @@ export class MembershipsRepository {
       });
       if (ownerCount <= 1) return 'LAST_OWNER' as const;
 
-      return tx.membership.update({
-        where: { id: membershipId },
+      await tx.membership.updateMany({
+        where: { id: membershipId, businessId },
         data: { status: MembershipStatus.REVOKED },
+      });
+
+      return tx.membership.findFirstOrThrow({
+        where: { id: membershipId, businessId },
         select: {
           id: true,
           role: true,

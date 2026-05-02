@@ -43,34 +43,63 @@ export class ReviewTagsRepository {
       where: { id: tagId, businessId },
       data,
     });
-    return this.prisma.reviewTag.findUniqueOrThrow({ where: { id: tagId } });
+    return this.prisma.reviewTag.findFirstOrThrow({
+      where: { id: tagId, businessId },
+    });
   }
 
   async delete(businessId: string, tagId: string) {
-    // Delete relations first, then the tag
-    await this.prisma.$transaction([
-      this.prisma.reviewTagRelation.deleteMany({ where: { tagId } }),
-      this.prisma.reviewTag.deleteMany({ where: { id: tagId, businessId } }),
-    ]);
-  }
-
-  // --- Tag ↔ Review assignment ---
-
-  findRelation(reviewId: string, tagId: string) {
-    return this.prisma.reviewTagRelation.findUnique({
-      where: { reviewId_tagId: { reviewId, tagId } },
+    // Delete only relations whose tag belongs to this business.
+    await this.prisma.$transaction(async (tx) => {
+      await tx.reviewTagRelation.deleteMany({
+        where: { tagId, tag: { businessId } },
+      });
+      await tx.reviewTag.deleteMany({ where: { id: tagId, businessId } });
     });
   }
 
-  assignTag(reviewId: string, tagId: string) {
-    return this.prisma.reviewTagRelation.create({
-      data: { reviewId, tagId },
+  // --- Tag <-> Review assignment ---
+
+  findRelation(businessId: string, reviewId: string, tagId: string) {
+    return this.prisma.reviewTagRelation.findFirst({
+      where: {
+        reviewId,
+        tagId,
+        review: { businessId },
+        tag: { businessId },
+      },
     });
   }
 
-  unassignTag(reviewId: string, tagId: string) {
+  assignTag(businessId: string, reviewId: string, tagId: string) {
+    return this.prisma.$transaction(async (tx) => {
+      const [review, tag] = await Promise.all([
+        tx.review.findFirst({
+          where: { id: reviewId, businessId },
+          select: { id: true },
+        }),
+        tx.reviewTag.findFirst({
+          where: { id: tagId, businessId },
+          select: { id: true },
+        }),
+      ]);
+
+      if (!review || !tag) return null;
+
+      return tx.reviewTagRelation.create({
+        data: { reviewId, tagId },
+      });
+    });
+  }
+
+  unassignTag(businessId: string, reviewId: string, tagId: string) {
     return this.prisma.reviewTagRelation.deleteMany({
-      where: { reviewId, tagId },
+      where: {
+        reviewId,
+        tagId,
+        review: { businessId },
+        tag: { businessId },
+      },
     });
   }
 }

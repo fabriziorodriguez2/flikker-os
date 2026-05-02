@@ -5,14 +5,14 @@
  * Ejecutar: npm run seed (desde apps/api)
  *
  * Usuarios creados:
- *   admin@flikker.dev    / Flikker2026!  — OWNER en Gains + Delta  [PLATFORM ADMIN]
- *   admin2@flikker.dev   / Flikker2026!  — ADMIN en Gains
- *   ops@flikker.dev      / Flikker2026!  — OPERATOR en Gains
- *   viewer@flikker.dev   / Flikker2026!  — VIEWER en Delta
- *   cafe@flikker.dev     / Flikker2026!  — OWNER en Café Brava (Free)
- *   vet@flikker.dev      / Flikker2026!  — OWNER en Veterinaria San Roque (Trial)
- *   multi@flikker.dev    / Flikker2026!  — ADMIN en Delta + OPERATOR en Vet
- *   revoked@flikker.dev  / Flikker2026!  — REVOKED en Gains
+ *   admin@flikker.dev    / Flikker2026!  — OWNER en Clinica Dental + Centro Estetica  [PLATFORM ADMIN]
+ *   admin2@flikker.dev   / Flikker2026!  — ADMIN en Clinica Dental
+ *   ops@flikker.dev      / Flikker2026!  — OPERATOR en Clinica Dental
+ *   viewer@flikker.dev   / Flikker2026!  — VIEWER en Centro Estetica
+ *   estetica@flikker.dev / Flikker2026!  — OPERATOR en Centro Estetica
+ *   dental@flikker.dev   / Flikker2026!  — OPERATOR en Clinica Dental
+ *   multi@flikker.dev    / Flikker2026!  — ADMIN en Centro Estetica + OPERATOR en Dental
+ *   revoked@flikker.dev  / Flikker2026!  — REVOKED en Clinica Dental
  */
 
 import 'dotenv/config';
@@ -70,13 +70,13 @@ async function main() {
       isPlatformAdmin: false,
     },
     {
-      email: 'cafe@flikker.dev',
+      email: 'estetica@flikker.dev',
       firstName: 'Laura',
-      lastName: 'Méndez',
+      lastName: 'Mendez',
       isPlatformAdmin: false,
     },
     {
-      email: 'vet@flikker.dev',
+      email: 'dental@flikker.dev',
       firstName: 'Carlos',
       lastName: 'Pereira',
       isPlatformAdmin: false,
@@ -116,106 +116,52 @@ async function main() {
   // ---------------------------------------------------------------------------
   const businessesData = [
     {
-      slug: 'gains-montevideo',
-      name: 'Gains Montevideo',
-      legalName: 'Gains Fitness Uruguay S.A.',
-      industry: 'fitness',
-      description:
-        'Cadena de gimnasios en Montevideo enfocada en entrenamiento funcional.',
-      country: 'UY',
-      timezone: 'America/Montevideo',
-      currency: 'UYU',
-      status: BusinessStatus.ACTIVE,
-      email: 'contacto@gains.uy',
-      phone: '+598 99 123 456',
-      website: 'https://gains.uy',
-      logoUrl: 'https://placehold.co/200x200/FF6B00/FFF?text=GAINS',
-      primaryColor: '#FF6B00',
-      secondaryColor: '#1A1A1A',
-      toneOfVoice: 'friendly',
-      whatsappUrl: 'https://wa.me/59899123456',
-      shortBio:
-        'Tu gimnasio funcional en Montevideo. Entrenamiento real, resultados reales.',
-      signatureText: 'Equipo Gains Montevideo',
-      googleBusinessProfileUrl: 'https://g.page/gains-montevideo',
-      defaultReviewRedirectUrl: 'https://g.page/gains-montevideo/review',
-    },
-    {
-      slug: 'clinica-delta',
-      name: 'Clínica Delta',
-      legalName: 'Delta Salud S.R.L.',
+      slug: 'clinica-dental-ejemplo',
+      name: 'Clínica Dental Ejemplo',
+      legalName: 'Clínica Dental Ejemplo S.R.L.',
       industry: 'health',
-      description: 'Centro médico multidisciplinario en Montevideo.',
+      vertical: 'clinic',
+      description: 'Clínica odontológica enfocada en pacientes particulares.',
       country: 'UY',
       timezone: 'America/Montevideo',
-      currency: 'UYU',
+      currency: 'USD',
       status: BusinessStatus.ACTIVE,
-      email: 'info@clinicadelta.uy',
-      phone: '+598 2 900 0000',
-      website: 'https://clinicadelta.uy',
-      logoUrl: 'https://placehold.co/200x200/0077B6/FFF?text=DELTA',
+      email: 'contacto@clinicadental.example',
+      phone: '+598 99 123 456',
+      website: 'https://clinicadental.example',
+      logoUrl: 'https://placehold.co/200x200/0077B6/FFF?text=CD',
       primaryColor: '#0077B6',
       secondaryColor: '#FFFFFF',
       toneOfVoice: 'professional',
-      whatsappUrl: 'https://wa.me/59829000000',
-      shortBio:
-        'Centro médico multidisciplinario. Tu salud, nuestra prioridad.',
-      signatureText: 'Clínica Delta — Equipo Médico',
-      googleBusinessProfileUrl: 'https://g.page/clinica-delta',
-      defaultReviewRedirectUrl: 'https://g.page/clinica-delta/review',
+      whatsappUrl: 'https://wa.me/59899123456',
+      shortBio: 'Odontología profesional y cercana en Montevideo.',
+      signatureText: 'Equipo Clínica Dental Ejemplo',
+      googleBusinessProfileUrl: 'https://g.page/clinica-dental-ejemplo',
+      defaultReviewRedirectUrl: 'https://g.page/clinica-dental-ejemplo/review',
     },
     {
-      slug: 'cafe-brava',
-      name: 'Café Brava',
-      legalName: 'Brava Gastronomía S.R.L.',
-      industry: 'gastronomy',
-      description: 'Café de especialidad en el corazón de Ciudad Vieja.',
+      slug: 'centro-estetica-ejemplo',
+      name: 'Centro de Estética Ejemplo',
+      legalName: 'Centro de Estética Ejemplo S.R.L.',
+      industry: 'beauty',
+      vertical: 'aesthetics',
+      description: 'Centro de estética y tratamientos faciales en Montevideo.',
       country: 'UY',
       timezone: 'America/Montevideo',
-      currency: 'UYU',
+      currency: 'USD',
       status: BusinessStatus.ACTIVE,
-      email: 'hola@cafebrava.uy',
+      email: 'hola@estetica.example',
       phone: '+598 99 555 111',
-      website: null,
-      primaryColor: '#8B4513',
-      secondaryColor: '#F5F0E8',
-      toneOfVoice: 'casual',
-      shortBio: 'Café de especialidad con granos tostados en Montevideo.',
-      signatureText: 'Laura — Café Brava',
-    },
-    {
-      slug: 'veterinaria-san-roque',
-      name: 'Veterinaria San Roque',
-      legalName: 'San Roque Veterinaria S.A.',
-      industry: 'veterinary',
-      description:
-        'Clínica veterinaria integral con servicio de urgencias 24h.',
-      country: 'UY',
-      timezone: 'America/Montevideo',
-      currency: 'UYU',
-      status: BusinessStatus.ACTIVE,
-      email: 'contacto@sanroque.vet',
-      phone: '+598 2 600 1234',
-      website: 'https://sanroque.vet',
-      logoUrl: 'https://placehold.co/200x200/2D6A4F/FFF?text=SR',
-      primaryColor: '#2D6A4F',
-      secondaryColor: '#D8F3DC',
-      toneOfVoice: 'empathetic',
-      whatsappUrl: 'https://wa.me/59826001234',
-      shortBio: 'Cuidamos a tu mascota como si fuera nuestra. Urgencias 24h.',
-      signatureText: 'Dr. Carlos Pereira — Veterinaria San Roque',
-    },
-    {
-      slug: 'studio-nomade',
-      name: 'Studio Nómade',
-      legalName: null,
-      industry: 'coworking',
-      description: 'Espacio de coworking para creativos y freelancers.',
-      country: 'UY',
-      timezone: 'America/Montevideo',
-      currency: 'UYU',
-      status: BusinessStatus.DRAFT,
-      email: 'info@studionomade.uy',
+      website: 'https://estetica.example',
+      logoUrl: 'https://placehold.co/200x200/C026D3/FFF?text=CE',
+      primaryColor: '#C026D3',
+      secondaryColor: '#FDF4FF',
+      toneOfVoice: 'warm',
+      whatsappUrl: 'https://wa.me/59899555111',
+      shortBio: 'Tratamientos estéticos con atención personalizada.',
+      signatureText: 'Equipo Centro de Estética Ejemplo',
+      googleBusinessProfileUrl: 'https://g.page/centro-estetica-ejemplo',
+      defaultReviewRedirectUrl: 'https://g.page/centro-estetica-ejemplo/review',
     },
   ];
 
@@ -228,7 +174,7 @@ async function main() {
   for (const data of businessesData) {
     const business = await prisma.business.upsert({
       where: { slug: data.slug },
-      update: {},
+      update: data,
       create: data,
     });
     businesses[data.slug] = business;
@@ -239,89 +185,89 @@ async function main() {
   // Branches
   // ---------------------------------------------------------------------------
   const branchesData = [
-    // Gains Montevideo — 3 sucursales (Pro permite 10)
+    // Clinica Dental Ejemplo — 3 sucursales (Pro permite 10)
     {
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       slug: 'pocitos',
-      name: 'Gains Pocitos',
+      name: 'Clinica Dental Pocitos',
       address: 'Av. Brasil 2345, Pocitos',
       city: 'Montevideo',
       state: 'Montevideo',
       phone: '+598 99 123 457',
-      email: 'pocitos@gains.uy',
+      email: 'pocitos@clinicadental.example',
     },
     {
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       slug: 'carrasco',
-      name: 'Gains Carrasco',
+      name: 'Clinica Dental Carrasco',
       address: 'Av. Italia 5678, Carrasco',
       city: 'Montevideo',
       state: 'Montevideo',
       phone: '+598 99 123 458',
-      email: 'carrasco@gains.uy',
+      email: 'carrasco@clinicadental.example',
     },
     {
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       slug: 'punta-carretas',
-      name: 'Gains Punta Carretas',
+      name: 'Clinica Dental Punta Carretas',
       address: 'Ellauri 812, Punta Carretas',
       city: 'Montevideo',
       state: 'Montevideo',
       phone: '+598 99 123 459',
-      email: 'puntacarretas@gains.uy',
+      email: 'puntacarretas@clinicadental.example',
     },
-    // Clínica Delta — 2 sucursales (Starter permite 3)
+    // Clínica Centro Estetica — 2 sucursales (Starter permite 3)
     {
-      businessSlug: 'clinica-delta',
+      businessSlug: 'centro-estetica-ejemplo',
       slug: 'centro',
-      name: 'Delta Centro',
+      name: 'Centro Estetica Centro',
       address: '18 de Julio 1234, Centro',
       city: 'Montevideo',
       state: 'Montevideo',
       phone: '+598 2 900 0001',
-      email: 'centro@clinicadelta.uy',
+      email: 'centro@estetica.example',
     },
     {
-      businessSlug: 'clinica-delta',
+      businessSlug: 'centro-estetica-ejemplo',
       slug: 'pocitos',
-      name: 'Delta Pocitos',
+      name: 'Centro Estetica Pocitos',
       address: 'Bvar. España 2901, Pocitos',
       city: 'Montevideo',
       state: 'Montevideo',
       phone: '+598 2 900 0002',
-      email: 'pocitos@clinicadelta.uy',
+      email: 'pocitos@estetica.example',
     },
-    // Café Brava — 1 sucursal (Free máx = 1, AL LÍMITE)
+    // Centro Estetica — sucursal Ciudad Vieja
     {
-      businessSlug: 'cafe-brava',
+      businessSlug: 'centro-estetica-ejemplo',
       slug: 'ciudad-vieja',
-      name: 'Brava Ciudad Vieja',
+      name: 'Centro Estetica Ciudad Vieja',
       address: 'Sarandí 450, Ciudad Vieja',
       city: 'Montevideo',
       state: 'Montevideo',
       phone: '+598 99 555 112',
-      email: 'hola@cafebrava.uy',
+      email: 'ciudadvieja@estetica.example',
     },
-    // Veterinaria San Roque — 2 sucursales (Starter trial permite 3)
+    // Clinica Dental Ejemplo — sede adicional
     {
-      businessSlug: 'veterinaria-san-roque',
+      businessSlug: 'clinica-dental-ejemplo',
       slug: 'sede-principal',
       name: 'Sede Principal',
       address: 'Av. Millán 3200, La Blanqueada',
       city: 'Montevideo',
       state: 'Montevideo',
       phone: '+598 2 600 1234',
-      email: 'contacto@sanroque.vet',
+      email: 'sede@clinicadental.example',
     },
     {
-      businessSlug: 'veterinaria-san-roque',
+      businessSlug: 'clinica-dental-ejemplo',
       slug: 'sayago',
       name: 'Consultorio Sayago',
       address: 'Camino Castro 1560, Sayago',
       city: 'Montevideo',
       state: 'Montevideo',
       phone: '+598 2 600 1235',
-      email: 'sayago@sanroque.vet',
+      email: 'sayago@clinicadental.example',
     },
     // Studio Nómade — sin branches (DRAFT, recién creado)
   ];
@@ -335,13 +281,21 @@ async function main() {
   console.log('\n📍 Branches');
   for (const data of branchesData) {
     const business = businesses[data.businessSlug];
-    const { businessSlug: _, ...branchFields } = data;
+    const branchFields = {
+      slug: data.slug,
+      name: data.name,
+      address: data.address,
+      city: data.city,
+      state: data.state,
+      phone: data.phone,
+      email: data.email,
+    };
 
     const branch = await prisma.branch.upsert({
       where: {
         businessId_slug: { businessId: business.id, slug: data.slug },
       },
-      update: {},
+      update: branchFields,
       create: { businessId: business.id, ...branchFields },
     });
     branches[`${data.businessSlug}/${data.slug}`] = branch;
@@ -352,82 +306,82 @@ async function main() {
   // Memberships
   // ---------------------------------------------------------------------------
   const membershipsData = [
-    // Gains Montevideo — 5 miembros (Pro permite 15)
+    // Clinica Dental Ejemplo — 5 miembros (Pro permite 15)
     {
       email: 'admin@flikker.dev',
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       role: MembershipRole.OWNER,
       status: MembershipStatus.ACTIVE,
     },
     {
       email: 'admin2@flikker.dev',
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       role: MembershipRole.ADMIN,
       status: MembershipStatus.ACTIVE,
     },
     {
       email: 'ops@flikker.dev',
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       role: MembershipRole.OPERATOR,
       status: MembershipStatus.ACTIVE,
     },
     {
       email: 'multi@flikker.dev',
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       role: MembershipRole.VIEWER,
       status: MembershipStatus.ACTIVE,
     },
     {
       email: 'revoked@flikker.dev',
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       role: MembershipRole.OPERATOR,
       status: MembershipStatus.REVOKED,
     },
 
-    // Clínica Delta — 3 miembros (Starter permite 5)
+    // Clínica Centro Estetica — 3 miembros (Starter permite 5)
     {
       email: 'admin@flikker.dev',
-      businessSlug: 'clinica-delta',
+      businessSlug: 'centro-estetica-ejemplo',
       role: MembershipRole.OWNER,
       status: MembershipStatus.ACTIVE,
     },
     {
       email: 'viewer@flikker.dev',
-      businessSlug: 'clinica-delta',
+      businessSlug: 'centro-estetica-ejemplo',
       role: MembershipRole.VIEWER,
       status: MembershipStatus.ACTIVE,
     },
     {
       email: 'multi@flikker.dev',
-      businessSlug: 'clinica-delta',
+      businessSlug: 'centro-estetica-ejemplo',
       role: MembershipRole.ADMIN,
       status: MembershipStatus.ACTIVE,
     },
 
-    // Café Brava — 2 miembros (Free máx = 2, AL LÍMITE)
+    // Centro Estetica — operadores demo
     {
-      email: 'cafe@flikker.dev',
-      businessSlug: 'cafe-brava',
+      email: 'estetica@flikker.dev',
+      businessSlug: 'centro-estetica-ejemplo',
       role: MembershipRole.OWNER,
       status: MembershipStatus.ACTIVE,
     },
     {
       email: 'ops@flikker.dev',
-      businessSlug: 'cafe-brava',
+      businessSlug: 'centro-estetica-ejemplo',
       role: MembershipRole.OPERATOR,
       status: MembershipStatus.ACTIVE,
     },
 
-    // Veterinaria San Roque — 2 miembros (Starter trial permite 5)
+    // Clinica Dental Ejemplo — operadores demo
     {
-      email: 'vet@flikker.dev',
-      businessSlug: 'veterinaria-san-roque',
+      email: 'dental@flikker.dev',
+      businessSlug: 'clinica-dental-ejemplo',
       role: MembershipRole.OWNER,
       status: MembershipStatus.ACTIVE,
     },
     {
       email: 'multi@flikker.dev',
-      businessSlug: 'veterinaria-san-roque',
+      businessSlug: 'clinica-dental-ejemplo',
       role: MembershipRole.OPERATOR,
       status: MembershipStatus.ACTIVE,
     },
@@ -435,7 +389,7 @@ async function main() {
     // Studio Nómade — 1 miembro (DRAFT, solo el creador)
     {
       email: 'admin@flikker.dev',
-      businessSlug: 'studio-nomade',
+      businessSlug: 'centro-estetica-ejemplo',
       role: MembershipRole.OWNER,
       status: MembershipStatus.ACTIVE,
     },
@@ -450,7 +404,7 @@ async function main() {
       where: {
         userId_businessId: { userId: user.id, businessId: business.id },
       },
-      update: { status: data.status },
+      update: { role: data.role, status: data.status },
       create: {
         userId: user.id,
         businessId: business.id,
@@ -469,40 +423,37 @@ async function main() {
   // ---------------------------------------------------------------------------
   const plansData = [
     {
-      slug: 'free',
-      name: 'Free',
-      description: 'Para probar la plataforma sin compromiso.',
-      maxBranches: 1,
-      maxMembers: 2,
-      maxCampaigns: 1,
-      maxReviewsPerMonth: 20,
-      priceMonthly: 0,
-      trialDays: 0,
-      displayOrder: 0,
-    },
-    {
       slug: 'starter',
       name: 'Starter',
-      description: 'Ideal para un negocio local con una o dos sucursales.',
+      description: 'USD 69/mes, sin setup, incluye 200 mensajes WhatsApp/mes.',
       maxBranches: 3,
       maxMembers: 5,
       maxCampaigns: 5,
-      maxReviewsPerMonth: 100,
-      priceMonthly: 2900,
-      trialDays: 14,
+      maxReviewsPerMonth: 200,
+      priceMonthly: 6900,
+      priceUsd: 69,
+      setupFeeUsd: 0,
+      messageQuotaMonthly: 200,
+      trialDays: 0,
       displayOrder: 1,
+      isActive: true,
     },
     {
       slug: 'pro',
       name: 'Pro',
-      description: 'Para negocios que quieren escalar su reputación local.',
+      description:
+        'USD 129/mes + setup USD 99, incluye 600 mensajes WhatsApp/mes.',
       maxBranches: 10,
       maxMembers: 15,
       maxCampaigns: 20,
-      maxReviewsPerMonth: 500,
-      priceMonthly: 7900,
-      trialDays: 14,
+      maxReviewsPerMonth: 600,
+      priceMonthly: 12900,
+      priceUsd: 129,
+      setupFeeUsd: 99,
+      messageQuotaMonthly: 600,
+      trialDays: 0,
       displayOrder: 2,
+      isActive: true,
     },
   ];
 
@@ -512,15 +463,20 @@ async function main() {
   > = {};
 
   console.log('\n📋 Plans');
+  await prisma.plan.updateMany({
+    where: { slug: { notIn: ['starter', 'pro'] } },
+    data: { isActive: false },
+  });
+
   for (const data of plansData) {
     const plan = await prisma.plan.upsert({
       where: { slug: data.slug },
-      update: {},
+      update: data,
       create: data,
     });
     plans[data.slug] = plan;
     console.log(
-      `  ✓ ${plan.name} (${plan.slug}) — $${(plan.priceMonthly / 100).toFixed(2)}/mo`,
+      `  ✓ ${plan.name} (${plan.slug}) - USD ${plan.priceUsd}/mo, setup USD ${plan.setupFeeUsd}, ${plan.messageQuotaMonthly} messages/mo`,
     );
   }
 
@@ -535,35 +491,33 @@ async function main() {
 
   const subscriptionsData = [
     {
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       planSlug: 'pro',
       status: SubscriptionStatus.ACTIVE,
       trialEndsAt: null,
     },
     {
-      businessSlug: 'clinica-delta',
-      planSlug: 'starter',
+      businessSlug: 'centro-estetica-ejemplo',
+      planSlug: 'pro',
       status: SubscriptionStatus.ACTIVE,
       trialEndsAt: null,
     },
-    {
-      businessSlug: 'veterinaria-san-roque',
-      planSlug: 'starter',
-      status: SubscriptionStatus.TRIALING,
-      trialEndsAt: trialEnd,
-    },
-    // Café Brava — sin subscription → DEFAULT_LIMITS (Free)
-    // Studio Nómade — sin subscription → DEFAULT_LIMITS (Free)
   ];
 
-  console.log('\n💳 Subscriptions');
+  console.log('\n?? Subscriptions');
   for (const data of subscriptionsData) {
     const business = businesses[data.businessSlug];
     const plan = plans[data.planSlug];
 
     await prisma.subscription.upsert({
       where: { businessId: business.id },
-      update: {},
+      update: {
+        planId: plan.id,
+        status: data.status,
+        currentPeriodStart: now,
+        currentPeriodEnd: oneMonthLater,
+        trialEndsAt: data.trialEndsAt,
+      },
       create: {
         businessId: business.id,
         planId: plan.id,
@@ -573,97 +527,93 @@ async function main() {
         trialEndsAt: data.trialEndsAt,
       },
     });
-    const tag = data.status === SubscriptionStatus.TRIALING ? ' [TRIAL]' : '';
+    const tag = '';
     console.log(`  ✓ ${business.name} → ${plan.name}${tag}`);
   }
 
   // ---------------------------------------------------------------------------
   // Campaigns
   // ---------------------------------------------------------------------------
-  const adminUser = users['admin@flikker.dev'];
-  const cafeUser = users['cafe@flikker.dev'];
-  const vetUser = users['vet@flikker.dev'];
-
   const campaignsData = [
-    // Gains Montevideo — 3 campaigns (Pro allows 20)
+    // Clinica Dental Ejemplo — 3 campaigns (Pro allows 20)
     {
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       slug: 'qr-mostrador-pocitos',
       name: 'QR Mostrador — Pocitos',
       channel: CampaignChannel.QR_COUNTER,
       destinationType: DestinationType.GOOGLE_REVIEW,
-      destinationUrl: 'https://g.page/gains-montevideo/review',
+      destinationUrl: 'https://g.page/clinica-dental-ejemplo/review',
       enableLanding: true,
       status: CampaignStatus.ACTIVE,
-      branchKey: 'gains-montevideo/pocitos',
+      branchKey: 'clinica-dental-ejemplo/pocitos',
       createdByEmail: 'admin@flikker.dev',
     },
     {
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       slug: 'qr-mesas-carrasco',
       name: 'QR Mesas — Carrasco',
       channel: CampaignChannel.QR_TABLE,
       destinationType: DestinationType.GOOGLE_REVIEW,
-      destinationUrl: 'https://g.page/gains-montevideo/review',
+      destinationUrl: 'https://g.page/clinica-dental-ejemplo/review',
       enableLanding: false,
       status: CampaignStatus.ACTIVE,
-      branchKey: 'gains-montevideo/carrasco',
+      branchKey: 'clinica-dental-ejemplo/carrasco',
       createdByEmail: 'admin@flikker.dev',
     },
     {
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       slug: 'qr-pausada-pcarretas',
       name: 'Campaña Pausada — Punta Carretas',
       channel: CampaignChannel.QR_COUNTER,
       destinationType: DestinationType.GOOGLE_REVIEW,
-      destinationUrl: 'https://g.page/gains-montevideo/review',
+      destinationUrl: 'https://g.page/clinica-dental-ejemplo/review',
       enableLanding: false,
       status: CampaignStatus.PAUSED,
-      branchKey: 'gains-montevideo/punta-carretas',
+      branchKey: 'clinica-dental-ejemplo/punta-carretas',
       createdByEmail: 'admin@flikker.dev',
     },
-    // Clínica Delta — 2 campaigns (Starter allows 5)
+    // Clínica Centro Estetica — 2 campaigns (Starter allows 5)
     {
-      businessSlug: 'clinica-delta',
+      businessSlug: 'centro-estetica-ejemplo',
       slug: 'post-consulta-google',
       name: 'Post-Consulta Google',
       channel: CampaignChannel.QR_CHECKOUT,
       destinationType: DestinationType.GOOGLE_REVIEW,
-      destinationUrl: 'https://g.page/clinica-delta/review',
+      destinationUrl: 'https://g.page/centro-estetica-ejemplo/review',
       enableLanding: true,
       status: CampaignStatus.ACTIVE,
-      branchKey: 'clinica-delta/centro',
+      branchKey: 'centro-estetica-ejemplo/centro',
       createdByEmail: 'admin@flikker.dev',
     },
     {
-      businessSlug: 'clinica-delta',
+      businessSlug: 'centro-estetica-ejemplo',
       slug: 'bio-instagram',
       name: 'Bio Instagram',
       description: 'Link en bio de Instagram para captar reseñas.',
       channel: CampaignChannel.SOCIAL_BIO,
       destinationType: DestinationType.GOOGLE_REVIEW,
-      destinationUrl: 'https://g.page/clinica-delta/review',
+      destinationUrl: 'https://g.page/centro-estetica-ejemplo/review',
       enableLanding: false,
       status: CampaignStatus.ACTIVE,
       branchKey: null, // no branch
       createdByEmail: 'admin@flikker.dev',
     },
-    // Café Brava — 1 campaign (Free allows 1, AT LIMIT)
+    // Centro Estetica — recepcion
     {
-      businessSlug: 'cafe-brava',
+      businessSlug: 'centro-estetica-ejemplo',
       slug: 'qr-barra',
-      name: 'QR Barra',
+      name: 'QR Recepcion Estetica',
       channel: CampaignChannel.QR_COUNTER,
       destinationType: DestinationType.GOOGLE_REVIEW,
       destinationUrl: null, // falls back to business.googleBusinessProfileUrl
       enableLanding: false,
       status: CampaignStatus.ACTIVE,
-      branchKey: 'cafe-brava/ciudad-vieja',
-      createdByEmail: 'cafe@flikker.dev',
+      branchKey: 'centro-estetica-ejemplo/ciudad-vieja',
+      createdByEmail: 'estetica@flikker.dev',
     },
-    // Veterinaria San Roque — 1 campaign (Starter trial allows 5)
+    // Clinica Dental Ejemplo — WhatsApp post-consulta
     {
-      businessSlug: 'veterinaria-san-roque',
+      businessSlug: 'clinica-dental-ejemplo',
       slug: 'post-consulta-whatsapp',
       name: 'Post-Consulta WhatsApp',
       channel: CampaignChannel.QR_CHECKOUT,
@@ -672,8 +622,8 @@ async function main() {
         'https://wa.me/59826001234?text=Hola%2C%20quiero%20dejar%20una%20rese%C3%B1a',
       enableLanding: true,
       status: CampaignStatus.ACTIVE,
-      branchKey: 'veterinaria-san-roque/sede-principal',
-      createdByEmail: 'vet@flikker.dev',
+      branchKey: 'clinica-dental-ejemplo/sede-principal',
+      createdByEmail: 'dental@flikker.dev',
     },
   ];
 
@@ -692,7 +642,17 @@ async function main() {
       where: {
         businessId_slug: { businessId: business.id, slug: data.slug },
       },
-      update: { status: data.status },
+      update: {
+        branchId: branch?.id ?? null,
+        name: data.name,
+        description: data.description ?? null,
+        channel: data.channel,
+        destinationType: data.destinationType,
+        destinationUrl: data.destinationUrl ?? null,
+        enableLanding: data.enableLanding,
+        status: data.status,
+        createdByUserId: createdBy.id,
+      },
       create: {
         businessId: business.id,
         branchId: branch?.id ?? null,
@@ -718,60 +678,60 @@ async function main() {
   // QR Codes
   // ---------------------------------------------------------------------------
   const qrCodesData = [
-    // Gains — QR Mostrador Pocitos (landing: true)
+    // Clinica Dental — QR Mostrador Pocitos (landing: true)
     {
-      campaignKey: 'gains-montevideo/qr-mostrador-pocitos',
+      campaignKey: 'clinica-dental-ejemplo/qr-mostrador-pocitos',
       slug: 'gMp_Caja1',
       label: 'Caja',
     },
     {
-      campaignKey: 'gains-montevideo/qr-mostrador-pocitos',
+      campaignKey: 'clinica-dental-ejemplo/qr-mostrador-pocitos',
       slug: 'gMpRecep1',
       label: 'Recepción',
     },
-    // Gains — QR Mesas Carrasco (landing: false)
+    // Clinica Dental — QR Mesas Carrasco (landing: false)
     {
-      campaignKey: 'gains-montevideo/qr-mesas-carrasco',
+      campaignKey: 'clinica-dental-ejemplo/qr-mesas-carrasco',
       slug: 'gMcMesa01',
       label: 'Mesa 1',
     },
     {
-      campaignKey: 'gains-montevideo/qr-mesas-carrasco',
+      campaignKey: 'clinica-dental-ejemplo/qr-mesas-carrasco',
       slug: 'gMcMesa02',
       label: 'Mesa 2',
     },
     {
-      campaignKey: 'gains-montevideo/qr-mesas-carrasco',
+      campaignKey: 'clinica-dental-ejemplo/qr-mesas-carrasco',
       slug: 'gMcMesa03',
       label: 'Mesa 3',
     },
-    // Gains — Campaña pausada
+    // Clinica Dental — Campaña pausada
     {
-      campaignKey: 'gains-montevideo/qr-pausada-pcarretas',
+      campaignKey: 'clinica-dental-ejemplo/qr-pausada-pcarretas',
       slug: 'gPpMostr1',
       label: 'Mostrador',
     },
-    // Clínica Delta — Post-Consulta (landing: true)
+    // Clínica Centro Estetica — Post-Consulta (landing: true)
     {
-      campaignKey: 'clinica-delta/post-consulta-google',
+      campaignKey: 'centro-estetica-ejemplo/post-consulta-google',
       slug: 'cDpRecep1',
       label: 'Recepción Centro',
     },
-    // Clínica Delta — Bio Instagram (landing: false)
+    // Clínica Centro Estetica — Bio Instagram (landing: false)
     {
-      campaignKey: 'clinica-delta/bio-instagram',
+      campaignKey: 'centro-estetica-ejemplo/bio-instagram',
       slug: 'cDbLinBi1',
       label: 'Link Bio',
     },
-    // Café Brava — QR Barra
+    // Centro Estetica — QR recepcion
     {
-      campaignKey: 'cafe-brava/qr-barra',
+      campaignKey: 'centro-estetica-ejemplo/qr-barra',
       slug: 'cBqBarra1',
-      label: 'Barra',
+      label: 'Recepcion',
     },
-    // Veterinaria San Roque — Post-Consulta WhatsApp (landing: true)
+    // Clinica Dental Ejemplo — Post-Consulta WhatsApp (landing: true)
     {
-      campaignKey: 'veterinaria-san-roque/post-consulta-whatsapp',
+      campaignKey: 'clinica-dental-ejemplo/post-consulta-whatsapp',
       slug: 'vSpCons01',
       label: 'Consultorio 1',
     },
@@ -789,7 +749,11 @@ async function main() {
 
     const qrCode = await prisma.qrCode.upsert({
       where: { slug: data.slug },
-      update: {},
+      update: {
+        businessId: business.id,
+        campaignId: campaign.id,
+        label: data.label,
+      },
       create: {
         businessId: business.id,
         campaignId: campaign.id,
@@ -827,20 +791,20 @@ async function main() {
     scansPerDay: number;
     uniqueRatio: number;
   }[] = [
-    // Gains Pocitos — high traffic (landing shown)
+    // Clinica Dental Pocitos — high traffic (landing shown)
     { slug: 'gMp_Caja1', scansPerDay: 6, uniqueRatio: 0.8 },
     { slug: 'gMpRecep1', scansPerDay: 4, uniqueRatio: 0.75 },
-    // Gains Carrasco mesas — moderate (direct redirect)
+    // Clinica Dental Carrasco mesas — moderate (direct redirect)
     { slug: 'gMcMesa01', scansPerDay: 3, uniqueRatio: 0.7 },
     { slug: 'gMcMesa02', scansPerDay: 2, uniqueRatio: 0.65 },
     { slug: 'gMcMesa03', scansPerDay: 1, uniqueRatio: 0.6 },
-    // Delta — moderate (landing shown)
+    // Centro Estetica — moderate (landing shown)
     { slug: 'cDpRecep1', scansPerDay: 3, uniqueRatio: 0.85 },
-    // Delta Bio — low
+    // Centro Estetica Bio — low
     { slug: 'cDbLinBi1', scansPerDay: 2, uniqueRatio: 0.9 },
-    // Café Brava — low
+    // Centro Estetica — low
     { slug: 'cBqBarra1', scansPerDay: 2, uniqueRatio: 0.7 },
-    // Vet — low (landing shown)
+    // Dental — low (landing shown)
     { slug: 'vSpCons01', scansPerDay: 1, uniqueRatio: 0.9 },
   ];
 
@@ -930,7 +894,7 @@ async function main() {
   // ---------------------------------------------------------------------------
   const tagsData = [
     {
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       tags: [
         { name: 'Servicio', slug: 'servicio', color: '#22C55E' },
         { name: 'Limpieza', slug: 'limpieza', color: '#3B82F6' },
@@ -939,16 +903,16 @@ async function main() {
       ],
     },
     {
-      businessSlug: 'clinica-delta',
+      businessSlug: 'centro-estetica-ejemplo',
       tags: [
         { name: 'Puntualidad', slug: 'puntualidad', color: '#8B5CF6' },
         { name: 'Trato médico', slug: 'trato-medico', color: '#06B6D4' },
       ],
     },
     {
-      businessSlug: 'cafe-brava',
+      businessSlug: 'centro-estetica-ejemplo',
       tags: [
-        { name: 'Café', slug: 'cafe', color: '#92400E' },
+        { name: 'Calidad', slug: 'calidad', color: '#92400E' },
         { name: 'Ambiente', slug: 'ambiente', color: '#D97706' },
       ],
     },
@@ -985,11 +949,11 @@ async function main() {
   // ---------------------------------------------------------------------------
 
   const reviewsData = [
-    // --- Gains Montevideo: 10 reviews across branches and campaigns ---
+    // --- Clinica Dental Ejemplo: 10 reviews across branches and campaigns ---
     {
-      businessSlug: 'gains-montevideo',
-      branchKey: 'gains-montevideo/pocitos',
-      campaignKey: 'gains-montevideo/qr-mostrador-pocitos',
+      businessSlug: 'clinica-dental-ejemplo',
+      branchKey: 'clinica-dental-ejemplo/pocitos',
+      campaignKey: 'clinica-dental-ejemplo/qr-mostrador-pocitos',
       source: ReviewSource.GOOGLE,
       externalReviewId: 'google-gains-001',
       authorDisplayName: 'María Pérez',
@@ -1002,9 +966,9 @@ async function main() {
       tagSlugs: ['servicio', 'atencion'],
     },
     {
-      businessSlug: 'gains-montevideo',
-      branchKey: 'gains-montevideo/pocitos',
-      campaignKey: 'gains-montevideo/qr-mostrador-pocitos',
+      businessSlug: 'clinica-dental-ejemplo',
+      branchKey: 'clinica-dental-ejemplo/pocitos',
+      campaignKey: 'clinica-dental-ejemplo/qr-mostrador-pocitos',
       source: ReviewSource.GOOGLE,
       externalReviewId: 'google-gains-002',
       authorDisplayName: 'Juan López',
@@ -1016,8 +980,8 @@ async function main() {
       tagSlugs: ['servicio'],
     },
     {
-      businessSlug: 'gains-montevideo',
-      branchKey: 'gains-montevideo/carrasco',
+      businessSlug: 'clinica-dental-ejemplo',
+      branchKey: 'clinica-dental-ejemplo/carrasco',
       campaignKey: null,
       source: ReviewSource.MANUAL,
       externalReviewId: null,
@@ -1031,9 +995,9 @@ async function main() {
       tagSlugs: ['limpieza'],
     },
     {
-      businessSlug: 'gains-montevideo',
-      branchKey: 'gains-montevideo/pocitos',
-      campaignKey: 'gains-montevideo/qr-mostrador-pocitos',
+      businessSlug: 'clinica-dental-ejemplo',
+      branchKey: 'clinica-dental-ejemplo/pocitos',
+      campaignKey: 'clinica-dental-ejemplo/qr-mostrador-pocitos',
       source: ReviewSource.GOOGLE,
       externalReviewId: 'google-gains-003',
       authorDisplayName: 'Pedro García',
@@ -1046,9 +1010,9 @@ async function main() {
       tagSlugs: ['precio', 'atencion'],
     },
     {
-      businessSlug: 'gains-montevideo',
-      branchKey: 'gains-montevideo/carrasco',
-      campaignKey: 'gains-montevideo/qr-mesas-carrasco',
+      businessSlug: 'clinica-dental-ejemplo',
+      branchKey: 'clinica-dental-ejemplo/carrasco',
+      campaignKey: 'clinica-dental-ejemplo/qr-mesas-carrasco',
       source: ReviewSource.GOOGLE,
       externalReviewId: 'google-gains-004',
       authorDisplayName: 'Ana Martínez',
@@ -1060,8 +1024,8 @@ async function main() {
       tagSlugs: ['servicio', 'atencion'],
     },
     {
-      businessSlug: 'gains-montevideo',
-      branchKey: 'gains-montevideo/pocitos',
+      businessSlug: 'clinica-dental-ejemplo',
+      branchKey: 'clinica-dental-ejemplo/pocitos',
       campaignKey: null,
       source: ReviewSource.MANUAL,
       externalReviewId: null,
@@ -1075,8 +1039,8 @@ async function main() {
       tagSlugs: ['servicio'],
     },
     {
-      businessSlug: 'gains-montevideo',
-      branchKey: 'gains-montevideo/carrasco',
+      businessSlug: 'clinica-dental-ejemplo',
+      branchKey: 'clinica-dental-ejemplo/carrasco',
       campaignKey: null,
       source: ReviewSource.GOOGLE,
       externalReviewId: 'google-gains-005',
@@ -1089,9 +1053,9 @@ async function main() {
       tagSlugs: ['precio'],
     },
     {
-      businessSlug: 'gains-montevideo',
-      branchKey: 'gains-montevideo/pocitos',
-      campaignKey: 'gains-montevideo/qr-mostrador-pocitos',
+      businessSlug: 'clinica-dental-ejemplo',
+      branchKey: 'clinica-dental-ejemplo/pocitos',
+      campaignKey: 'clinica-dental-ejemplo/qr-mostrador-pocitos',
       source: ReviewSource.GOOGLE,
       externalReviewId: 'google-gains-006',
       authorDisplayName: 'Diego Suárez',
@@ -1102,7 +1066,7 @@ async function main() {
       status: ReviewStatus.NEW,
     },
     {
-      businessSlug: 'gains-montevideo',
+      businessSlug: 'clinica-dental-ejemplo',
       branchKey: null,
       campaignKey: null,
       source: ReviewSource.WHATSAPP_FEEDBACK,
@@ -1115,8 +1079,8 @@ async function main() {
       tagSlugs: ['limpieza'],
     },
     {
-      businessSlug: 'gains-montevideo',
-      branchKey: 'gains-montevideo/pocitos',
+      businessSlug: 'clinica-dental-ejemplo',
+      branchKey: 'clinica-dental-ejemplo/pocitos',
       campaignKey: null,
       source: ReviewSource.MANUAL,
       externalReviewId: null,
@@ -1128,11 +1092,11 @@ async function main() {
       tagSlugs: ['servicio'],
     },
 
-    // --- Clínica Delta: 5 reviews ---
+    // --- Clínica Centro Estetica: 5 reviews ---
     {
-      businessSlug: 'clinica-delta',
-      branchKey: 'clinica-delta/centro',
-      campaignKey: 'clinica-delta/post-consulta-google',
+      businessSlug: 'centro-estetica-ejemplo',
+      branchKey: 'centro-estetica-ejemplo/centro',
+      campaignKey: 'centro-estetica-ejemplo/post-consulta-google',
       source: ReviewSource.GOOGLE,
       externalReviewId: 'google-delta-001',
       authorDisplayName: 'Laura Méndez',
@@ -1145,9 +1109,9 @@ async function main() {
       tagSlugs: ['trato-medico'],
     },
     {
-      businessSlug: 'clinica-delta',
-      branchKey: 'clinica-delta/centro',
-      campaignKey: 'clinica-delta/post-consulta-google',
+      businessSlug: 'centro-estetica-ejemplo',
+      branchKey: 'centro-estetica-ejemplo/centro',
+      campaignKey: 'centro-estetica-ejemplo/post-consulta-google',
       source: ReviewSource.GOOGLE,
       externalReviewId: 'google-delta-002',
       authorDisplayName: 'Fernando Costa',
@@ -1159,8 +1123,8 @@ async function main() {
       tagSlugs: ['puntualidad'],
     },
     {
-      businessSlug: 'clinica-delta',
-      branchKey: 'clinica-delta/pocitos',
+      businessSlug: 'centro-estetica-ejemplo',
+      branchKey: 'centro-estetica-ejemplo/pocitos',
       campaignKey: null,
       source: ReviewSource.MANUAL,
       externalReviewId: null,
@@ -1172,9 +1136,9 @@ async function main() {
       status: ReviewStatus.NEW,
     },
     {
-      businessSlug: 'clinica-delta',
-      branchKey: 'clinica-delta/centro',
-      campaignKey: 'clinica-delta/post-consulta-google',
+      businessSlug: 'centro-estetica-ejemplo',
+      branchKey: 'centro-estetica-ejemplo/centro',
+      campaignKey: 'centro-estetica-ejemplo/post-consulta-google',
       source: ReviewSource.GOOGLE,
       externalReviewId: 'google-delta-003',
       authorDisplayName: 'Andrés Vidal',
@@ -1185,8 +1149,8 @@ async function main() {
       tagSlugs: ['puntualidad', 'trato-medico'],
     },
     {
-      businessSlug: 'clinica-delta',
-      branchKey: 'clinica-delta/pocitos',
+      businessSlug: 'centro-estetica-ejemplo',
+      branchKey: 'centro-estetica-ejemplo/pocitos',
       campaignKey: null,
       source: ReviewSource.GOOGLE,
       externalReviewId: 'google-delta-004',
@@ -1198,44 +1162,45 @@ async function main() {
       tagSlugs: ['trato-medico'],
     },
 
-    // --- Café Brava: 3 reviews ---
+    // --- Centro Estetica Ejemplo: 3 additional reviews ---
     {
-      businessSlug: 'cafe-brava',
-      branchKey: 'cafe-brava/ciudad-vieja',
-      campaignKey: 'cafe-brava/qr-barra',
+      businessSlug: 'centro-estetica-ejemplo',
+      branchKey: 'centro-estetica-ejemplo/ciudad-vieja',
+      campaignKey: 'centro-estetica-ejemplo/qr-barra',
       source: ReviewSource.GOOGLE,
-      externalReviewId: 'google-cafe-001',
+      externalReviewId: 'google-estetica-001',
       authorDisplayName: 'Ignacio Duarte',
       rating: 5,
       content:
-        'El mejor café de Ciudad Vieja. Granos frescos y ambiente hermoso.',
+        'Excelente tratamiento facial. El lugar es tranquilo y el equipo muy atento.',
       reviewedAt: '2026-03-12T09:30:00Z',
       status: ReviewStatus.NEW,
       isHighlighted: true,
-      tagSlugs: ['cafe', 'ambiente'],
+      tagSlugs: ['calidad', 'ambiente'],
     },
     {
-      businessSlug: 'cafe-brava',
-      branchKey: 'cafe-brava/ciudad-vieja',
+      businessSlug: 'centro-estetica-ejemplo',
+      branchKey: 'centro-estetica-ejemplo/ciudad-vieja',
       campaignKey: null,
       source: ReviewSource.MANUAL,
       externalReviewId: null,
       authorDisplayName: 'Carolina Vega',
       rating: 4,
-      content: 'Muy rico el flat white. Lugar chico pero acogedor.',
+      content: 'Muy buena experiencia. El espacio es chico pero muy cuidado.',
       reviewedAt: '2026-03-20T11:00:00Z',
       status: ReviewStatus.NEW,
-      tagSlugs: ['cafe'],
+      tagSlugs: ['calidad'],
     },
     {
-      businessSlug: 'cafe-brava',
-      branchKey: 'cafe-brava/ciudad-vieja',
-      campaignKey: 'cafe-brava/qr-barra',
+      businessSlug: 'centro-estetica-ejemplo',
+      branchKey: 'centro-estetica-ejemplo/ciudad-vieja',
+      campaignKey: 'centro-estetica-ejemplo/qr-barra',
       source: ReviewSource.GOOGLE,
-      externalReviewId: 'google-cafe-002',
+      externalReviewId: 'google-estetica-002',
       authorDisplayName: 'Tomás Herrera',
       rating: 3,
-      content: 'Buen café pero precios un poco altos para lo que ofrecen.',
+      content:
+        'Buen servicio, aunque los precios son un poco altos para el tratamiento.',
       reviewedAt: '2026-03-25T15:00:00Z',
       status: ReviewStatus.NEW,
     },
@@ -1245,7 +1210,7 @@ async function main() {
 
   // Clean up existing seed reviews to ensure idempotency
   // (reviews without externalReviewId can't be upserted)
-  for (const slug of ['gains-montevideo', 'clinica-delta', 'cafe-brava']) {
+  for (const slug of ['clinica-dental-ejemplo', 'centro-estetica-ejemplo']) {
     const biz = businesses[slug];
     await prisma.reviewStatusHistory.deleteMany({
       where: { review: { businessId: biz.id } },
@@ -1321,73 +1286,21 @@ async function main() {
   // ---------------------------------------------------------------------------
   // Summary
   // ---------------------------------------------------------------------------
-  console.log('\n✅ Seed complete.\n');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('  Demo credentials (all use same password: Flikker2026!)');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+  console.log('\nSeed complete.\n');
+  console.log('Demo tenants:');
   console.log(
-    '  admin@flikker.dev    OWNER    → Gains + Delta + Nómade  [PLATFORM ADMIN]',
-  );
-  console.log('  admin2@flikker.dev   ADMIN    → Gains');
-  console.log('  ops@flikker.dev      OPERATOR → Gains + Café Brava');
-  console.log('  viewer@flikker.dev   VIEWER   → Delta');
-  console.log('  cafe@flikker.dev     OWNER    → Café Brava (Free)');
-  console.log(
-    '  vet@flikker.dev      OWNER    → Veterinaria San Roque (Trial)',
-  );
-  console.log('  multi@flikker.dev    ADMIN/OP → Delta + Vet + Gains');
-  console.log('  revoked@flikker.dev  REVOKED  → Gains');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(
-    '  Gains Montevideo       → Pro (ACTIVE)       3 branches, 5 members',
+    '  Clinica Dental Ejemplo -> Pro, USD 129/mo, setup USD 99, 600 messages/mo',
   );
   console.log(
-    '  Clínica Delta          → Starter (ACTIVE)   2 branches, 3 members',
+    '  Centro de Estetica Ejemplo -> Pro, USD 129/mo, setup USD 99, 600 messages/mo',
   );
+  console.log('Active plans:');
+  console.log('  Starter -> USD 69/mo, setup USD 0, 200 messages/mo');
+  console.log('  Pro -> USD 129/mo, setup USD 99, 600 messages/mo');
+  console.log('Demo credentials: all use password Flikker2026!');
   console.log(
-    '  Café Brava             → Free (no sub)      1 branch,  2 members [AT LIMIT]',
+    `Seeded ${totalEvents} scan events, ${reviewCount} reviews and ${Object.keys(reviewTags).length} tags.`,
   );
-  console.log(
-    '  Veterinaria San Roque  → Starter (TRIALING) 2 branches, 2 members',
-  );
-  console.log(
-    '  Studio Nómade          → None (DRAFT)       0 branches, 1 member',
-  );
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('\n  Campaigns & QR Codes (Phase 2)');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log(
-    '  Gains — QR Mostrador Pocitos    ACTIVE  landing=yes  2 QR (Caja, Recepción)',
-  );
-  console.log(
-    '  Gains — QR Mesas Carrasco       ACTIVE  landing=no   3 QR (Mesa 1, 2, 3)',
-  );
-  console.log(
-    '  Gains — Campaña Pausada PCtas   PAUSED  landing=no   1 QR (Mostrador)',
-  );
-  console.log(
-    '  Delta — Post-Consulta Google    ACTIVE  landing=yes  1 QR (Recepción Centro)',
-  );
-  console.log(
-    '  Delta — Bio Instagram           ACTIVE  landing=no   1 QR (Link Bio)',
-  );
-  console.log(
-    '  Café  — QR Barra                ACTIVE  landing=no   1 QR (Barra) [AT LIMIT]',
-  );
-  console.log(
-    '  Vet   — Post-Consulta WhatsApp  ACTIVE  landing=yes  1 QR (Consultorio 1)',
-  );
-  console.log(`  → ${totalEvents} scan events across 14 days`);
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('\n  Reviews & Tags (Phase 3)');
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('  Gains — 10 reviews (★1-5), 4 tags, mixed statuses & flags');
-  console.log('  Delta — 5 reviews (★2-5), 2 tags, includes reviews to follow up');
-  console.log('  Café  — 3 reviews (★3-5), 2 tags');
-  console.log(
-    `  → ${reviewCount} reviews, ${Object.keys(reviewTags).length} tags total`,
-  );
-  console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 }
 
 main()

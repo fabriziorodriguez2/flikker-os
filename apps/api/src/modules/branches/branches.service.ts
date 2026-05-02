@@ -55,6 +55,12 @@ export class BranchesService {
 
   async update(businessId: string, branchId: string, dto: UpdateBranchDto) {
     await this.findOneScoped(businessId, branchId);
-    return this.branchesRepository.update(branchId, dto);
+    const result = await this.branchesRepository.update(
+      businessId,
+      branchId,
+      dto,
+    );
+    if (result.count === 0) throw new NotFoundException('Branch not found');
+    return this.findOneScoped(businessId, branchId);
   }
 }

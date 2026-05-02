@@ -99,13 +99,17 @@ export class ResponsesRepository {
         select: { reviewId: true },
       });
 
-      const response = await tx.response.update({
-        where: { id: responseId },
+      await tx.response.updateMany({
+        where: { id: responseId, businessId },
         data: {
           content,
           respondedAt,
           respondedByUserId,
         },
+      });
+
+      const response = await tx.response.findFirstOrThrow({
+        where: { id: responseId, businessId },
         include: {
           respondedBy: {
             select: { id: true, firstName: true, lastName: true },

@@ -16,7 +16,12 @@ import { UpdateBrandProfileDto } from './dto/update-brand-profile.dto';
  * ARCHIVED is terminal — no transitions out of it.
  */
 const STATUS_TRANSITIONS: Record<BusinessStatus, BusinessStatus[]> = {
-  [BusinessStatus.DRAFT]: [BusinessStatus.ACTIVE],
+  [BusinessStatus.DRAFT]: [BusinessStatus.ONBOARDING, BusinessStatus.ACTIVE],
+  [BusinessStatus.ONBOARDING]: [
+    BusinessStatus.ACTIVE,
+    BusinessStatus.INACTIVE,
+    BusinessStatus.ARCHIVED,
+  ],
   [BusinessStatus.ACTIVE]: [
     BusinessStatus.INACTIVE,
     BusinessStatus.SUSPENDED,

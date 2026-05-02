@@ -23,11 +23,11 @@ import { StatsQueryDto } from '../campaigns/dto/stats-query.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { FeatureFlagGuard } from '../../common/guards/feature-flag.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import type { AuthenticatedRequest } from '../../common/types/request.types';
 
 @Controller('qr-codes')
-@UseGuards(JwtGuard, TenantGuard)
 export class QrCodesController {
   constructor(
     private readonly qrCodesService: QrCodesService,
@@ -39,6 +39,7 @@ export class QrCodesController {
    * Lists QR codes for a campaign. Requires ?campaignId query param.
    */
   @Get()
+  @UseGuards(JwtGuard, TenantGuard)
   list(
     @Req() req: AuthenticatedRequest,
     @Query('campaignId', ParseUUIDPipe) campaignId: string,
@@ -53,6 +54,7 @@ export class QrCodesController {
    * Returns a specific QR code — must belong to the current business.
    */
   @Get(':id')
+  @UseGuards(JwtGuard, TenantGuard)
   findOne(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.qrCodesService.findOneScoped(req.currentBusinessId!, id);
   }
@@ -62,6 +64,7 @@ export class QrCodesController {
    * Optional query: ?from=YYYY-MM-DD&to=YYYY-MM-DD (defaults to last 30 days).
    */
   @Get(':id/stats')
+  @UseGuards(JwtGuard, TenantGuard)
   async stats(
     @Req() req: AuthenticatedRequest,
     @Param('id') id: string,
@@ -76,7 +79,7 @@ export class QrCodesController {
    * Creates a new QR code — OWNER or ADMIN only.
    */
   @Post()
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtGuard, TenantGuard, RolesGuard)
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
   create(@Req() req: AuthenticatedRequest, @Body() dto: CreateQrCodeDto) {
     return this.qrCodesService.create(req.currentBusinessId!, dto);
@@ -86,7 +89,7 @@ export class QrCodesController {
    * Updates a QR code (label, isActive, destinationUrl) — OWNER or ADMIN only.
    */
   @Patch(':id')
-  @UseGuards(RolesGuard)
+  @UseGuards(JwtGuard, TenantGuard, RolesGuard)
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
   update(
     @Req() req: AuthenticatedRequest,
@@ -100,6 +103,7 @@ export class QrCodesController {
    * Downloads the QR code as PNG.
    */
   @Get(':id/download/png')
+  @UseGuards(FeatureFlagGuard('QR_ADVANCED'), JwtGuard, TenantGuard)
   @Header('Cache-Control', 'private, max-age=3600')
   async downloadPng(
     @Req() req: AuthenticatedRequest,
@@ -123,6 +127,7 @@ export class QrCodesController {
    * Downloads the QR code as SVG.
    */
   @Get(':id/download/svg')
+  @UseGuards(FeatureFlagGuard('QR_ADVANCED'), JwtGuard, TenantGuard)
   @Header('Cache-Control', 'private, max-age=3600')
   async downloadSvg(
     @Req() req: AuthenticatedRequest,
@@ -146,6 +151,7 @@ export class QrCodesController {
    * Downloads the QR code as PDF (A6, print-ready).
    */
   @Get(':id/download/pdf')
+  @UseGuards(FeatureFlagGuard('QR_ADVANCED'), JwtGuard, TenantGuard)
   @Header('Cache-Control', 'private, max-age=3600')
   async downloadPdf(
     @Req() req: AuthenticatedRequest,

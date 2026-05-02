@@ -27,9 +27,11 @@ const mockJwt = {
 
 describe('AuthService', () => {
   let service: AuthService;
+  const originalNodeEnv = process.env.NODE_ENV;
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    process.env.NODE_ENV = originalNodeEnv;
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         AuthService,
@@ -115,7 +117,7 @@ describe('AuthService', () => {
       const result = await service.forgotPassword({
         email: 'nope@example.com',
       });
-      expect(result.message).toContain('If the email exists');
+      expect(result.message).toBe('Email enviado');
       expect(result._dev_token).toBeUndefined();
     });
 
@@ -132,6 +134,21 @@ describe('AuthService', () => {
       });
       expect(result._dev_token).toBeDefined();
       expect(typeof result._dev_token).toBe('string');
+    });
+
+    it('does not return reset token in production', async () => {
+      process.env.NODE_ENV = 'production';
+      mockRepository.findUserByEmail.mockResolvedValue({
+        id: '1',
+        isActive: true,
+      });
+      mockRepository.createResetToken.mockResolvedValue({});
+
+      const result = await service.forgotPassword({
+        email: 'user@example.com',
+      });
+
+      expect(result).toEqual({ message: 'Email enviado' });
     });
   });
 

@@ -6,6 +6,7 @@ import PageHeader from "@/components/ui/page-header";
 import ReviewRowActions from "@/components/reviews/review-row-actions";
 import ReviewResponseForm from "@/components/reviews/review-response-form";
 import type { ReviewDetail, ReviewResponse } from "@/components/reviews/types";
+import { FEATURES } from "@/src/config/features";
 
 interface ReviewDetailPageProps {
   params: Promise<{ id: string }>;
@@ -35,10 +36,14 @@ export default async function ReviewDetailPage({
   let responseError: string | null = null;
 
   try {
-    review = await apiFetch<ReviewDetail>(`/reviews/${id}`, session.accessToken, {
-      businessId: session.activeBusinessId,
-      cache: "no-store",
-    });
+    review = await apiFetch<ReviewDetail>(
+      `/reviews/${id}`,
+      session.accessToken,
+      {
+        businessId: session.activeBusinessId,
+        cache: "no-store",
+      },
+    );
   } catch (e) {
     if (isUnauthorizedApiError(e)) {
       redirect("/session-expired");
@@ -70,22 +75,24 @@ export default async function ReviewDetailPage({
     );
   }
 
-  try {
-    response = await apiFetch<ReviewResponse>(
-      `/reviews/${id}/response`,
-      session.accessToken,
-      {
-        businessId: session.activeBusinessId,
-        cache: "no-store",
-      },
-    );
-  } catch (e) {
-    if (isUnauthorizedApiError(e)) {
-      redirect("/session-expired");
-    }
-    if (!(e instanceof ApiError && e.status === 404)) {
-      responseError =
-        e instanceof Error ? e.message : "No se pudo cargar la respuesta";
+  if (FEATURES.MANUAL_RESPONSES) {
+    try {
+      response = await apiFetch<ReviewResponse>(
+        `/reviews/${id}/response`,
+        session.accessToken,
+        {
+          businessId: session.activeBusinessId,
+          cache: "no-store",
+        },
+      );
+    } catch (e) {
+      if (isUnauthorizedApiError(e)) {
+        redirect("/session-expired");
+      }
+      if (!(e instanceof ApiError && e.status === 404)) {
+        responseError =
+          e instanceof Error ? e.message : "No se pudo cargar la respuesta";
+      }
     }
   }
 
@@ -109,7 +116,11 @@ export default async function ReviewDetailPage({
       <PageHeader
         eyebrow="Review detail"
         title={review.authorDisplayName ?? "Autor no informado"}
-        subtitle="Contexto completo de la review, respuesta manual y elegibilidad para widget."
+        subtitle={
+          FEATURES.MANUAL_RESPONSES
+            ? "Contexto completo de la review, respuesta manual y elegibilidad para widget."
+            : "Contexto completo de la review y elegibilidad para widget."
+        }
         actions={
           <ReviewRowActions
             reviewId={review.id}
@@ -144,61 +155,87 @@ export default async function ReviewDetailPage({
             </p>
             <dl className="mt-4 space-y-4 text-sm">
               <div>
-                <dt className="font-semibold text-[color:var(--foreground)]">Campana</dt>
+                <dt className="font-semibold text-[color:var(--foreground)]">
+                  Campana
+                </dt>
                 <dd className="mt-1 text-[color:var(--text-muted)]">
                   {review.campaign?.name ?? "Sin campana"}
                 </dd>
               </div>
               <div>
-                <dt className="font-semibold text-[color:var(--foreground)]">Estado</dt>
-                <dd className="mt-1 text-[color:var(--text-muted)]">{review.status}</dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-[color:var(--foreground)]">Highlight</dt>
+                <dt className="font-semibold text-[color:var(--foreground)]">
+                  Estado
+                </dt>
                 <dd className="mt-1 text-[color:var(--text-muted)]">
-                  {review.isHighlighted ? "Activa para widget" : "Aun no destacada"}
+                  {review.status}
                 </dd>
               </div>
               <div>
-                <dt className="font-semibold text-[color:var(--foreground)]">Fuente</dt>
-                <dd className="mt-1 text-[color:var(--text-muted)]">{review.source}</dd>
+                <dt className="font-semibold text-[color:var(--foreground)]">
+                  Highlight
+                </dt>
+                <dd className="mt-1 text-[color:var(--text-muted)]">
+                  {review.isHighlighted
+                    ? "Activa para widget"
+                    : "Aun no destacada"}
+                </dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-[color:var(--foreground)]">
+                  Fuente
+                </dt>
+                <dd className="mt-1 text-[color:var(--text-muted)]">
+                  {review.source}
+                </dd>
               </div>
             </dl>
           </div>
 
-          <div className="flikker-card rounded-[28px] p-5 md:p-6">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--text-soft)]">
-              Estado de respuesta
-            </p>
-            <dl className="mt-4 space-y-4 text-sm">
-              <div>
-                <dt className="font-semibold text-[color:var(--foreground)]">Situacion</dt>
-                <dd className="mt-1 text-[color:var(--text-muted)]">
-                  {review.respondedAt ? "Respondida" : "Sin responder"}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-[color:var(--foreground)]">Fecha</dt>
-                <dd className="mt-1 text-[color:var(--text-muted)]">
-                  {review.respondedAt ? formatDate(review.respondedAt) : "-"}
-                </dd>
-              </div>
-              <div>
-                <dt className="font-semibold text-[color:var(--foreground)]">Usuario</dt>
-                <dd className="mt-1 text-[color:var(--text-muted)]">{responderName || "-"}</dd>
-              </div>
-            </dl>
-          </div>
+          {FEATURES.MANUAL_RESPONSES ? (
+            <div className="flikker-card rounded-[28px] p-5 md:p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--text-soft)]">
+                Estado de respuesta
+              </p>
+              <dl className="mt-4 space-y-4 text-sm">
+                <div>
+                  <dt className="font-semibold text-[color:var(--foreground)]">
+                    Situacion
+                  </dt>
+                  <dd className="mt-1 text-[color:var(--text-muted)]">
+                    {review.respondedAt ? "Respondida" : "Sin responder"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-semibold text-[color:var(--foreground)]">
+                    Fecha
+                  </dt>
+                  <dd className="mt-1 text-[color:var(--text-muted)]">
+                    {review.respondedAt ? formatDate(review.respondedAt) : "-"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-semibold text-[color:var(--foreground)]">
+                    Usuario
+                  </dt>
+                  <dd className="mt-1 text-[color:var(--text-muted)]">
+                    {responderName || "-"}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          ) : null}
         </div>
       </section>
 
-      <ReviewResponseForm
-        reviewId={review.id}
-        initialResponse={response}
-        initialRespondedAt={review.respondedAt}
-        initialResponderName={responderName}
-        initialLoadError={responseError}
-      />
+      {FEATURES.MANUAL_RESPONSES ? (
+        <ReviewResponseForm
+          reviewId={review.id}
+          initialResponse={response}
+          initialRespondedAt={review.respondedAt}
+          initialResponderName={responderName}
+          initialLoadError={responseError}
+        />
+      ) : null}
     </div>
   );
 }

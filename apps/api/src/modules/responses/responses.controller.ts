@@ -12,6 +12,7 @@ import { MembershipRole } from '@prisma/client';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { FeatureFlagGuard } from '../../common/guards/feature-flag.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import type { AuthenticatedRequest } from '../../common/types/request.types';
 import { ResponsesService } from './responses.service';
@@ -19,7 +20,7 @@ import { CreateResponseDto } from './dto/create-response.dto';
 import { UpdateResponseDto } from './dto/update-response.dto';
 
 @Controller()
-@UseGuards(JwtGuard, TenantGuard)
+@UseGuards(FeatureFlagGuard('MANUAL_RESPONSES'), JwtGuard, TenantGuard)
 export class ResponsesController {
   constructor(private readonly responsesService: ResponsesService) {}
 

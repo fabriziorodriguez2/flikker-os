@@ -1,11 +1,13 @@
-'use client';
+"use client";
 
-import { useCallback, useEffect, useState } from 'react';
-import AdminStatusBadge from '@/components/admin/admin-status-badge';
-import MetricCard from '@/components/ui/metric-card';
-import PageHeader from '@/components/ui/page-header';
-import SectionCard from '@/components/ui/section-card';
-import { useCanMutate } from '../../role-context';
+import { useCallback, useEffect, useState } from "react";
+import { notFound } from "next/navigation";
+import AdminStatusBadge from "@/components/admin/admin-status-badge";
+import MetricCard from "@/components/ui/metric-card";
+import PageHeader from "@/components/ui/page-header";
+import SectionCard from "@/components/ui/section-card";
+import { FEATURES } from "@/src/config/features";
+import { useCanMutate } from "../../role-context";
 
 interface Branch {
   id: string;
@@ -20,6 +22,12 @@ interface Branch {
 }
 
 export default function BranchesPage() {
+  if (!FEATURES.MULTI_LOCAL) notFound();
+
+  return <BranchesContent />;
+}
+
+function BranchesContent() {
   const canMutate = useCanMutate();
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
@@ -28,21 +36,21 @@ export default function BranchesPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  const [name, setName] = useState('');
-  const [slug, setSlug] = useState('');
-  const [address, setAddress] = useState('');
-  const [city, setCity] = useState('');
-  const [state, setState] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const [name, setName] = useState("");
+  const [slug, setSlug] = useState("");
+  const [address, setAddress] = useState("");
+  const [city, setCity] = useState("");
+  const [state, setState] = useState("");
+  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
 
   const fetchBranches = useCallback(async () => {
     try {
-      const res = await fetch('/api/proxy/branches?includeInactive=true');
-      if (!res.ok) throw new Error('Error al cargar sucursales');
+      const res = await fetch("/api/proxy/branches?includeInactive=true");
+      if (!res.ok) throw new Error("Error al cargar sucursales");
       setBranches(await res.json());
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error');
+      setError(e instanceof Error ? e.message : "Error");
     } finally {
       setLoading(false);
     }
@@ -53,13 +61,13 @@ export default function BranchesPage() {
   }, [fetchBranches]);
 
   function resetForm() {
-    setName('');
-    setSlug('');
-    setAddress('');
-    setCity('');
-    setState('');
-    setPhone('');
-    setEmail('');
+    setName("");
+    setSlug("");
+    setAddress("");
+    setCity("");
+    setState("");
+    setPhone("");
+    setEmail("");
     setFormError(null);
   }
 
@@ -76,20 +84,20 @@ export default function BranchesPage() {
     if (email) body.email = email;
 
     try {
-      const res = await fetch('/api/proxy/branches', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const res = await fetch("/api/proxy/branches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message ?? 'Error al crear sucursal');
+        throw new Error(data.message ?? "Error al crear sucursal");
       }
       resetForm();
       setShowForm(false);
       await fetchBranches();
     } catch (e) {
-      setFormError(e instanceof Error ? e.message : 'Error');
+      setFormError(e instanceof Error ? e.message : "Error");
     } finally {
       setSaving(false);
     }
@@ -98,17 +106,17 @@ export default function BranchesPage() {
   async function toggleActive(branch: Branch) {
     try {
       const res = await fetch(`/api/proxy/branches/${branch.id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ isActive: !branch.isActive }),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message ?? 'Error al actualizar');
+        throw new Error(data.message ?? "Error al actualizar");
       }
       await fetchBranches();
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Error');
+      setError(e instanceof Error ? e.message : "Error");
     }
   }
 
@@ -128,13 +136,16 @@ export default function BranchesPage() {
   }
 
   const activeBranches = branches.filter((branch) => branch.isActive).length;
-  const cities = new Set(branches.map((branch) => branch.city).filter(Boolean)).size;
-  const branchesWithContact = branches.filter((branch) => branch.phone || branch.email).length;
+  const cities = new Set(branches.map((branch) => branch.city).filter(Boolean))
+    .size;
+  const branchesWithContact = branches.filter(
+    (branch) => branch.phone || branch.email,
+  ).length;
 
   const inputClass =
-    'mt-2 w-full rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-colors placeholder:text-[color:var(--text-soft)] focus:border-[color:var(--brand-accent)] focus:ring-2 focus:ring-[color:rgba(145,136,245,0.14)]';
+    "mt-2 w-full rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-colors placeholder:text-[color:var(--text-soft)] focus:border-[color:var(--brand-accent)] focus:ring-2 focus:ring-[color:rgba(145,136,245,0.14)]";
   const actionButtonClass =
-    'inline-flex items-center rounded-[16px] bg-[color:var(--brand-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,4,65,0.18)] transition-colors hover:bg-[color:var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60';
+    "inline-flex items-center rounded-[16px] bg-[color:var(--brand-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,4,65,0.18)] transition-colors hover:bg-[color:var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60";
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -151,16 +162,30 @@ export default function BranchesPage() {
               }}
               className={actionButtonClass}
             >
-              {showForm ? 'Cancelar' : 'Nueva sucursal'}
+              {showForm ? "Cancelar" : "Nueva sucursal"}
             </button>
           ) : null
         }
       />
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <MetricCard label="Sucursales" value={branches.length} tone="accent" hint="Total registradas" />
-        <MetricCard label="Activas" value={activeBranches} hint="Disponibles hoy" />
-        <MetricCard label="Con contacto" value={branchesWithContact} tone="warm" hint={`${cities} ciudades`} />
+        <MetricCard
+          label="Sucursales"
+          value={branches.length}
+          tone="accent"
+          hint="Total registradas"
+        />
+        <MetricCard
+          label="Activas"
+          value={activeBranches}
+          hint="Disponibles hoy"
+        />
+        <MetricCard
+          label="Con contacto"
+          value={branchesWithContact}
+          tone="warm"
+          hint={`${cities} ciudades`}
+        />
       </section>
 
       {error ? (
@@ -264,8 +289,12 @@ export default function BranchesPage() {
               </p>
             ) : null}
 
-            <button type="submit" disabled={saving} className={actionButtonClass}>
-              {saving ? 'Creando...' : 'Crear sucursal'}
+            <button
+              type="submit"
+              disabled={saving}
+              className={actionButtonClass}
+            >
+              {saving ? "Creando..." : "Crear sucursal"}
             </button>
           </form>
         </SectionCard>
@@ -277,7 +306,9 @@ export default function BranchesPage() {
       >
         {branches.length === 0 ? (
           <div className="rounded-[24px] border border-dashed border-[color:var(--border-strong)] bg-[color:var(--surface-muted)] px-6 py-10 text-center">
-            <h3 className="text-2xl font-semibold text-[color:var(--foreground)]">Todavía no hay sucursales</h3>
+            <h3 className="text-2xl font-semibold text-[color:var(--foreground)]">
+              Todavía no hay sucursales
+            </h3>
             <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-[color:var(--text-muted)]">
               Cuando agregues una sucursal, va a aparecer acá.
             </p>
@@ -300,15 +331,26 @@ export default function BranchesPage() {
                     className="grid grid-cols-[minmax(0,1.3fr)_180px_180px_160px_160px] gap-4 px-6 py-5 hover:bg-[color:var(--surface-muted)]/55"
                   >
                     <div>
-                      <p className="text-base font-semibold text-[color:var(--foreground)]">{branch.name}</p>
+                      <p className="text-base font-semibold text-[color:var(--foreground)]">
+                        {branch.name}
+                      </p>
                       <p className="mt-1 text-sm text-[color:var(--text-muted)]">
-                        {[branch.address, branch.phone || branch.email].filter(Boolean).join(' · ') || 'Sin datos de contacto'}
+                        {[branch.address, branch.phone || branch.email]
+                          .filter(Boolean)
+                          .join(" · ") || "Sin datos de contacto"}
                       </p>
                     </div>
-                    <div className="text-sm text-[color:var(--text-muted)]">{branch.slug}</div>
-                    <div className="text-sm text-[color:var(--text-muted)]">{branch.city ?? '-'}</div>
+                    <div className="text-sm text-[color:var(--text-muted)]">
+                      {branch.slug}
+                    </div>
+                    <div className="text-sm text-[color:var(--text-muted)]">
+                      {branch.city ?? "-"}
+                    </div>
                     <div>
-                      <AdminStatusBadge tone={branch.isActive ? 'active' : 'inactive'} label={branch.isActive ? 'Activa' : 'Inactiva'} />
+                      <AdminStatusBadge
+                        tone={branch.isActive ? "active" : "inactive"}
+                        label={branch.isActive ? "Activa" : "Inactiva"}
+                      />
                     </div>
                     <div className="text-right">
                       {canMutate ? (
@@ -316,10 +358,12 @@ export default function BranchesPage() {
                           onClick={() => toggleActive(branch)}
                           className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-xs font-semibold text-[color:var(--text-muted)] transition-colors hover:border-[color:var(--brand-accent)] hover:text-[color:var(--foreground)]"
                         >
-                          {branch.isActive ? 'Desactivar' : 'Activar'}
+                          {branch.isActive ? "Desactivar" : "Activar"}
                         </button>
                       ) : (
-                        <span className="text-xs text-[color:var(--text-soft)]">-</span>
+                        <span className="text-xs text-[color:var(--text-soft)]">
+                          -
+                        </span>
                       )}
                     </div>
                   </div>
@@ -329,19 +373,29 @@ export default function BranchesPage() {
 
             <div className="space-y-4 lg:hidden">
               {branches.map((branch) => (
-                <div key={branch.id} className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)] p-5">
+                <div
+                  key={branch.id}
+                  className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)] p-5"
+                >
                   <div className="flex items-start justify-between gap-4">
                     <div>
-                      <p className="text-base font-semibold text-[color:var(--foreground)]">{branch.name}</p>
-                      <p className="mt-1 text-sm text-[color:var(--text-muted)]">{branch.slug}</p>
+                      <p className="text-base font-semibold text-[color:var(--foreground)]">
+                        {branch.name}
+                      </p>
+                      <p className="mt-1 text-sm text-[color:var(--text-muted)]">
+                        {branch.slug}
+                      </p>
                     </div>
-                    <AdminStatusBadge tone={branch.isActive ? 'active' : 'inactive'} label={branch.isActive ? 'Activa' : 'Inactiva'} />
+                    <AdminStatusBadge
+                      tone={branch.isActive ? "active" : "inactive"}
+                      label={branch.isActive ? "Activa" : "Inactiva"}
+                    />
                   </div>
 
                   <div className="mt-4 space-y-2 text-sm text-[color:var(--text-muted)]">
-                    <p>Ciudad: {branch.city ?? '-'}</p>
-                    <p>Dirección: {branch.address ?? '-'}</p>
-                    <p>Contacto: {branch.phone || branch.email || '-'}</p>
+                    <p>Ciudad: {branch.city ?? "-"}</p>
+                    <p>Dirección: {branch.address ?? "-"}</p>
+                    <p>Contacto: {branch.phone || branch.email || "-"}</p>
                   </div>
 
                   {canMutate ? (
@@ -349,7 +403,7 @@ export default function BranchesPage() {
                       onClick={() => toggleActive(branch)}
                       className="mt-5 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2 text-xs font-semibold text-[color:var(--text-muted)] transition-colors hover:border-[color:var(--brand-accent)] hover:text-[color:var(--foreground)]"
                     >
-                      {branch.isActive ? 'Desactivar' : 'Activar'}
+                      {branch.isActive ? "Desactivar" : "Activar"}
                     </button>
                   ) : null}
                 </div>

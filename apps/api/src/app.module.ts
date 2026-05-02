@@ -14,6 +14,7 @@ import { ReviewsModule } from './modules/reviews/reviews.module';
 import { ResponsesModule } from './modules/responses/responses.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { WidgetsModule } from './modules/widgets/widgets.module';
+import { CustomersModule } from './modules/customers/customers.module';
 import { JobsModule } from './jobs/jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
@@ -35,6 +36,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     ResponsesModule,
     MetricsModule,
     WidgetsModule,
+    CustomersModule,
     JobsModule,
   ],
   controllers: [AppController],

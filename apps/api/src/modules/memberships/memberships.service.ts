@@ -117,7 +117,19 @@ export class MembershipsService {
       return result;
     }
 
-    return this.repository.updateRole(membershipId, dto.role);
+    const result = await this.repository.updateRole(
+      businessId,
+      membershipId,
+      dto.role,
+    );
+    if (result.count === 0) throw new NotFoundException('Membership not found');
+
+    const updated = await this.repository.findByIdInBusiness(
+      businessId,
+      membershipId,
+    );
+    if (!updated) throw new NotFoundException('Membership not found');
+    return updated;
   }
 
   /**
@@ -148,7 +160,15 @@ export class MembershipsService {
       return result;
     }
 
-    return this.repository.revoke(membershipId);
+    const result = await this.repository.revoke(businessId, membershipId);
+    if (result.count === 0) throw new NotFoundException('Membership not found');
+
+    const revoked = await this.repository.findByIdInBusiness(
+      businessId,
+      membershipId,
+    );
+    if (!revoked) throw new NotFoundException('Membership not found');
+    return revoked;
   }
 
   // ---------------------------------------------------------------------------

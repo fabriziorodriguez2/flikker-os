@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthRepository } from './auth.repository';
@@ -14,9 +15,11 @@ import { RefreshDto } from './dto/refresh.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { SignupDto } from './dto/signup.dto';
 
 const BCRYPT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_MINUTES = 60;
+const PASSWORD_RESET_MESSAGE = 'Email enviado';
 
 @Injectable()
 export class AuthService {
@@ -24,6 +27,55 @@ export class AuthService {
     private readonly repository: AuthRepository,
     private readonly jwt: JwtService,
   ) {}
+
+  async signup(dto: SignupDto, userAgent?: string, ip?: string) {
+    const email = dto.email.toLowerCase();
+    const existingUser = await this.repository.findUserByEmail(email);
+
+    if (existingUser) {
+      throw new ConflictException('Email already exists');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.password, BCRYPT_ROUNDS);
+
+    const { user } = await this.repository.createSignupAccount({
+      email,
+      passwordHash,
+      businessName: dto.businessName.trim(),
+      vertical: dto.vertical,
+      timezone: dto.timezone ?? 'America/Montevideo',
+    });
+
+    const { accessToken, refreshToken, refreshTokenHash } = this.generateTokens(
+      user.id,
+    );
+
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await this.repository.createSession({
+      userId: user.id,
+      refreshTokenHash,
+      userAgent: userAgent ?? null,
+      ip: ip ?? null,
+      expiresAt,
+    });
+
+    const memberships = await this.repository.findMembershipsForUser(user.id);
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        isPlatformAdmin: user.isPlatformAdmin,
+      },
+      memberships,
+    };
+  }
 
   async login(dto: LoginDto, userAgent?: string, ip?: string) {
     const user = await this.repository.findUserByEmail(dto.email.toLowerCase());
@@ -126,7 +178,7 @@ export class AuthService {
 
     // Always return 200 to avoid email enumeration
     if (!user || !user.isActive) {
-      return { message: 'If the email exists, a reset link was sent.' };
+      return { message: PASSWORD_RESET_MESSAGE };
     }
 
     const rawToken = crypto.randomBytes(32).toString('hex');
@@ -137,10 +189,11 @@ export class AuthService {
     await this.repository.createResetToken(user.id, tokenHash, expiresAt);
 
     // In production: send email with rawToken. For Phase 0 dev: return it directly.
-    return {
-      message: 'If the email exists, a reset link was sent.',
-      _dev_token: process.env.NODE_ENV !== 'production' ? rawToken : undefined,
-    };
+    if (process.env.NODE_ENV !== 'production') {
+      return { message: PASSWORD_RESET_MESSAGE, _dev_token: rawToken };
+    }
+
+    return { message: PASSWORD_RESET_MESSAGE };
   }
 
   async resetPassword(dto: ResetPasswordDto) {

@@ -18,11 +18,12 @@ import { UpdateReviewTagDto } from './dto/update-review-tag.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { FeatureFlagGuard } from '../../common/guards/feature-flag.guard';
 import { Roles } from '../../common/decorators/roles.decorator';
 import type { AuthenticatedRequest } from '../../common/types/request.types';
 
 @Controller('reviews')
-@UseGuards(JwtGuard, TenantGuard)
+@UseGuards(FeatureFlagGuard('REVIEW_TAGS'), JwtGuard, TenantGuard)
 export class ReviewTagsController {
   constructor(private readonly tagsService: ReviewTagsService) {}
 

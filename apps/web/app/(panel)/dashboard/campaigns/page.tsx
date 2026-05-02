@@ -1,10 +1,11 @@
-import { getSession } from '@/lib/auth';
-import { apiFetch, isUnauthorizedApiError } from '@/lib/api';
-import { redirect } from 'next/navigation';
-import PageHeader from '@/components/ui/page-header';
-import SectionCard from '@/components/ui/section-card';
-import MetricCard from '@/components/ui/metric-card';
-import CampaignCard from '@/components/campaigns/campaign-card';
+import { getSession } from "@/lib/auth";
+import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
+import { redirect } from "next/navigation";
+import PageHeader from "@/components/ui/page-header";
+import SectionCard from "@/components/ui/section-card";
+import MetricCard from "@/components/ui/metric-card";
+import CampaignCard from "@/components/campaigns/campaign-card";
+import { FEATURES } from "@/src/config/features";
 
 interface Campaign {
   id: string;
@@ -19,7 +20,7 @@ interface Campaign {
 
 export default async function CampaignsPage() {
   const session = await getSession();
-  if (!session?.activeBusinessId) redirect('/dashboard');
+  if (!session?.activeBusinessId) redirect("/dashboard");
 
   const { accessToken, activeBusinessId } = session;
 
@@ -27,12 +28,12 @@ export default async function CampaignsPage() {
   let error: string | null = null;
 
   try {
-    campaigns = await apiFetch<Campaign[]>('/campaigns', accessToken, {
+    campaigns = await apiFetch<Campaign[]>("/campaigns", accessToken, {
       businessId: activeBusinessId,
     });
   } catch (e) {
-    if (isUnauthorizedApiError(e)) redirect('/session-expired');
-    error = e instanceof Error ? e.message : 'Error al cargar campañas';
+    if (isUnauthorizedApiError(e)) redirect("/session-expired");
+    error = e instanceof Error ? e.message : "Error al cargar campañas";
   }
 
   if (error) {
@@ -46,8 +47,8 @@ export default async function CampaignsPage() {
         <div
           className="mt-6 rounded-[24px] border px-5 py-4 text-sm text-[color:var(--danger-text)]"
           style={{
-            backgroundColor: 'var(--danger-bg)',
-            borderColor: 'rgba(161,45,58,0.16)',
+            backgroundColor: "var(--danger-bg)",
+            borderColor: "rgba(161,45,58,0.16)",
           }}
         >
           {error}
@@ -56,7 +57,9 @@ export default async function CampaignsPage() {
     );
   }
 
-  const activeCount = campaigns.filter((campaign) => campaign.status === 'ACTIVE').length;
+  const activeCount = campaigns.filter(
+    (campaign) => campaign.status === "ACTIVE",
+  ).length;
   const totalScans = campaigns.reduce(
     (sum, campaign) => sum + campaign._count.scanEvents,
     0,
@@ -71,7 +74,11 @@ export default async function CampaignsPage() {
       <PageHeader
         eyebrow="Campañas"
         title="Campañas"
-        subtitle="Links y QR del negocio activo."
+        subtitle={
+          FEATURES.QR_ADVANCED
+            ? "Links y QR del negocio activo."
+            : "Links del negocio activo."
+        }
       />
 
       <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
@@ -98,12 +105,14 @@ export default async function CampaignsPage() {
           description="Vista general del módulo."
         >
           <div className="grid gap-3 sm:grid-cols-3">
-            <MetricCard
-              label="QR"
-              value={totalQrs}
-              hint="Activos vinculados"
-              tone="accent"
-            />
+            {FEATURES.QR_ADVANCED ? (
+              <MetricCard
+                label="QR"
+                value={totalQrs}
+                hint="Activos vinculados"
+                tone="accent"
+              />
+            ) : null}
             <MetricCard
               label="Scans"
               value={totalScans}
@@ -125,7 +134,9 @@ export default async function CampaignsPage() {
             Todavía no hay campañas
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-[color:var(--text-muted)]">
-            Cuando crees links o QR, vas a verlos acá.
+            {FEATURES.QR_ADVANCED
+              ? "Cuando crees links o QR, vas a verlos acá."
+              : "Cuando crees links, vas a verlos acá."}
           </p>
         </div>
       ) : (

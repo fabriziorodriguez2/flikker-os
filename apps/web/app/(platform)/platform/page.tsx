@@ -1,6 +1,7 @@
-'use client';
+"use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
+import { FEATURES } from "@/src/config/features";
 
 interface PlatformBusiness {
   id: string;
@@ -25,11 +26,11 @@ export default function PlatformPage() {
   useEffect(() => {
     async function load() {
       try {
-        const res = await fetch('/api/proxy/platform/businesses');
-        if (!res.ok) throw new Error('Error al cargar cuentas');
+        const res = await fetch("/api/proxy/platform/businesses");
+        if (!res.ok) throw new Error("Error al cargar cuentas");
         setBusinesses(await res.json());
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Error');
+        setError(e instanceof Error ? e.message : "Error");
       } finally {
         setLoading(false);
       }
@@ -69,12 +70,16 @@ export default function PlatformPage() {
                 <th className="text-left px-4 py-2.5 font-medium text-zinc-600">
                   Estado
                 </th>
-                <th className="text-right px-4 py-2.5 font-medium text-zinc-600">
-                  Sucursales
-                </th>
-                <th className="text-right px-4 py-2.5 font-medium text-zinc-600">
-                  Miembros
-                </th>
+                {FEATURES.MULTI_LOCAL ? (
+                  <th className="text-right px-4 py-2.5 font-medium text-zinc-600">
+                    Sucursales
+                  </th>
+                ) : null}
+                {FEATURES.MULTI_USER ? (
+                  <th className="text-right px-4 py-2.5 font-medium text-zinc-600">
+                    Miembros
+                  </th>
+                ) : null}
                 <th className="text-left px-4 py-2.5 font-medium text-zinc-600">
                   País
                 </th>
@@ -109,22 +114,26 @@ export default function PlatformPage() {
                   <td className="px-4 py-3">
                     <span
                       className={`text-xs px-2 py-0.5 rounded-full ${
-                        b.status === 'ACTIVE'
-                          ? 'bg-green-50 text-green-700'
-                          : b.status === 'DRAFT'
-                            ? 'bg-amber-50 text-amber-700'
-                            : 'bg-zinc-100 text-zinc-500'
+                        b.status === "ACTIVE"
+                          ? "bg-green-50 text-green-700"
+                          : b.status === "DRAFT"
+                            ? "bg-amber-50 text-amber-700"
+                            : "bg-zinc-100 text-zinc-500"
                       }`}
                     >
                       {b.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-right text-zinc-500">
-                    {b.branchCount}
-                  </td>
-                  <td className="px-4 py-3 text-right text-zinc-500">
-                    {b.memberCount}
-                  </td>
+                  {FEATURES.MULTI_LOCAL ? (
+                    <td className="px-4 py-3 text-right text-zinc-500">
+                      {b.branchCount}
+                    </td>
+                  ) : null}
+                  {FEATURES.MULTI_USER ? (
+                    <td className="px-4 py-3 text-right text-zinc-500">
+                      {b.memberCount}
+                    </td>
+                  ) : null}
                   <td className="px-4 py-3 text-zinc-500">{b.country}</td>
                 </tr>
               ))}

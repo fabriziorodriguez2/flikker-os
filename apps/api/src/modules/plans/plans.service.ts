@@ -6,12 +6,13 @@ import {
 import { SubscriptionStatus } from '@prisma/client';
 import { PlansRepository } from './plans.repository';
 
-/** Default limits when a business has no subscription (equivalent to Free). */
+/** Default limits when a business has no active subscription. */
 const DEFAULT_LIMITS = {
   maxBranches: 1,
   maxMembers: 2,
   maxCampaigns: 1,
   maxReviewsPerMonth: 20,
+  messageQuotaMonthly: 0,
 };
 
 @Injectable()

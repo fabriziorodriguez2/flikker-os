@@ -183,10 +183,10 @@ describe('BranchesService', () => {
 
     it('updates branch when it exists in the business', async () => {
       mockRepo.findOne.mockResolvedValue(mockBranch);
-      mockRepo.update.mockResolvedValue({
-        ...mockBranch,
-        name: 'Nuevo Nombre',
-      });
+      mockRepo.update.mockResolvedValue({ count: 1 });
+      mockRepo.findOne
+        .mockResolvedValueOnce(mockBranch)
+        .mockResolvedValueOnce({ ...mockBranch, name: 'Nuevo Nombre' });
       const result = await service.update(BUSINESS_ID, BRANCH_ID, {
         name: 'Nuevo Nombre',
       });
@@ -194,14 +194,16 @@ describe('BranchesService', () => {
     });
 
     it('can deactivate a branch via isActive: false', async () => {
-      mockRepo.findOne.mockResolvedValue(mockBranch);
-      mockRepo.update.mockResolvedValue({ ...mockBranch, isActive: false });
+      mockRepo.findOne
+        .mockResolvedValueOnce(mockBranch)
+        .mockResolvedValueOnce({ ...mockBranch, isActive: false });
+      mockRepo.update.mockResolvedValue({ count: 1 });
 
       const result = await service.update(BUSINESS_ID, BRANCH_ID, {
         isActive: false,
       });
       expect(result.isActive).toBe(false);
-      expect(mockRepo.update).toHaveBeenCalledWith(BRANCH_ID, {
+      expect(mockRepo.update).toHaveBeenCalledWith(BUSINESS_ID, BRANCH_ID, {
         isActive: false,
       });
     });

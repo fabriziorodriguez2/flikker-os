@@ -58,6 +58,7 @@ export class BranchesRepository {
   }
 
   update(
+    businessId: string,
     branchId: string,
     data: {
       name?: string;
@@ -69,6 +70,9 @@ export class BranchesRepository {
       isActive?: boolean;
     },
   ) {
-    return this.prisma.branch.update({ where: { id: branchId }, data });
+    return this.prisma.branch.updateMany({
+      where: { id: branchId, businessId },
+      data,
+    });
   }
 }

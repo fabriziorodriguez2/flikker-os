@@ -15,7 +15,10 @@ const mockPlan = {
   maxMembers: 5,
   maxCampaigns: 5,
   maxReviewsPerMonth: 100,
-  priceMonthly: 2900,
+  priceMonthly: 6900,
+  priceUsd: 69,
+  setupFeeUsd: 0,
+  messageQuotaMonthly: 200,
   trialDays: 14,
   isActive: true,
   displayOrder: 1,
@@ -31,6 +34,7 @@ const mockSubscription = {
     maxMembers: 5,
     maxCampaigns: 5,
     maxReviewsPerMonth: 100,
+    messageQuotaMonthly: 200,
   },
 };
 
@@ -96,6 +100,7 @@ describe('PlansService', () => {
       const limits = await service.getLimits(BUSINESS_ID);
       expect(limits.maxBranches).toBe(3);
       expect(limits.maxMembers).toBe(5);
+      expect(limits.messageQuotaMonthly).toBe(200);
     });
 
     it('returns plan limits for TRIALING subscription', async () => {

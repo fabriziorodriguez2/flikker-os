@@ -1,5 +1,6 @@
 import Link from "next/link";
 import CampaignStatusBadge from "./campaign-status-badge";
+import { FEATURES } from "@/src/config/features";
 
 interface CampaignCardProps {
   campaign: {
@@ -33,7 +34,9 @@ export default function CampaignCard({ campaign }: CampaignCardProps) {
             <span>{campaign.slug}</span>
             <span>{formatChannel(campaign.channel)}</span>
             {campaign.enableLanding ? <span>Landing activa</span> : null}
-            {campaign.branch ? <span>{campaign.branch.name}</span> : null}
+            {FEATURES.MULTI_LOCAL && campaign.branch ? (
+              <span>{campaign.branch.name}</span>
+            ) : null}
           </div>
         </div>
 
@@ -54,14 +57,16 @@ export default function CampaignCard({ campaign }: CampaignCardProps) {
             /r/{campaign.slug}
           </p>
         </div>
-        <div className="rounded-[22px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
-            QRs activos
-          </p>
-          <p className="mt-3 text-3xl font-semibold text-[color:var(--foreground)]">
-            {campaign._count.qrCodes}
-          </p>
-        </div>
+        {FEATURES.QR_ADVANCED ? (
+          <div className="rounded-[22px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+              QRs activos
+            </p>
+            <p className="mt-3 text-3xl font-semibold text-[color:var(--foreground)]">
+              {campaign._count.qrCodes}
+            </p>
+          </div>
+        ) : null}
         <div className="rounded-[22px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
             Scans

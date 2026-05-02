@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useCanMutate } from "@/app/(panel)/role-context";
+import { FEATURES } from "@/src/config/features";
 
 interface ReviewRowActionsProps {
   reviewId: string;
@@ -68,22 +69,24 @@ export default function ReviewRowActions({
               : "Highlight"}
         </button>
 
-        <button
-          type="button"
-          onClick={() =>
-            runAction(
-              `/api/proxy/reviews/${reviewId}/${isResponded ? "mark-unresponded" : "mark-responded"}`,
-            )
-          }
-          disabled={isPending}
-          className={actionClass("default")}
-        >
-          {isPending && !error
-            ? "Guardando..."
-            : isResponded
-              ? "Marcar pendiente"
-              : "Marcar respondida"}
-        </button>
+        {FEATURES.MANUAL_RESPONSES ? (
+          <button
+            type="button"
+            onClick={() =>
+              runAction(
+                `/api/proxy/reviews/${reviewId}/${isResponded ? "mark-unresponded" : "mark-responded"}`,
+              )
+            }
+            disabled={isPending}
+            className={actionClass("default")}
+          >
+            {isPending && !error
+              ? "Guardando..."
+              : isResponded
+                ? "Marcar pendiente"
+                : "Marcar respondida"}
+          </button>
+        ) : null}
       </div>
 
       {error ? (

@@ -231,7 +231,7 @@ export class CampaignStatsService {
     // Fetch QR code labels/slugs
     const qrIds = groups.map((g) => g.qrCodeId);
     const qrCodes = await this.prisma.qrCode.findMany({
-      where: { id: { in: qrIds } },
+      where: { id: { in: qrIds }, businessId },
       select: { id: true, label: true, slug: true },
     });
     const qrMap = new Map(qrCodes.map((q) => [q.id, q]));
@@ -281,7 +281,7 @@ export class CampaignStatsService {
       .map((g) => g.branchId)
       .filter((id): id is string => id !== null);
     const branches = await this.prisma.branch.findMany({
-      where: { id: { in: branchIds } },
+      where: { id: { in: branchIds }, businessId },
       select: { id: true, name: true },
     });
     const branchMap = new Map(branches.map((b) => [b.id, b.name]));

@@ -25,6 +25,7 @@ enum MembershipStatus {
 
 enum BusinessStatus {
   DRAFT
+  ONBOARDING
   ACTIVE
   INACTIVE
   SUSPENDED
@@ -96,30 +97,66 @@ enum WidgetType {
   REVIEW_GRID
 }
 
+enum ServiceEventCreatedVia {
+  manual_panel
+  whatsapp_bot
+  csv_batch
+  api
+}
+
+enum MessageChannel {
+  whatsapp
+}
+
+enum MessageStatus {
+  queued
+  sent
+  delivered
+  read
+  failed
+}
+
+enum WidgetMode {
+  toast
+  carousel
+  grid
+}
+
+enum WidgetPosition {
+  bottom_left
+  bottom_right
+}
+
+enum WidgetEventType {
+  impression
+  click
+  close
+}
+
 // ---------------------------------------------------------------------------
 // User
 // ---------------------------------------------------------------------------
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  passwordHash String
-  firstName    String
-  lastName     String
+  id              String   @id @default(uuid())
+  email           String   @unique
+  passwordHash    String
+  firstName       String
+  lastName        String
   isPlatformAdmin Boolean  @default(false)
   isActive        Boolean  @default(true)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
-  memberships         Membership[]        @relation("UserMemberships")
-  invitedMemberships  Membership[]        @relation("InvitedByUser")
+  memberships         Membership[]          @relation("UserMemberships")
+  invitedMemberships  Membership[]          @relation("InvitedByUser")
   sessions            Session[]
   passwordResetTokens PasswordResetToken[]
   auditLogs           AuditLog[]
-  createdCampaigns    Campaign[]          @relation("CampaignCreator")
-  createdReviews      Review[]            @relation("ReviewCreator")
-  respondedReviews    Review[]            @relation("ReviewResponder")
-  authoredResponses   Response[]          @relation("ResponseAuthor")
+  createdCampaigns    Campaign[]            @relation("CampaignCreator")
+  createdReviews      Review[]              @relation("ReviewCreator")
+  respondedReviews    Review[]              @relation("ReviewResponder")
+  authoredResponses   Response[]            @relation("ResponseAuthor")
   statusChanges       ReviewStatusHistory[] @relation("StatusChanger")
 }
 
@@ -155,6 +192,7 @@ model Business {
   slug                     String         @unique
   status                   BusinessStatus @default(DRAFT)
   industry                 String?
+  vertical                 String?
   description              String?
   website                  String?
   phone                    String?
@@ -170,23 +208,32 @@ model Business {
   shortBio                 String?
   signatureText            String?
   googleBusinessProfileUrl String?
+  googlePlaceId            String?        @map("google_place_id")
+  whatsappPhoneId          String?        @map("whatsapp_phone_id")
+  messageQuotaMonthly      Int            @default(600) @map("message_quota_monthly")
+  messageCountCurrentMonth Int            @default(0) @map("message_count_current_month")
   defaultReviewRedirectUrl String?
   isActive                 Boolean        @default(true)
   createdAt                DateTime       @default(now())
   updatedAt                DateTime       @updatedAt
   archivedAt               DateTime?
 
-  memberships  Membership[]
-  branches     Branch[]
-  subscription Subscription?
-  auditLogs    AuditLog[]
-  campaigns    Campaign[]
-  qrCodes      QrCode[]
-  scanEvents   ScanEvent[]
-  reviews      Review[]
-  responses    Response[]
-  widgets      Widget[]
-  reviewTags   ReviewTag[]
+  memberships       Membership[]
+  branches          Branch[]
+  subscription      Subscription?
+  auditLogs         AuditLog[]
+  campaigns         Campaign[]
+  qrCodes           QrCode[]
+  scanEvents        ScanEvent[]
+  reviews           Review[]
+  responses         Response[]
+  widgets           Widget[]
+  customers         Customer[]
+  serviceEvents     ServiceEvent[]
+  messages          Message[]
+  feedbackResponses FeedbackResponse[]
+  widgetEvents      WidgetEvent[]
+  reviewTags        ReviewTag[]
 }
 
 // ---------------------------------------------------------------------------
@@ -262,20 +309,23 @@ model PasswordResetToken {
 // ---------------------------------------------------------------------------
 
 model Plan {
-  id                 String   @id @default(uuid())
-  name               String
-  slug               String   @unique
-  description        String?
-  maxBranches        Int
-  maxMembers         Int
-  maxCampaigns       Int
-  maxReviewsPerMonth Int
-  priceMonthly       Int      @default(0)
-  trialDays          Int      @default(0)
-  isActive           Boolean  @default(true)
-  displayOrder       Int      @default(0)
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+  id                  String   @id @default(uuid())
+  name                String
+  slug                String   @unique
+  description         String?
+  maxBranches         Int
+  maxMembers          Int
+  maxCampaigns        Int
+  maxReviewsPerMonth  Int
+  priceMonthly        Int      @default(0)
+  priceUsd            Int      @default(0)
+  setupFeeUsd         Int      @default(0)
+  messageQuotaMonthly Int      @default(0)
+  trialDays           Int      @default(0)
+  isActive            Boolean  @default(true)
+  displayOrder        Int      @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   subscriptions Subscription[]
 }
@@ -345,16 +395,125 @@ model Campaign {
   updatedAt       DateTime        @updatedAt
   archivedAt      DateTime?
 
-  business  Business    @relation(fields: [businessId], references: [id])
-  branch    Branch?     @relation(fields: [branchId], references: [id])
-  createdBy User        @relation("CampaignCreator", fields: [createdByUserId], references: [id])
-  qrCodes   QrCode[]
+  business   Business    @relation(fields: [businessId], references: [id])
+  branch     Branch?     @relation(fields: [branchId], references: [id])
+  createdBy  User        @relation("CampaignCreator", fields: [createdByUserId], references: [id])
+  qrCodes    QrCode[]
   scanEvents ScanEvent[]
   reviews    Review[]
+  messages   Message[]
 
   @@unique([businessId, slug])
   @@index([businessId])
   @@index([businessId, status])
+}
+
+// ---------------------------------------------------------------------------
+// Customer (final patient/customer contacted for review requests)
+// ---------------------------------------------------------------------------
+
+model Customer {
+  id         String    @id @default(uuid())
+  businessId String
+  name       String
+  phoneE164  String    @map("phone_e164")
+  email      String?
+  birthday   DateTime?
+  optedOut   Boolean   @default(false) @map("opted_out")
+  isActive   Boolean   @default(true)
+  tags       Json?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  business          Business           @relation(fields: [businessId], references: [id])
+  serviceEvents     ServiceEvent[]
+  messages          Message[]
+  feedbackResponses FeedbackResponse[]
+
+  @@index([businessId])
+  @@index([businessId, isActive])
+  @@index([businessId, phoneE164])
+}
+
+// ---------------------------------------------------------------------------
+// ServiceEvent (attended service that can trigger review request timing)
+// ---------------------------------------------------------------------------
+
+model ServiceEvent {
+  id          String                 @id @default(uuid())
+  businessId  String
+  customerId  String
+  serviceType String
+  eventAt     DateTime
+  createdVia  ServiceEventCreatedVia
+  createdAt   DateTime               @default(now())
+
+  business Business  @relation(fields: [businessId], references: [id])
+  customer Customer  @relation(fields: [customerId], references: [id])
+  messages Message[]
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([businessId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Message (outbound review request with unique tracking token)
+// ---------------------------------------------------------------------------
+
+model Message {
+  id             String         @id @default(uuid())
+  businessId     String
+  customerId     String
+  campaignId     String?
+  serviceEventId String?
+  channel        MessageChannel
+  trackingToken  String         @unique
+  status         MessageStatus
+  whatsappMsgId  String?        @map("whatsapp_msg_id")
+  costUsd        Decimal?       @map("cost_usd")
+  sentAt         DateTime?
+  deliveredAt    DateTime?
+  readAt         DateTime?
+  clickedAt      DateTime?
+  createdAt      DateTime       @default(now())
+
+  business          Business           @relation(fields: [businessId], references: [id])
+  customer          Customer           @relation(fields: [customerId], references: [id])
+  campaign          Campaign?          @relation(fields: [campaignId], references: [id])
+  serviceEvent      ServiceEvent?      @relation(fields: [serviceEventId], references: [id])
+  feedbackResponses FeedbackResponse[]
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([campaignId])
+  @@index([serviceEventId])
+  @@index([businessId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// FeedbackResponse (rating landing response from a message recipient)
+// ---------------------------------------------------------------------------
+
+model FeedbackResponse {
+  id                  String   @id @default(uuid())
+  businessId          String
+  messageId           String
+  customerId          String
+  score               Int
+  comment             String?
+  redirectedToGoogle  Boolean
+  acknowledgedByOwner Boolean  @default(false)
+  createdAt           DateTime @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+  message  Message  @relation(fields: [messageId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@index([businessId])
+  @@index([messageId])
+  @@index([customerId])
+  @@index([businessId, createdAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -420,28 +579,28 @@ model ScanEvent {
 // ---------------------------------------------------------------------------
 
 model Review {
-  id                 String               @id @default(uuid())
-  businessId         String
-  branchId           String?
-  campaignId         String?
-  source             ReviewSource
-  externalReviewId   String?
-  authorDisplayName  String?
-  rating             Int
-  title              String?
-  content            String?
-  reviewedAt         DateTime
-  ingestedAt         DateTime             @default(now())
-  status             ReviewStatus         @default(NEW)
-  language           String?
-  isHighlighted      Boolean              @default(false)
-  respondedAt        DateTime?
-  respondedByUserId  String?
-  metadataJson       Json?
-  createdByUserId    String?
-  createdAt          DateTime             @default(now())
-  updatedAt          DateTime             @updatedAt
-  archivedAt         DateTime?
+  id                String       @id @default(uuid())
+  businessId        String
+  branchId          String?
+  campaignId        String?
+  source            ReviewSource
+  externalReviewId  String?
+  authorDisplayName String?
+  rating            Int
+  title             String?
+  content           String?
+  reviewedAt        DateTime
+  ingestedAt        DateTime     @default(now())
+  status            ReviewStatus @default(NEW)
+  language          String?
+  isHighlighted     Boolean      @default(false)
+  respondedAt       DateTime?
+  respondedByUserId String?
+  metadataJson      Json?
+  createdByUserId   String?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+  archivedAt        DateTime?
 
   business      Business              @relation(fields: [businessId], references: [id])
   branch        Branch?               @relation(fields: [branchId], references: [id])
@@ -459,6 +618,7 @@ model Review {
   @@index([businessId, reviewedAt])
   @@index([branchId])
   @@index([campaignId])
+  @@index([respondedByUserId])
 }
 
 // ---------------------------------------------------------------------------
@@ -527,13 +687,13 @@ model ReviewTagRelation {
 // ---------------------------------------------------------------------------
 
 model ReviewStatusHistory {
-  id              String       @id @default(uuid())
+  id              String        @id @default(uuid())
   reviewId        String
   fromStatus      ReviewStatus?
   toStatus        ReviewStatus
   changedByUserId String?
   reason          String?
-  createdAt       DateTime     @default(now())
+  createdAt       DateTime      @default(now())
 
   review    Review @relation(fields: [reviewId], references: [id])
   changedBy User?  @relation("StatusChanger", fields: [changedByUserId], references: [id])
@@ -546,21 +706,46 @@ model ReviewStatusHistory {
 // ---------------------------------------------------------------------------
 
 model Widget {
-  id             String       @id @default(uuid())
-  businessId     String
-  name           String
-  status         WidgetStatus @default(DRAFT)
-  type           WidgetType
-  publicToken    String       @unique
-  title          String?
-  maxItems       Int          @default(6)
-  showAuthorName Boolean      @default(true)
-  showDate       Boolean      @default(false)
-  createdAt      DateTime     @default(now())
-  updatedAt      DateTime     @updatedAt
+  id              String         @id @default(uuid())
+  businessId      String
+  name            String
+  status          WidgetStatus   @default(DRAFT)
+  type            WidgetType
+  mode            WidgetMode     @default(toast)
+  position        WidgetPosition @default(bottom_right)
+  publicToken     String         @unique
+  title           String?
+  maxItems        Int            @default(6)
+  minStars        Int            @default(4) @map("min_stars")
+  maxReviewsShown Int            @default(6) @map("max_reviews_shown")
+  primaryColor    String?        @map("primary_color")
+  rotationSeconds Int            @default(8) @map("rotation_seconds")
+  enabled         Boolean        @default(true)
+  showAuthorName  Boolean        @default(true)
+  showDate        Boolean        @default(false)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 
   business Business @relation(fields: [businessId], references: [id])
 
   @@index([businessId])
   @@index([businessId, status])
+}
+
+// ---------------------------------------------------------------------------
+// WidgetEvent (public widget analytics event)
+// ---------------------------------------------------------------------------
+
+model WidgetEvent {
+  id             String          @id @default(uuid())
+  businessId     String
+  eventType      WidgetEventType
+  googleReviewId String?         @map("googleReviewId")
+  referrer       String?
+  createdAt      DateTime        @default(now())
+
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([businessId])
+  @@index([businessId, createdAt])
 }
