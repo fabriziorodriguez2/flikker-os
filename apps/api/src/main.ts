@@ -4,6 +4,15 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 
+const processLogger = new Logger('Process');
+
+process.on('unhandledRejection', (reason: unknown) => {
+  processLogger.error(
+    'Unhandled Promise Rejection',
+    reason instanceof Error ? reason.stack : String(reason),
+  );
+});
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log', 'debug'],
