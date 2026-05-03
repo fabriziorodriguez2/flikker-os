@@ -14,6 +14,7 @@ import { CampaignsService } from './campaigns.service';
 import { CampaignStatsService } from './campaigns.stats.service';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
+import { UpdateRepeatCampaignDto } from './dto/update-repeat-campaign.dto';
 import { UpdateCampaignStatusDto } from './dto/update-campaign-status.dto';
 import { StatsQueryDto } from './dto/stats-query.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard';
@@ -42,6 +43,7 @@ export class CampaignsController {
     return this.campaignsService.listForBusiness(
       req.currentBusinessId!,
       status,
+      req.user.id,
     );
   }
 
@@ -99,6 +101,21 @@ export class CampaignsController {
     @Body() dto: UpdateCampaignDto,
   ) {
     return this.campaignsService.update(req.currentBusinessId!, id, dto);
+  }
+
+  @Patch(':id/repeats')
+  @UseGuards(RolesGuard)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
+  updateRepeatSettings(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateRepeatCampaignDto,
+  ) {
+    return this.campaignsService.updateRepeatSettings(
+      req.currentBusinessId!,
+      id,
+      dto,
+    );
   }
 
   /**

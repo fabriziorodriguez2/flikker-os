@@ -13,9 +13,10 @@ interface Campaign {
   slug: string;
   status: string;
   channel: string;
+  templateKind: string | null;
   enableLanding: boolean;
   branch: { id: string; name: string } | null;
-  _count: { qrCodes: number; scanEvents: number };
+  _count: { qrCodes: number; scanEvents: number; executions?: number };
 }
 
 export default async function CampaignsPage() {

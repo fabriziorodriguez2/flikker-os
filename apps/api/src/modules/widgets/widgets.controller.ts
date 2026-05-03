@@ -5,6 +5,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -27,6 +28,17 @@ export class WidgetsController {
   @Get()
   list(@Req() req: AuthenticatedRequest) {
     return this.widgetsService.listForBusiness(req.currentBusinessId!);
+  }
+
+  @Get('preview/reviews')
+  previewReviews(
+    @Req() req: AuthenticatedRequest,
+    @Query('minStars') minStars?: string,
+  ) {
+    return this.widgetsService.getToastPreviewReviews(
+      req.currentBusinessId!,
+      Number.parseInt(minStars ?? '4', 10),
+    );
   }
 
   @Get(':id')

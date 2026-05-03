@@ -15,6 +15,9 @@ import { ResponsesModule } from './modules/responses/responses.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { WidgetsModule } from './modules/widgets/widgets.module';
 import { CustomersModule } from './modules/customers/customers.module';
+import { FeedbackModule } from './modules/feedback/feedback.module';
+import { ServiceEventsModule } from './modules/service-events/service-events.module';
+import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { JobsModule } from './jobs/jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
@@ -37,6 +40,9 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     MetricsModule,
     WidgetsModule,
     CustomersModule,
+    FeedbackModule,
+    ServiceEventsModule,
+    WebhooksModule,
     JobsModule,
   ],
   controllers: [AppController],

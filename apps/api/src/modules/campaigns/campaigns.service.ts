@@ -11,6 +11,7 @@ import { BranchesRepository } from '../branches/branches.repository';
 import { PlansService } from '../plans/plans.service';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
+import { UpdateRepeatCampaignDto } from './dto/update-repeat-campaign.dto';
 import { UpdateCampaignStatusDto } from './dto/update-campaign-status.dto';
 
 /** Allowed status transitions: from → [to, to, ...] */
@@ -34,7 +35,12 @@ export class CampaignsService {
     private readonly plansService: PlansService,
   ) {}
 
-  listForBusiness(businessId: string, status?: CampaignStatus) {
+  async listForBusiness(
+    businessId: string,
+    status: CampaignStatus | undefined,
+    userId: string,
+  ) {
+    await this.campaignsRepository.ensureRepeatTemplates(businessId, userId);
     return this.campaignsRepository.findManyByBusiness(businessId, status);
   }
 
@@ -124,6 +130,36 @@ export class CampaignsService {
     }
 
     return this.campaignsRepository.update(businessId, campaignId, dto);
+  }
+
+  async updateRepeatSettings(
+    businessId: string,
+    campaignId: string,
+    dto: UpdateRepeatCampaignDto,
+  ) {
+    const campaign = await this.findOneScoped(businessId, campaignId);
+    if (!campaign.templateKind) {
+      throw new BadRequestException('Campaign is not a Repeat template');
+    }
+
+    const updated = await this.campaignsRepository.updateRepeatSettings(
+      businessId,
+      campaignId,
+      {
+        ...(dto.messageBody !== undefined
+          ? { messageBody: dto.messageBody.trim() }
+          : {}),
+        ...(dto.triggerOffsetDays !== undefined
+          ? { triggerOffsetDays: dto.triggerOffsetDays }
+          : {}),
+        ...(dto.offerText !== undefined
+          ? { offerText: dto.offerText.trim() || null }
+          : {}),
+      },
+    );
+
+    if (!updated) throw new NotFoundException('Campaign not found');
+    return updated;
   }
 
   async updateStatus(

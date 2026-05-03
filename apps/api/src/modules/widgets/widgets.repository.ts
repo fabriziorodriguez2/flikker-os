@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
-import { WidgetStatus, WidgetType } from '@prisma/client';
+import {
+  WidgetEventType,
+  WidgetMode,
+  WidgetPosition,
+  WidgetStatus,
+  WidgetType,
+} from '@prisma/client';
 
 @Injectable()
 export class WidgetsRepository {
@@ -36,6 +42,26 @@ export class WidgetsRepository {
     });
   }
 
+  findActiveToastByBusinessId(businessId: string) {
+    return this.prisma.widget.findFirst({
+      where: {
+        businessId,
+        mode: WidgetMode.toast,
+        status: WidgetStatus.ACTIVE,
+        enabled: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      include: {
+        business: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+      },
+    });
+  }
+
   create(
     businessId: string,
     data: {
@@ -44,6 +70,12 @@ export class WidgetsRepository {
       publicToken: string;
       title?: string;
       maxItems: number;
+      mode?: WidgetMode;
+      position?: WidgetPosition;
+      minStars?: number;
+      maxReviewsShown?: number;
+      primaryColor?: string;
+      rotationSeconds?: number;
       showAuthorName: boolean;
       showDate: boolean;
     },
@@ -63,6 +95,12 @@ export class WidgetsRepository {
       name?: string;
       title?: string | null;
       maxItems?: number;
+      mode?: WidgetMode;
+      position?: WidgetPosition;
+      minStars?: number;
+      maxReviewsShown?: number;
+      primaryColor?: string | null;
+      rotationSeconds?: number;
       showAuthorName?: boolean;
       showDate?: boolean;
     },
@@ -94,6 +132,15 @@ export class WidgetsRepository {
         businessId,
         isHighlighted: true,
         status: { not: 'ARCHIVED' },
+      },
+    });
+  }
+
+  countDetectedReviewsForWidget(businessId: string, minStars: number) {
+    return this.prisma.googleReview.count({
+      where: {
+        businessId,
+        stars: { gte: minStars },
       },
     });
   }
@@ -130,5 +177,52 @@ export class WidgetsRepository {
         _all: true,
       },
     });
+  }
+
+  findDetectedReviewsForWidget(
+    businessId: string,
+    minStars: number,
+    maxItems: number,
+  ) {
+    return this.prisma.googleReview.findMany({
+      where: {
+        businessId,
+        stars: { gte: minStars },
+      },
+      orderBy: [{ postedAt: 'desc' }, { detectedAt: 'desc' }],
+      take: maxItems,
+      select: {
+        id: true,
+        googleReviewId: true,
+        reviewerName: true,
+        stars: true,
+        text: true,
+        postedAt: true,
+      },
+    });
+  }
+
+  getDetectedReviewsAggregate(businessId: string, minStars: number) {
+    return this.prisma.googleReview.aggregate({
+      where: {
+        businessId,
+        stars: { gte: minStars },
+      },
+      _avg: {
+        stars: true,
+      },
+      _count: {
+        _all: true,
+      },
+    });
+  }
+
+  createEvent(data: {
+    businessId: string;
+    eventType: WidgetEventType;
+    googleReviewId?: string | null;
+    referrer?: string | null;
+  }) {
+    return this.prisma.widgetEvent.create({ data });
   }
 }

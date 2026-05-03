@@ -5,6 +5,7 @@ import {
   DestinationType,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { REPEAT_TEMPLATE_DEFAULTS, REPEAT_TEMPLATES } from './repeat-templates';
 
 @Injectable()
 export class CampaignsRepository {
@@ -18,7 +19,9 @@ export class CampaignsRepository {
       },
       include: {
         branch: { select: { id: true, name: true, slug: true } },
-        _count: { select: { qrCodes: true, scanEvents: true } },
+        _count: {
+          select: { qrCodes: true, scanEvents: true, executions: true },
+        },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -29,9 +32,35 @@ export class CampaignsRepository {
       where: { id: campaignId, businessId },
       include: {
         branch: { select: { id: true, name: true, slug: true } },
-        _count: { select: { qrCodes: true, scanEvents: true } },
+        _count: {
+          select: { qrCodes: true, scanEvents: true, executions: true },
+        },
       },
     });
+  }
+
+  async ensureRepeatTemplates(businessId: string, createdByUserId: string) {
+    for (const template of REPEAT_TEMPLATES) {
+      await this.prisma.campaign.upsert({
+        where: { businessId_slug: { businessId, slug: template.slug } },
+        update: {},
+        create: {
+          businessId,
+          createdByUserId,
+          slug: template.slug,
+          name: template.name,
+          description: template.description,
+          channel: REPEAT_TEMPLATE_DEFAULTS.channel,
+          destinationType: REPEAT_TEMPLATE_DEFAULTS.destinationType,
+          status: REPEAT_TEMPLATE_DEFAULTS.status,
+          enableLanding: REPEAT_TEMPLATE_DEFAULTS.enableLanding,
+          templateKind: template.templateKind,
+          triggerOffsetDays: template.triggerOffsetDays,
+          messageBody: template.messageBody,
+          offerText: template.offerText,
+        },
+      });
+    }
   }
 
   /**
@@ -95,6 +124,9 @@ export class CampaignsRepository {
       branchId?: string;
       startsAt?: string;
       endsAt?: string;
+      messageBody?: string;
+      triggerOffsetDays?: number;
+      offerText?: string | null;
     },
   ) {
     const { startsAt, endsAt, ...rest } = data;
@@ -108,6 +140,38 @@ export class CampaignsRepository {
         },
       });
       return tx.campaign.findUniqueOrThrow({ where: { id: campaignId } });
+    });
+  }
+
+  async updateRepeatSettings(
+    businessId: string,
+    campaignId: string,
+    data: {
+      messageBody?: string;
+      triggerOffsetDays?: number;
+      offerText?: string | null;
+    },
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const campaign = await tx.campaign.findFirst({
+        where: {
+          id: campaignId,
+          businessId,
+          templateKind: { not: null },
+        },
+      });
+      if (!campaign) return null;
+
+      return tx.campaign.update({
+        where: { id: campaignId },
+        data,
+        include: {
+          branch: { select: { id: true, name: true, slug: true } },
+          _count: {
+            select: { qrCodes: true, scanEvents: true, executions: true },
+          },
+        },
+      });
     });
   }
 

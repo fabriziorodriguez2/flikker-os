@@ -62,6 +62,19 @@ enum CampaignChannel {
   OTHER
 }
 
+enum CampaignTemplateKind {
+  post_service
+  reactivation
+  birthday
+}
+
+enum CampaignExecutionStatus {
+  queued
+  sent
+  failed
+  responded
+}
+
 enum DestinationType {
   GOOGLE_REVIEW
   CUSTOM_URL
@@ -186,54 +199,57 @@ model Session {
 // ---------------------------------------------------------------------------
 
 model Business {
-  id                       String         @id @default(uuid())
-  name                     String
-  legalName                String?
-  slug                     String         @unique
-  status                   BusinessStatus @default(DRAFT)
-  industry                 String?
-  vertical                 String?
-  description              String?
-  website                  String?
-  phone                    String?
-  email                    String?
-  country                  String
-  timezone                 String
-  currency                 String
-  logoUrl                  String?
-  primaryColor             String?
-  secondaryColor           String?
-  toneOfVoice              String?
-  whatsappUrl              String?
-  shortBio                 String?
-  signatureText            String?
-  googleBusinessProfileUrl String?
-  googlePlaceId            String?        @map("google_place_id")
-  whatsappPhoneId          String?        @map("whatsapp_phone_id")
-  messageQuotaMonthly      Int            @default(600) @map("message_quota_monthly")
-  messageCountCurrentMonth Int            @default(0) @map("message_count_current_month")
-  defaultReviewRedirectUrl String?
-  isActive                 Boolean        @default(true)
-  createdAt                DateTime       @default(now())
-  updatedAt                DateTime       @updatedAt
-  archivedAt               DateTime?
+  id                        String         @id @default(uuid())
+  name                      String
+  legalName                 String?
+  slug                      String         @unique
+  status                    BusinessStatus @default(DRAFT)
+  industry                  String?
+  vertical                  String?
+  description               String?
+  website                   String?
+  phone                     String?
+  email                     String?
+  country                   String
+  timezone                  String
+  currency                  String
+  logoUrl                   String?
+  primaryColor              String?
+  secondaryColor            String?
+  toneOfVoice               String?
+  whatsappUrl               String?
+  shortBio                  String?
+  signatureText             String?
+  googleBusinessProfileUrl  String?
+  googlePlaceId             String?        @map("google_place_id")
+  whatsappPhoneId           String?        @map("whatsapp_phone_id")
+  messageQuotaMonthly       Int            @default(600) @map("message_quota_monthly")
+  messageCountCurrentMonth  Int            @default(0) @map("message_count_current_month")
+  reviewRequestsPausedUntil DateTime?      @map("review_requests_paused_until")
+  defaultReviewRedirectUrl  String?
+  isActive                  Boolean        @default(true)
+  createdAt                 DateTime       @default(now())
+  updatedAt                 DateTime       @updatedAt
+  archivedAt                DateTime?
 
-  memberships       Membership[]
-  branches          Branch[]
-  subscription      Subscription?
-  auditLogs         AuditLog[]
-  campaigns         Campaign[]
-  qrCodes           QrCode[]
-  scanEvents        ScanEvent[]
-  reviews           Review[]
-  responses         Response[]
-  widgets           Widget[]
-  customers         Customer[]
-  serviceEvents     ServiceEvent[]
-  messages          Message[]
-  feedbackResponses FeedbackResponse[]
-  widgetEvents      WidgetEvent[]
-  reviewTags        ReviewTag[]
+  memberships        Membership[]
+  branches           Branch[]
+  subscription       Subscription?
+  auditLogs          AuditLog[]
+  campaigns          Campaign[]
+  campaignExecutions CampaignExecution[]
+  qrCodes            QrCode[]
+  scanEvents         ScanEvent[]
+  reviews            Review[]
+  responses          Response[]
+  widgets            Widget[]
+  customers          Customer[]
+  serviceEvents      ServiceEvent[]
+  messages           Message[]
+  feedbackResponses  FeedbackResponse[]
+  googleReviews      GoogleReview[]
+  widgetEvents       WidgetEvent[]
+  reviewTags         ReviewTag[]
 }
 
 // ---------------------------------------------------------------------------
@@ -377,35 +393,41 @@ model AuditLog {
 // ---------------------------------------------------------------------------
 
 model Campaign {
-  id              String          @id @default(uuid())
-  businessId      String
-  branchId        String?
-  name            String
-  slug            String
-  description     String?
-  channel         CampaignChannel
-  status          CampaignStatus  @default(DRAFT)
-  destinationType DestinationType
-  destinationUrl  String?
-  enableLanding   Boolean         @default(false)
-  startsAt        DateTime?
-  endsAt          DateTime?
-  createdByUserId String
-  createdAt       DateTime        @default(now())
-  updatedAt       DateTime        @updatedAt
-  archivedAt      DateTime?
+  id                String                @id @default(uuid())
+  businessId        String
+  branchId          String?
+  name              String
+  slug              String
+  description       String?
+  channel           CampaignChannel
+  templateKind      CampaignTemplateKind? @map("template_kind")
+  triggerOffsetDays Int?                  @map("trigger_offset_days")
+  messageBody       String?               @map("message_body")
+  offerText         String?               @map("offer_text")
+  status            CampaignStatus        @default(DRAFT)
+  destinationType   DestinationType
+  destinationUrl    String?
+  enableLanding     Boolean               @default(false)
+  startsAt          DateTime?
+  endsAt            DateTime?
+  createdByUserId   String
+  createdAt         DateTime              @default(now())
+  updatedAt         DateTime              @updatedAt
+  archivedAt        DateTime?
 
-  business   Business    @relation(fields: [businessId], references: [id])
-  branch     Branch?     @relation(fields: [branchId], references: [id])
-  createdBy  User        @relation("CampaignCreator", fields: [createdByUserId], references: [id])
+  business   Business            @relation(fields: [businessId], references: [id])
+  branch     Branch?             @relation(fields: [branchId], references: [id])
+  createdBy  User                @relation("CampaignCreator", fields: [createdByUserId], references: [id])
   qrCodes    QrCode[]
   scanEvents ScanEvent[]
   reviews    Review[]
   messages   Message[]
+  executions CampaignExecution[]
 
   @@unique([businessId, slug])
   @@index([businessId])
   @@index([businessId, status])
+  @@index([businessId, templateKind, status])
 }
 
 // ---------------------------------------------------------------------------
@@ -425,14 +447,16 @@ model Customer {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  business          Business           @relation(fields: [businessId], references: [id])
-  serviceEvents     ServiceEvent[]
-  messages          Message[]
-  feedbackResponses FeedbackResponse[]
+  business           Business            @relation(fields: [businessId], references: [id])
+  serviceEvents      ServiceEvent[]
+  messages           Message[]
+  campaignExecutions CampaignExecution[]
+  feedbackResponses  FeedbackResponse[]
 
   @@index([businessId])
   @@index([businessId, isActive])
   @@index([businessId, phoneE164])
+  @@index([businessId, birthday])
 }
 
 // ---------------------------------------------------------------------------
@@ -455,6 +479,7 @@ model ServiceEvent {
   @@index([businessId])
   @@index([customerId])
   @@index([businessId, createdAt])
+  @@index([businessId, eventAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -478,17 +503,49 @@ model Message {
   clickedAt      DateTime?
   createdAt      DateTime       @default(now())
 
-  business          Business           @relation(fields: [businessId], references: [id])
-  customer          Customer           @relation(fields: [customerId], references: [id])
-  campaign          Campaign?          @relation(fields: [campaignId], references: [id])
-  serviceEvent      ServiceEvent?      @relation(fields: [serviceEventId], references: [id])
-  feedbackResponses FeedbackResponse[]
+  business                Business            @relation(fields: [businessId], references: [id])
+  customer                Customer            @relation(fields: [customerId], references: [id])
+  campaign                Campaign?           @relation(fields: [campaignId], references: [id])
+  serviceEvent            ServiceEvent?       @relation(fields: [serviceEventId], references: [id])
+  feedbackResponses       FeedbackResponse[]
+  campaignExecutions      CampaignExecution[]
+  attributedGoogleReviews GoogleReview[]
 
   @@index([businessId])
   @@index([customerId])
   @@index([campaignId])
   @@index([serviceEventId])
   @@index([businessId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// CampaignExecution (one Repeat campaign contact attempt per customer)
+// ---------------------------------------------------------------------------
+
+model CampaignExecution {
+  id           String                  @id @default(uuid())
+  businessId   String
+  campaignId   String
+  customerId   String
+  messageId    String?
+  status       CampaignExecutionStatus @default(queued)
+  executedAt   DateTime                @default(now())
+  sentAt       DateTime?
+  respondedAt  DateTime?
+  responseText String?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+
+  business Business @relation(fields: [businessId], references: [id])
+  campaign Campaign @relation(fields: [campaignId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+  message  Message? @relation(fields: [messageId], references: [id])
+
+  @@index([businessId])
+  @@index([campaignId])
+  @@index([customerId])
+  @@index([messageId])
+  @@index([campaignId, customerId, executedAt])
 }
 
 // ---------------------------------------------------------------------------
@@ -514,6 +571,32 @@ model FeedbackResponse {
   @@index([messageId])
   @@index([customerId])
   @@index([businessId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// GoogleReview (detected Google Business Profile review)
+// ---------------------------------------------------------------------------
+
+model GoogleReview {
+  id                  String   @id @default(uuid())
+  businessId          String
+  googleReviewId      String   @map("google_review_id")
+  reviewerName        String?  @map("reviewer_name")
+  stars               Int
+  text                String?
+  postedAt            DateTime @map("posted_at")
+  detectedAt          DateTime @default(now()) @map("detected_at")
+  attributedMessageId String?  @map("attributed_message_id")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  business          Business @relation(fields: [businessId], references: [id])
+  attributedMessage Message? @relation(fields: [attributedMessageId], references: [id])
+
+  @@unique([businessId, googleReviewId])
+  @@index([businessId])
+  @@index([businessId, postedAt])
+  @@index([attributedMessageId])
 }
 
 // ---------------------------------------------------------------------------

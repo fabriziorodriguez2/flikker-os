@@ -130,6 +130,32 @@ export default function CustomersPage() {
     }
   }
 
+  async function handleAttendedToday(customer: Customer) {
+    setMessage(null);
+    setError(null);
+
+    try {
+      const res = await fetch("/api/proxy/service-events", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customerId: customer.id,
+          serviceType: "Servicio",
+          createdVia: "manual_panel",
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.message ?? "Error al registrar atención");
+      }
+      setMessage(
+        `✓ ${customer.name} recibirá el pedido de reseña en las próximas 2 horas.`,
+      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error");
+    }
+  }
+
   async function handleImport(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -314,6 +340,14 @@ export default function CustomersPage() {
                   )}
                 </div>
                 <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => handleAttendedToday(customer)}
+                    disabled={!canMutate || customer.optedOut}
+                    className={secondaryButtonClass}
+                  >
+                    Atendido hoy
+                  </button>
                   <button
                     type="button"
                     onClick={() => startEdit(customer)}

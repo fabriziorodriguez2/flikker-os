@@ -1,9 +1,12 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
-  BadRequestException,
-  NotFoundException,
-} from '@nestjs/common';
-import { WidgetStatus, WidgetType } from '@prisma/client';
+  WidgetEventType,
+  WidgetMode,
+  WidgetPosition,
+  WidgetStatus,
+  WidgetType,
+} from '@prisma/client';
 import { WidgetsRepository } from './widgets.repository';
 import { WidgetsService } from './widgets.service';
 
@@ -17,9 +20,15 @@ const mockWidget = {
   name: 'Main badge',
   status: WidgetStatus.DRAFT,
   type: WidgetType.BADGE,
+  mode: WidgetMode.toast,
+  position: WidgetPosition.bottom_right,
   publicToken: PUBLIC_TOKEN,
   title: 'Trusted by customers',
   maxItems: 6,
+  minStars: 4,
+  maxReviewsShown: 6,
+  primaryColor: '#5B5BD6',
+  rotationSeconds: 30,
   showAuthorName: true,
   showDate: false,
   createdAt: new Date(),
@@ -34,8 +43,13 @@ const mockWidgetsRepository = {
   update: jest.fn(),
   updateStatus: jest.fn(),
   countHighlightedReviews: jest.fn(),
+  countDetectedReviewsForWidget: jest.fn(),
   findHighlightedReviewsForWidget: jest.fn(),
   getHighlightedReviewsAggregate: jest.fn(),
+  findActiveToastByBusinessId: jest.fn(),
+  findDetectedReviewsForWidget: jest.fn(),
+  getDetectedReviewsAggregate: jest.fn(),
+  createEvent: jest.fn(),
 };
 
 describe('WidgetsService', () => {
@@ -96,9 +110,9 @@ describe('WidgetsService', () => {
     );
   });
 
-  it('rejects activating a widget without highlighted reviews', async () => {
+  it('rejects activating a toast widget without eligible detected reviews', async () => {
     mockWidgetsRepository.findOne.mockResolvedValue(mockWidget);
-    mockWidgetsRepository.countHighlightedReviews.mockResolvedValue(0);
+    mockWidgetsRepository.countDetectedReviewsForWidget.mockResolvedValue(0);
 
     await expect(
       service.updateStatus(BUSINESS_ID, WIDGET_ID, {
@@ -107,9 +121,9 @@ describe('WidgetsService', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
-  it('activates a widget when highlighted reviews exist', async () => {
+  it('activates a toast widget when eligible detected reviews exist', async () => {
     mockWidgetsRepository.findOne.mockResolvedValue(mockWidget);
-    mockWidgetsRepository.countHighlightedReviews.mockResolvedValue(2);
+    mockWidgetsRepository.countDetectedReviewsForWidget.mockResolvedValue(2);
     mockWidgetsRepository.updateStatus.mockResolvedValue({
       ...mockWidget,
       status: WidgetStatus.ACTIVE,
@@ -136,7 +150,8 @@ describe('WidgetsService', () => {
       widgetId: WIDGET_ID,
       publicToken: PUBLIC_TOKEN,
       publicUrl: expect.stringContaining(`/public/widgets/${PUBLIC_TOKEN}`),
-      embedType: 'feed',
+      embedType: 'script',
+      snippet: expect.stringContaining(`data-business="${BUSINESS_ID}"`),
     });
   });
 
@@ -203,5 +218,56 @@ describe('WidgetsService', () => {
         reviewedAt: null,
       },
     ]);
+  });
+
+  it('returns embeddable toast payload from detected Google reviews', async () => {
+    mockWidgetsRepository.findActiveToastByBusinessId.mockResolvedValue({
+      ...mockWidget,
+      business: { id: BUSINESS_ID, name: 'Gains Montevideo' },
+    });
+    mockWidgetsRepository.getDetectedReviewsAggregate.mockResolvedValue({
+      _avg: { stars: 4.8 },
+      _count: { _all: 2 },
+    });
+    mockWidgetsRepository.findDetectedReviewsForWidget.mockResolvedValue([
+      {
+        googleReviewId: 'google-1',
+        stars: 5,
+        text: 'Excelente atencion',
+        reviewerName: 'Maria',
+        postedAt: new Date('2026-05-01T00:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.getEmbeddableWidgetByBusiness(BUSINESS_ID);
+
+    expect(result.widget.mode).toBe(WidgetMode.toast);
+    expect(result.summary.totalReviews).toBe(2);
+    expect(result.reviews).toEqual([
+      {
+        id: 'google-1',
+        rating: 5,
+        content: 'Excelente atencion',
+        authorDisplayName: 'Maria',
+        reviewedAt: new Date('2026-05-01T00:00:00.000Z'),
+      },
+    ]);
+  });
+
+  it('tracks public widget events', async () => {
+    mockWidgetsRepository.createEvent.mockResolvedValue({ id: 'event-1' });
+
+    await service.trackPublicEvent(BUSINESS_ID, {
+      eventType: WidgetEventType.impression,
+      googleReviewId: 'google-1',
+      referrer: 'https://example.com',
+    });
+
+    expect(mockWidgetsRepository.createEvent).toHaveBeenCalledWith({
+      businessId: BUSINESS_ID,
+      eventType: WidgetEventType.impression,
+      googleReviewId: 'google-1',
+      referrer: 'https://example.com',
+    });
   });
 });

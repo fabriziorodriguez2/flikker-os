@@ -25,6 +25,7 @@ import {
   SubscriptionStatus,
   CampaignStatus,
   CampaignChannel,
+  CampaignTemplateKind,
   DestinationType,
   ReviewSource,
   ReviewStatus,
@@ -35,6 +36,24 @@ const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! });
 const prisma = new PrismaClient({ adapter });
 
 const DEMO_PASSWORD = 'Flikker2026!';
+
+type SeedCampaignData = {
+  businessSlug: string;
+  slug: string;
+  name: string;
+  description?: string;
+  channel: CampaignChannel;
+  destinationType: DestinationType;
+  destinationUrl: string | null;
+  enableLanding: boolean;
+  status: CampaignStatus;
+  branchKey: string | null;
+  createdByEmail: string;
+  templateKind?: CampaignTemplateKind;
+  triggerOffsetDays?: number;
+  messageBody?: string;
+  offerText?: string;
+};
 
 async function main() {
   console.log('🌱 Seeding Flikker OS demo data...\n');
@@ -534,7 +553,7 @@ async function main() {
   // ---------------------------------------------------------------------------
   // Campaigns
   // ---------------------------------------------------------------------------
-  const campaignsData = [
+  const campaignsData: SeedCampaignData[] = [
     // Clinica Dental Ejemplo — 3 campaigns (Pro allows 20)
     {
       businessSlug: 'clinica-dental-ejemplo',
@@ -625,6 +644,63 @@ async function main() {
       branchKey: 'clinica-dental-ejemplo/sede-principal',
       createdByEmail: 'dental@flikker.dev',
     },
+    ...['clinica-dental-ejemplo', 'centro-estetica-ejemplo'].flatMap(
+      (businessSlug) => [
+        {
+          businessSlug,
+          slug: 'repeat-post-service',
+          name: 'Repeat: post-servicio',
+          description: 'Mensaje automatico luego de la ultima atencion.',
+          channel: CampaignChannel.WHATSAPP,
+          destinationType: DestinationType.LANDING_ONLY,
+          destinationUrl: null,
+          enableLanding: false,
+          status: CampaignStatus.ACTIVE,
+          branchKey: null,
+          createdByEmail: 'admin@flikker.dev',
+          templateKind: CampaignTemplateKind.post_service,
+          triggerOffsetDays: 30,
+          messageBody:
+            'Hola {nombre}, soy {clinica}. Ya pasaron unos dias desde tu ultima visita. {oferta}',
+          offerText: '',
+        },
+        {
+          businessSlug,
+          slug: 'repeat-reactivation',
+          name: 'Repeat: reactivacion',
+          description: 'Mensaje para pacientes sin contacto reciente.',
+          channel: CampaignChannel.WHATSAPP,
+          destinationType: DestinationType.LANDING_ONLY,
+          destinationUrl: null,
+          enableLanding: false,
+          status: CampaignStatus.ACTIVE,
+          branchKey: null,
+          createdByEmail: 'admin@flikker.dev',
+          templateKind: CampaignTemplateKind.reactivation,
+          triggerOffsetDays: 180,
+          messageBody:
+            'Hola {nombre}, te escribe {clinica}. Hace tiempo que no te vemos. {oferta}',
+          offerText: '',
+        },
+        {
+          businessSlug,
+          slug: 'repeat-birthday',
+          name: 'Repeat: cumpleanos',
+          description: 'Saludo automatico de cumpleanos.',
+          channel: CampaignChannel.WHATSAPP,
+          destinationType: DestinationType.LANDING_ONLY,
+          destinationUrl: null,
+          enableLanding: false,
+          status: CampaignStatus.ACTIVE,
+          branchKey: null,
+          createdByEmail: 'admin@flikker.dev',
+          templateKind: CampaignTemplateKind.birthday,
+          triggerOffsetDays: 0,
+          messageBody: 'Feliz cumple, {nombre}! Te saluda {clinica}. {oferta}',
+          offerText: '',
+        },
+      ],
+    ),
   ];
 
   const campaigns: Record<
@@ -652,6 +728,10 @@ async function main() {
         enableLanding: data.enableLanding,
         status: data.status,
         createdByUserId: createdBy.id,
+        templateKind: data.templateKind ?? null,
+        triggerOffsetDays: data.triggerOffsetDays ?? null,
+        messageBody: data.messageBody ?? null,
+        offerText: data.offerText ?? null,
       },
       create: {
         businessId: business.id,
@@ -665,6 +745,10 @@ async function main() {
         enableLanding: data.enableLanding,
         status: data.status,
         createdByUserId: createdBy.id,
+        templateKind: data.templateKind ?? null,
+        triggerOffsetDays: data.triggerOffsetDays ?? null,
+        messageBody: data.messageBody ?? null,
+        offerText: data.offerText ?? null,
       },
     });
     // Key: "businessSlug/campaignSlug"

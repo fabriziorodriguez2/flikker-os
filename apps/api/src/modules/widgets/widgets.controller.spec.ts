@@ -1,5 +1,10 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { WidgetStatus, WidgetType } from '@prisma/client';
+import {
+  WidgetMode,
+  WidgetPosition,
+  WidgetStatus,
+  WidgetType,
+} from '@prisma/client';
 import { ThrottlerGuard } from '@nestjs/throttler';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
@@ -21,9 +26,15 @@ const mockWidget = {
   name: 'Main widget',
   status: WidgetStatus.DRAFT,
   type: WidgetType.REVIEW_LIST,
+  mode: WidgetMode.toast,
+  position: WidgetPosition.bottom_right,
   publicToken: PUBLIC_TOKEN,
   title: 'What customers say',
   maxItems: 6,
+  minStars: 4,
+  maxReviewsShown: 6,
+  primaryColor: '#5B5BD6',
+  rotationSeconds: 30,
   showAuthorName: true,
   showDate: true,
   createdAt: new Date(),
@@ -38,6 +49,8 @@ const mockService = {
   updateStatus: jest.fn(),
   getEmbedInfo: jest.fn(),
   getPublicWidget: jest.fn(),
+  getEmbeddableWidgetByBusiness: jest.fn(),
+  trackPublicEvent: jest.fn(),
 };
 
 function fakeReq(
@@ -146,7 +159,8 @@ describe('WidgetsController', () => {
       widgetId: WIDGET_ID,
       publicToken: PUBLIC_TOKEN,
       publicUrl: `http://localhost:3000/public/widgets/${PUBLIC_TOKEN}`,
-      embedType: 'feed',
+      embedType: 'script',
+      snippet: `<script async src="http://localhost:3000/widget.js" data-business="${BUSINESS_ID}" data-mode="toast"></script>`,
     });
 
     const result = await controller.getEmbedInfo(fakeReq(), WIDGET_ID);

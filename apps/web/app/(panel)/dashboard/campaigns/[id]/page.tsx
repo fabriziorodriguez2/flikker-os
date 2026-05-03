@@ -6,6 +6,7 @@ import PageHeader from "@/components/ui/page-header";
 import MetricCard from "@/components/ui/metric-card";
 import SectionCard from "@/components/ui/section-card";
 import CampaignStatusBadge from "@/components/campaigns/campaign-status-badge";
+import RepeatCampaignEditor from "@/components/campaigns/repeat-campaign-editor";
 import { FEATURES } from "@/src/config/features";
 
 interface Campaign {
@@ -14,8 +15,13 @@ interface Campaign {
   slug: string;
   status: string;
   channel: string;
+  templateKind: string | null;
+  triggerOffsetDays: number | null;
+  messageBody: string | null;
+  offerText: string | null;
   enableLanding: boolean;
   branch: { id: string; name: string } | null;
+  _count: { executions?: number };
 }
 
 interface DeviceBreakdown {
@@ -153,6 +159,9 @@ export default async function CampaignDetailPage({
           </h2>
           <p className="mt-3 max-w-2xl text-sm leading-7 text-white/80">
             {formatChannel(campaign.channel)}
+            {campaign.templateKind
+              ? ` · Repeat ${formatChannel(campaign.templateKind)}`
+              : ""}
             {FEATURES.MULTI_LOCAL && campaign.branch
               ? ` · ${campaign.branch.name}`
               : ""}
@@ -228,6 +237,20 @@ export default async function CampaignDetailPage({
           tone="warm"
         />
       </section>
+
+      {campaign.templateKind ? (
+        <SectionCard
+          title="Variables Repeat"
+          description="Edita texto, dias de offset y oferta opcional."
+        >
+          <RepeatCampaignEditor
+            campaignId={campaign.id}
+            messageBody={campaign.messageBody ?? ""}
+            triggerOffsetDays={campaign.triggerOffsetDays ?? 0}
+            offerText={campaign.offerText ?? ""}
+          />
+        </SectionCard>
+      ) : null}
 
       {deviceTotal > 0 ? (
         <SectionCard

@@ -1,5 +1,7 @@
-export type WidgetType = 'BADGE' | 'REVIEW_LIST' | 'REVIEW_GRID';
-export type WidgetStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE';
+export type WidgetType = "BADGE" | "REVIEW_LIST" | "REVIEW_GRID";
+export type WidgetMode = "toast" | "carousel" | "grid";
+export type WidgetPosition = "bottom_left" | "bottom_right";
+export type WidgetStatus = "DRAFT" | "ACTIVE" | "INACTIVE";
 
 export interface Widget {
   id: string;
@@ -7,9 +9,14 @@ export interface Widget {
   name: string;
   status: WidgetStatus;
   type: WidgetType;
+  mode: WidgetMode;
+  position: WidgetPosition;
   publicToken: string;
   title: string | null;
   maxItems: number;
+  minStars: number;
+  primaryColor: string | null;
+  rotationSeconds: number;
   showAuthorName: boolean;
   showDate: boolean;
   createdAt: string;
@@ -19,8 +26,13 @@ export interface Widget {
 export interface WidgetCreateInput {
   name: string;
   type: WidgetType;
+  mode: WidgetMode;
+  position: WidgetPosition;
   title: string;
   maxItems: number;
+  minStars: number;
+  primaryColor: string;
+  rotationSeconds: number;
   showAuthorName: boolean;
   showDate: boolean;
 }
@@ -30,6 +42,7 @@ export interface WidgetEmbedInfo {
   publicToken: string;
   publicUrl: string;
   embedType: string;
+  snippet: string;
 }
 
 export interface WidgetPreviewReview {

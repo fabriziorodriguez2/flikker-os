@@ -1,24 +1,20 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { CampaignStatus, WidgetStatus } from '@prisma/client';
+import { CampaignExecutionStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MetricsService } from './metrics.service';
 
 const BUSINESS_ID = 'biz-1';
 
 const mockPrisma = {
-  review: {
+  googleReview: {
     count: jest.fn(),
-    aggregate: jest.fn(),
     findMany: jest.fn(),
   },
-  campaign: {
-    count: jest.fn(),
+  campaignExecution: {
+    findMany: jest.fn(),
   },
-  scanEvent: {
-    count: jest.fn(),
-  },
-  widget: {
-    count: jest.fn(),
+  feedbackResponse: {
+    findMany: jest.fn(),
   },
 };
 
@@ -27,6 +23,8 @@ describe('MetricsService', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date('2026-05-03T12:00:00.000Z'));
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -38,80 +36,111 @@ describe('MetricsService', () => {
     service = module.get<MetricsService>(MetricsService);
   });
 
-  it('returns overview metrics from real system entities', async () => {
-    mockPrisma.review.count
-      .mockResolvedValueOnce(15)
-      .mockResolvedValueOnce(5)
-      .mockResolvedValueOnce(3);
-    mockPrisma.review.aggregate.mockResolvedValue({
-      _avg: { rating: 4.4 },
-    });
-    mockPrisma.review.findMany.mockResolvedValue([
-      {
-        reviewedAt: new Date('2026-04-01T12:00:00.000Z'),
-        respondedAt: new Date('2026-04-02T12:00:00.000Z'),
-      },
-      {
-        reviewedAt: new Date('2026-04-03T12:00:00.000Z'),
-        respondedAt: new Date('2026-04-03T18:00:00.000Z'),
-      },
-    ]);
-    mockPrisma.campaign.count.mockResolvedValue(4);
-    mockPrisma.scanEvent.count.mockResolvedValue(27);
-    mockPrisma.widget.count
-      .mockResolvedValueOnce(3)
-      .mockResolvedValueOnce(2);
-
-    const result = await service.getOverview(BUSINESS_ID, 30);
-
-    expect(result.reviews.total).toBe(15);
-    expect(result.reviews.new).toBe(5);
-    expect(result.reviews.averageRating).toBe(4.4);
-    expect(result.reviews.responseRate).toBe(60);
-    expect(result.reviews.averageResponseTimeHours).toBe(15);
-    expect(result.campaigns).toEqual({
-      active: 4,
-      scans: 27,
-      clicks: null,
-    });
-    expect(result.widgets).toEqual({
-      total: 3,
-      active: 2,
-      impressions: null,
-      clicks: null,
-    });
-
-    expect(mockPrisma.campaign.count).toHaveBeenCalledWith({
-      where: { businessId: BUSINESS_ID, status: CampaignStatus.ACTIVE },
-    });
-    expect(mockPrisma.widget.count).toHaveBeenNthCalledWith(2, {
-      where: { businessId: BUSINESS_ID, status: WidgetStatus.ACTIVE },
-    });
+  afterEach(() => {
+    jest.useRealTimers();
   });
 
-  it('returns zero-safe metrics when there are no reviews in range', async () => {
-    mockPrisma.review.count
-      .mockResolvedValueOnce(0)
-      .mockResolvedValueOnce(0)
-      .mockResolvedValueOnce(0);
-    mockPrisma.review.aggregate.mockResolvedValue({
-      _avg: { rating: null },
-    });
-    mockPrisma.review.findMany.mockResolvedValue([]);
-    mockPrisma.campaign.count.mockResolvedValue(0);
-    mockPrisma.scanEvent.count.mockResolvedValue(0);
-    mockPrisma.widget.count
-      .mockResolvedValueOnce(0)
-      .mockResolvedValueOnce(0);
+  it('returns the MVP dashboard with exactly three KPIs', async () => {
+    mockPrisma.googleReview.count
+      .mockResolvedValueOnce(12)
+      .mockResolvedValueOnce(8)
+      .mockResolvedValueOnce(1)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(4)
+      .mockResolvedValueOnce(8)
+      .mockResolvedValueOnce(12);
+    mockPrisma.googleReview.findMany
+      .mockResolvedValueOnce([{ stars: 5 }, { stars: 4 }, { stars: 4 }])
+      .mockResolvedValueOnce([{ stars: 4 }, { stars: 4 }]);
+    mockPrisma.campaignExecution.findMany
+      .mockResolvedValueOnce([
+        { customerId: 'cust-1' },
+        { customerId: 'cust-2' },
+      ])
+      .mockResolvedValueOnce([{ customerId: 'cust-3' }]);
+    mockPrisma.feedbackResponse.findMany.mockResolvedValue([
+      {
+        id: 'feedback-1',
+        createdAt: new Date('2026-05-02T09:00:00.000Z'),
+        score: 2,
+        comment: 'Demora larga',
+        customer: { name: 'Maria Garcia' },
+      },
+    ]);
 
     const result = await service.getOverview(BUSINESS_ID);
 
-    expect(result.reviews).toEqual({
-      total: 0,
-      new: 0,
-      averageRating: 0,
-      responseRate: 0,
-      averageResponseTimeHours: null,
+    expect(Object.keys(result.kpis)).toEqual([
+      'reviewsGenerated',
+      'averageRating',
+      'reactivatedCustomers',
+    ]);
+    expect(result.kpis.reviewsGenerated).toEqual({
+      current: 12,
+      previous: 8,
+      delta: 4,
     });
+    expect(result.kpis.averageRating).toEqual({
+      current: 4.3,
+      previous: 4,
+      delta: 0.3,
+    });
+    expect(result.kpis.reactivatedCustomers).toEqual({
+      current: 2,
+      previous: 1,
+      delta: 1,
+    });
+    expect(result.reviewsByMonth).toHaveLength(6);
+    expect(result.reviewsByMonth.map((month) => month.total)).toEqual([
+      1, 2, 3, 4, 8, 12,
+    ]);
+    expect(result.negativeFeedback).toEqual([
+      {
+        id: 'feedback-1',
+        createdAt: '2026-05-02T09:00:00.000Z',
+        customerName: 'Maria Garcia',
+        score: 2,
+        comment: 'Demora larga',
+      },
+    ]);
+
+    expect(mockPrisma.googleReview.count).toHaveBeenNthCalledWith(1, {
+      where: {
+        businessId: BUSINESS_ID,
+        postedAt: {
+          gte: new Date('2026-05-01T00:00:00.000Z'),
+          lt: new Date('2026-06-01T00:00:00.000Z'),
+        },
+      },
+    });
+    expect(mockPrisma.campaignExecution.findMany).toHaveBeenCalledWith({
+      where: {
+        businessId: BUSINESS_ID,
+        status: CampaignExecutionStatus.responded,
+        respondedAt: {
+          gte: new Date('2026-05-01T00:00:00.000Z'),
+          lt: new Date('2026-06-01T00:00:00.000Z'),
+        },
+      },
+      distinct: ['customerId'],
+      select: { customerId: true },
+    });
+  });
+
+  it('returns zero-safe values when there is no data', async () => {
+    mockPrisma.googleReview.count.mockResolvedValue(0);
+    mockPrisma.googleReview.findMany.mockResolvedValue([]);
+    mockPrisma.campaignExecution.findMany.mockResolvedValue([]);
+    mockPrisma.feedbackResponse.findMany.mockResolvedValue([]);
+
+    const result = await service.getOverview(BUSINESS_ID);
+
+    expect(result.kpis).toEqual({
+      reviewsGenerated: { current: 0, previous: 0, delta: 0 },
+      averageRating: { current: 0, previous: 0, delta: 0 },
+      reactivatedCustomers: { current: 0, previous: 0, delta: 0 },
+    });
+    expect(result.negativeFeedback).toEqual([]);
   });
 });

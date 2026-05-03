@@ -1,6 +1,7 @@
 import {
   IsBoolean,
   IsEnum,
+  IsHexColor,
   IsInt,
   IsOptional,
   IsString,
@@ -9,7 +10,7 @@ import {
   Min,
   MinLength,
 } from 'class-validator';
-import { WidgetType } from '@prisma/client';
+import { WidgetMode, WidgetPosition, WidgetType } from '@prisma/client';
 
 export class CreateWidgetDto {
   @IsString()
@@ -21,6 +22,14 @@ export class CreateWidgetDto {
   type!: WidgetType;
 
   @IsOptional()
+  @IsEnum(WidgetMode)
+  mode?: WidgetMode;
+
+  @IsOptional()
+  @IsEnum(WidgetPosition)
+  position?: WidgetPosition;
+
+  @IsOptional()
   @IsString()
   @MaxLength(160)
   title?: string;
@@ -30,6 +39,22 @@ export class CreateWidgetDto {
   @Min(1)
   @Max(24)
   maxItems?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(4)
+  @Max(5)
+  minStars?: number;
+
+  @IsOptional()
+  @IsHexColor()
+  primaryColor?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(10)
+  @Max(120)
+  rotationSeconds?: number;
 
   @IsOptional()
   @IsBoolean()
