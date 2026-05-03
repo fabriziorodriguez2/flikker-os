@@ -17,6 +17,7 @@ export class RepeatsQueue implements OnModuleInit, OnModuleDestroy {
   private queue?: Queue;
 
   async onModuleInit() {
+    if (!REDIS_CONFIGURED) return;
     this.connection = createRedisConnection();
     this.queue = new Queue(REPEATS_QUEUE, { connection: this.connection });
     await this.queue.add(
@@ -32,7 +33,7 @@ export class RepeatsQueue implements OnModuleInit, OnModuleDestroy {
   }
 
   async enqueueSendRepeatMessage(data: SendRepeatMessageJobData) {
-    if (!this.queue) throw new Error('Repeats queue is not initialized');
+    if (!this.queue) return null;
 
     return this.queue.add(SEND_REPEAT_MESSAGE_JOB, data, {
       attempts: 3,
@@ -42,7 +43,7 @@ export class RepeatsQueue implements OnModuleInit, OnModuleDestroy {
   }
 
   async enqueueDailyRun() {
-    if (!this.queue) throw new Error('Repeats queue is not initialized');
+    if (!this.queue) return null;
     return this.queue.add(RUN_REPEATS_DAILY_JOB, {}, { attempts: 1 });
   }
 

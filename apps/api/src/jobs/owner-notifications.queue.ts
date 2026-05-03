@@ -17,6 +17,7 @@ export class OwnerNotificationsQueue implements OnModuleInit, OnModuleDestroy {
   private queue?: Queue<LowFeedbackNotificationJobData>;
 
   onModuleInit() {
+    if (!REDIS_CONFIGURED) return;
     this.connection = createRedisConnection();
     this.queue = new Queue<LowFeedbackNotificationJobData>(
       OWNER_NOTIFICATIONS_QUEUE,
@@ -25,9 +26,7 @@ export class OwnerNotificationsQueue implements OnModuleInit, OnModuleDestroy {
   }
 
   async enqueueLowFeedback(data: LowFeedbackNotificationJobData) {
-    if (!this.queue) {
-      throw new Error('Owner notifications queue is not initialized');
-    }
+    if (!this.queue) return null;
 
     return this.queue.add(LOW_FEEDBACK_NOTIFICATION_JOB, data, {
       attempts: 3,

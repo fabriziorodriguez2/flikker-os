@@ -8,7 +8,7 @@ import { CampaignExecutionStatus, MessageStatus } from '@prisma/client';
 import { Job, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
-import { createRedisConnection } from '../redis-connection';
+import { createRedisConnection, REDIS_CONFIGURED } from '../redis-connection';
 import {
   REPEATS_QUEUE,
   RUN_REPEATS_DAILY_JOB,
@@ -31,6 +31,7 @@ export class RepeatsWorker implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
+    if (!REDIS_CONFIGURED) return;
     this.connection = createRedisConnection();
     this.worker = new Worker(REPEATS_QUEUE, (job) => this.process(job), {
       connection: this.connection,

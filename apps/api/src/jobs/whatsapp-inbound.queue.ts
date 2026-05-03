@@ -19,6 +19,7 @@ export class WhatsAppInboundQueue implements OnModuleInit, OnModuleDestroy {
   private queue?: Queue<WhatsAppInboundJobData>;
 
   onModuleInit() {
+    if (!REDIS_CONFIGURED) return;
     this.connection = createRedisConnection();
     this.queue = new Queue<WhatsAppInboundJobData>(WHATSAPP_INBOUND_QUEUE, {
       connection: this.connection,
@@ -26,9 +27,7 @@ export class WhatsAppInboundQueue implements OnModuleInit, OnModuleDestroy {
   }
 
   async enqueue(data: WhatsAppInboundJobData) {
-    if (!this.queue) {
-      throw new Error('WhatsApp inbound queue is not initialized');
-    }
+    if (!this.queue) return null;
 
     return this.queue.add(WHATSAPP_INBOUND_JOB, data, {
       attempts: 3,

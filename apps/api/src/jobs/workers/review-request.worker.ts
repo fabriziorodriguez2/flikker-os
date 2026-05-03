@@ -9,7 +9,7 @@ import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { MessageStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { createRedisConnection } from '../redis-connection';
+import { createRedisConnection, REDIS_CONFIGURED } from '../redis-connection';
 import {
   REVIEW_REQUESTS_QUEUE,
   ReviewRequestQueue,
@@ -30,6 +30,7 @@ export class ReviewRequestWorker implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
+    if (!REDIS_CONFIGURED) return;
     this.connection = createRedisConnection();
     this.worker = new Worker<ReviewRequestJobData>(
       REVIEW_REQUESTS_QUEUE,

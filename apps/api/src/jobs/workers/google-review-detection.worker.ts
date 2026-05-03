@@ -16,7 +16,7 @@ import {
   DETECT_GOOGLE_REVIEWS_DAILY_JOB,
   GOOGLE_REVIEW_DETECTION_QUEUE,
 } from '../google-review-detection.queue';
-import { createRedisConnection } from '../redis-connection';
+import { createRedisConnection, REDIS_CONFIGURED } from '../redis-connection';
 
 const ATTRIBUTION_WINDOW_DAYS = 7;
 
@@ -34,6 +34,7 @@ export class GoogleReviewDetectionWorker
   ) {}
 
   onModuleInit() {
+    if (!REDIS_CONFIGURED) return;
     this.connection = createRedisConnection();
     this.worker = new Worker(
       GOOGLE_REVIEW_DETECTION_QUEUE,

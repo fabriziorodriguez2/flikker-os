@@ -14,6 +14,7 @@ export class GoogleReviewDetectionQueue
   private queue?: Queue;
 
   async onModuleInit() {
+    if (!REDIS_CONFIGURED) return;
     this.connection = createRedisConnection();
     this.queue = new Queue(GOOGLE_REVIEW_DETECTION_QUEUE, {
       connection: this.connection,
@@ -34,10 +35,7 @@ export class GoogleReviewDetectionQueue
   }
 
   async enqueueDailyRun() {
-    if (!this.queue) {
-      throw new Error('Google review detection queue is not initialized');
-    }
-
+    if (!this.queue) return null;
     return this.queue.add(DETECT_GOOGLE_REVIEWS_DAILY_JOB, {}, { attempts: 1 });
   }
 

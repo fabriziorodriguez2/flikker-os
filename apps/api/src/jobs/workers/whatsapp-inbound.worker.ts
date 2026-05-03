@@ -20,7 +20,7 @@ import {
   WHATSAPP_HELP_TEXT,
   WHATSAPP_PARSE_ERROR_TEXT,
 } from '../../modules/webhooks/whatsapp-command.parser';
-import { createRedisConnection } from '../redis-connection';
+import { createRedisConnection, REDIS_CONFIGURED } from '../redis-connection';
 import { ReviewRequestQueue } from '../review-request.queue';
 import {
   WHATSAPP_INBOUND_QUEUE,
@@ -44,6 +44,7 @@ export class WhatsAppInboundWorker implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   onModuleInit() {
+    if (!REDIS_CONFIGURED) return;
     this.connection = createRedisConnection();
     this.worker = new Worker<WhatsAppInboundJobData>(
       WHATSAPP_INBOUND_QUEUE,

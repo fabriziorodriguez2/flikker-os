@@ -18,6 +18,7 @@ export class ReviewRequestQueue implements OnModuleInit, OnModuleDestroy {
   private queue?: Queue<ReviewRequestJobData>;
 
   onModuleInit() {
+    if (!REDIS_CONFIGURED) return;
     this.connection = createRedisConnection();
     this.queue = new Queue<ReviewRequestJobData>(REVIEW_REQUESTS_QUEUE, {
       connection: this.connection,
@@ -25,9 +26,7 @@ export class ReviewRequestQueue implements OnModuleInit, OnModuleDestroy {
   }
 
   async enqueue(data: ReviewRequestJobData, delay = this.resolveDelayMs()) {
-    if (!this.queue) {
-      throw new Error('Review request queue is not initialized');
-    }
+    if (!this.queue) return null;
 
     return this.queue.add(REVIEW_REQUEST_JOB, data, {
       delay,
