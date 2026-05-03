@@ -33,6 +33,17 @@ describe('PlatformAdminGuard', () => {
     expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
   });
 
+  it('throws ForbiddenException when token is impersonating', () => {
+    const ctx = createMockContext({
+      id: 'u1',
+      email: 'admin@test.com',
+      isPlatformAdmin: true,
+      isActive: true,
+      isImpersonating: true,
+    });
+    expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);
+  });
+
   it('throws ForbiddenException when user is missing', () => {
     const ctx = createMockContext(undefined);
     expect(() => guard.canActivate(ctx)).toThrow(ForbiddenException);

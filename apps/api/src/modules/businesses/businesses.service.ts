@@ -10,6 +10,7 @@ import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
 import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
 import { UpdateBrandProfileDto } from './dto/update-brand-profile.dto';
+import { AuditService } from '../../common/services/audit.service';
 
 /**
  * Valid status transitions.
@@ -34,7 +35,10 @@ const STATUS_TRANSITIONS: Record<BusinessStatus, BusinessStatus[]> = {
 
 @Injectable()
 export class BusinessesService {
-  constructor(private readonly repository: BusinessesRepository) {}
+  constructor(
+    private readonly repository: BusinessesRepository,
+    private readonly auditService: AuditService,
+  ) {}
 
   /**
    * Creates a new business and sets the requesting user as OWNER.
@@ -88,9 +92,31 @@ export class BusinessesService {
    * Updates a business. Caller must have been authorized by TenantGuard + RolesGuard.
    * businessId is the trusted value from req.currentBusinessId.
    */
-  async update(businessId: string, dto: UpdateBusinessDto) {
-    await this.assertExists(businessId);
-    return this.repository.update(businessId, dto);
+  async update(
+    businessId: string,
+    dto: UpdateBusinessDto,
+    actorUserId?: string,
+  ) {
+    const before = await this.repository.findById(businessId);
+    if (!before) throw new NotFoundException('Business not found');
+
+    const updated = await this.repository.update(businessId, dto);
+
+    if (actorUserId) {
+      void this.auditService.log({
+        action: 'BUSINESS_SETTINGS_UPDATED',
+        entityType: 'Business',
+        entityId: businessId,
+        userId: actorUserId,
+        businessId,
+        metadata: {
+          before: this.pickBusinessUpdateFields(before, dto),
+          after: this.pickBusinessUpdateFields(updated, dto),
+        },
+      });
+    }
+
+    return updated;
   }
 
   /**
@@ -136,5 +162,16 @@ export class BusinessesService {
   private async assertExists(businessId: string) {
     const exists = await this.repository.findById(businessId);
     if (!exists) throw new NotFoundException('Business not found');
+  }
+
+  private pickBusinessUpdateFields(
+    business: Awaited<ReturnType<BusinessesRepository['findById']>>,
+    dto: UpdateBusinessDto,
+  ) {
+    if (!business) return {};
+    return Object.keys(dto).reduce<Record<string, unknown>>((acc, key) => {
+      acc[key] = business[key as keyof typeof business];
+      return acc;
+    }, {});
   }
 }

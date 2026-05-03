@@ -6,6 +6,7 @@ import { CampaignStatsService } from './campaigns.stats.service';
 import { BranchesModule } from '../branches/branches.module';
 import { PlansModule } from '../plans/plans.module';
 import { RolesGuard } from '../../common/guards/roles.guard';
+import { AuditService } from '../../common/services/audit.service';
 
 @Module({
   imports: [PlansModule, BranchesModule],
@@ -15,6 +16,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
     CampaignsRepository,
     CampaignStatsService,
     RolesGuard,
+    AuditService,
   ],
   exports: [CampaignsService, CampaignsRepository, CampaignStatsService],
 })

@@ -4,7 +4,7 @@ import {
   ExecutionContext,
   ForbiddenException,
 } from '@nestjs/common';
-import { MembershipStatus } from '@prisma/client';
+import { MembershipRole, MembershipStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedRequest } from '../types/request.types';
 
@@ -28,6 +28,21 @@ export class TenantGuard implements CanActivate {
     const businessId = request.headers['x-business-id'] as string | undefined;
 
     if (!user) throw new ForbiddenException();
+
+    if (user.isImpersonating) {
+      if (!user.isPlatformAdmin || !user.impersonatedBusinessId) {
+        throw new ForbiddenException('Invalid impersonation token');
+      }
+
+      if (businessId && businessId !== user.impersonatedBusinessId) {
+        throw new ForbiddenException('Impersonation business mismatch');
+      }
+
+      request.currentBusinessId = user.impersonatedBusinessId;
+      request.currentMembershipRole = MembershipRole.OWNER;
+      return true;
+    }
+
     if (!businessId)
       throw new ForbiddenException('Missing x-business-id header');
 

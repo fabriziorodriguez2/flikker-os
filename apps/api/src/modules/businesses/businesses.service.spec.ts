@@ -11,6 +11,7 @@ import {
   MembershipRole,
   MembershipStatus,
 } from '@prisma/client';
+import { AuditService } from '../../common/services/audit.service';
 
 const OWNER_ID = 'user-owner';
 const OTHER_USER_ID = 'user-other';
@@ -72,6 +73,10 @@ const mockRepository = {
   updateStatus: jest.fn(),
 };
 
+const mockAuditService = {
+  log: jest.fn(),
+};
+
 describe('BusinessesService', () => {
   let service: BusinessesService;
 
@@ -81,6 +86,7 @@ describe('BusinessesService', () => {
       providers: [
         BusinessesService,
         { provide: BusinessesRepository, useValue: mockRepository },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 

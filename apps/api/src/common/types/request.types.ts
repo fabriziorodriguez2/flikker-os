@@ -8,6 +8,8 @@ export interface AuthenticatedUser {
   lastName: string;
   isActive: boolean;
   isPlatformAdmin: boolean;
+  isImpersonating?: boolean;
+  impersonatedBusinessId?: string;
 }
 
 export interface AuthenticatedRequest extends Request {

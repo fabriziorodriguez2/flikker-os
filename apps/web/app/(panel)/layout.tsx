@@ -1,17 +1,22 @@
-import { getSession } from '@/lib/auth';
-import { redirect } from 'next/navigation';
-import Sidebar from './sidebar';
-import MobileNav from './mobile-nav';
-import LogoutButton from './logout-button';
-import SelectBusiness from './select-business';
-import { RoleProvider } from './role-context';
-import ThemeToggle from '@/components/theme/theme-toggle';
-import BrandLogo from '@/components/brand/brand-logo';
-import SessionExpiryHandler from '@/components/auth/session-expiry-handler';
+import { getSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import Sidebar from "./sidebar";
+import MobileNav from "./mobile-nav";
+import LogoutButton from "./logout-button";
+import SelectBusiness from "./select-business";
+import { RoleProvider } from "./role-context";
+import ThemeToggle from "@/components/theme/theme-toggle";
+import BrandLogo from "@/components/brand/brand-logo";
+import SessionExpiryHandler from "@/components/auth/session-expiry-handler";
+import ImpersonationBanner from "./impersonation-banner";
 
-export default async function PanelLayout({ children }: { children: React.ReactNode }) {
+export default async function PanelLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const session = await getSession();
-  if (!session) redirect('/login');
+  if (!session) redirect("/login");
 
   const { user, memberships, activeBusinessId } = session;
 
@@ -24,8 +29,10 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     );
   }
 
-  const currentRole =
-    memberships.find((m) => m.businessId === activeBusinessId)?.role ?? null;
+  const currentRole = session.impersonation
+    ? "OWNER"
+    : (memberships.find((m) => m.businessId === activeBusinessId)?.role ??
+      null);
 
   return (
     <div className="flikker-app-shell min-h-screen lg:flex">
@@ -38,10 +45,17 @@ export default async function PanelLayout({ children }: { children: React.ReactN
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
+        {session.impersonation ? (
+          <ImpersonationBanner impersonation={session.impersonation} />
+        ) : null}
         <header className="sticky top-0 z-10 bg-[color:var(--background)]/96 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--background)]/92">
           <div className="flex items-center justify-between gap-4 px-4 py-3 md:px-6">
             <div className="lg:hidden">
-              <BrandLogo width={126} height={107} className="h-auto w-[108px]" />
+              <BrandLogo
+                width={126}
+                height={107}
+                className="h-auto w-[108px]"
+              />
             </div>
 
             <div className="ml-auto flex items-center gap-2">

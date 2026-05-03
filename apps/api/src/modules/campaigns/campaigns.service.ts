@@ -9,6 +9,7 @@ import { CampaignStatus } from '@prisma/client';
 import { CampaignsRepository } from './campaigns.repository';
 import { BranchesRepository } from '../branches/branches.repository';
 import { PlansService } from '../plans/plans.service';
+import { AuditService } from '../../common/services/audit.service';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
 import { UpdateRepeatCampaignDto } from './dto/update-repeat-campaign.dto';
@@ -33,6 +34,7 @@ export class CampaignsService {
     private readonly campaignsRepository: CampaignsRepository,
     private readonly branchesRepository: BranchesRepository,
     private readonly plansService: PlansService,
+    private readonly auditService: AuditService,
   ) {}
 
   async listForBusiness(
@@ -106,7 +108,12 @@ export class CampaignsService {
     return result;
   }
 
-  async update(businessId: string, campaignId: string, dto: UpdateCampaignDto) {
+  async update(
+    businessId: string,
+    campaignId: string,
+    dto: UpdateCampaignDto,
+    actorUserId?: string,
+  ) {
     const campaign = await this.findOneScoped(businessId, campaignId);
 
     if (campaign.status === CampaignStatus.ARCHIVED) {
@@ -129,13 +136,52 @@ export class CampaignsService {
       }
     }
 
-    return this.campaignsRepository.update(businessId, campaignId, dto);
+    const updated = await this.campaignsRepository.update(
+      businessId,
+      campaignId,
+      dto,
+    );
+
+    if (actorUserId) {
+      void this.auditService.log({
+        action: 'CAMPAIGN_UPDATED',
+        entityType: 'Campaign',
+        entityId: campaignId,
+        userId: actorUserId,
+        businessId,
+        metadata: {
+          before: {
+            name: campaign.name,
+            description: campaign.description,
+            destinationType: campaign.destinationType,
+            destinationUrl: campaign.destinationUrl,
+            enableLanding: campaign.enableLanding,
+            branchId: campaign.branchId,
+            startsAt: campaign.startsAt,
+            endsAt: campaign.endsAt,
+          },
+          after: {
+            name: updated.name,
+            description: updated.description,
+            destinationType: updated.destinationType,
+            destinationUrl: updated.destinationUrl,
+            enableLanding: updated.enableLanding,
+            branchId: updated.branchId,
+            startsAt: updated.startsAt,
+            endsAt: updated.endsAt,
+          },
+        },
+      });
+    }
+
+    return updated;
   }
 
   async updateRepeatSettings(
     businessId: string,
     campaignId: string,
     dto: UpdateRepeatCampaignDto,
+    actorUserId?: string,
   ) {
     const campaign = await this.findOneScoped(businessId, campaignId);
     if (!campaign.templateKind) {
@@ -159,6 +205,29 @@ export class CampaignsService {
     );
 
     if (!updated) throw new NotFoundException('Campaign not found');
+
+    if (actorUserId) {
+      void this.auditService.log({
+        action: 'TEMPLATE_UPDATED',
+        entityType: 'Campaign',
+        entityId: campaignId,
+        userId: actorUserId,
+        businessId,
+        metadata: {
+          before: {
+            messageBody: campaign.messageBody,
+            triggerOffsetDays: campaign.triggerOffsetDays,
+            offerText: campaign.offerText,
+          },
+          after: {
+            messageBody: updated.messageBody,
+            triggerOffsetDays: updated.triggerOffsetDays,
+            offerText: updated.offerText,
+          },
+        },
+      });
+    }
+
     return updated;
   }
 

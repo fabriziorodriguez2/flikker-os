@@ -1,6 +1,6 @@
-import { clearSession, getSession, setSession } from '@/lib/auth';
+import { clearSession, getSession, setSession } from "@/lib/auth";
 
-const API_URL = process.env.API_URL ?? 'http://localhost:3000';
+const API_URL = process.env.API_URL ?? "http://localhost:3000";
 
 interface RefreshResponse {
   accessToken: string;
@@ -18,36 +18,47 @@ async function handler(
 ) {
   const session = await getSession();
   if (!session) {
-    return Response.json({ message: 'No session' }, { status: 401 });
+    return Response.json({ message: "No session" }, { status: 401 });
   }
 
   const { path } = await params;
-  const backendPath = '/' + path.join('/');
+  const backendPath = "/" + path.join("/");
   const url = new URL(request.url);
   const qs = url.search;
+  const isImpersonating = Boolean(session.impersonation);
+  const useOriginalAdminToken =
+    path[0] === "platform" || path[0] === "auth" || path[0] === "billing";
+  const effectiveAccessToken =
+    isImpersonating && !useOriginalAdminToken
+      ? session.impersonation!.accessToken
+      : session.accessToken;
+  const effectiveBusinessId =
+    isImpersonating && !useOriginalAdminToken
+      ? session.impersonation!.businessId
+      : session.activeBusinessId;
 
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    Authorization: `Bearer ${session.accessToken}`,
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${effectiveAccessToken}`,
   };
 
-  if (session.activeBusinessId) {
-    headers['x-business-id'] = session.activeBusinessId;
+  if (effectiveBusinessId) {
+    headers["x-business-id"] = effectiveBusinessId;
   }
 
   const body =
-    request.method !== 'GET' && request.method !== 'HEAD'
+    request.method !== "GET" && request.method !== "HEAD"
       ? await request.text()
       : undefined;
 
   const sendRequest = (accessToken: string, businessId: string | null) => {
     const nextHeaders: Record<string, string> = {
-      'Content-Type': 'application/json',
+      "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
     };
 
     if (businessId) {
-      nextHeaders['x-business-id'] = businessId;
+      nextHeaders["x-business-id"] = businessId;
     }
 
     return fetch(`${API_URL}${backendPath}${qs}`, {
@@ -57,18 +68,18 @@ async function handler(
     });
   };
 
-  let res = await sendRequest(session.accessToken, session.activeBusinessId);
+  let res = await sendRequest(effectiveAccessToken, effectiveBusinessId);
 
-  if (res.status === 401 && session.refreshToken) {
+  if (res.status === 401 && session.refreshToken && !isImpersonating) {
     try {
       const refreshRes = await fetch(`${API_URL}/auth/refresh`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ refreshToken: session.refreshToken }),
       });
 
       if (!refreshRes.ok) {
-        throw new Error('Session expired');
+        throw new Error("Session expired");
       }
 
       const refreshedTokens = (await refreshRes.json()) as RefreshResponse;
@@ -85,7 +96,7 @@ async function handler(
       );
     } catch {
       await clearSession();
-      return Response.json({ message: 'Session expired' }, { status: 401 });
+      return Response.json({ message: "Session expired" }, { status: 401 });
     }
   }
 
@@ -97,7 +108,9 @@ async function handler(
 
   return new Response(data, {
     status: res.status,
-    headers: { 'Content-Type': res.headers.get('Content-Type') ?? 'application/json' },
+    headers: {
+      "Content-Type": res.headers.get("Content-Type") ?? "application/json",
+    },
   });
 }
 

@@ -1,6 +1,6 @@
-import { cookies } from 'next/headers';
+import { cookies } from "next/headers";
 
-export const SESSION_COOKIE = 'flikker_session';
+export const SESSION_COOKIE = "flikker_session";
 
 export interface SessionUser {
   id: string;
@@ -22,6 +22,13 @@ export interface Session {
   user: SessionUser;
   memberships: SessionMembership[];
   activeBusinessId: string | null;
+  impersonation?: {
+    accessToken: string;
+    businessId: string;
+    businessName: string;
+    businessSlug: string;
+    startedAt: string;
+  } | null;
 }
 
 /** Lee la sesion desde la cookie. Solo valido en Server Components y Route Handlers. */
@@ -42,10 +49,10 @@ export async function setSession(session: Session): Promise<void> {
   const cookieStore = await cookies();
   cookieStore.set(SESSION_COOKIE, JSON.stringify(session), {
     httpOnly: true,
-    sameSite: 'lax',
-    path: '/',
+    sameSite: "lax",
+    path: "/",
     maxAge: 60 * 60 * 24 * 7,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV === "production",
   });
 }
 

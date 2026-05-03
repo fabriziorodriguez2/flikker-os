@@ -5,6 +5,8 @@ import { PrismaService } from '../../../prisma/prisma.service';
 
 export interface JwtPayload {
   sub: string;
+  businessId?: string;
+  isImpersonating?: boolean;
 }
 
 @Injectable()
@@ -34,6 +36,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException();
     }
 
-    return user;
+    return {
+      ...user,
+      isImpersonating: payload.isImpersonating === true,
+      impersonatedBusinessId:
+        payload.isImpersonating === true ? payload.businessId : undefined,
+    };
   }
 }

@@ -96,7 +96,11 @@ export class BusinessesController {
   @UseGuards(TenantGuard, RolesGuard)
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
   update(@Req() req: AuthenticatedRequest, @Body() dto: UpdateBusinessDto) {
-    return this.businessesService.update(req.currentBusinessId!, dto);
+    return this.businessesService.update(
+      req.currentBusinessId!,
+      dto,
+      req.user.id,
+    );
   }
 
   /**

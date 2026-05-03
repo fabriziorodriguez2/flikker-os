@@ -68,7 +68,12 @@ export class MembershipsController {
     @Param('id') id: string,
     @Body() dto: UpdateMemberRoleDto,
   ) {
-    return this.membershipsService.updateRole(req.currentBusinessId!, id, dto);
+    return this.membershipsService.updateRole(
+      req.currentBusinessId!,
+      id,
+      dto,
+      req.user.id,
+    );
   }
 
   /**

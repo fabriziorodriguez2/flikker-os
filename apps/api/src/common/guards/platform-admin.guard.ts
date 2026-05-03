@@ -20,6 +20,11 @@ export class PlatformAdminGuard implements CanActivate {
     if (!user.isPlatformAdmin) {
       throw new ForbiddenException('Platform admin access required');
     }
+    if (user.isImpersonating) {
+      throw new ForbiddenException(
+        'Exit impersonation before using platform admin endpoints',
+      );
+    }
 
     return true;
   }

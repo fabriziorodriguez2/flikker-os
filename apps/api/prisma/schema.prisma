@@ -165,6 +165,7 @@ model User {
   invitedMemberships  Membership[]          @relation("InvitedByUser")
   sessions            Session[]
   passwordResetTokens PasswordResetToken[]
+  impersonationLogs   ImpersonationLog[]
   auditLogs           AuditLog[]
   createdCampaigns    Campaign[]            @relation("CampaignCreator")
   createdReviews      Review[]              @relation("ReviewCreator")
@@ -248,8 +249,27 @@ model Business {
   messages           Message[]
   feedbackResponses  FeedbackResponse[]
   googleReviews      GoogleReview[]
+  impersonationLogs  ImpersonationLog[]
   widgetEvents       WidgetEvent[]
   reviewTags         ReviewTag[]
+}
+
+// ---------------------------------------------------------------------------
+// ImpersonationLog (audited platform-admin business access)
+// ---------------------------------------------------------------------------
+
+model ImpersonationLog {
+  id               String   @id @default(uuid())
+  adminId          String
+  targetBusinessId String
+  createdAt        DateTime @default(now())
+
+  admin          User     @relation(fields: [adminId], references: [id])
+  targetBusiness Business @relation(fields: [targetBusinessId], references: [id])
+
+  @@index([adminId])
+  @@index([targetBusinessId])
+  @@index([createdAt])
 }
 
 // ---------------------------------------------------------------------------

@@ -8,6 +8,7 @@ import {
 import { MembershipRole, MembershipStatus } from '@prisma/client';
 import { MembershipsRepository } from './memberships.repository';
 import { PlansService } from '../plans/plans.service';
+import { AuditService } from '../../common/services/audit.service';
 import { AddMemberDto } from './dto/add-member.dto';
 import { UpdateMemberRoleDto } from './dto/update-member-role.dto';
 
@@ -22,6 +23,7 @@ export class MembershipsService {
   constructor(
     private readonly repository: MembershipsRepository,
     private readonly plansService: PlansService,
+    private readonly auditService: AuditService,
   ) {}
 
   listForBusiness(businessId: string) {
@@ -93,6 +95,7 @@ export class MembershipsService {
     businessId: string,
     membershipId: string,
     dto: UpdateMemberRoleDto,
+    actorUserId?: string,
   ) {
     const membership = await this.findMembershipInBusiness(
       businessId,
@@ -114,6 +117,13 @@ export class MembershipsService {
           'Cannot remove or demote the last OWNER of the business',
         );
       }
+      this.logRoleChange(
+        businessId,
+        membershipId,
+        membership,
+        result,
+        actorUserId,
+      );
       return result;
     }
 
@@ -129,6 +139,13 @@ export class MembershipsService {
       membershipId,
     );
     if (!updated) throw new NotFoundException('Membership not found');
+    this.logRoleChange(
+      businessId,
+      membershipId,
+      membership,
+      updated,
+      actorUserId,
+    );
     return updated;
   }
 
@@ -184,5 +201,38 @@ export class MembershipsService {
       throw new NotFoundException('Membership not found');
     }
     return membership;
+  }
+
+  private logRoleChange(
+    businessId: string,
+    membershipId: string,
+    before: { role: MembershipRole; userId: string },
+    after:
+      | {
+          role: MembershipRole;
+          user?: {
+            id: string;
+            email: string | null;
+            firstName?: string | null;
+            lastName?: string | null;
+          };
+        }
+      | 'LAST_OWNER',
+    actorUserId?: string,
+  ) {
+    if (!actorUserId || after === 'LAST_OWNER') return;
+
+    void this.auditService.log({
+      action: 'MEMBERSHIP_ROLE_CHANGED',
+      entityType: 'Membership',
+      entityId: membershipId,
+      userId: actorUserId,
+      businessId,
+      metadata: {
+        targetUserId: after.user?.id ?? before.userId,
+        before: { role: before.role },
+        after: { role: after.role },
+      },
+    });
   }
 }

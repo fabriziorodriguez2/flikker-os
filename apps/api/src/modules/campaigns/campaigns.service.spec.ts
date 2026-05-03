@@ -10,6 +10,7 @@ import { CampaignsService } from './campaigns.service';
 import { CampaignsRepository } from './campaigns.repository';
 import { BranchesRepository } from '../branches/branches.repository';
 import { PlansService } from '../plans/plans.service';
+import { AuditService } from '../../common/services/audit.service';
 
 const BUSINESS_ID = 'biz-1';
 const CAMPAIGN_ID = 'cmp-1';
@@ -48,6 +49,7 @@ const mockCampaign = {
 const mockRepo = {
   findManyByBusiness: jest.fn(),
   findOne: jest.fn(),
+  ensureRepeatTemplates: jest.fn(),
   createAtomic: jest.fn(),
   update: jest.fn(),
   updateStatus: jest.fn(),
@@ -59,6 +61,10 @@ const mockBranchesRepo = {
 
 const mockPlansService = {
   getLimits: jest.fn(),
+};
+
+const mockAuditService = {
+  log: jest.fn(),
 };
 
 describe('CampaignsService', () => {
@@ -74,6 +80,7 @@ describe('CampaignsService', () => {
         { provide: CampaignsRepository, useValue: mockRepo },
         { provide: BranchesRepository, useValue: mockBranchesRepo },
         { provide: PlansService, useValue: mockPlansService },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 
@@ -86,7 +93,11 @@ describe('CampaignsService', () => {
   describe('listForBusiness', () => {
     it('returns campaigns scoped to businessId', async () => {
       mockRepo.findManyByBusiness.mockResolvedValue([mockCampaign]);
-      const result = await service.listForBusiness(BUSINESS_ID);
+      const result = await service.listForBusiness(
+        BUSINESS_ID,
+        undefined,
+        USER_ID,
+      );
       expect(result).toHaveLength(1);
       expect(mockRepo.findManyByBusiness).toHaveBeenCalledWith(
         BUSINESS_ID,
@@ -96,7 +107,11 @@ describe('CampaignsService', () => {
 
     it('passes status filter when provided', async () => {
       mockRepo.findManyByBusiness.mockResolvedValue([]);
-      await service.listForBusiness(BUSINESS_ID, CampaignStatus.ACTIVE);
+      await service.listForBusiness(
+        BUSINESS_ID,
+        CampaignStatus.ACTIVE,
+        USER_ID,
+      );
       expect(mockRepo.findManyByBusiness).toHaveBeenCalledWith(
         BUSINESS_ID,
         CampaignStatus.ACTIVE,

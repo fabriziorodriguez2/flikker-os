@@ -100,7 +100,12 @@ export class CampaignsController {
     @Param('id') id: string,
     @Body() dto: UpdateCampaignDto,
   ) {
-    return this.campaignsService.update(req.currentBusinessId!, id, dto);
+    return this.campaignsService.update(
+      req.currentBusinessId!,
+      id,
+      dto,
+      req.user.id,
+    );
   }
 
   @Patch(':id/repeats')
@@ -115,6 +120,7 @@ export class CampaignsController {
       req.currentBusinessId!,
       id,
       dto,
+      req.user.id,
     );
   }
 

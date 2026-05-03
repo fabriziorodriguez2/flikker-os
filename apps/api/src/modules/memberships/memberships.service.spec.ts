@@ -9,6 +9,7 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { MembershipRole, MembershipStatus } from '@prisma/client';
+import { AuditService } from '../../common/services/audit.service';
 
 const BUSINESS_ID = 'biz-1';
 const USER_ID = 'user-1';
@@ -67,6 +68,10 @@ const mockPlansService = {
   assertCanAddMember: jest.fn(),
 };
 
+const mockAuditService = {
+  log: jest.fn(),
+};
+
 describe('MembershipsService', () => {
   let service: MembershipsService;
 
@@ -79,6 +84,7 @@ describe('MembershipsService', () => {
         MembershipsService,
         { provide: MembershipsRepository, useValue: mockRepo },
         { provide: PlansService, useValue: mockPlansService },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 

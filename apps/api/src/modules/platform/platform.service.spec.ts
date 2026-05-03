@@ -1,9 +1,22 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { JwtService } from '@nestjs/jwt';
 import { PlatformService } from './platform.service';
 import { PlatformRepository } from './platform.repository';
+import { AuditService } from '../../common/services/audit.service';
 
 const mockRepo = {
   findAllBusinesses: jest.fn(),
+  findBusinessById: jest.fn(),
+  createImpersonationLog: jest.fn(),
+  findAuditLogs: jest.fn(),
+};
+
+const mockJwt = {
+  sign: jest.fn(),
+};
+
+const mockAuditService = {
+  log: jest.fn(),
 };
 
 describe('PlatformService', () => {
@@ -15,6 +28,8 @@ describe('PlatformService', () => {
       providers: [
         PlatformService,
         { provide: PlatformRepository, useValue: mockRepo },
+        { provide: JwtService, useValue: mockJwt },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
     service = module.get<PlatformService>(PlatformService);
@@ -70,6 +85,35 @@ describe('PlatformService', () => {
       mockRepo.findAllBusinesses.mockResolvedValue([]);
       const result = await service.listBusinesses();
       expect(result).toEqual([]);
+    });
+  });
+
+  describe('impersonate', () => {
+    it('logs impersonation and returns a short-lived token', async () => {
+      mockRepo.findBusinessById.mockResolvedValue({
+        id: 'biz-1',
+        name: 'Gains',
+        slug: 'gains',
+      });
+      mockRepo.createImpersonationLog.mockResolvedValue({ id: 'log-1' });
+      mockJwt.sign.mockReturnValue('impersonation-token');
+
+      const result = await service.impersonate('admin-1', 'biz-1');
+
+      expect(mockRepo.createImpersonationLog).toHaveBeenCalledWith(
+        'admin-1',
+        'biz-1',
+      );
+      expect(mockJwt.sign).toHaveBeenCalledWith(
+        {
+          sub: 'admin-1',
+          businessId: 'biz-1',
+          isImpersonating: true,
+        },
+        expect.objectContaining({ expiresIn: '1h' }),
+      );
+      expect(result.accessToken).toBe('impersonation-token');
+      expect(result.business.name).toBe('Gains');
     });
   });
 });
