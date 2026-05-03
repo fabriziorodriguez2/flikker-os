@@ -1,7 +1,7 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
-import { createRedisConnection } from './redis-connection';
+import { createRedisConnection, REDIS_CONFIGURED } from './redis-connection';
 
 export const REVIEW_REQUESTS_QUEUE = 'review-requests';
 export const REVIEW_REQUEST_JOB = 'review-request';

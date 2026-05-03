@@ -1,7 +1,7 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
-import { createRedisConnection } from './redis-connection';
+import { createRedisConnection, REDIS_CONFIGURED } from './redis-connection';
 
 export const OWNER_NOTIFICATIONS_QUEUE = 'owner-notifications';
 export const LOW_FEEDBACK_NOTIFICATION_JOB = 'low-feedback-notification';

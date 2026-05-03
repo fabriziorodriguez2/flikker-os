@@ -1,7 +1,7 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
-import { createRedisConnection } from './redis-connection';
+import { createRedisConnection, REDIS_CONFIGURED } from './redis-connection';
 
 export const GOOGLE_REVIEW_DETECTION_QUEUE = 'google-review-detection';
 export const DETECT_GOOGLE_REVIEWS_DAILY_JOB = 'detect-google-reviews-daily';

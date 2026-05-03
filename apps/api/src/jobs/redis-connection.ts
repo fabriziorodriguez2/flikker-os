@@ -3,6 +3,10 @@ import { Logger } from '@nestjs/common';
 
 const logger = new Logger('RedisConnection');
 
+export const REDIS_CONFIGURED = !!(
+  process.env.REDIS_URL || process.env.REDIS_HOST
+);
+
 export function createRedisConnection() {
   const options = { maxRetriesPerRequest: null as null };
 
