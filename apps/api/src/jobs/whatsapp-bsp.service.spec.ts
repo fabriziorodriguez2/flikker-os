@@ -39,7 +39,7 @@ describe('WhatsAppBspService', () => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          to: '+59899123456',
+          to: '59899123456',
           body: 'Hola',
         }),
       },

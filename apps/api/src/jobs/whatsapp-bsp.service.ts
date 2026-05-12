@@ -63,8 +63,7 @@ export class WhatsAppBspService {
 }
 
 function normalizeWhapiPhone(phone: string) {
-  const cleaned = phone.replace(/^whatsapp:/i, '').replace(/[^\d+]/g, '');
-  return cleaned.startsWith('+') ? cleaned : `+${cleaned}`;
+  return phone.replace(/^whatsapp:/i, '').replace(/\D/g, '');
 }
 
 function extractMessageId(value: unknown): string | null {
