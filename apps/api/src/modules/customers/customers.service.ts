@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import * as XLSX from 'xlsx';
 import { normalizeToE164 } from '../../common/utils/phone.util';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { ImportCsvDto } from './dto/import-csv.dto';
@@ -16,6 +17,18 @@ interface CsvRow {
   phone: string;
   email?: string;
   lastServiceAt?: string;
+}
+
+interface ImportMapping {
+  name?: string;
+  phone?: string;
+  email?: string;
+  lastServiceAt?: string;
+}
+
+interface ImportFileParams {
+  file: Express.Multer.File;
+  mapping?: string;
 }
 
 @Injectable()
@@ -85,16 +98,17 @@ export class CustomersService {
     return this.repository.findOne(businessId, customerId);
   }
 
-  async importCsv(businessId: string, dto: ImportCsvDto) {
-    const rows = this.parseCsv(dto.csv);
-    const errors: Array<{ row: number; message: string }> = [];
+  async importFile(businessId: string, params: ImportFileParams) {
+    const mapping = this.parseMapping(params.mapping);
+    const rows = this.parseImportFile(params.file, mapping);
+    const failed: Array<{ row: number; reason: string }> = [];
     const valid: CsvRow[] = [];
 
     rows.forEach((row) => {
       if (!row.name || !row.phone) {
-        errors.push({
+        failed.push({
           row: row.rowNumber,
-          message: 'Name and phone are required',
+          reason: 'Nombre y teléfono son obligatorios',
         });
         return;
       }
@@ -107,21 +121,20 @@ export class CustomersService {
       email?: string;
       lastServiceAt?: Date;
     }> = [];
+    const seenPhones = new Set<string>();
+    let duplicates = 0;
+
     for (let i = 0; i < valid.length; i += 1) {
       try {
         const phoneE164 = normalizeToE164(valid[i].phone);
         const lastServiceAt = this.parseOptionalDate(valid[i].lastServiceAt);
-        const existing = await this.repository.findByPhone(
-          businessId,
-          phoneE164,
-        );
-        if (existing) {
-          errors.push({
-            row: valid[i].rowNumber,
-            message: 'Customer phone already exists',
-          });
+
+        if (seenPhones.has(phoneE164)) {
+          duplicates += 1;
           continue;
         }
+        seenPhones.add(phoneE164);
+
         normalized.push({
           name: valid[i].name.trim(),
           phoneE164,
@@ -129,21 +142,48 @@ export class CustomersService {
           lastServiceAt,
         });
       } catch (error) {
-        errors.push({
+        failed.push({
           row: valid[i].rowNumber,
-          message: error instanceof Error ? error.message : 'Invalid phone',
+          reason: error instanceof Error ? error.message : 'Teléfono inválido',
         });
       }
     }
 
-    const created = normalized.length
-      ? await this.repository.createMany(businessId, normalized)
+    const existingPhones = normalized.length
+      ? await this.repository.findManyByPhones(
+          businessId,
+          normalized.map((row) => row.phoneE164),
+        )
       : [];
+    const existingPhoneSet = new Set(
+      existingPhones.map((customer) => customer.phoneE164),
+    );
+    const toCreate = normalized.filter((row) => {
+      if (existingPhoneSet.has(row.phoneE164)) {
+        duplicates += 1;
+        return false;
+      }
+      return true;
+    });
+
+    const imported = toCreate.length
+      ? await this.repository.createMany(businessId, toCreate)
+      : 0;
 
     return {
-      created: created.length,
-      errors,
+      imported,
+      failed,
+      duplicates,
     };
+  }
+
+  importCsv(businessId: string, dto: ImportCsvDto) {
+    return this.importFile(businessId, {
+      file: {
+        originalname: 'import.csv',
+        buffer: Buffer.from(dto.csv, 'utf8'),
+      } as Express.Multer.File,
+    });
   }
 
   async createMessageForCustomer(
@@ -210,6 +250,100 @@ export class CustomersService {
           undefined,
       };
     });
+  }
+
+  private parseImportFile(file: Express.Multer.File, mapping: ImportMapping) {
+    const extension = this.getFileExtension(file.originalname);
+    if (!['csv', 'xlsx'].includes(extension)) {
+      throw new BadRequestException('Solo se aceptan archivos .csv o .xlsx');
+    }
+
+    const workbook = XLSX.read(file.buffer, {
+      type: 'buffer',
+      raw: false,
+      cellDates: false,
+    });
+    const firstSheet = workbook.SheetNames[0];
+    if (!firstSheet) return [];
+
+    const rows = XLSX.utils.sheet_to_json<Record<string, string>>(
+      workbook.Sheets[firstSheet],
+      {
+        defval: '',
+        raw: false,
+      },
+    );
+
+    return rows.map((row, index) => {
+      const normalized = new Map<string, string>();
+      Object.entries(row).forEach(([key, value]) => {
+        normalized.set(this.normalizeHeader(key), String(value ?? '').trim());
+      });
+
+      return {
+        rowNumber: index + 2,
+        name: this.getMappedValue(normalized, mapping.name, ['nombre', 'name']),
+        phone: this.getMappedValue(normalized, mapping.phone, [
+          'telefono',
+          'teléfono',
+          'phone',
+        ]),
+        email:
+          this.getMappedValue(normalized, mapping.email, ['email']) ||
+          undefined,
+        lastServiceAt:
+          this.getMappedValue(normalized, mapping.lastServiceAt, [
+            'fecha ultimo servicio',
+            'fecha último servicio',
+            'fecha_ultimo_servicio',
+            'lastserviceat',
+            'last_service_at',
+          ]) || undefined,
+      };
+    });
+  }
+
+  private parseMapping(raw?: string): ImportMapping {
+    if (!raw) return {};
+
+    try {
+      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      return {
+        name: this.asOptionalString(parsed.name),
+        phone: this.asOptionalString(parsed.phone),
+        email: this.asOptionalString(parsed.email),
+        lastServiceAt:
+          this.asOptionalString(parsed.lastServiceAt) ??
+          this.asOptionalString(parsed.lastServiceDate),
+      };
+    } catch {
+      throw new BadRequestException('Mapeo de columnas inválido');
+    }
+  }
+
+  private asOptionalString(value: unknown) {
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  }
+
+  private getMappedValue(
+    row: Map<string, string>,
+    mappedHeader: string | undefined,
+    fallbacks: string[],
+  ) {
+    if (mappedHeader) {
+      return row.get(this.normalizeHeader(mappedHeader)) ?? '';
+    }
+
+    for (const fallback of fallbacks) {
+      const value = row.get(this.normalizeHeader(fallback));
+      if (value) return value;
+    }
+
+    return '';
+  }
+
+  private getFileExtension(filename: string) {
+    return filename.split('.').pop()?.toLowerCase() ?? '';
   }
 
   private normalizeHeader(header: string) {

@@ -52,11 +52,7 @@ describe('ReviewsRepository (integration)', () => {
     const user = await createTestUser(prisma, `${suffix}-user`);
     const business = await createTestBusiness(prisma, `${suffix}-biz`);
     const otherBusiness = await createTestBusiness(prisma, `${suffix}-other`);
-    const membership = await createTestMembership(
-      prisma,
-      user.id,
-      business.id,
-    );
+    const membership = await createTestMembership(prisma, user.id, business.id);
     const campaign = await createTestCampaign(
       prisma,
       business.id,
@@ -69,22 +65,32 @@ describe('ReviewsRepository (integration)', () => {
     createdIds.membershipIds.push(membership.id);
     createdIds.campaignIds.push(campaign.id);
 
-    const highlightedResponded = await createTestReview(prisma, business.id, `${suffix}-1`, {
-      campaignId: campaign.id,
-      rating: 5,
-      isHighlighted: true,
-      status: ReviewStatus.RESPONDED,
-      respondedAt: new Date('2026-04-02T10:00:00.000Z'),
-      respondedByUserId: user.id,
-      content: 'The best experience',
-      authorDisplayName: 'Maria',
-    });
+    const highlightedResponded = await createTestReview(
+      prisma,
+      business.id,
+      `${suffix}-1`,
+      {
+        campaignId: campaign.id,
+        rating: 5,
+        isHighlighted: true,
+        status: ReviewStatus.RESPONDED,
+        respondedAt: new Date('2026-04-02T10:00:00.000Z'),
+        respondedByUserId: user.id,
+        content: 'The best experience',
+        authorDisplayName: 'Maria',
+      },
+    );
 
-    const lowRating = await createTestReview(prisma, business.id, `${suffix}-2`, {
-      rating: 2,
-      content: 'Average service',
-      authorDisplayName: 'Pedro',
-    });
+    const lowRating = await createTestReview(
+      prisma,
+      business.id,
+      `${suffix}-2`,
+      {
+        rating: 2,
+        content: 'Average service',
+        authorDisplayName: 'Pedro',
+      },
+    );
 
     const otherTenantReview = await createTestReview(
       prisma,
@@ -125,15 +131,16 @@ describe('ReviewsRepository (integration)', () => {
     const user = await createTestUser(prisma, `${suffix}-user`);
     const business = await createTestBusiness(prisma, `${suffix}-biz`);
     const otherBusiness = await createTestBusiness(prisma, `${suffix}-other`);
-    const membership = await createTestMembership(
+    const membership = await createTestMembership(prisma, user.id, business.id);
+    const review = await createTestReview(
       prisma,
-      user.id,
       business.id,
+      `${suffix}-review`,
+      {
+        status: ReviewStatus.REVIEWED,
+        createdByUserId: user.id,
+      },
     );
-    const review = await createTestReview(prisma, business.id, `${suffix}-review`, {
-      status: ReviewStatus.REVIEWED,
-      createdByUserId: user.id,
-    });
     const otherTenantReview = await createTestReview(
       prisma,
       otherBusiness.id,

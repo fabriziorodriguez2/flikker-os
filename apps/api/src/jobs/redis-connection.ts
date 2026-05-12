@@ -8,7 +8,7 @@ export const REDIS_CONFIGURED = !!(
 );
 
 export function createRedisConnection() {
-  const options = { maxRetriesPerRequest: null as null };
+  const options = { maxRetriesPerRequest: null };
 
   const connection = process.env.REDIS_URL
     ? new IORedis(process.env.REDIS_URL, options)

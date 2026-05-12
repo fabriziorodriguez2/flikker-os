@@ -9,10 +9,7 @@ import {
   IsBoolean,
 } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
-import {
-  ReviewStatus,
-  ReviewSource,
-} from '@prisma/client';
+import { ReviewStatus, ReviewSource } from '@prisma/client';
 
 export class ListReviewsQueryDto {
   @IsOptional()

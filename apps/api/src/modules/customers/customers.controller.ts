@@ -1,5 +1,6 @@
 import {
   Body,
+  BadRequestException,
   Controller,
   Delete,
   Get,
@@ -8,8 +9,11 @@ import {
   Post,
   Query,
   Req,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { MembershipRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -17,7 +21,6 @@ import { TenantGuard } from '../../common/guards/tenant.guard';
 import type { AuthenticatedRequest } from '../../common/types/request.types';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { CreateCustomerDto } from './dto/create-customer.dto';
-import { ImportCsvDto } from './dto/import-csv.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomersService } from './customers.service';
 
@@ -69,7 +72,20 @@ export class CustomersController {
   @Post('import-csv')
   @UseGuards(RolesGuard)
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.OPERATOR)
-  importCsv(@Req() req: AuthenticatedRequest, @Body() dto: ImportCsvDto) {
-    return this.customersService.importCsv(req.currentBusinessId!, dto);
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: 5 * 1024 * 1024 },
+    }),
+  )
+  importCsv(
+    @Req() req: AuthenticatedRequest,
+    @UploadedFile() file: Express.Multer.File | undefined,
+    @Body('mapping') mapping?: string,
+  ) {
+    if (!file) throw new BadRequestException('Archivo requerido');
+    return this.customersService.importFile(req.currentBusinessId!, {
+      file,
+      mapping,
+    });
   }
 }

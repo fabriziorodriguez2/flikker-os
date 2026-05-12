@@ -1,9 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import {
-  ReviewStatus,
-  ReviewSource,
-  Prisma,
-} from '@prisma/client';
+import { ReviewStatus, ReviewSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 export interface ReviewFilters {
@@ -78,7 +74,9 @@ export class ReviewsRepository {
         where,
         include: {
           campaign: { select: { id: true, name: true } },
-          respondedBy: { select: { id: true, firstName: true, lastName: true } },
+          respondedBy: {
+            select: { id: true, firstName: true, lastName: true },
+          },
         },
         orderBy: { [sortBy]: sortOrder },
         skip,
@@ -196,10 +194,7 @@ export class ReviewsRepository {
         },
       });
 
-      if (
-        status === ReviewStatus.REVIEWED ||
-        status === ReviewStatus.NEW
-      ) {
+      if (status === ReviewStatus.REVIEWED || status === ReviewStatus.NEW) {
         await tx.response.deleteMany({
           where: { reviewId, businessId },
         });

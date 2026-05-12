@@ -10,6 +10,9 @@ interface Business {
   name: string;
   industry: string | null;
   logoUrl: string | null;
+  createdAt: string;
+  googlePlaceId: string | null;
+  googleReviewsLastSyncAt: string | null;
 }
 
 interface KpiMetric {
@@ -70,6 +73,13 @@ function formatKpiValue(value: number, decimals = 0) {
 function formatDelta(delta: number, decimals = 0) {
   const sign = delta > 0 ? "+" : "";
   return `${sign}${formatKpiValue(delta, decimals)}`;
+}
+
+function shouldShowGoogleImportBanner(business: Business | null) {
+  if (!business?.googlePlaceId || business.googleReviewsLastSyncAt) return false;
+  const createdAt = new Date(business.createdAt).getTime();
+  if (Number.isNaN(createdAt)) return false;
+  return Date.now() - createdAt < 24 * 60 * 60 * 1000;
 }
 
 function KpiCard({
@@ -172,6 +182,18 @@ export default async function DashboardPage() {
           business?.industry ? ` · ${business.industry}` : ""
         }`}
       />
+
+      {shouldShowGoogleImportBanner(business) ? (
+        <div className="flex items-center gap-2 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          <span
+            aria-hidden="true"
+            className="h-3 w-3 animate-spin rounded-full border-2 border-amber-300 border-t-amber-700"
+          />
+          <span>
+            Importando reseñas de Google... Esto puede tardar algunos minutos.
+          </span>
+        </div>
+      ) : null}
 
       <section className="grid gap-3 md:grid-cols-3">
         <KpiCard

@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
@@ -13,6 +14,7 @@ import { normalizeToE164 } from '../../common/utils/phone.util';
 import { CustomersService } from '../customers/customers.service';
 import { CampaignsService } from '../campaigns/campaigns.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.queue';
 
 const BCRYPT_ROUNDS = 12;
 const BUSINESS_VERTICALS = new Set([
@@ -36,6 +38,8 @@ const BUSINESS_TIMEZONES = new Set([
 
 @Injectable()
 export class PlatformService {
+  private readonly logger = new Logger(PlatformService.name);
+
   constructor(
     private readonly repository: PlatformRepository,
     private readonly jwt: JwtService,
@@ -43,6 +47,7 @@ export class PlatformService {
     private readonly customersService: CustomersService,
     private readonly campaignsService: CampaignsService,
     private readonly whatsAppBspService: WhatsAppBspService,
+    private readonly googleReviewDetectionQueue: GoogleReviewDetectionQueue,
   ) {}
 
   async listBusinesses() {
@@ -295,6 +300,16 @@ export class PlatformService {
       googleReviewUrl,
     });
 
+    void this.googleReviewDetectionQueue
+      .enqueueInitialScrape(businessId)
+      .catch((error) => {
+        this.logger.warn(
+          `Could not enqueue initial Google review scrape for business ${businessId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+
     return {
       ...updated,
       googleReviewUrl,
@@ -312,11 +327,19 @@ export class PlatformService {
     });
 
     this.logPlatformWrite(adminId, businessId, 'PLATFORM_CUSTOMERS_IMPORTED', {
-      created: result.created,
-      errorCount: result.errors.length,
+      imported: result.imported,
+      duplicateCount: result.duplicates,
+      errorCount: result.failed.length,
     });
 
-    return result;
+    return {
+      ...result,
+      created: result.imported,
+      errors: result.failed.map((failure) => ({
+        row: failure.row,
+        message: failure.reason,
+      })),
+    };
   }
 
   async updateOnboardingTemplates(

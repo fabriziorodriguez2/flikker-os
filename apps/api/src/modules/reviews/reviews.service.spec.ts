@@ -276,7 +276,11 @@ describe('ReviewsService', () => {
         status: ReviewStatus.RESPONDED,
       });
 
-      const result = await service.markResponded(BUSINESS_ID, REVIEW_ID, USER_ID);
+      const result = await service.markResponded(
+        BUSINESS_ID,
+        REVIEW_ID,
+        USER_ID,
+      );
 
       expect(result.status).toBe(ReviewStatus.RESPONDED);
       expect(mockRepo.updateStatus).toHaveBeenCalledWith(

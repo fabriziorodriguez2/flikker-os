@@ -28,6 +28,7 @@ interface Business {
   logoUrl: string | null;
   country: string;
   googlePlaceId: string | null;
+  googleReviewsLastSyncAt: string | null;
   googleBusinessProfileUrl: string | null;
   defaultReviewRedirectUrl: string | null;
 }
@@ -64,6 +65,7 @@ const emptyBusiness: Business = {
   logoUrl: "",
   country: "UY",
   googlePlaceId: "",
+  googleReviewsLastSyncAt: null,
   googleBusinessProfileUrl: "",
   defaultReviewRedirectUrl: "",
 };
@@ -178,7 +180,9 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
           ? { ...current, business: { ...current.business, ...updated } }
           : current,
       );
-      setNotice("Google Business Profile conectado.");
+      setNotice(
+        "Estamos importando tus reseÃ±as de Google en segundo plano. En unos minutos las vas a ver en tu dashboard.",
+      );
     });
   }
 
@@ -498,6 +502,18 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
         >
           Conectar Google
         </button>
+        {data.business.googlePlaceId && !data.business.googleReviewsLastSyncAt ? (
+          <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            <span
+              aria-hidden="true"
+              className="h-3 w-3 animate-spin rounded-full border-2 border-amber-300 border-t-amber-700"
+            />
+            <span>
+              Estamos importando tus reseÃ±as de Google en segundo plano. En
+              unos minutos las vas a ver en tu dashboard.
+            </span>
+          </div>
+        ) : null}
       </section>
 
       <section className="rounded-lg border border-zinc-200 bg-white p-4">

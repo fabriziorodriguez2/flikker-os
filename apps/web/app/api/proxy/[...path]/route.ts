@@ -37,10 +37,16 @@ async function handler(
       ? session.impersonation!.businessId
       : session.activeBusinessId;
 
+  const incomingContentType = request.headers.get("Content-Type");
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
     Authorization: `Bearer ${effectiveAccessToken}`,
   };
+
+  if (incomingContentType) {
+    headers["Content-Type"] = incomingContentType;
+  } else {
+    headers["Content-Type"] = "application/json";
+  }
 
   if (effectiveBusinessId) {
     headers["x-business-id"] = effectiveBusinessId;
@@ -48,12 +54,12 @@ async function handler(
 
   const body =
     request.method !== "GET" && request.method !== "HEAD"
-      ? await request.text()
+      ? await request.arrayBuffer()
       : undefined;
 
   const sendRequest = (accessToken: string, businessId: string | null) => {
     const nextHeaders: Record<string, string> = {
-      "Content-Type": "application/json",
+      ...headers,
       Authorization: `Bearer ${accessToken}`,
     };
 

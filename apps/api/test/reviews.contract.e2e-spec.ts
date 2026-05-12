@@ -1,6 +1,11 @@
 import 'dotenv/config';
 import { randomUUID } from 'crypto';
-import { INestApplication, ValidationPipe, CanActivate, ExecutionContext } from '@nestjs/common';
+import {
+  INestApplication,
+  ValidationPipe,
+  CanActivate,
+  ExecutionContext,
+} from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { MembershipRole, ReviewSource, ReviewStatus } from '@prisma/client';
 import request from 'supertest';
@@ -25,7 +30,7 @@ class FakeJwtGuard implements CanActivate {
     const userId = request.headers['x-test-user-id'];
 
     request.user = {
-      id: Array.isArray(userId) ? userId[0] : userId ?? 'missing-user',
+      id: Array.isArray(userId) ? userId[0] : (userId ?? 'missing-user'),
       email: 'reviews@test.local',
       firstName: 'Reviews',
       lastName: 'Tester',
@@ -244,7 +249,11 @@ describe('Reviews contract (e2e)', () => {
       business.id,
       MembershipRole.OPERATOR,
     );
-    const ownReview = await createTestReview(prisma, business.id, `${suffix}-own`);
+    const ownReview = await createTestReview(
+      prisma,
+      business.id,
+      `${suffix}-own`,
+    );
     const foreignReview = await createTestReview(
       prisma,
       otherBusiness.id,

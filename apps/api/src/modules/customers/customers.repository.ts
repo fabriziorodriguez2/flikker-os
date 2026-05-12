@@ -68,6 +68,19 @@ export class CustomersRepository {
     });
   }
 
+  findManyByPhones(businessId: string, phoneE164: string[]) {
+    return this.prisma.customer.findMany({
+      where: {
+        businessId,
+        phoneE164: { in: phoneE164 },
+        isActive: true,
+      },
+      select: {
+        phoneE164: true,
+      },
+    });
+  }
+
   create(businessId: string, data: CustomerData) {
     return this.prisma.$transaction(async (tx) => {
       const customer = await tx.customer.create({
@@ -97,34 +110,50 @@ export class CustomersRepository {
 
   createMany(businessId: string, rows: CustomerData[]) {
     return this.prisma.$transaction(async (tx) => {
-      const created: Awaited<ReturnType<typeof tx.customer.create>>[] = [];
+      await tx.customer.createMany({
+        data: rows.map((row) => ({
+          businessId,
+          name: row.name,
+          phoneE164: row.phoneE164,
+          email: row.email,
+        })),
+      });
 
-      for (const row of rows) {
-        const customer = await tx.customer.create({
-          data: {
+      const customersWithServiceEvents = rows.filter(
+        (row) => row.lastServiceAt,
+      );
+
+      if (customersWithServiceEvents.length > 0) {
+        const createdCustomers = await tx.customer.findMany({
+          where: {
             businessId,
-            name: row.name,
-            phoneE164: row.phoneE164,
-            email: row.email,
+            phoneE164: {
+              in: customersWithServiceEvents.map((row) => row.phoneE164),
+            },
+          },
+          select: {
+            id: true,
+            phoneE164: true,
           },
         });
+        const customerIdByPhone = new Map(
+          createdCustomers.map((customer) => [customer.phoneE164, customer.id]),
+        );
 
-        if (row.lastServiceAt) {
-          await tx.serviceEvent.create({
-            data: {
+        await tx.serviceEvent.createMany({
+          data: customersWithServiceEvents
+            .map((row) => ({
               businessId,
-              customerId: customer.id,
+              customerId: customerIdByPhone.get(row.phoneE164) ?? '',
               serviceType: 'Servicio',
-              eventAt: row.lastServiceAt,
+              eventAt: row.lastServiceAt!,
               createdVia: ServiceEventCreatedVia.csv_batch,
-            },
-          });
-        }
-
-        created.push(customer);
+            }))
+            .filter((row) => row.customerId),
+        });
       }
 
-      return created;
+      return rows.length;
     });
   }
 

@@ -53,10 +53,10 @@ export class ReviewsService {
       await this.assertCampaignBelongsToBusiness(businessId, dto.campaignId);
     }
 
-    const result = await this.reviewsRepository.createAtomic(
-      businessId,
-      { ...dto, createdByUserId },
-    );
+    const result = await this.reviewsRepository.createAtomic(businessId, {
+      ...dto,
+      createdByUserId,
+    });
 
     if (result === 'DUPLICATE') {
       this.logger.warn(

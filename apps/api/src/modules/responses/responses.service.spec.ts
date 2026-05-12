@@ -154,9 +154,9 @@ describe('ResponsesService', () => {
     mockReviewsRepository.findOne.mockResolvedValue(mockReview);
     mockResponsesRepository.findByReview.mockResolvedValue(null);
 
-    await expect(
-      service.findByReview(BUSINESS_ID, REVIEW_ID),
-    ).rejects.toThrow(NotFoundException);
+    await expect(service.findByReview(BUSINESS_ID, REVIEW_ID)).rejects.toThrow(
+      NotFoundException,
+    );
   });
 
   it('updates an existing response', async () => {

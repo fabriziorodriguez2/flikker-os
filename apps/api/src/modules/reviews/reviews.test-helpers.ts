@@ -116,7 +116,8 @@ export async function createTestCampaign(
       slug: overrides.slug ?? `campaign-${suffix}`,
       channel: overrides.channel ?? CampaignChannel.QR_COUNTER,
       status: overrides.status ?? CampaignStatus.ACTIVE,
-      destinationType: overrides.destinationType ?? DestinationType.GOOGLE_REVIEW,
+      destinationType:
+        overrides.destinationType ?? DestinationType.GOOGLE_REVIEW,
       destinationUrl:
         overrides.destinationUrl === undefined
           ? 'https://example.com/review'

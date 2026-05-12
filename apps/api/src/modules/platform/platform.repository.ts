@@ -167,6 +167,7 @@ export class PlatformRepository {
         logoUrl: true,
         country: true,
         googlePlaceId: true,
+        googleReviewsLastSyncAt: true,
         googleBusinessProfileUrl: true,
         defaultReviewRedirectUrl: true,
       },
@@ -201,6 +202,7 @@ export class PlatformRepository {
         timezone: true,
         phone: true,
         logoUrl: true,
+        googleReviewsLastSyncAt: true,
       },
     });
   }
@@ -215,10 +217,14 @@ export class PlatformRepository {
   ) {
     return this.prisma.business.update({
       where: { id: businessId },
-      data,
+      data: {
+        ...data,
+        googleReviewsLastSyncAt: null,
+      },
       select: {
         id: true,
         googlePlaceId: true,
+        googleReviewsLastSyncAt: true,
         googleBusinessProfileUrl: true,
         defaultReviewRedirectUrl: true,
       },

@@ -1,10 +1,13 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { Queue } from 'bullmq';
+import { JobsOptions, Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import { createRedisConnection, REDIS_CONFIGURED } from './redis-connection';
 
 export const GOOGLE_REVIEW_DETECTION_QUEUE = 'google-review-detection';
 export const DETECT_GOOGLE_REVIEWS_DAILY_JOB = 'detect-google-reviews-daily';
+export const INITIAL_GOOGLE_REVIEW_SCRAPE_JOB = 'initial-review-scrape';
+
+type InitialScrapeJobOptions = JobsOptions & { timeout: number };
 
 @Injectable()
 export class GoogleReviewDetectionQueue
@@ -37,6 +40,22 @@ export class GoogleReviewDetectionQueue
   async enqueueDailyRun() {
     if (!this.queue) return null;
     return this.queue.add(DETECT_GOOGLE_REVIEWS_DAILY_JOB, {}, { attempts: 1 });
+  }
+
+  async enqueueInitialScrape(businessId: string) {
+    if (!this.queue) return null;
+    const options: InitialScrapeJobOptions = {
+      attempts: 1,
+      jobId: `${INITIAL_GOOGLE_REVIEW_SCRAPE_JOB}:${businessId}`,
+      removeOnComplete: 30,
+      removeOnFail: false,
+      timeout: 120_000,
+    };
+    return this.queue.add(
+      INITIAL_GOOGLE_REVIEW_SCRAPE_JOB,
+      { businessId },
+      options,
+    );
   }
 
   async onModuleDestroy() {

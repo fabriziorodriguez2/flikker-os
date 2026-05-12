@@ -226,6 +226,7 @@ model Business {
   googleBusinessProfileUrl  String?
   googlePlaceId             String?        @map("google_place_id")
   googleRefreshToken        String?        @map("google_refresh_token")
+  googleReviewsLastSyncAt   DateTime?      @map("google_reviews_last_sync_at")
   whatsappPhoneId           String?        @map("whatsapp_phone_id")
   messageQuotaMonthly       Int            @default(600) @map("message_quota_monthly")
   messageCountCurrentMonth  Int            @default(0) @map("message_count_current_month")

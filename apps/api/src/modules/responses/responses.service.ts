@@ -35,7 +35,10 @@ export class ResponsesService {
     dto: CreateResponseDto,
     respondedByUserId: string,
   ) {
-    const review = await this.reviewsRepository.findOne(businessId, dto.reviewId);
+    const review = await this.reviewsRepository.findOne(
+      businessId,
+      dto.reviewId,
+    );
     if (!review) throw new NotFoundException('Review not found');
     if (review.status === ReviewStatus.ARCHIVED) {
       throw new BadRequestException(

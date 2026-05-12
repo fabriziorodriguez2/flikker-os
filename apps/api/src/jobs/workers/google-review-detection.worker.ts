@@ -15,6 +15,7 @@ import {
 import {
   DETECT_GOOGLE_REVIEWS_DAILY_JOB,
   GOOGLE_REVIEW_DETECTION_QUEUE,
+  INITIAL_GOOGLE_REVIEW_SCRAPE_JOB,
 } from '../google-review-detection.queue';
 import { createRedisConnection, REDIS_CONFIGURED } from '../redis-connection';
 
@@ -44,12 +45,16 @@ export class GoogleReviewDetectionWorker
   }
 
   async process(job: Job) {
-    if (job.name !== DETECT_GOOGLE_REVIEWS_DAILY_JOB) {
-      this.logger.warn(`Unknown Google review detection job: ${job.name}`);
-      return null;
+    if (job.name === DETECT_GOOGLE_REVIEWS_DAILY_JOB) {
+      return this.runDaily();
     }
 
-    return this.runDaily();
+    if (job.name === INITIAL_GOOGLE_REVIEW_SCRAPE_JOB) {
+      return this.runInitial(job.data as { businessId?: string });
+    }
+
+    this.logger.warn(`Unknown Google review detection job: ${job.name}`);
+    return null;
   }
 
   async runDaily() {
@@ -58,6 +63,7 @@ export class GoogleReviewDetectionWorker
         isActive: true,
         archivedAt: null,
         googlePlaceId: { not: null },
+        googleReviewsLastSyncAt: { not: null },
       },
       select: {
         id: true,
@@ -88,6 +94,46 @@ export class GoogleReviewDetectionWorker
       created,
       failed,
     };
+  }
+
+  async runInitial(input: { businessId?: string }) {
+    if (!input.businessId) {
+      this.logger.warn('Initial Google review scrape missing businessId');
+      return { created: 0, skipped: true };
+    }
+
+    const business = await this.prisma.business.findFirst({
+      where: {
+        id: input.businessId,
+        isActive: true,
+        archivedAt: null,
+        googlePlaceId: { not: null },
+      },
+      select: {
+        id: true,
+        googlePlaceId: true,
+      },
+    });
+
+    if (!business?.googlePlaceId) {
+      this.logger.warn(
+        `Initial Google review scrape skipped for business ${input.businessId}`,
+      );
+      return { created: 0, skipped: true };
+    }
+
+    const created = await this.detectForBusiness(
+      business.id,
+      business.googlePlaceId,
+    );
+
+    await this.prisma.business.update({
+      where: { id: business.id },
+      data: { googleReviewsLastSyncAt: new Date() },
+      select: { id: true },
+    });
+
+    return { businessId: business.id, created };
   }
 
   async onModuleDestroy() {

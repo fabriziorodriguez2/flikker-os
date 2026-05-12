@@ -3,12 +3,17 @@ import { JwtService } from '@nestjs/jwt';
 import { PlatformService } from './platform.service';
 import { PlatformRepository } from './platform.repository';
 import { AuditService } from '../../common/services/audit.service';
+import { CustomersService } from '../customers/customers.service';
+import { CampaignsService } from '../campaigns/campaigns.service';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.queue';
 
 const mockRepo = {
   findAllBusinesses: jest.fn(),
   findBusinessById: jest.fn(),
   createImpersonationLog: jest.fn(),
   findAuditLogs: jest.fn(),
+  updateGoogleBusinessProfile: jest.fn(),
 };
 
 const mockJwt = {
@@ -17,6 +22,13 @@ const mockJwt = {
 
 const mockAuditService = {
   log: jest.fn(),
+};
+
+const mockCustomersService = {};
+const mockCampaignsService = {};
+const mockWhatsAppBspService = {};
+const mockGoogleReviewDetectionQueue = {
+  enqueueInitialScrape: jest.fn(),
 };
 
 describe('PlatformService', () => {
@@ -30,6 +42,13 @@ describe('PlatformService', () => {
         { provide: PlatformRepository, useValue: mockRepo },
         { provide: JwtService, useValue: mockJwt },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: CustomersService, useValue: mockCustomersService },
+        { provide: CampaignsService, useValue: mockCampaignsService },
+        { provide: WhatsAppBspService, useValue: mockWhatsAppBspService },
+        {
+          provide: GoogleReviewDetectionQueue,
+          useValue: mockGoogleReviewDetectionQueue,
+        },
       ],
     }).compile();
     service = module.get<PlatformService>(PlatformService);
@@ -114,6 +133,49 @@ describe('PlatformService', () => {
       );
       expect(result.accessToken).toBe('impersonation-token');
       expect(result.business.name).toBe('Gains');
+    });
+  });
+
+  describe('connectGoogleBusinessProfile', () => {
+    it('saves the Place ID and enqueues the initial review scrape', async () => {
+      mockRepo.findBusinessById.mockResolvedValue({
+        id: 'biz-1',
+        name: 'Gains',
+        slug: 'gains',
+      });
+      mockRepo.updateGoogleBusinessProfile.mockResolvedValue({
+        id: 'biz-1',
+        googlePlaceId: 'place-1',
+        googleReviewsLastSyncAt: null,
+        googleBusinessProfileUrl:
+          'https://search.google.com/local/writereview?placeid=place-1',
+        defaultReviewRedirectUrl:
+          'https://search.google.com/local/writereview?placeid=place-1',
+      });
+      mockGoogleReviewDetectionQueue.enqueueInitialScrape.mockResolvedValue({
+        id: 'job-1',
+      });
+
+      const result = await service.connectGoogleBusinessProfile(
+        'admin-1',
+        'biz-1',
+        { googlePlaceId: 'place-1' },
+      );
+
+      expect(mockRepo.updateGoogleBusinessProfile).toHaveBeenCalledWith(
+        'biz-1',
+        {
+          googlePlaceId: 'place-1',
+          googleBusinessProfileUrl:
+            'https://search.google.com/local/writereview?placeid=place-1',
+          defaultReviewRedirectUrl:
+            'https://search.google.com/local/writereview?placeid=place-1',
+        },
+      );
+      expect(
+        mockGoogleReviewDetectionQueue.enqueueInitialScrape,
+      ).toHaveBeenCalledWith('biz-1');
+      expect(result.googleReviewsLastSyncAt).toBeNull();
     });
   });
 });

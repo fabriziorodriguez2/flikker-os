@@ -200,12 +200,18 @@ describe('ReviewsController', () => {
 
   describe('highlight actions', () => {
     it('highlights a review', async () => {
-      mockService.highlight.mockResolvedValue({ ...mockReview, isHighlighted: true });
+      mockService.highlight.mockResolvedValue({
+        ...mockReview,
+        isHighlighted: true,
+      });
 
       const result = await controller.highlight(fakeReq(), REVIEW_ID);
 
       expect(result.isHighlighted).toBe(true);
-      expect(mockService.highlight).toHaveBeenCalledWith(BUSINESS_ID, REVIEW_ID);
+      expect(mockService.highlight).toHaveBeenCalledWith(
+        BUSINESS_ID,
+        REVIEW_ID,
+      );
     });
 
     it('unhighlights a review', async () => {
@@ -213,7 +219,10 @@ describe('ReviewsController', () => {
 
       await controller.unhighlight(fakeReq(), REVIEW_ID);
 
-      expect(mockService.unhighlight).toHaveBeenCalledWith(BUSINESS_ID, REVIEW_ID);
+      expect(mockService.unhighlight).toHaveBeenCalledWith(
+        BUSINESS_ID,
+        REVIEW_ID,
+      );
     });
   });
 

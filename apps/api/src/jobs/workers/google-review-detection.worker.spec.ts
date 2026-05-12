@@ -15,6 +15,8 @@ describe('GoogleReviewDetectionWorker', () => {
             googlePlaceId: 'place-ok',
           },
         ]),
+        findFirst: jest.fn(),
+        update: jest.fn(),
       },
       googleReview: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -77,6 +79,8 @@ describe('GoogleReviewDetectionWorker', () => {
             googlePlaceId: 'place-1',
           },
         ]),
+        findFirst: jest.fn(),
+        update: jest.fn(),
       },
       googleReview: {
         findMany: jest.fn().mockResolvedValue([]),
@@ -132,6 +136,54 @@ describe('GoogleReviewDetectionWorker', () => {
       data: expect.objectContaining({
         attributedMessageId: 'message-1',
       }),
+    });
+  });
+
+  it('runs the initial scrape and marks the business as synced', async () => {
+    const prisma = {
+      business: {
+        findMany: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'business-1',
+          googlePlaceId: 'place-1',
+        }),
+        update: jest.fn().mockResolvedValue({ id: 'business-1' }),
+      },
+      googleReview: {
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue({ id: 'google-review-1' }),
+      },
+      message: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    };
+    const provider = {
+      fetchReviews: jest.fn().mockResolvedValue([
+        {
+          googleReviewId: 'review-1',
+          reviewerName: 'Maria',
+          stars: 5,
+          text: 'Excelente',
+          postedAt: new Date('2026-05-03T10:00:00.000Z'),
+        },
+      ]),
+    };
+    const worker = new GoogleReviewDetectionWorker(
+      prisma as never,
+      provider as never,
+    );
+
+    await expect(
+      worker.runInitial({ businessId: 'business-1' }),
+    ).resolves.toEqual({
+      businessId: 'business-1',
+      created: 1,
+    });
+
+    expect(prisma.business.update).toHaveBeenCalledWith({
+      where: { id: 'business-1' },
+      data: { googleReviewsLastSyncAt: expect.any(Date) },
+      select: { id: true },
     });
   });
 });
