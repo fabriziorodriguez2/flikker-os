@@ -1,5 +1,5 @@
 import { redirect } from 'next/navigation';
-import { getSession } from '@/lib/auth';
+import { getEffectiveApiContext, getSession } from '@/lib/auth';
 import { apiFetch, isUnauthorizedApiError } from '@/lib/api';
 import PageHeader from '@/components/ui/page-header';
 import ReviewFiltersBar from '@/components/reviews/review-filters-bar';
@@ -58,7 +58,8 @@ export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
 
   const resolvedSearchParams = searchParams ? await searchParams : {};
   const filters = buildFilters(resolvedSearchParams);
-  const { accessToken, activeBusinessId } = session;
+  const { accessToken, businessId } = getEffectiveApiContext(session);
+  if (!businessId) redirect('/dashboard');
 
   let reviews: ReviewsResponse['data'] = [];
   let total = 0;
@@ -70,7 +71,7 @@ export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
       buildReviewsPath(filters),
       accessToken,
       {
-        businessId: activeBusinessId,
+        businessId,
         cache: 'no-store',
       },
     );
@@ -87,7 +88,7 @@ export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
       '/campaigns',
       accessToken,
       {
-        businessId: activeBusinessId,
+        businessId,
         cache: 'no-store',
       },
     );

@@ -31,6 +31,23 @@ export interface Session {
   } | null;
 }
 
+export function getEffectiveApiContext(session: Session): {
+  accessToken: string;
+  businessId: string | null;
+} {
+  if (session.impersonation) {
+    return {
+      accessToken: session.impersonation.accessToken,
+      businessId: session.impersonation.businessId,
+    };
+  }
+
+  return {
+    accessToken: session.accessToken,
+    businessId: session.activeBusinessId,
+  };
+}
+
 /** Lee la sesion desde la cookie. Solo valido en Server Components y Route Handlers. */
 export async function getSession(): Promise<Session | null> {
   const cookieStore = await cookies();

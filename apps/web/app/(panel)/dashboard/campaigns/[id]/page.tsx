@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/auth";
+import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { redirect } from "next/navigation";
 import Link from "next/link";
@@ -74,7 +74,8 @@ export default async function CampaignDetailPage({
   const session = await getSession();
   if (!session?.activeBusinessId) redirect("/dashboard");
 
-  const { accessToken, activeBusinessId } = session;
+  const { accessToken, businessId } = getEffectiveApiContext(session);
+  if (!businessId) redirect("/dashboard");
 
   let campaign: Campaign | null = null;
   let stats: CampaignStats | null = null;
@@ -83,10 +84,10 @@ export default async function CampaignDetailPage({
   try {
     [campaign, stats] = await Promise.all([
       apiFetch<Campaign>(`/campaigns/${id}`, accessToken, {
-        businessId: activeBusinessId,
+        businessId,
       }),
       apiFetch<CampaignStats>(`/campaigns/${id}/stats`, accessToken, {
-        businessId: activeBusinessId,
+        businessId,
       }),
     ]);
   } catch (e) {

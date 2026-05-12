@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import { ApiError, apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import PageHeader from "@/components/ui/page-header";
 import ReviewRowActions from "@/components/reviews/review-row-actions";
@@ -30,6 +30,8 @@ export default async function ReviewDetailPage({
   if (!session?.activeBusinessId) redirect("/dashboard");
 
   const { id } = await params;
+  const { accessToken, businessId } = getEffectiveApiContext(session);
+  if (!businessId) redirect("/dashboard");
 
   let review: ReviewDetail;
   let response: ReviewResponse | null = null;
@@ -38,9 +40,9 @@ export default async function ReviewDetailPage({
   try {
     review = await apiFetch<ReviewDetail>(
       `/reviews/${id}`,
-      session.accessToken,
+      accessToken,
       {
-        businessId: session.activeBusinessId,
+        businessId,
         cache: "no-store",
       },
     );
@@ -79,9 +81,9 @@ export default async function ReviewDetailPage({
     try {
       response = await apiFetch<ReviewResponse>(
         `/reviews/${id}/response`,
-        session.accessToken,
+        accessToken,
         {
-          businessId: session.activeBusinessId,
+          businessId,
           cache: "no-store",
         },
       );

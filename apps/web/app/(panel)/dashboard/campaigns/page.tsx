@@ -1,4 +1,4 @@
-import { getSession } from "@/lib/auth";
+import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { redirect } from "next/navigation";
 import PageHeader from "@/components/ui/page-header";
@@ -23,14 +23,15 @@ export default async function CampaignsPage() {
   const session = await getSession();
   if (!session?.activeBusinessId) redirect("/dashboard");
 
-  const { accessToken, activeBusinessId } = session;
+  const { accessToken, businessId } = getEffectiveApiContext(session);
+  if (!businessId) redirect("/dashboard");
 
   let campaigns: Campaign[] = [];
   let error: string | null = null;
 
   try {
     campaigns = await apiFetch<Campaign[]>("/campaigns", accessToken, {
-      businessId: activeBusinessId,
+      businessId,
     });
   } catch (e) {
     if (isUnauthorizedApiError(e)) redirect("/session-expired");

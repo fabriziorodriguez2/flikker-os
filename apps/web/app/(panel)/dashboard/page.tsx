@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
-import { getSession } from "@/lib/auth";
+import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import PageHeader from "@/components/ui/page-header";
 import SectionCard from "@/components/ui/section-card";
 import ActivityEvolutionChart from "./activity-evolution-chart";
@@ -121,7 +121,8 @@ export default async function DashboardPage() {
   const session = await getSession();
   if (!session?.activeBusinessId) redirect("/dashboard");
 
-  const { accessToken, activeBusinessId } = session;
+  const { accessToken, businessId } = getEffectiveApiContext(session);
+  if (!businessId) redirect("/dashboard");
   let business: Business | null = null;
   let metrics: MetricsOverview | null = null;
   let error: string | null = null;
@@ -129,10 +130,10 @@ export default async function DashboardPage() {
   try {
     [business, metrics] = await Promise.all([
       apiFetch<Business>("/businesses/current", accessToken, {
-        businessId: activeBusinessId,
+        businessId,
       }),
       apiFetch<MetricsOverview>("/metrics/overview", accessToken, {
-        businessId: activeBusinessId,
+        businessId,
       }),
     ]);
   } catch (e) {
