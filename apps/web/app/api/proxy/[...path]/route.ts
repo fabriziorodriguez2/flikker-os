@@ -18,7 +18,7 @@ async function handler(
 ) {
   const session = await getSession();
   if (!session) {
-    return Response.json({ message: "No session" }, { status: 401 });
+    return Response.json({ message: "No hay sesión activa" }, { status: 401 });
   }
 
   const { path } = await params;
@@ -79,7 +79,7 @@ async function handler(
       });
 
       if (!refreshRes.ok) {
-        throw new Error("Session expired");
+        throw new Error("La sesión venció");
       }
 
       const refreshedTokens = (await refreshRes.json()) as RefreshResponse;
@@ -96,7 +96,7 @@ async function handler(
       );
     } catch {
       await clearSession();
-      return Response.json({ message: "Session expired" }, { status: 401 });
+      return Response.json({ message: "La sesión venció" }, { status: 401 });
     }
   }
 

@@ -9,7 +9,10 @@ export async function POST(request: Request) {
   } | null;
 
   if (!payload?.businessId || !payload.eventType) {
-    return Response.json({ message: "Invalid widget event" }, { status: 400 });
+    return Response.json(
+      { message: "Evento de widget inválido" },
+      { status: 400 },
+    );
   }
 
   const upstream = await fetch(

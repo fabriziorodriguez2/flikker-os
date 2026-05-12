@@ -14,12 +14,12 @@ interface ImpersonationResponse {
 export async function POST(request: Request) {
   const session = await getSession();
   if (!session) {
-    return Response.json({ message: "No session" }, { status: 401 });
+    return Response.json({ message: "No hay sesión activa" }, { status: 401 });
   }
 
   if (!session.user.isPlatformAdmin) {
     return Response.json(
-      { message: "Platform admin required" },
+      { message: "Se requiere usuario administrador" },
       { status: 403 },
     );
   }
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   } | null;
 
   if (!body?.businessId) {
-    return Response.json({ message: "businessId required" }, { status: 400 });
+    return Response.json({ message: "Falta el negocio" }, { status: 400 });
   }
 
   const response = await fetch(
@@ -46,7 +46,7 @@ export async function POST(request: Request) {
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     return Response.json(
-      { message: error.message ?? "No se pudo iniciar impersonation" },
+      { message: error.message ?? "No se pudo operar como negocio" },
       { status: response.status },
     );
   }

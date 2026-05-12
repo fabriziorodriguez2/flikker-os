@@ -182,7 +182,7 @@ function MembersContent() {
           hint="Pueden operar hoy"
         />
         <MetricCard
-          label="Admins y owners"
+          label="Administradores y dueños"
           value={admins}
           tone="warm"
           hint="Perfiles con más permisos"

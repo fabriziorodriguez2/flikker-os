@@ -33,6 +33,11 @@ export default function PageHeader({
                 className="h-full w-full object-contain"
               />
             </span>
+          ) : logoUrl === null ? (
+            <span
+              aria-hidden="true"
+              className="h-10 w-10 shrink-0 rounded-[10px] border border-[color:var(--border)] bg-[color:var(--surface-muted)]"
+            />
           ) : null}
           <h1 className="text-[1.7rem] font-semibold text-[color:var(--foreground)] md:text-[1.9rem]">
             {title}

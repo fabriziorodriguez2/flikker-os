@@ -134,7 +134,7 @@ const NAV_ITEMS = [
   },
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon /> },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
-  { href: "/dashboard/widgets", label: "Widgets", icon: <WidgetsIcon /> },
+  { href: "/dashboard/widgets", label: "Prueba social", icon: <WidgetsIcon /> },
   {
     href: "/dashboard/settings",
     label: "Configuración",
@@ -254,6 +254,9 @@ export default function Sidebar({
   const activeBusiness = memberships.find(
     (m) => m.businessId === activeBusinessId,
   );
+  const navItems = NAV_ITEMS.filter(
+    (item) => isPlatformAdmin || item.href !== "/dashboard/settings",
+  );
 
   return (
     <aside
@@ -284,7 +287,8 @@ export default function Sidebar({
           ) : null}
         </div>
 
-        {collapsed ? (
+        {!isPlatformAdmin ? (
+          collapsed ? (
           <div className="mt-4 flex justify-center">
             <SidebarActionButton
               label="Expandir menú"
@@ -301,12 +305,13 @@ export default function Sidebar({
               activeBusinessName={activeBusiness?.business.name ?? null}
             />
           </div>
-        )}
+          )
+        ) : null}
       </div>
 
       <div className="flikker-scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-3 py-2">
         <nav className="flex flex-col gap-1">
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const isActive =
               item.href === "/dashboard"
                 ? pathname === "/dashboard"

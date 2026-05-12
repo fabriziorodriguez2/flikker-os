@@ -5,7 +5,7 @@ const API_URL = process.env.API_URL ?? "http://localhost:3000";
 export async function POST() {
   const session = await getSession();
   if (!session) {
-    return Response.json({ message: "No session" }, { status: 401 });
+    return Response.json({ message: "No hay sesión activa" }, { status: 401 });
   }
 
   await fetch(`${API_URL}/platform/exit-impersonation`, {

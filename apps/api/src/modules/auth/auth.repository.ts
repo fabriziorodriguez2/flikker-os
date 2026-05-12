@@ -101,7 +101,7 @@ export class AuthRepository {
         data: {
           name: data.businessName,
           slug,
-          status: BusinessStatus.ONBOARDING,
+          status: BusinessStatus.ACTIVE,
           vertical: data.vertical,
           country: 'UY',
           timezone: data.timezone,

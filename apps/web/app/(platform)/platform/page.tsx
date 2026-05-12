@@ -3,11 +3,18 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import {
+  BUSINESS_TIMEZONE_OPTIONS,
+  BUSINESS_VERTICAL_OPTIONS,
+  DEFAULT_BUSINESS_TIMEZONE,
+  DEFAULT_BUSINESS_VERTICAL,
+} from "@/lib/business-options";
 
 interface PlatformBusiness {
   id: string;
   name: string;
   slug: string;
+  logoUrl: string | null;
   status: string;
   industry: string | null;
   country: string;
@@ -53,9 +60,9 @@ interface CreatedCredentials {
 const emptyCreateForm: CreateBusinessForm = {
   name: "",
   legalName: "",
-  vertical: "",
+  vertical: DEFAULT_BUSINESS_VERTICAL,
   country: "UY",
-  timezone: "America/Montevideo",
+  timezone: DEFAULT_BUSINESS_TIMEZONE,
   ownerEmail: "",
   ownerFirstName: "",
   ownerLastName: "",
@@ -262,24 +269,26 @@ export default function PlatformPage() {
                 setCreateForm({ ...createForm, legalName })
               }
             />
-            <Input
+            <Select
               label="Vertical/rubro"
               value={createForm.vertical}
               onChange={(vertical) =>
                 setCreateForm({ ...createForm, vertical })
               }
+              options={BUSINESS_VERTICAL_OPTIONS}
             />
             <Input
               label="Pais"
               value={createForm.country}
               onChange={(country) => setCreateForm({ ...createForm, country })}
             />
-            <Input
+            <Select
               label="Timezone"
               value={createForm.timezone}
               onChange={(timezone) =>
                 setCreateForm({ ...createForm, timezone })
               }
+              options={BUSINESS_TIMEZONE_OPTIONS}
             />
             <Input
               label="Email dueno"
@@ -395,14 +404,22 @@ Contrasena temporal: ${
                     className="border-b border-[color:var(--border)]/60 last:border-0 hover:bg-[color:var(--surface-muted)]/35"
                   >
                     <td className="px-5 py-4">
-                      <div className="font-semibold text-[color:var(--foreground)]">
-                        {business.name}
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[color:var(--text-soft)]">
-                        <span>/{business.slug}</span>
-                        {business.industry ? (
-                          <span>{business.industry}</span>
-                        ) : null}
+                      <div className="flex items-center gap-3">
+                        <BusinessLogoPlaceholder
+                          logoUrl={business.logoUrl}
+                          name={business.name}
+                        />
+                        <div className="min-w-0">
+                          <div className="font-semibold text-[color:var(--foreground)]">
+                            {business.name}
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[color:var(--text-soft)]">
+                            <span>/{business.slug}</span>
+                            {business.industry ? (
+                              <span>{business.industry}</span>
+                            ) : null}
+                          </div>
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-4">
@@ -506,6 +523,58 @@ function Input({
         className={inputClassName}
       />
     </label>
+  );
+}
+
+function Select({
+  label,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  options: ReadonlyArray<{ value: string; label: string }>;
+}) {
+  return (
+    <label className="text-sm">
+      <span className="mb-1.5 block font-medium text-[color:var(--text-muted)]">
+        {label}
+      </span>
+      <select
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        className={inputClassName}
+      >
+        {options.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function BusinessLogoPlaceholder({
+  logoUrl,
+  name,
+}: {
+  logoUrl: string | null;
+  name: string;
+}) {
+  return (
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-muted)]">
+      {logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logoUrl}
+          alt={`Logo de ${name}`}
+          className="h-full w-full object-contain"
+        />
+      ) : null}
+    </span>
   );
 }
 

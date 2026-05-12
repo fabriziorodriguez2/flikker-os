@@ -11,7 +11,7 @@ export async function POST() {
 
   if (!session?.refreshToken) {
     await clearSession();
-    return Response.json({ message: 'No session' }, { status: 401 });
+    return Response.json({ message: 'No hay sesión activa' }, { status: 401 });
   }
 
   try {
@@ -29,6 +29,6 @@ export async function POST() {
     return Response.json({ ok: true });
   } catch {
     await clearSession();
-    return Response.json({ message: 'Session expired' }, { status: 401 });
+    return Response.json({ message: 'La sesión venció' }, { status: 401 });
   }
 }

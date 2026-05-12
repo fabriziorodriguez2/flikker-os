@@ -79,7 +79,7 @@ export default async function PublicWidgetPage({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--text-soft)]">
-              {data.widget.type === 'BADGE' ? 'Badge' : 'Widget de reseñas'}
+              {data.widget.type === 'BADGE' ? 'Insignia' : 'Módulo de reseñas'}
             </p>
             <p className="mt-2 text-2xl font-semibold text-[color:var(--foreground)]">
               {data.widget.title?.trim() || 'Reseñas'}

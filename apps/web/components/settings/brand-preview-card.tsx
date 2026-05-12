@@ -45,11 +45,9 @@ export default function BrandPreviewCard({
             />
           ) : (
             <div
-              className="flex h-14 w-14 items-center justify-center rounded-2xl text-lg font-semibold text-white"
-              style={{ backgroundColor: secondary }}
-            >
-              {businessName.slice(0, 1).toUpperCase()}
-            </div>
+              aria-hidden="true"
+              className="h-14 w-14 rounded-2xl border border-[color:var(--border)] bg-[color:var(--surface-muted)]"
+            />
           )}
         </div>
 

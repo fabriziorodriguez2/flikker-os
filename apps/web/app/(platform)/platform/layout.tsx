@@ -1,6 +1,5 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import BrandLogo from "@/components/brand/brand-logo";
 import ThemeToggle from "@/components/theme/theme-toggle";
 import SessionExpiryHandler from "@/components/auth/session-expiry-handler";
@@ -22,17 +21,11 @@ export default async function PlatformLayout({
           <div className="flex items-center gap-3">
             <BrandLogo width={126} height={107} className="h-auto w-[96px]" />
             <span className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--brand-warm)]">
-              Admin
+              Administrador
             </span>
           </div>
 
           <div className="flex items-center gap-2">
-            <Link
-              href="/dashboard"
-              className="flikker-control-subtle inline-flex h-9 items-center rounded-full px-4 text-xs font-semibold hover:border-[color:var(--border-strong)]"
-            >
-              Ir al panel
-            </Link>
             <ThemeToggle />
             <span className="flikker-control-subtle hidden h-9 items-center rounded-full px-4 text-sm font-medium sm:inline-flex">
               {session.user.firstName} {session.user.lastName}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ValidatedInput from "@/components/ui/validated-input";
 
 interface RepeatCampaignEditorProps {
   campaignId: string;
@@ -23,6 +24,11 @@ export default function RepeatCampaignEditor({
   const [saving, setSaving] = useState(false);
 
   async function save() {
+    if (!isValidOffsetDays(offset)) {
+      setError("Ingresá un número entre 0 y 365 días.");
+      return;
+    }
+
     setSaving(true);
     setMessage(null);
     setError(null);
@@ -65,12 +71,13 @@ export default function RepeatCampaignEditor({
           <span className="text-sm font-semibold text-[color:var(--foreground)]">
             Dias de offset
           </span>
-          <input
+          <ValidatedInput
             type="number"
             min="0"
             max="365"
             value={offset}
-            onChange={(event) => setOffset(event.target.value)}
+            onChange={setOffset}
+            validate={validateOffsetDays}
             className="h-12 rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-4 text-sm outline-none"
           />
         </label>
@@ -110,4 +117,17 @@ export default function RepeatCampaignEditor({
       </div>
     </div>
   );
+}
+
+function validateOffsetDays(value: string) {
+  return {
+    valid: isValidOffsetDays(value),
+    message: "Ingresá un número entre 0 y 365 días.",
+  };
+}
+
+function isValidOffsetDays(value: string) {
+  if (!value.trim()) return false;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 365;
 }

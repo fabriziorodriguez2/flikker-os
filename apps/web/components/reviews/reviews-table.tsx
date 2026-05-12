@@ -27,6 +27,17 @@ function formatResponder(review: ReviewSummary) {
   return fullName.length > 0 ? `Respondida por ${fullName}` : "Respondida";
 }
 
+function formatReviewStatus(status: string) {
+  const labels: Record<string, string> = {
+    NEW: "Nueva",
+    REVIEWED: "Revisada",
+    RESPONDED: "Respondida",
+    ARCHIVED: "Archivada",
+  };
+
+  return labels[status] ?? status;
+}
+
 export default function ReviewsTable({ reviews }: ReviewsTableProps) {
   return (
     <div className="space-y-4">
@@ -107,7 +118,7 @@ export default function ReviewsTable({ reviews }: ReviewsTableProps) {
 
                 <div className="space-y-2">
                   <span className="inline-flex rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
-                    {review.status}
+                    {formatReviewStatus(review.status)}
                   </span>
                   {FEATURES.MANUAL_RESPONSES && review.respondedAt ? (
                     <div className="text-xs text-[color:var(--text-muted)]">
@@ -168,7 +179,7 @@ export default function ReviewsTable({ reviews }: ReviewsTableProps) {
                 </div>
 
                 <span className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
-                  {review.status}
+                  {formatReviewStatus(review.status)}
                 </span>
               </div>
 

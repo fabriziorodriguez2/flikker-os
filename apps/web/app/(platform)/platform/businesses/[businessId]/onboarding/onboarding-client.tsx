@@ -3,6 +3,19 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import PhoneInput, {
+  isValidNationalPhone,
+  toNationalDigits,
+} from "@/components/ui/phone-input";
+import ValidatedInput from "@/components/ui/validated-input";
+import {
+  BUSINESS_TIMEZONE_OPTIONS,
+  BUSINESS_VERTICAL_OPTIONS,
+  DEFAULT_BUSINESS_TIMEZONE,
+  DEFAULT_BUSINESS_VERTICAL,
+  isValidBusinessTimezone,
+  isValidBusinessVertical,
+} from "@/lib/business-options";
 
 interface Business {
   id: string;
@@ -45,8 +58,8 @@ const emptyBusiness: Business = {
   name: "",
   slug: "",
   status: "",
-  vertical: "",
-  timezone: "America/Montevideo",
+  vertical: DEFAULT_BUSINESS_VERTICAL,
+  timezone: DEFAULT_BUSINESS_TIMEZONE,
   phone: "",
   logoUrl: "",
   country: "UY",
@@ -85,7 +98,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
         `/api/proxy/platform/businesses/${businessId}/onboarding`,
       );
       setData(next);
-      setBusinessForm(next.business);
+      setBusinessForm(normalizeBusinessForm(next.business));
       setGooglePlaceId(next.business.googlePlaceId ?? "");
       setTemplates(
         Object.fromEntries(
@@ -114,6 +127,21 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
   }, [googlePlaceId]);
 
   async function saveBusiness() {
+    if (
+      businessForm.phone &&
+      !isValidNationalPhone(toNationalDigits(businessForm.phone))
+    ) {
+      setError("Formato inválido — ingresá entre 7 y 9 dígitos");
+      return;
+    }
+    if (!isValidBusinessVertical(businessForm.vertical)) {
+      setError("Seleccioná una vertical válida.");
+      return;
+    }
+    if (!isValidBusinessTimezone(businessForm.timezone)) {
+      setError("Seleccioná un timezone válido.");
+      return;
+    }
     await run("business", async () => {
       const updated = await api<Business>(
         `/api/proxy/platform/businesses/${businessId}/onboarding/business`,
@@ -174,6 +202,15 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
   }
 
   async function saveTemplates() {
+    const invalidOffset = Object.values(templates).some(
+      (draft) =>
+        draft.triggerOffsetDays && !isValidOffsetDays(draft.triggerOffsetDays),
+    );
+    if (invalidOffset) {
+      setError("Ingresá días de offset entre 0 y 365.");
+      return;
+    }
+
     await run("templates", async () => {
       await api(
         `/api/proxy/platform/businesses/${businessId}/onboarding/templates`,
@@ -197,6 +234,10 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
   }
 
   async function sendTestMessage() {
+    if (!isValidNationalPhone(toNationalDigits(testPhone))) {
+      setError("Formato inválido — ingresá entre 7 y 9 dígitos");
+      return;
+    }
     await run("test", async () => {
       const result = await api<{ trackingUrl: string }>(
         `/api/proxy/platform/businesses/${businessId}/onboarding/test-message`,
@@ -260,18 +301,18 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
   }
 
   if (loading) {
-    return <p className="text-sm text-zinc-500">Cargando onboarding...</p>;
+    return (
+      <>
+        <BackToAccountsLink />
+        <p className="pt-14 text-sm text-zinc-500">Cargando onboarding...</p>
+      </>
+    );
   }
 
   if (!data) {
     return (
-      <div className="space-y-3">
-        <Link
-          href="/platform"
-          className="text-sm text-zinc-500 hover:text-zinc-900"
-        >
-          Volver
-        </Link>
+      <div className="space-y-3 pt-14">
+        <BackToAccountsLink />
         <p className="text-sm text-red-600">{error ?? "No se pudo cargar."}</p>
       </div>
     );
@@ -279,15 +320,10 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
 
   return (
     <div className="max-w-5xl space-y-5">
+      <BackToAccountsLink />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <Link
-            href="/platform"
-            className="text-sm text-zinc-500 hover:text-zinc-900"
-          >
-            Volver a cuentas
-          </Link>
-          <h1 className="mt-2 text-2xl font-semibold text-zinc-900">
+          <h1 className="text-2xl font-semibold text-zinc-900">
             Onboarding: {data.business.name}
           </h1>
           <p className="text-sm text-zinc-500">
@@ -336,7 +372,10 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
                     className="h-full w-full object-contain"
                   />
                 ) : (
-                  <span className="text-xs text-zinc-400">Logo</span>
+                  <span
+                    aria-hidden="true"
+                    className="h-full w-full bg-zinc-50"
+                  />
                 )}
               </div>
               <div className="flex flex-wrap gap-2">
@@ -378,33 +417,40 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
             />
           </Field>
           <Field label="Vertical">
-            <input
+            <select
               className={inputClassName}
-              value={businessForm.vertical ?? ""}
+              value={businessForm.vertical ?? DEFAULT_BUSINESS_VERTICAL}
               onChange={(e) =>
                 setBusinessForm({ ...businessForm, vertical: e.target.value })
               }
-            />
+            >
+              {BUSINESS_VERTICAL_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field label="Timezone">
-            <input
+            <select
               className={inputClassName}
-              value={businessForm.timezone}
+              value={businessForm.timezone || DEFAULT_BUSINESS_TIMEZONE}
               onChange={(e) =>
                 setBusinessForm({ ...businessForm, timezone: e.target.value })
               }
-            />
+            >
+              {BUSINESS_TIMEZONE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
           </Field>
-          <Field label="WhatsApp Business">
-            <input
-              className={inputClassName}
-              placeholder="+598..."
-              value={businessForm.phone ?? ""}
-              onChange={(e) =>
-                setBusinessForm({ ...businessForm, phone: e.target.value })
-              }
-            />
-          </Field>
+          <PhoneInput
+            label="WhatsApp Business"
+            value={businessForm.phone ?? ""}
+            onChange={(phone) => setBusinessForm({ ...businessForm, phone })}
+          />
         </div>
         <button
           type="button"
@@ -432,7 +478,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
               onChange={(e) => setGooglePlaceId(e.target.value)}
             />
           </Field>
-          <Field label="Google review URL">
+          <Field label="URL de reseña de Google">
             <input
               className={`${inputClassName} bg-zinc-50`}
               value={
@@ -523,20 +569,22 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
                   />
                   <div className="space-y-3">
                     <Field label="Dias offset">
-                      <input
+                      <ValidatedInput
                         className={inputClassName}
                         type="number"
                         min="0"
+                        max="365"
                         value={draft.triggerOffsetDays}
-                        onChange={(e) =>
+                        onChange={(value) =>
                           setTemplates({
                             ...templates,
                             [template.id]: {
                               ...draft,
-                              triggerOffsetDays: e.target.value,
+                              triggerOffsetDays: value,
                             },
                           })
                         }
+                        validate={validateOffsetDays}
                       />
                     </Field>
                     <Field label="Oferta">
@@ -557,7 +605,8 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
                   </div>
                 </div>
                 <p className="mt-2 rounded-lg bg-zinc-50 p-3 text-sm text-zinc-600">
-                  {preview || "Preview del mensaje con variables reemplazadas."}
+                  {preview ||
+                    "Vista previa del mensaje con variables reemplazadas."}
                 </p>
               </div>
             );
@@ -578,14 +627,11 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
           Mensaje de prueba
         </h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
-          <Field label="Telefono de prueba">
-            <input
-              className={inputClassName}
-              placeholder="+598..."
-              value={testPhone}
-              onChange={(e) => setTestPhone(e.target.value)}
-            />
-          </Field>
+          <PhoneInput
+            label="Telefono de prueba"
+            value={testPhone}
+            onChange={setTestPhone}
+          />
           <Field label="Nombre de prueba">
             <input
               className={inputClassName}
@@ -640,4 +686,43 @@ function readFileAsDataUrl(file: File) {
     reader.onerror = () => reject(new Error("No se pudo leer el logo"));
     reader.readAsDataURL(file);
   });
+}
+
+function validateOffsetDays(value: string) {
+  return {
+    valid: isValidOffsetDays(value),
+    message: "Ingresá un número entre 0 y 365 días.",
+  };
+}
+
+function isValidOffsetDays(value: string) {
+  if (!value.trim()) return false;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 0 && parsed <= 365;
+}
+
+function BackToAccountsLink() {
+  return (
+    <Link
+      href="/platform"
+      className="fixed left-4 top-4 z-40 inline-flex min-h-9 items-center gap-2 rounded-full bg-white/90 px-3 py-2 text-sm font-semibold text-[color:var(--text-muted)] shadow-sm ring-1 ring-zinc-200 backdrop-blur transition-colors hover:text-[color:var(--foreground)] hover:underline md:left-6"
+    >
+      <span aria-hidden="true" className="text-base leading-none">
+        ←
+      </span>
+      <span>Volver a mis negocios</span>
+    </Link>
+  );
+}
+
+function normalizeBusinessForm(business: Business): Business {
+  return {
+    ...business,
+    vertical: isValidBusinessVertical(business.vertical)
+      ? business.vertical
+      : DEFAULT_BUSINESS_VERTICAL,
+    timezone: isValidBusinessTimezone(business.timezone)
+      ? business.timezone
+      : DEFAULT_BUSINESS_TIMEZONE,
+  };
 }

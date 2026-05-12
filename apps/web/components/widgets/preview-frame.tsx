@@ -16,7 +16,7 @@ export default function PreviewFrame({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="max-w-xl">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[color:var(--text-soft)]">
-            Preview
+            Vista previa
           </p>
           <h3 className="mt-2 text-2xl font-semibold text-[color:var(--foreground)]">
             {title}

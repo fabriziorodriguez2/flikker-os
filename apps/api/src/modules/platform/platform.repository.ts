@@ -39,6 +39,7 @@ export class PlatformRepository {
         id: true,
         name: true,
         slug: true,
+        logoUrl: true,
         status: true,
         industry: true,
         country: true,

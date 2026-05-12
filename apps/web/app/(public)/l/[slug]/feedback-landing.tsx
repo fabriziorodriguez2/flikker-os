@@ -101,9 +101,10 @@ export default function FeedbackLanding({
             <a
               href={googleReviewUrl}
               rel="noopener noreferrer"
-              className="mt-8 flex min-h-14 w-full items-center justify-center rounded-xl bg-[#111827] px-5 text-base font-semibold text-white"
+              className="mt-8 flex min-h-14 w-full items-center justify-center gap-3 rounded-xl bg-[#111827] px-5 font-['Manrope',sans-serif] text-base font-semibold text-white"
             >
-              Dejar reseña
+              <GoogleGIcon />
+              <span>Dejar reseña en Google</span>
             </a>
             {error ? (
               <p className="mt-4 text-sm text-red-600">{error}</p>
@@ -139,7 +140,45 @@ export default function FeedbackLanding({
             ) : null}
           </div>
         )}
+        <footer className="mt-8 flex items-center justify-center gap-2 text-xs text-[color:var(--text-soft)]">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/flikker-mark.svg"
+            alt=""
+            aria-hidden="true"
+            className="h-5 w-auto"
+          />
+          <span>Con tecnología de Flikker</span>
+        </footer>
       </section>
     </main>
+  );
+}
+
+function GoogleGIcon() {
+  return (
+    <svg
+      aria-hidden="true"
+      className="h-5 w-5 shrink-0"
+      viewBox="0 0 24 24"
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path
+        fill="#4285F4"
+        d="M23.49 12.27c0-.79-.07-1.55-.2-2.27H12v4.29h6.47c-.28 1.5-1.13 2.77-2.41 3.62v3h3.9c2.28-2.1 3.53-5.19 3.53-8.64z"
+      />
+      <path
+        fill="#34A853"
+        d="M12 24c3.24 0 5.96-1.07 7.95-2.91l-3.9-3c-1.08.72-2.46 1.15-4.05 1.15-3.12 0-5.77-2.11-6.72-4.95H1.26v3.09A12 12 0 0 0 12 24z"
+      />
+      <path
+        fill="#FBBC05"
+        d="M5.28 14.29A7.22 7.22 0 0 1 4.91 12c0-.79.13-1.56.37-2.29V6.62H1.26A12 12 0 0 0 0 12c0 1.94.46 3.78 1.26 5.38l4.02-3.09z"
+      />
+      <path
+        fill="#EA4335"
+        d="M12 4.76c1.76 0 3.34.61 4.59 1.8l3.45-3.45C17.95 1.16 15.24 0 12 0A12 12 0 0 0 1.26 6.62l4.02 3.09C6.23 6.87 8.88 4.76 12 4.76z"
+      />
+    </svg>
   );
 }

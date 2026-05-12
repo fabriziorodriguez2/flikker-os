@@ -53,14 +53,14 @@ export default async function ReviewDetailPage({
     }
 
     const message =
-      e instanceof Error ? e.message : "No se pudo cargar la review";
+      e instanceof Error ? e.message : "No se pudo cargar la reseña";
 
     return (
       <div className="mx-auto max-w-4xl">
         <PageHeader
-          eyebrow="Reviews"
-          title="Detalle de review"
-          subtitle="No pudimos cargar la review seleccionada."
+          eyebrow="Reseñas"
+          title="Detalle de reseña"
+          subtitle="No pudimos cargar la reseña seleccionada."
         />
         <div
           className="mt-6 rounded-[24px] border px-5 py-4 text-sm text-[color:var(--danger-text)]"
@@ -109,17 +109,17 @@ export default async function ReviewDetailPage({
           href="/dashboard/reviews"
           className="font-medium text-[color:var(--brand-accent)] hover:text-[color:var(--brand-primary)]"
         >
-          Volver a reviews
+          Volver a reseñas
         </Link>
       </div>
 
       <PageHeader
-        eyebrow="Review detail"
+        eyebrow="Detalle de reseña"
         title={review.authorDisplayName ?? "Autor no informado"}
         subtitle={
           FEATURES.MANUAL_RESPONSES
-            ? "Contexto completo de la review, respuesta manual y elegibilidad para widget."
-            : "Contexto completo de la review y elegibilidad para widget."
+            ? "Contexto completo de la reseña, respuesta manual y elegibilidad para widget."
+            : "Contexto completo de la reseña y elegibilidad para widget."
         }
         actions={
           <ReviewRowActions
@@ -136,7 +136,7 @@ export default async function ReviewDetailPage({
             {renderStars(review.rating)}
           </p>
           <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
-            Review recibida
+            Reseña recibida
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-white/82">
             <span>{formatDate(review.reviewedAt)}</span>
@@ -167,17 +167,25 @@ export default async function ReviewDetailPage({
                   Estado
                 </dt>
                 <dd className="mt-1 text-[color:var(--text-muted)]">
-                  {review.status}
+                  {review.status === "NEW"
+                    ? "Nueva"
+                    : review.status === "REVIEWED"
+                      ? "Revisada"
+                      : review.status === "RESPONDED"
+                        ? "Respondida"
+                        : review.status === "ARCHIVED"
+                          ? "Archivada"
+                          : review.status}
                 </dd>
               </div>
               <div>
                 <dt className="font-semibold text-[color:var(--foreground)]">
-                  Highlight
+                  Destacada
                 </dt>
                 <dd className="mt-1 text-[color:var(--text-muted)]">
                   {review.isHighlighted
                     ? "Activa para widget"
-                    : "Aun no destacada"}
+                    : "Aún no destacada"}
                 </dd>
               </div>
               <div>

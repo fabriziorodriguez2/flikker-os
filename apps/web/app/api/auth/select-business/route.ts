@@ -5,17 +5,17 @@ export async function POST(request: Request) {
   const businessId = body?.businessId as string | undefined;
 
   if (!businessId) {
-    return Response.json({ message: 'businessId required' }, { status: 400 });
+    return Response.json({ message: 'Falta el negocio' }, { status: 400 });
   }
 
   const session = await getSession();
   if (!session) {
-    return Response.json({ message: 'No session' }, { status: 401 });
+    return Response.json({ message: 'No hay sesión activa' }, { status: 401 });
   }
 
   const valid = session.memberships.some((m) => m.businessId === businessId);
   if (!valid) {
-    return Response.json({ message: 'Not a member' }, { status: 403 });
+    return Response.json({ message: 'No pertenecés a este negocio' }, { status: 403 });
   }
 
   await setSession({ ...session, activeBusinessId: businessId });

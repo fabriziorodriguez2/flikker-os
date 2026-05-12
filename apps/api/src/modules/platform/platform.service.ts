@@ -15,6 +15,24 @@ import { CampaignsService } from '../campaigns/campaigns.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 
 const BCRYPT_ROUNDS = 12;
+const BUSINESS_VERTICALS = new Set([
+  'dental',
+  'estetica',
+  'fisio',
+  'medico',
+  'nutricion',
+  'gimnasio',
+  'otro',
+]);
+const BUSINESS_TIMEZONES = new Set([
+  'America/Montevideo',
+  'America/Buenos_Aires',
+  'America/Santiago',
+  'America/Sao_Paulo',
+  'America/Bogota',
+  'America/Lima',
+  'America/Mexico_City',
+]);
 
 @Injectable()
 export class PlatformService {
@@ -81,13 +99,15 @@ export class PlatformService {
     const phone = dto.whatsappPhone?.trim()
       ? normalizeToE164(dto.whatsappPhone)
       : undefined;
+    const vertical = this.parseVertical(dto.vertical);
+    const timezone = this.parseTimezone(dto.timezone);
 
     const result = await this.repository.createBusinessWithOwner({
       name,
       legalName: dto.legalName?.trim() || undefined,
-      vertical: dto.vertical?.trim() || undefined,
+      vertical,
       country: dto.country?.trim() || 'UY',
-      timezone: dto.timezone?.trim() || 'America/Montevideo',
+      timezone,
       phone,
       ownerEmail,
       ownerFirstName,
@@ -220,11 +240,11 @@ export class PlatformService {
       if (!name) throw new BadRequestException('Business name is required');
       data.name = name;
     }
-    if (dto.vertical !== undefined) data.vertical = dto.vertical.trim() || null;
+    if (dto.vertical !== undefined) {
+      data.vertical = this.parseVertical(dto.vertical);
+    }
     if (dto.timezone !== undefined) {
-      const timezone = dto.timezone.trim();
-      if (!timezone) throw new BadRequestException('Timezone is required');
-      data.timezone = timezone;
+      data.timezone = this.parseTimezone(dto.timezone);
     }
     if (dto.whatsappPhone !== undefined) {
       data.phone = dto.whatsappPhone.trim()
@@ -439,6 +459,22 @@ export class PlatformService {
       businessId,
       metadata,
     });
+  }
+
+  private parseVertical(value?: string) {
+    const vertical = value?.trim() || 'otro';
+    if (!BUSINESS_VERTICALS.has(vertical)) {
+      throw new BadRequestException('Invalid business vertical');
+    }
+    return vertical;
+  }
+
+  private parseTimezone(value?: string) {
+    const timezone = value?.trim() || 'America/Montevideo';
+    if (!BUSINESS_TIMEZONES.has(timezone)) {
+      throw new BadRequestException('Invalid business timezone');
+    }
+    return timezone;
   }
 }
 

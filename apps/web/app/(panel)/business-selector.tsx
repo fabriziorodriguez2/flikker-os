@@ -38,13 +38,13 @@ export default function BusinessSelector({
   }
 
   const label = activeBusinessName ?? 'Negocio';
-  const compactLabel = label.slice(0, 1).toUpperCase();
 
   if (memberships.length <= 1) {
     return collapsed ? (
-      <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-muted)] text-sm font-semibold text-[color:var(--foreground)]">
-        {compactLabel}
-      </div>
+      <div
+        aria-hidden="true"
+        className="h-9 w-9 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-muted)]"
+      />
     ) : (
       <p className="truncate text-sm font-semibold text-[color:var(--foreground)]">
         {label}
@@ -63,7 +63,10 @@ export default function BusinessSelector({
         }`}
       >
         {collapsed ? (
-          <span>{compactLabel}</span>
+          <span
+            aria-hidden="true"
+            className="h-5 w-5 rounded-md bg-[color:var(--surface-muted)]"
+          />
         ) : (
           <>
             <span className="truncate">{label}</span>

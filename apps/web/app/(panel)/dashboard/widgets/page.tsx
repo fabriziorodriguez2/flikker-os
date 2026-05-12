@@ -9,7 +9,7 @@ import type { Widget, WidgetCreateInput } from "@/components/widgets/types";
 const inputClass = "flikker-input w-full px-4 py-3 text-sm";
 
 const DEFAULT_FORM: WidgetCreateInput = {
-  name: "Toast social proof",
+  name: "Toast de prueba social",
   type: "REVIEW_LIST",
   mode: "toast",
   position: "bottom_right",
@@ -154,7 +154,7 @@ function ToastPreviewCard({
             </div>
             <div className="min-w-0">
               <p className="m-0 text-[13.5px] font-extrabold leading-[1.18] tracking-[0.01em] text-[#10183d]">
-                {(review.authorDisplayName ?? "Alguien")} nos dejo{" "}
+        {(review.authorDisplayName ?? "Alguien")} nos dejó{" "}
                 {review.rating} estrellas
               </p>
               <p className="mt-[7px] text-[13px] font-bold leading-none tracking-[0.12em] text-[#ff9f1c]">
@@ -163,7 +163,7 @@ function ToastPreviewCard({
                 ).join("")}
               </p>
               <p className="mt-1.5 truncate text-[11.5px] font-medium leading-tight text-[#69718f]">
-                {daysAgo(review.reviewedAt)} • Powered by Flikker
+                {daysAgo(review.reviewedAt)} • Con tecnología de Flikker
               </p>
             </div>
           </article>
@@ -314,15 +314,15 @@ export default function WidgetsPage() {
 
   async function copySnippet() {
     await navigator.clipboard.writeText(snippet);
-    setMessage("Snippet copiado");
+    setMessage("Código copiado");
   }
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       <PageHeader
-        eyebrow="Widgets"
-        title="Social proof"
-        subtitle="Toast embebible para el sitio del negocio."
+        eyebrow="Prueba social"
+        title="Prueba social"
+        subtitle="Aviso flotante embebible para el sitio del negocio."
       />
 
       {error ? (
@@ -339,7 +339,7 @@ export default function WidgetsPage() {
       <section className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(340px,0.75fr)]">
         <SectionCard
           title="Configuracion"
-          description="Modo Toast."
+          description="Modo aviso flotante."
           action={
             activeToast ? (
               <button
@@ -442,7 +442,7 @@ export default function WidgetsPage() {
         </SectionCard>
 
         <SectionCard
-          title="Preview"
+          title="Vista previa"
           description={`${preview?.summary.totalReviews ?? 0} reseñas disponibles.`}
           tone="tinted"
         >
@@ -460,8 +460,8 @@ export default function WidgetsPage() {
       </section>
 
       <SectionCard
-        title="Snippet"
-        description="Codigo generado para este negocio."
+        title="Código"
+        description="Código generado para este negocio."
       >
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
           <pre className="overflow-x-auto rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4 text-xs leading-6 text-[color:var(--foreground)]">

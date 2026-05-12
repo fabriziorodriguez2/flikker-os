@@ -163,7 +163,7 @@ export default async function DashboardPage() {
         eyebrow="Inicio"
         title={business?.name ?? "Flikker"}
         logoUrl={business?.logoUrl}
-        subtitle={`Dashboard MVP de ${formatMonthRange(metrics.month.currentStart)}${
+        subtitle={`Panel MVP de ${formatMonthRange(metrics.month.currentStart)}${
           business?.industry ? ` · ${business.industry}` : ""
         }`}
       />
@@ -227,7 +227,7 @@ export default async function DashboardPage() {
         </SectionCard>
 
         <SectionCard
-          title="Feedback negativo"
+          title="Comentarios negativos"
           description="Respuestas con score menor a 4, ordenadas por fecha."
           tone="tinted"
         >

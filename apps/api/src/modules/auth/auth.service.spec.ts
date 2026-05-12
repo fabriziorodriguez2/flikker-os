@@ -18,6 +18,7 @@ const mockRepository = {
   executePasswordReset: jest.fn(),
   findMembershipsForUser: jest.fn(),
   findMembershipsWithStatus: jest.fn(),
+  createSignupAccount: jest.fn(),
 };
 
 const mockJwt = {
@@ -41,6 +42,62 @@ describe('AuthService', () => {
     }).compile();
 
     service = module.get<AuthService>(AuthService);
+  });
+
+  describe('signup', () => {
+    it('creates an account and returns an active business membership for dashboard access', async () => {
+      mockRepository.findUserByEmail.mockResolvedValue(null);
+      mockRepository.createSignupAccount.mockResolvedValue({
+        user: {
+          id: 'user-1',
+          email: 'owner@example.com',
+          firstName: 'Clinica Test',
+          lastName: 'Owner',
+          isPlatformAdmin: false,
+        },
+        business: {
+          id: 'business-1',
+          status: 'ACTIVE',
+          subscription: { status: 'ACTIVE', plan: { slug: 'pro' } },
+        },
+      });
+      mockRepository.createSession.mockResolvedValue({});
+      mockRepository.findMembershipsForUser.mockResolvedValue([
+        {
+          businessId: 'business-1',
+          role: 'OWNER',
+          business: {
+            name: 'Clinica Test',
+            slug: 'clinica-test',
+            status: 'ACTIVE',
+          },
+        },
+      ]);
+
+      const result = await service.signup({
+        email: 'OWNER@EXAMPLE.COM',
+        password: 'password1',
+        businessName: 'Clinica Test',
+        vertical: 'dental',
+        timezone: 'America/Montevideo',
+      });
+
+      expect(mockRepository.createSignupAccount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          email: 'owner@example.com',
+          businessName: 'Clinica Test',
+          vertical: 'dental',
+          timezone: 'America/Montevideo',
+        }),
+      );
+      expect(result.memberships).toEqual([
+        expect.objectContaining({
+          businessId: 'business-1',
+          role: 'OWNER',
+          business: expect.objectContaining({ status: 'ACTIVE' }),
+        }),
+      ]);
+    });
   });
 
   describe('login', () => {

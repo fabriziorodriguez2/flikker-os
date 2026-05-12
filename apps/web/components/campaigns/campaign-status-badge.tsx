@@ -17,6 +17,23 @@ function getStatusClass(status: string) {
   }
 }
 
+function getStatusLabel(status: string) {
+  switch (status) {
+    case "ACTIVE":
+      return "Activa";
+    case "PAUSED":
+      return "Pausada";
+    case "COMPLETED":
+      return "Completada";
+    case "ARCHIVED":
+      return "Archivada";
+    case "DRAFT":
+      return "Borrador";
+    default:
+      return status;
+  }
+}
+
 export default function CampaignStatusBadge({
   status,
 }: CampaignStatusBadgeProps) {
@@ -26,7 +43,7 @@ export default function CampaignStatusBadge({
         status,
       )}`}
     >
-      {status}
+      {getStatusLabel(status)}
     </span>
   );
 }

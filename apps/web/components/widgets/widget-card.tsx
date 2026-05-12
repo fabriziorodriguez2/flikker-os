@@ -30,6 +30,19 @@ function statusClass(status: Widget['status']) {
   }
 }
 
+function statusLabel(status: Widget['status']) {
+  switch (status) {
+    case 'ACTIVE':
+      return 'Activo';
+    case 'DRAFT':
+      return 'Borrador';
+    case 'INACTIVE':
+      return 'Inactivo';
+    default:
+      return status;
+  }
+}
+
 export default function WidgetCard({
   widget,
   averageRating,
@@ -57,7 +70,7 @@ export default function WidgetCard({
             <span
               className={`rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] ${statusClass(widget.status)}`}
             >
-              {widget.status}
+                {statusLabel(widget.status)}
             </span>
           </div>
           <p className="mt-2 text-sm leading-6 text-[color:var(--text-muted)]">

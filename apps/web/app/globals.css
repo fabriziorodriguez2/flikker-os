@@ -45,11 +45,12 @@
   --color-warning-bg: var(--warning-bg);
   --color-warning-text: var(--warning-text);
   --font-sans: var(--font-manrope);
+  --font-body: var(--font-manrope);
   --font-heading: var(--font-syne);
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='light']) {
+  :root:not([data-theme="light"]) {
     --background: #090b24;
     --foreground: #f4f6ff;
     --surface: #12183d;
@@ -74,7 +75,7 @@
   }
 }
 
-:root[data-theme='dark'] {
+:root[data-theme="dark"] {
   --background: #090b24;
   --foreground: #f4f6ff;
   --surface: #12183d;
@@ -112,14 +113,18 @@ body {
   font-family: var(--font-manrope), sans-serif;
 }
 
-h1,
+h1 {
+  font-family: var(--font-syne), sans-serif;
+  letter-spacing: -0.03em;
+}
+
 h2,
 h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-syne), sans-serif;
-  letter-spacing: -0.03em;
+  font-family: var(--font-manrope), sans-serif;
+  letter-spacing: 0;
 }
 
 a,
@@ -212,7 +217,7 @@ textarea {
     inset 0 1px 0 rgba(255, 255, 255, 0.28);
 }
 
-:root[data-theme='dark'] .flikker-glass-tooltip {
+:root[data-theme="dark"] .flikker-glass-tooltip {
   border-color: rgba(220, 226, 240, 0.18);
   background: rgba(18, 24, 61, 0.58);
   box-shadow:

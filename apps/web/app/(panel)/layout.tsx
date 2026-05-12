@@ -20,6 +20,10 @@ export default async function PanelLayout({
 
   const { user, memberships, activeBusinessId } = session;
 
+  if (user.isPlatformAdmin && !session.impersonation) {
+    redirect("/platform");
+  }
+
   if (!activeBusinessId) {
     return (
       <>
@@ -68,7 +72,7 @@ export default async function PanelLayout({
           </div>
         </header>
 
-        <MobileNav />
+        <MobileNav isPlatformAdmin={user.isPlatformAdmin} />
 
         <main className="flex-1 overflow-auto px-4 py-5 md:px-6 md:py-6">
           <RoleProvider role={currentRole}>{children}</RoleProvider>

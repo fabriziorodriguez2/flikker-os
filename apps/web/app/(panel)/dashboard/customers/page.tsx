@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PageHeader from "@/components/ui/page-header";
 import SectionCard from "@/components/ui/section-card";
+import PhoneInput, {
+  isValidNationalPhone,
+  toNationalDigits,
+} from "@/components/ui/phone-input";
 import { useCanMutate } from "../../role-context";
 
 interface Customer {
   id: string;
   name: string;
   phoneE164: string;
-  email: string | null;
   optedOut: boolean;
   createdAt: string;
 }
@@ -34,7 +37,6 @@ export default function CustomersPage() {
 
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
   const [csv, setCsv] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -77,18 +79,20 @@ export default function CustomersPage() {
     setEditing(null);
     setName("");
     setPhone("");
-    setEmail("");
   }
 
   function startEdit(customer: Customer) {
     setEditing(customer);
     setName(customer.name);
     setPhone(customer.phoneE164);
-    setEmail(customer.email ?? "");
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (!isValidNationalPhone(toNationalDigits(phone))) {
+      setError("Formato inválido — ingresá entre 7 y 9 dígitos");
+      return;
+    }
     setSaving(true);
     setMessage(null);
     setError(null);
@@ -99,7 +103,7 @@ export default function CustomersPage() {
         {
           method: editing ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, phone, email }),
+          body: JSON.stringify({ name, phone }),
         },
       );
       const data = await res.json().catch(() => ({}));
@@ -222,7 +226,7 @@ export default function CustomersPage() {
         title={editing ? "Editar paciente" : "Nuevo paciente"}
         description="Telefono se normaliza a E.164 al guardar."
       >
-        <form onSubmit={handleSave} className="grid gap-4 lg:grid-cols-4">
+        <form onSubmit={handleSave} className="grid gap-4 lg:grid-cols-3">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -230,19 +234,11 @@ export default function CustomersPage() {
             placeholder="Nombre"
             required
           />
-          <input
+          <PhoneInput
+            label="Teléfono"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            className={inputClass}
-            placeholder="099 123 456"
+            onChange={setPhone}
             required
-          />
-          <input
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={inputClass}
-            placeholder="email@ejemplo.com"
-            type="email"
           />
           <div className="flex gap-2 self-end">
             <button
@@ -268,7 +264,7 @@ export default function CustomersPage() {
       {showImport ? (
         <SectionCard
           title="Importar CSV"
-          description="Formato: nombre, telefono, email, fecha ultimo servicio."
+          description="Formato: nombre, telefono, fecha ultimo servicio."
         >
           <form onSubmit={handleImport} className="space-y-4">
             <textarea
@@ -276,7 +272,7 @@ export default function CustomersPage() {
               onChange={(e) => setCsv(e.target.value)}
               className={`${inputClass} min-h-40 font-mono`}
               placeholder={
-                "nombre,telefono,email,fecha ultimo servicio\nAna Perez,099 123 456,ana@email.com,2026-05-01"
+                "nombre,telefono,fecha ultimo servicio\nAna Perez,099 123 456,2026-05-01"
               }
               required
             />
@@ -320,9 +316,6 @@ export default function CustomersPage() {
                 <div>
                   <p className="font-semibold text-[color:var(--foreground)]">
                     {customer.name}
-                  </p>
-                  <p className="text-sm text-[color:var(--text-muted)]">
-                    {customer.email ?? "Sin email"}
                   </p>
                 </div>
                 <div className="text-sm text-[color:var(--text-muted)]">

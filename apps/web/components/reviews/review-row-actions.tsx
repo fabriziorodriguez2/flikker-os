@@ -38,14 +38,14 @@ export default function ReviewRowActions({
       const res = await fetch(path, { method: "POST" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message ?? "No se pudo actualizar la review");
+        throw new Error(data.message ?? "No se pudo actualizar la reseña");
       }
 
       startTransition(() => {
         router.refresh();
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al actualizar review");
+      setError(e instanceof Error ? e.message : "Error al actualizar reseña");
     }
   }
 
