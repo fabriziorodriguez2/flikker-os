@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 
 export interface SendReviewRequestInput {
   phone: string;
@@ -17,29 +17,72 @@ export interface SendTextInput {
 
 @Injectable()
 export class WhatsAppBspService {
-  private readonly logger = new Logger(WhatsAppBspService.name);
-
-  sendReviewRequest(
+  async sendReviewRequest(
     input: SendReviewRequestInput,
   ): Promise<SendReviewRequestResult> {
-    // TODO: reemplazar con BSP real cuando existan credenciales 360dialog/Twilio.
-    this.logger.log(
-      `STUB: Deber\u00eda enviar WhatsApp a ${input.phone} con link ${input.trackingUrl}`,
-    );
-
-    return Promise.resolve({
-      whatsappMessageId: `stub-${Date.now()}`,
+    return this.sendText({
+      phone: input.phone,
+      text: `Hola ${input.customerName}, gracias por visitarnos. Nos ayudas con una reseña? ${input.trackingUrl}`,
     });
   }
 
-  sendText(input: SendTextInput): Promise<SendReviewRequestResult> {
-    // TODO: reemplazar con BSP real cuando existan credenciales 360dialog/Twilio.
-    this.logger.log(
-      `STUB: Deber\u00eda responder WhatsApp a ${input.phone}: ${input.text}`,
+  async sendText(input: SendTextInput): Promise<SendReviewRequestResult> {
+    const token = process.env.WHAPI_TOKEN;
+    if (!token) {
+      throw new Error('WHAPI_TOKEN is required to send WhatsApp messages');
+    }
+
+    const baseUrl = process.env.WHAPI_BASE_URL ?? 'https://gate.whapi.cloud';
+    const response = await fetch(
+      `${baseUrl.replace(/\/$/, '')}/messages/text`,
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          to: normalizeWhapiPhone(input.phone),
+          body: input.text,
+        }),
+      },
     );
 
-    return Promise.resolve({
-      whatsappMessageId: `stub-text-${Date.now()}`,
-    });
+    const payload = (await response.json().catch(() => null)) as unknown;
+    if (!response.ok) {
+      throw new Error(
+        `Whapi send failed (${response.status}): ${JSON.stringify(payload)}`,
+      );
+    }
+
+    return {
+      whatsappMessageId:
+        extractMessageId(payload) ?? `whapi-${Date.now().toString()}`,
+    };
   }
+}
+
+function normalizeWhapiPhone(phone: string) {
+  const cleaned = phone.replace(/^whatsapp:/i, '').replace(/[^\d+]/g, '');
+  return cleaned.startsWith('+') ? cleaned : `+${cleaned}`;
+}
+
+function extractMessageId(value: unknown): string | null {
+  if (!isRecord(value)) return null;
+
+  return (
+    stringValue(value.id) ??
+    stringValue(value.messageId) ??
+    stringValue(value.message_id) ??
+    (isRecord(value.message) ? stringValue(value.message.id) : null) ??
+    (isRecord(value.data) ? stringValue(value.data.id) : null)
+  );
+}
+
+function stringValue(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
 }

@@ -1,15 +1,15 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getFeedbackData } from "../../feedback-data";
-import FeedbackLanding from "./feedback-landing";
+import FeedbackLanding from "../../l/[slug]/feedback-landing";
 
 export async function generateMetadata({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ token: string }>;
 }): Promise<Metadata> {
-  const { slug } = await params;
-  const data = await getFeedbackData(slug);
+  const { token } = await params;
+  const data = await getFeedbackData(token);
   if (!data) return { title: "Flikker" };
 
   return {
@@ -18,18 +18,18 @@ export async function generateMetadata({
   };
 }
 
-export default async function LandingPage({
+export default async function ReviewRequestLandingPage({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ token: string }>;
 }) {
-  const { slug } = await params;
-  const data = await getFeedbackData(slug);
+  const { token } = await params;
+  const data = await getFeedbackData(token);
   if (!data) notFound();
 
   return (
     <FeedbackLanding
-      token={slug}
+      token={token}
       businessName={data.businessName}
       businessLogo={data.businessLogo}
       googleReviewUrl={data.googleReviewUrl}

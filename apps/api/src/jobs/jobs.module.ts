@@ -12,6 +12,7 @@ import { OwnerNotificationsWorker } from './workers/owner-notifications.worker';
 import { RepeatsWorker } from './workers/repeats.worker';
 import { ReviewRequestWorker } from './workers/review-request.worker';
 import { WhatsAppBspService } from './whatsapp-bsp.service';
+import { EmailService } from './email.service';
 import { RepeatsProcessor } from './repeats.processor';
 
 @Module({
@@ -30,12 +31,14 @@ import { RepeatsProcessor } from './repeats.processor';
     WhatsAppInboundWorker,
     ReviewRequestWorker,
     WhatsAppBspService,
+    EmailService,
   ],
   exports: [
     ReviewRequestQueue,
     WhatsAppInboundQueue,
     OwnerNotificationsQueue,
     GoogleReviewDetectionQueue,
+    WhatsAppBspService,
   ],
 })
 export class JobsModule {}

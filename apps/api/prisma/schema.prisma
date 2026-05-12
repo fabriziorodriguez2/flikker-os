@@ -151,15 +151,17 @@ enum WidgetEventType {
 // ---------------------------------------------------------------------------
 
 model User {
-  id              String   @id @default(uuid())
-  email           String   @unique
-  passwordHash    String
-  firstName       String
-  lastName        String
-  isPlatformAdmin Boolean  @default(false)
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                   String   @id @default(uuid())
+  email                String   @unique
+  notificationEmail    String?  @map("notification_email")
+  notificationWhatsapp String?  @map("notification_whatsapp")
+  passwordHash         String
+  firstName            String
+  lastName             String
+  isPlatformAdmin      Boolean  @default(false)
+  isActive             Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
 
   memberships         Membership[]          @relation("UserMemberships")
   invitedMemberships  Membership[]          @relation("InvitedByUser")
@@ -223,6 +225,7 @@ model Business {
   signatureText             String?
   googleBusinessProfileUrl  String?
   googlePlaceId             String?        @map("google_place_id")
+  googleRefreshToken        String?        @map("google_refresh_token")
   whatsappPhoneId           String?        @map("whatsapp_phone_id")
   messageQuotaMonthly       Int            @default(600) @map("message_quota_monthly")
   messageCountCurrentMonth  Int            @default(0) @map("message_count_current_month")

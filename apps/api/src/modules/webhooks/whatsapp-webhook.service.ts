@@ -22,13 +22,18 @@ export class WhatsAppWebhookService {
       ),
     );
 
-    await this.handleStatusUpdate(body);
+    await this.handleStatusUpdate(body, { quiet: inboundMessages.length > 0 });
   }
 
-  async handleStatusUpdate(body: WhatsAppWebhookBody) {
+  async handleStatusUpdate(
+    body: WhatsAppWebhookBody,
+    options: { quiet?: boolean } = {},
+  ) {
     const update = this.extractStatusUpdate(body);
     if (!update) {
-      this.logger.warn('WhatsApp webhook ignored: missing message id/status');
+      if (!options.quiet) {
+        this.logger.warn('WhatsApp webhook ignored: missing message id/status');
+      }
       return;
     }
 
@@ -56,7 +61,7 @@ export class WhatsAppWebhookService {
       };
     }
 
-    const statuses = this.statusesFromMetaPayload(body);
+    const statuses = this.statusesFromWebhookPayload(body);
     const firstStatus = statuses[0];
     if (!firstStatus) return null;
 
@@ -91,6 +96,9 @@ export class WhatsAppWebhookService {
         },
       ];
     }
+
+    const whapiMessages = this.messagesFromWhapiPayload(body);
+    if (whapiMessages.length > 0) return whapiMessages;
 
     const entries = Array.isArray(body.entry) ? body.entry : [];
     const messages: Array<{
@@ -131,6 +139,20 @@ export class WhatsAppWebhookService {
       return this.stringValue(message.text.body);
     }
 
+    if (this.isRecord(message.link_preview)) {
+      return this.stringValue(message.link_preview.body);
+    }
+
+    if (this.isRecord(message.reply)) {
+      const reply = message.reply;
+      if (this.isRecord(reply.buttons_reply)) {
+        return this.stringValue(reply.buttons_reply.title);
+      }
+      if (this.isRecord(reply.list_reply)) {
+        return this.stringValue(reply.list_reply.title);
+      }
+    }
+
     return this.stringValue(message.body);
   }
 
@@ -150,9 +172,17 @@ export class WhatsAppWebhookService {
     return null;
   }
 
-  private statusesFromMetaPayload(body: WhatsAppWebhookBody) {
-    const entries = Array.isArray(body.entry) ? body.entry : [];
+  private statusesFromWebhookPayload(body: WhatsAppWebhookBody) {
+    const whapiStatuses = Array.isArray(body.statuses) ? body.statuses : [];
     const statuses: Record<string, unknown>[] = [];
+
+    for (const status of whapiStatuses) {
+      if (this.isRecord(status)) {
+        statuses.push(status);
+      }
+    }
+
+    const entries = Array.isArray(body.entry) ? body.entry : [];
 
     for (const entry of entries) {
       if (!this.isRecord(entry)) continue;
@@ -173,8 +203,45 @@ export class WhatsAppWebhookService {
     return statuses;
   }
 
-  private parseTimestamp(timestamp?: string) {
+  private messagesFromWhapiPayload(body: WhatsAppWebhookBody) {
+    const rawMessages = Array.isArray(body.messages) ? body.messages : [];
+    const messages: Array<{
+      from: string;
+      text: string;
+      messageId?: string;
+      receivedAt: string;
+    }> = [];
+
+    for (const rawMessage of rawMessages) {
+      if (!this.isRecord(rawMessage)) continue;
+      if (rawMessage.from_me === true) continue;
+
+      const from =
+        this.stringValue(rawMessage.from) ??
+        this.stringValue(rawMessage.chat_id)?.replace(/@.*/, '');
+      const text = this.extractMessageText(rawMessage);
+      if (!from || !text) continue;
+
+      messages.push({
+        from,
+        text,
+        messageId: this.stringValue(rawMessage.id),
+        receivedAt: this.parseTimestamp(rawMessage.timestamp).toISOString(),
+      });
+    }
+
+    return messages;
+  }
+
+  private parseTimestamp(timestamp?: unknown) {
     if (!timestamp) return new Date();
+
+    if (typeof timestamp === 'number') {
+      const date = new Date(timestamp * 1000);
+      return Number.isNaN(date.getTime()) ? new Date() : date;
+    }
+
+    if (typeof timestamp !== 'string') return new Date();
 
     const milliseconds =
       /^\d+$/.test(timestamp) && timestamp.length <= 10

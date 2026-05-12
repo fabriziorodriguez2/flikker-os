@@ -6,8 +6,16 @@ describe('GoogleReviewDetectionWorker', () => {
     const prisma = {
       business: {
         findMany: jest.fn().mockResolvedValue([
-          { id: 'business-error', googlePlaceId: 'place-error' },
-          { id: 'business-ok', googlePlaceId: 'place-ok' },
+          {
+            id: 'business-error',
+            googlePlaceId: 'place-error',
+            googleRefreshToken: 'refresh-error',
+          },
+          {
+            id: 'business-ok',
+            googlePlaceId: 'place-ok',
+            googleRefreshToken: 'refresh-ok',
+          },
         ]),
       },
       googleReview: {
@@ -44,6 +52,11 @@ describe('GoogleReviewDetectionWorker', () => {
     });
 
     expect(provider.fetchReviews).toHaveBeenCalledTimes(2);
+    expect(provider.fetchReviews).toHaveBeenNthCalledWith(2, {
+      businessId: 'business-ok',
+      googlePlaceId: 'place-ok',
+      googleRefreshToken: 'refresh-ok',
+    });
     expect(prisma.googleReview.create).toHaveBeenCalledWith({
       data: {
         businessId: 'business-ok',
@@ -61,9 +74,13 @@ describe('GoogleReviewDetectionWorker', () => {
     const postedAt = new Date('2026-05-03T10:00:00.000Z');
     const prisma = {
       business: {
-        findMany: jest
-          .fn()
-          .mockResolvedValue([{ id: 'business-1', googlePlaceId: 'place-1' }]),
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id: 'business-1',
+            googlePlaceId: 'place-1',
+            googleRefreshToken: 'refresh-1',
+          },
+        ]),
       },
       googleReview: {
         findMany: jest.fn().mockResolvedValue([]),

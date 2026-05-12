@@ -1,4 +1,13 @@
-import { Controller, Get, Param, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+} from '@nestjs/common';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { PlatformAdminGuard } from '../../common/guards/platform-admin.guard';
 import type { AuthenticatedRequest } from '../../common/types/request.types';
@@ -16,6 +25,101 @@ export class PlatformController {
   @Get('businesses')
   listBusinesses() {
     return this.platformService.listBusinesses();
+  }
+
+  @Get('businesses/:businessId/onboarding')
+  getOnboarding(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+  ) {
+    return this.platformService.getOnboarding(req.user.id, businessId);
+  }
+
+  @Patch('businesses/:businessId/onboarding/business')
+  updateOnboardingBusiness(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+    @Body()
+    body: {
+      name?: string;
+      vertical?: string;
+      timezone?: string;
+      whatsappPhone?: string;
+    },
+  ) {
+    return this.platformService.updateOnboardingBusiness(
+      req.user.id,
+      businessId,
+      body,
+    );
+  }
+
+  @Patch('businesses/:businessId/onboarding/google')
+  connectGoogleBusinessProfile(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+    @Body() body: { googlePlaceId?: string; googleReviewUrl?: string },
+  ) {
+    return this.platformService.connectGoogleBusinessProfile(
+      req.user.id,
+      businessId,
+      body,
+    );
+  }
+
+  @Post('businesses/:businessId/onboarding/import-customers')
+  importOnboardingCustomers(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+    @Body() body: { csv: string },
+  ) {
+    return this.platformService.importOnboardingCustomers(
+      req.user.id,
+      businessId,
+      body,
+    );
+  }
+
+  @Patch('businesses/:businessId/onboarding/templates')
+  updateOnboardingTemplates(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+    @Body()
+    body: {
+      templates?: Array<{
+        campaignId: string;
+        messageBody?: string;
+        triggerOffsetDays?: number;
+        offerText?: string;
+      }>;
+    },
+  ) {
+    return this.platformService.updateOnboardingTemplates(
+      req.user.id,
+      businessId,
+      body,
+    );
+  }
+
+  @Post('businesses/:businessId/onboarding/test-message')
+  sendOnboardingTestMessage(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+    @Body() body: { phone?: string; customerName?: string },
+  ) {
+    return this.platformService.sendOnboardingTestMessage(
+      req.user.id,
+      businessId,
+      body,
+    );
+  }
+
+  @Post('businesses/:businessId/onboarding/complete')
+  completeOnboarding(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+  ) {
+    return this.platformService.completeOnboarding(req.user.id, businessId);
   }
 
   @Get('audit-logs')

@@ -10,6 +10,7 @@ const BUSINESS_ID = 'biz-1';
 
 const mockService = {
   getOverview: jest.fn(),
+  acknowledgeNegativeFeedback: jest.fn(),
 };
 
 function fakeReq(
@@ -51,9 +52,30 @@ describe('MetricsController', () => {
   it('returns overview for the current business', async () => {
     mockService.getOverview.mockResolvedValue({ ok: true });
 
-    const result = await controller.overview(fakeReq(), { days: 30 });
+    const result = await controller.overview(fakeReq());
 
     expect(result).toEqual({ ok: true });
-    expect(mockService.getOverview).toHaveBeenCalledWith(BUSINESS_ID, 30);
+    expect(mockService.getOverview).toHaveBeenCalledWith(BUSINESS_ID);
+  });
+
+  it('acknowledges negative feedback for the current business', async () => {
+    mockService.acknowledgeNegativeFeedback.mockResolvedValue({
+      id: 'feedback-1',
+      acknowledgedByOwner: true,
+    });
+
+    const result = await controller.acknowledgeFeedback(
+      fakeReq(),
+      'feedback-1',
+    );
+
+    expect(result).toEqual({
+      id: 'feedback-1',
+      acknowledgedByOwner: true,
+    });
+    expect(mockService.acknowledgeNegativeFeedback).toHaveBeenCalledWith(
+      BUSINESS_ID,
+      'feedback-1',
+    );
   });
 });

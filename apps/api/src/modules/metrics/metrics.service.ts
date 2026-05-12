@@ -20,6 +20,7 @@ interface NegativeFeedbackItem {
   customerName: string;
   score: number;
   comment: string | null;
+  acknowledgedByOwner: boolean;
 }
 
 export interface MetricsOverview {
@@ -86,6 +87,7 @@ export class MetricsService {
           createdAt: true,
           score: true,
           comment: true,
+          acknowledgedByOwner: true,
           customer: {
             select: {
               name: true,
@@ -124,8 +126,31 @@ export class MetricsService {
         customerName: item.customer.name,
         score: item.score,
         comment: item.comment,
+        acknowledgedByOwner: item.acknowledgedByOwner,
       })),
     };
+  }
+
+  async acknowledgeNegativeFeedback(businessId: string, feedbackId: string) {
+    const feedback = await this.prisma.feedbackResponse.findFirst({
+      where: {
+        id: feedbackId,
+        businessId,
+        score: { lt: 4 },
+      },
+      select: { id: true },
+    });
+
+    if (!feedback) return null;
+
+    return this.prisma.feedbackResponse.update({
+      where: { id: feedbackId },
+      data: { acknowledgedByOwner: true },
+      select: {
+        id: true,
+        acknowledgedByOwner: true,
+      },
+    });
   }
 
   private countGoogleReviews(

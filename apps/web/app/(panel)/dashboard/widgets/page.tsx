@@ -17,7 +17,7 @@ const DEFAULT_FORM: WidgetCreateInput = {
   maxItems: 6,
   minStars: 4,
   primaryColor: "#5B5BD6",
-  rotationSeconds: 30,
+  rotationSeconds: 9,
   showAuthorName: true,
   showDate: true,
 };
@@ -55,13 +55,20 @@ function daysAgo(value: string) {
   );
   if (days === 0) return "hoy";
   if (days === 1) return "hace 1 dia";
-  return `hace ${days} dias`;
+  if (days < 30) return `hace ${days} dias`;
+  const months = Math.max(1, Math.round(days / 30));
+  if (months === 1) return "hace 1 mes";
+  if (months < 12) return `hace ${months} meses`;
+  const years = Math.max(1, Math.round(months / 12));
+  if (years === 1) return "hace 1 ano";
+  return `hace ${years} anos`;
 }
 
 function stars(value: number) {
   return "★".repeat(value) + "☆".repeat(5 - value);
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ToastPreview({
   review,
   color,
@@ -101,6 +108,64 @@ function ToastPreview({
             <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#767a91]">
               {businessName} · {daysAgo(review.reviewedAt)}
             </p>
+          </article>
+        ) : (
+          <div className="rounded-[18px] border border-dashed border-[color:var(--border-strong)] bg-white p-5 text-sm text-[color:var(--text-muted)]">
+            No hay reseñas detectadas con este filtro.
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ToastPreviewCard({
+  review,
+  color,
+  position,
+}: {
+  review?: PreviewReview;
+  color: string;
+  position: string;
+  businessName: string;
+}) {
+  return (
+    <div className="relative min-h-72 overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
+      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(145,136,245,0.08))]" />
+      <div
+        className={`absolute bottom-4 w-[min(320px,calc(100%-32px))] ${
+          position === "bottom_left" ? "left-4" : "right-4"
+        }`}
+      >
+        {review ? (
+          <article className="relative grid min-h-[108px] grid-cols-[40px_1fr] gap-2.5 rounded-[18px] border border-[rgba(93,104,135,0.18)] bg-[#e8eefb] py-5 pl-[18px] pr-[42px] shadow-[0_18px_42px_rgba(5,12,35,0.22)]">
+            <button
+              type="button"
+              aria-label="Cerrar"
+              className="absolute right-2.5 top-2.5 flex h-[23px] w-[23px] items-center justify-center rounded-full bg-white/60 text-[17px] leading-none text-[#6d7691]"
+            >
+              ×
+            </button>
+            <div
+              className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] text-xl font-extrabold leading-none text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]"
+              style={{ backgroundColor: color }}
+            >
+              ★
+            </div>
+            <div className="min-w-0">
+              <p className="m-0 text-[13.5px] font-extrabold leading-[1.18] tracking-[0.01em] text-[#10183d]">
+                {(review.authorDisplayName ?? "Alguien")} nos dejo{" "}
+                {review.rating} estrellas
+              </p>
+              <p className="mt-[7px] text-[13px] font-bold leading-none tracking-[0.12em] text-[#ff9f1c]">
+                {Array.from({ length: 5 }, (_, index) =>
+                  index < review.rating ? "★" : "☆",
+                ).join("")}
+              </p>
+              <p className="mt-1.5 truncate text-[11.5px] font-medium leading-tight text-[#69718f]">
+                {daysAgo(review.reviewedAt)} • Powered by Flikker
+              </p>
+            </div>
           </article>
         ) : (
           <div className="rounded-[18px] border border-dashed border-[color:var(--border-strong)] bg-white p-5 text-sm text-[color:var(--text-muted)]">
@@ -384,7 +449,7 @@ export default function WidgetsPage() {
           {loading ? (
             <div className="h-72 animate-pulse rounded-[20px] bg-[color:var(--surface-muted)]" />
           ) : (
-            <ToastPreview
+            <ToastPreviewCard
               review={preview?.reviews[0]}
               color={form.primaryColor}
               position={form.position}

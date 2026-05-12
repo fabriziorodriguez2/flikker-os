@@ -13,12 +13,16 @@ describe('parseWhatsAppCommand', () => {
     });
   });
 
-  it.each(['', 'hola', 'atendido maria', 'atendi'])(
-    'returns unknown for malformed input: %s',
-    (input) => {
-      expect(parseWhatsAppCommand(input)).toMatchObject({ type: 'unknown' });
-    },
-  );
+  it.each([
+    '',
+    'hola',
+    'atendido maria',
+    'atendi',
+    'Atendido:',
+    'Atendí a María sin telefono',
+  ])('returns unknown for malformed input: %s', (input) => {
+    expect(parseWhatsAppCommand(input)).toMatchObject({ type: 'unknown' });
+  });
 
   it.each([
     ['Stats', 'stats'],

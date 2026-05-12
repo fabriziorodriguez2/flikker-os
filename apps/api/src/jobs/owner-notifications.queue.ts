@@ -5,30 +5,48 @@ import { createRedisConnection, REDIS_CONFIGURED } from './redis-connection';
 
 export const OWNER_NOTIFICATIONS_QUEUE = 'owner-notifications';
 export const LOW_FEEDBACK_NOTIFICATION_JOB = 'low-feedback-notification';
+export const WEEKLY_KPI_SUMMARY_JOB = 'weekly-kpi-summary';
 
 export interface LowFeedbackNotificationJobData {
   businessId: string;
   feedbackResponseId: string;
 }
 
+export interface WeeklyKpiSummaryJobData {
+  businessId: string;
+  weekStartIso: string;
+}
+
 @Injectable()
 export class OwnerNotificationsQueue implements OnModuleInit, OnModuleDestroy {
   private connection?: IORedis;
-  private queue?: Queue<LowFeedbackNotificationJobData>;
+  private queue?: Queue<
+    LowFeedbackNotificationJobData | WeeklyKpiSummaryJobData
+  >;
 
   onModuleInit() {
     if (!REDIS_CONFIGURED) return;
     this.connection = createRedisConnection();
-    this.queue = new Queue<LowFeedbackNotificationJobData>(
-      OWNER_NOTIFICATIONS_QUEUE,
-      { connection: this.connection },
-    );
+    this.queue = new Queue<
+      LowFeedbackNotificationJobData | WeeklyKpiSummaryJobData
+    >(OWNER_NOTIFICATIONS_QUEUE, { connection: this.connection });
   }
 
   async enqueueLowFeedback(data: LowFeedbackNotificationJobData) {
     if (!this.queue) return null;
 
     return this.queue.add(LOW_FEEDBACK_NOTIFICATION_JOB, data, {
+      attempts: 3,
+      removeOnComplete: 100,
+      removeOnFail: false,
+    });
+  }
+
+  async enqueueWeeklyKpiSummary(data: WeeklyKpiSummaryJobData) {
+    if (!this.queue) return null;
+
+    return this.queue.add(WEEKLY_KPI_SUMMARY_JOB, data, {
+      jobId: `${WEEKLY_KPI_SUMMARY_JOB}:${data.businessId}:${data.weekStartIso}`,
       attempts: 3,
       removeOnComplete: 100,
       removeOnFail: false,

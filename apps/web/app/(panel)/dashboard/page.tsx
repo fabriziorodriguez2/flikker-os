@@ -3,6 +3,7 @@ import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getSession } from "@/lib/auth";
 import PageHeader from "@/components/ui/page-header";
 import SectionCard from "@/components/ui/section-card";
+import NegativeFeedbackList from "./negative-feedback-list";
 
 interface Business {
   name: string;
@@ -38,6 +39,7 @@ interface MetricsOverview {
     customerName: string;
     score: number;
     comment: string | null;
+    acknowledgedByOwner: boolean;
   }>;
 }
 
@@ -46,14 +48,6 @@ function formatMonthRange(start: string) {
     month: "long",
     year: "numeric",
   }).format(new Date(start));
-}
-
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("es-UY", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
 }
 
 function formatKpiValue(value: number, decimals = 0) {
@@ -235,37 +229,7 @@ export default async function DashboardPage() {
           description="Respuestas con score menor a 4, ordenadas por fecha."
           tone="tinted"
         >
-          {metrics.negativeFeedback.length === 0 ? (
-            <div className="rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] p-4 text-sm text-[color:var(--text-muted)]">
-              No hay feedback negativo registrado.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {metrics.negativeFeedback.map((feedback) => (
-                <article
-                  key={feedback.id}
-                  className="rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] p-4"
-                >
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <div>
-                      <p className="font-semibold text-[color:var(--foreground)]">
-                        {feedback.customerName}
-                      </p>
-                      <p className="mt-1 text-xs text-[color:var(--text-muted)]">
-                        {formatDate(feedback.createdAt)}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-[color:rgba(161,45,58,0.1)] px-2.5 py-1 text-xs font-semibold text-[color:#a12d3a]">
-                      {feedback.score}/5
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-[color:var(--text-muted)]">
-                    {feedback.comment?.trim() || "Sin comentario."}
-                  </p>
-                </article>
-              ))}
-            </div>
-          )}
+          <NegativeFeedbackList items={metrics.negativeFeedback} />
         </SectionCard>
       </section>
     </div>

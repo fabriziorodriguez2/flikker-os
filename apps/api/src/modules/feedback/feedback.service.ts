@@ -56,10 +56,12 @@ export class FeedbackService {
     });
 
     if (dto.score < 4) {
-      await this.ownerNotificationsQueue.enqueueLowFeedback({
-        businessId: message.businessId,
-        feedbackResponseId: feedback.id,
-      });
+      void this.ownerNotificationsQueue
+        .enqueueLowFeedback({
+          businessId: message.businessId,
+          feedbackResponseId: feedback.id,
+        })
+        .catch(() => undefined);
     }
 
     return {

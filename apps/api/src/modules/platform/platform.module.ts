@@ -4,9 +4,17 @@ import { PlatformController } from './platform.controller';
 import { PlatformService } from './platform.service';
 import { PlatformRepository } from './platform.repository';
 import { AuditService } from '../../common/services/audit.service';
+import { CustomersModule } from '../customers/customers.module';
+import { CampaignsModule } from '../campaigns/campaigns.module';
+import { JobsModule } from '../../jobs/jobs.module';
 
 @Module({
-  imports: [JwtModule.register({})],
+  imports: [
+    JwtModule.register({}),
+    CustomersModule,
+    CampaignsModule,
+    JobsModule,
+  ],
   controllers: [PlatformController],
   providers: [PlatformService, PlatformRepository, AuditService],
 })

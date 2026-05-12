@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { FEATURES } from "@/src/config/features";
 
@@ -163,16 +164,24 @@ export default function PlatformPage() {
                   ) : null}
                   <td className="px-4 py-3 text-zinc-500">{b.country}</td>
                   <td className="px-4 py-3 text-right">
-                    <button
-                      type="button"
-                      onClick={() => void impersonate(b)}
-                      disabled={impersonatingId === b.id}
-                      className="rounded-full bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
-                    >
-                      {impersonatingId === b.id
-                        ? "Entrando..."
-                        : "Operar como este negocio"}
-                    </button>
+                    <div className="flex justify-end gap-2">
+                      <Link
+                        href={`/platform/businesses/${b.id}/onboarding`}
+                        className="rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+                      >
+                        Onboarding
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => void impersonate(b)}
+                        disabled={impersonatingId === b.id}
+                        className="rounded-full bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
+                      >
+                        {impersonatingId === b.id
+                          ? "Entrando..."
+                          : "Operar como este negocio"}
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

@@ -15,13 +15,22 @@ export class GoogleReviewsProvider {
   fetchReviews(input: {
     businessId: string;
     googlePlaceId: string;
+    googleRefreshToken?: string | null;
   }): Promise<DetectedGoogleReview[]> {
-    if (!hasGoogleBusinessProfileCredentials()) {
+    if (!hasGoogleBusinessProfileAppCredentials()) {
       this.logger.warn(
-        'Google Business Profile credentials are not configured; using stub review detection.',
+        'Google Business Profile app credentials are not configured; review detection is disabled in production.',
       );
 
-      return Promise.resolve([this.generateFakeReview(input.businessId)]);
+      return Promise.resolve(this.devStubReviews(input.businessId));
+    }
+
+    if (!input.googleRefreshToken) {
+      this.logger.warn(
+        `Business ${input.businessId} has no Google refresh token; skipping review detection.`,
+      );
+
+      return Promise.resolve([]);
     }
 
     // TODO: reemplazar el stub por Google Business Profile API:
@@ -29,13 +38,13 @@ export class GoogleReviewsProvider {
     // Env vars necesarias:
     // GOOGLE_BUSINESS_PROFILE_CLIENT_ID
     // GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET
-    // GOOGLE_BUSINESS_PROFILE_REFRESH_TOKEN
-    // y un google_location_id/parent por negocio cuando se modele.
+    // El refresh token sale de Business.googleRefreshToken, obtenido por OAuth
+    // durante onboarding del negocio.
     this.logger.warn(
-      `GBP credentials detected, but real integration is pending; using stub for place ${input.googlePlaceId}.`,
+      `GBP OAuth token found for business ${input.businessId}, but real integration is pending; using development stub for place ${input.googlePlaceId}.`,
     );
 
-    return Promise.resolve([this.generateFakeReview(input.businessId)]);
+    return Promise.resolve(this.devStubReviews(input.businessId));
   }
 
   generateFakeReview(businessId: string): DetectedGoogleReview {
@@ -49,12 +58,19 @@ export class GoogleReviewsProvider {
       postedAt: new Date(),
     };
   }
+
+  private devStubReviews(businessId: string): DetectedGoogleReview[] {
+    if (process.env.NODE_ENV === 'production') {
+      return [];
+    }
+
+    return [this.generateFakeReview(businessId)];
+  }
 }
 
-function hasGoogleBusinessProfileCredentials() {
+function hasGoogleBusinessProfileAppCredentials() {
   return Boolean(
     process.env.GOOGLE_BUSINESS_PROFILE_CLIENT_ID &&
-    process.env.GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET &&
-    process.env.GOOGLE_BUSINESS_PROFILE_REFRESH_TOKEN,
+    process.env.GOOGLE_BUSINESS_PROFILE_CLIENT_SECRET,
   );
 }
