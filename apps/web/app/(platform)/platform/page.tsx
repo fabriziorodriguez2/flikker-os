@@ -460,14 +460,6 @@ Contrasena temporal: ${
                           type="button"
                           onClick={() => void impersonate(business)}
                           disabled={impersonatingId === business.id}
-                          className="rounded-full border border-[color:rgba(161,45,58,0.25)] bg-[color:var(--surface)] px-3 py-1.5 text-xs font-semibold text-[color:var(--danger-text)] hover:bg-[color:var(--danger-bg)] disabled:opacity-60"
-                        >
-                          Ver dashboard
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => void impersonate(business)}
-                          disabled={impersonatingId === business.id}
                           className="rounded-full bg-[#d90000] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#b80000] disabled:opacity-60"
                         >
                           {impersonatingId === business.id

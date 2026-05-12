@@ -24,7 +24,11 @@ export default async function PanelLayout({
     redirect("/platform");
   }
 
-  if (!activeBusinessId) {
+  const activeMembership = memberships.find(
+    (membership) => membership.businessId === activeBusinessId,
+  );
+
+  if (!activeBusinessId || (!session.impersonation && !activeMembership)) {
     return (
       <>
         <SessionExpiryHandler />
@@ -35,8 +39,7 @@ export default async function PanelLayout({
 
   const currentRole = session.impersonation
     ? "OWNER"
-    : (memberships.find((m) => m.businessId === activeBusinessId)?.role ??
-      null);
+    : (activeMembership?.role ?? null);
 
   return (
     <div className="flikker-app-shell min-h-screen lg:flex">
