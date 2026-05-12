@@ -58,12 +58,10 @@ export class GoogleReviewDetectionWorker
         isActive: true,
         archivedAt: null,
         googlePlaceId: { not: null },
-        googleRefreshToken: { not: null },
       },
       select: {
         id: true,
         googlePlaceId: true,
-        googleRefreshToken: true,
       },
     });
 
@@ -75,7 +73,6 @@ export class GoogleReviewDetectionWorker
         created += await this.detectForBusiness(
           business.id,
           business.googlePlaceId!,
-          business.googleRefreshToken,
         );
       } catch (error) {
         failed += 1;
@@ -98,15 +95,10 @@ export class GoogleReviewDetectionWorker
     await this.connection?.quit();
   }
 
-  private async detectForBusiness(
-    businessId: string,
-    googlePlaceId: string,
-    googleRefreshToken?: string | null,
-  ) {
+  private async detectForBusiness(businessId: string, googlePlaceId: string) {
     const detectedReviews = await this.googleReviewsProvider.fetchReviews({
       businessId,
       googlePlaceId,
-      googleRefreshToken,
     });
 
     if (detectedReviews.length === 0) return 0;

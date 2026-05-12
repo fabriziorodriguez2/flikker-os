@@ -9,12 +9,10 @@ describe('GoogleReviewDetectionWorker', () => {
           {
             id: 'business-error',
             googlePlaceId: 'place-error',
-            googleRefreshToken: 'refresh-error',
           },
           {
             id: 'business-ok',
             googlePlaceId: 'place-ok',
-            googleRefreshToken: 'refresh-ok',
           },
         ]),
       },
@@ -55,7 +53,6 @@ describe('GoogleReviewDetectionWorker', () => {
     expect(provider.fetchReviews).toHaveBeenNthCalledWith(2, {
       businessId: 'business-ok',
       googlePlaceId: 'place-ok',
-      googleRefreshToken: 'refresh-ok',
     });
     expect(prisma.googleReview.create).toHaveBeenCalledWith({
       data: {
@@ -78,7 +75,6 @@ describe('GoogleReviewDetectionWorker', () => {
           {
             id: 'business-1',
             googlePlaceId: 'place-1',
-            googleRefreshToken: 'refresh-1',
           },
         ]),
       },
