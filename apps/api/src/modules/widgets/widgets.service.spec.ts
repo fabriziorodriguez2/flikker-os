@@ -254,6 +254,46 @@ describe('WidgetsService', () => {
     ]);
   });
 
+  it('returns toast preview reviews from detected Google reviews with min stars', async () => {
+    mockWidgetsRepository.getDetectedReviewsAggregate.mockResolvedValue({
+      _avg: { stars: 4.5 },
+      _count: { _all: 1 },
+    });
+    mockWidgetsRepository.findDetectedReviewsForWidget.mockResolvedValue([
+      {
+        googleReviewId: 'google-4',
+        stars: 4,
+        text: 'Muy buena experiencia',
+        reviewerName: 'Claudia',
+        postedAt: new Date('2026-05-02T00:00:00.000Z'),
+      },
+    ]);
+
+    const result = await service.getToastPreviewReviews(BUSINESS_ID, 4);
+
+    expect(
+      mockWidgetsRepository.getDetectedReviewsAggregate,
+    ).toHaveBeenCalledWith(BUSINESS_ID, 4);
+    expect(
+      mockWidgetsRepository.findDetectedReviewsForWidget,
+    ).toHaveBeenCalledWith(BUSINESS_ID, 4, 6);
+    expect(result).toEqual({
+      summary: {
+        averageRating: 4.5,
+        totalReviews: 1,
+      },
+      reviews: [
+        {
+          id: 'google-4',
+          rating: 4,
+          content: 'Muy buena experiencia',
+          authorDisplayName: 'Claudia',
+          reviewedAt: new Date('2026-05-02T00:00:00.000Z'),
+        },
+      ],
+    });
+  });
+
   it('tracks public widget events', async () => {
     mockWidgetsRepository.createEvent.mockResolvedValue({ id: 'event-1' });
 

@@ -3,6 +3,7 @@ import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getSession } from "@/lib/auth";
 import PageHeader from "@/components/ui/page-header";
 import SectionCard from "@/components/ui/section-card";
+import ActivityEvolutionChart from "./activity-evolution-chart";
 import NegativeFeedbackList from "./negative-feedback-list";
 
 interface Business {
@@ -34,6 +35,13 @@ interface MetricsOverview {
     label: string;
     total: number;
   }>;
+  activityByMonth: Array<{
+    month: string;
+    label: string;
+    messagesSent: number;
+    reviewsGenerated: number;
+    reactivatedCustomers: number;
+  }>;
   negativeFeedback: Array<{
     id: string;
     createdAt: string;
@@ -48,6 +56,7 @@ function formatMonthRange(start: string) {
   return new Intl.DateTimeFormat("es-UY", {
     month: "long",
     year: "numeric",
+    timeZone: "UTC",
   }).format(new Date(start));
 }
 
@@ -152,11 +161,6 @@ export default async function DashboardPage() {
     );
   }
 
-  const maxMonthlyReviews = Math.max(
-    1,
-    ...metrics.reviewsByMonth.map((month) => month.total),
-  );
-
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader
@@ -190,40 +194,10 @@ export default async function DashboardPage() {
 
       <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.85fr)]">
         <SectionCard
-          title="Evolucion mensual"
-          description="Resenas detectadas: estimacion; algunas pueden no estar atribuidas."
+          title="Evolución de actividad"
+          description="Mensajes enviados, reseñas generadas y clientes reactivados en los últimos 6 meses."
         >
-          <div className="flex h-64 items-end gap-2 sm:gap-3">
-            {metrics.reviewsByMonth.map((month) => {
-              const height = Math.max(
-                8,
-                (month.total / maxMonthlyReviews) * 100,
-              );
-
-              return (
-                <div
-                  key={month.month}
-                  className="flex min-w-0 flex-1 flex-col items-center gap-2"
-                >
-                  <div className="flex h-48 w-full items-end rounded-[12px] bg-[color:rgba(145,136,245,0.08)] p-1">
-                    <div
-                      className="w-full rounded-[10px] bg-[color:var(--brand-primary)]"
-                      style={{ height: `${height}%` }}
-                      aria-label={`${month.total} resenas en ${month.label}`}
-                    />
-                  </div>
-                  <div className="text-center">
-                    <p className="text-sm font-semibold text-[color:var(--foreground)]">
-                      {month.total}
-                    </p>
-                    <p className="text-[11px] uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
-                      {month.label}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+          <ActivityEvolutionChart data={metrics.activityByMonth} />
         </SectionCard>
 
         <SectionCard

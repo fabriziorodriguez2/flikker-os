@@ -14,6 +14,14 @@ interface MonthlyReviewTotal {
   total: number;
 }
 
+interface MonthlyActivityTotal {
+  month: string;
+  label: string;
+  messagesSent: number;
+  reviewsGenerated: number;
+  reactivatedCustomers: number;
+}
+
 interface NegativeFeedbackItem {
   id: string;
   createdAt: string;
@@ -36,6 +44,7 @@ export interface MetricsOverview {
     reactivatedCustomers: KpiMetric;
   };
   reviewsByMonth: MonthlyReviewTotal[];
+  activityByMonth: MonthlyActivityTotal[];
   negativeFeedback: NegativeFeedbackItem[];
 }
 
@@ -62,6 +71,7 @@ export class MetricsService {
       currentReactivatedCustomers,
       previousReactivatedCustomers,
       monthlyReviewCounts,
+      monthlyActivityCounts,
       negativeFeedback,
     ] = await Promise.all([
       this.countGoogleReviews(businessId, currentStart, currentEnd),
@@ -74,6 +84,26 @@ export class MetricsService {
         chartMonths.map(({ start, end }) =>
           this.countGoogleReviews(businessId, start, end),
         ),
+      ),
+      Promise.all(
+        chartMonths.map(async ({ start, end }) => {
+          const [messagesSent, reviewsGenerated, reactivatedCustomers] =
+            await Promise.all([
+              this.countMessagesSent(businessId, start, end),
+              this.countDetectedGoogleReviews(businessId, start, end),
+              this.countReactivatedCustomersByExecutionDate(
+                businessId,
+                start,
+                end,
+              ),
+            ]);
+
+          return {
+            messagesSent,
+            reviewsGenerated,
+            reactivatedCustomers,
+          };
+        }),
       ),
       this.prisma.feedbackResponse.findMany({
         where: {
@@ -119,6 +149,14 @@ export class MetricsService {
         month: month.start.toISOString(),
         label: formatMonthLabel(month.start),
         total: monthlyReviewCounts[index] ?? 0,
+      })),
+      activityByMonth: chartMonths.map((month, index) => ({
+        month: month.start.toISOString(),
+        label: formatMonthLabel(month.start),
+        messagesSent: monthlyActivityCounts[index]?.messagesSent ?? 0,
+        reviewsGenerated: monthlyActivityCounts[index]?.reviewsGenerated ?? 0,
+        reactivatedCustomers:
+          monthlyActivityCounts[index]?.reactivatedCustomers ?? 0,
       })),
       negativeFeedback: negativeFeedback.map((item) => ({
         id: item.id,
@@ -169,6 +207,38 @@ export class MetricsService {
     });
   }
 
+  private countDetectedGoogleReviews(
+    businessId: string,
+    from: Date,
+    to: Date,
+  ): Promise<number> {
+    return this.prisma.googleReview.count({
+      where: {
+        businessId,
+        detectedAt: {
+          gte: from,
+          lt: to,
+        },
+      },
+    });
+  }
+
+  private countMessagesSent(
+    businessId: string,
+    from: Date,
+    to: Date,
+  ): Promise<number> {
+    return this.prisma.message.count({
+      where: {
+        businessId,
+        sentAt: {
+          gte: from,
+          lt: to,
+        },
+      },
+    });
+  }
+
   private findRatingSample(businessId: string, from?: Date, to?: Date) {
     const postedAt = {
       ...(from ? { gte: from } : {}),
@@ -198,6 +268,29 @@ export class MetricsService {
         businessId,
         status: CampaignExecutionStatus.responded,
         respondedAt: {
+          gte: from,
+          lt: to,
+        },
+      },
+      distinct: ['customerId'],
+      select: {
+        customerId: true,
+      },
+    });
+
+    return executions.length;
+  }
+
+  private async countReactivatedCustomersByExecutionDate(
+    businessId: string,
+    from: Date,
+    to: Date,
+  ): Promise<number> {
+    const executions = await this.prisma.campaignExecution.findMany({
+      where: {
+        businessId,
+        status: CampaignExecutionStatus.responded,
+        executedAt: {
           gte: from,
           lt: to,
         },
@@ -248,7 +341,19 @@ function buildMonthWindows(currentStart: Date, count: number) {
 }
 
 function formatMonthLabel(date: Date): string {
-  return new Intl.DateTimeFormat('es-UY', {
-    month: 'short',
-  }).format(date);
+  const labels = [
+    'Ene',
+    'Feb',
+    'Mar',
+    'Abr',
+    'May',
+    'Jun',
+    'Jul',
+    'Ago',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dic',
+  ];
+  return labels[date.getUTCMonth()];
 }

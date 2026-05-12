@@ -123,11 +123,13 @@ function ToastPreviewCard({
   review,
   color,
   position,
+  minStars,
 }: {
   review?: PreviewReview;
   color: string;
   position: string;
   businessName: string;
+  minStars: number;
 }) {
   return (
     <div className="relative min-h-72 overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
@@ -169,7 +171,7 @@ function ToastPreviewCard({
           </article>
         ) : (
           <div className="rounded-[18px] border border-dashed border-[color:var(--border-strong)] bg-white p-5 text-sm text-[color:var(--text-muted)]">
-            No hay reseñas detectadas con este filtro.
+            No hay reseñas con {minStars} estrellas o más todavía.
           </div>
         )}
       </div>
@@ -184,6 +186,7 @@ export default function WidgetsPage() {
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
   const [form, setForm] = useState<WidgetCreateInput>(DEFAULT_FORM);
   const [loading, setLoading] = useState(true);
+  const [previewLoading, setPreviewLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [statusLoadingId, setStatusLoadingId] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
@@ -200,29 +203,52 @@ export default function WidgetsPage() {
     setError(null);
 
     try {
-      const [businessRes, widgetsRes, previewRes] = await Promise.all([
+      const [businessRes, widgetsRes] = await Promise.all([
         fetch("/api/proxy/businesses/current"),
         fetch("/api/proxy/widgets"),
-        fetch(`/api/proxy/widgets/preview/reviews?minStars=${form.minStars}`),
       ]);
 
-      if (!businessRes.ok || !widgetsRes.ok || !previewRes.ok) {
+      if (!businessRes.ok || !widgetsRes.ok) {
         throw new Error("No se pudo cargar widgets");
       }
 
       setBusiness((await businessRes.json()) as Business);
       setWidgets((await widgetsRes.json()) as Widget[]);
-      setPreview((await previewRes.json()) as PreviewPayload);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar widgets");
     } finally {
       setLoading(false);
     }
-  }, [form.minStars]);
+  }, []);
+
+  const loadPreview = useCallback(async (minStars: number) => {
+    setPreviewLoading(true);
+    try {
+      const previewRes = await fetch(
+        `/api/proxy/widgets/preview/reviews?minStars=${minStars}`,
+      );
+
+      if (!previewRes.ok) {
+        throw new Error("No se pudo cargar la vista previa");
+      }
+
+      setPreview((await previewRes.json()) as PreviewPayload);
+    } catch (e) {
+      setError(
+        e instanceof Error ? e.message : "Error al cargar la vista previa",
+      );
+    } finally {
+      setPreviewLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
     void loadPage();
   }, [loadPage]);
+
+  useEffect(() => {
+    void loadPreview(form.minStars);
+  }, [form.minStars, loadPreview]);
 
   useEffect(() => {
     if (!activeToast) return;
@@ -443,16 +469,21 @@ export default function WidgetsPage() {
 
         <SectionCard
           title="Vista previa"
-          description={`${preview?.summary.totalReviews ?? 0} reseñas disponibles.`}
+          description={
+            previewLoading
+              ? "Cargando reseñas..."
+              : `${preview?.summary.totalReviews ?? 0} reseñas disponibles.`
+          }
           tone="tinted"
         >
-          {loading ? (
+          {loading || previewLoading ? (
             <div className="h-72 animate-pulse rounded-[20px] bg-[color:var(--surface-muted)]" />
           ) : (
             <ToastPreviewCard
               review={preview?.reviews[0]}
               color={form.primaryColor}
               position={form.position}
+              minStars={form.minStars}
               businessName={business?.name ?? "Flikker"}
             />
           )}

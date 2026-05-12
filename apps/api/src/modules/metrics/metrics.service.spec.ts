@@ -10,6 +10,9 @@ const mockPrisma = {
     count: jest.fn(),
     findMany: jest.fn(),
   },
+  message: {
+    count: jest.fn(),
+  },
   campaignExecution: {
     findMany: jest.fn(),
   },
@@ -49,7 +52,9 @@ describe('MetricsService', () => {
       .mockResolvedValueOnce(3)
       .mockResolvedValueOnce(4)
       .mockResolvedValueOnce(8)
-      .mockResolvedValueOnce(12);
+      .mockResolvedValueOnce(12)
+      .mockResolvedValue(0);
+    mockPrisma.message.count.mockResolvedValue(0);
     mockPrisma.googleReview.findMany
       .mockResolvedValueOnce([{ stars: 5 }, { stars: 4 }, { stars: 4 }])
       .mockResolvedValueOnce([{ stars: 4 }, { stars: 4 }]);
@@ -58,13 +63,15 @@ describe('MetricsService', () => {
         { customerId: 'cust-1' },
         { customerId: 'cust-2' },
       ])
-      .mockResolvedValueOnce([{ customerId: 'cust-3' }]);
+      .mockResolvedValueOnce([{ customerId: 'cust-3' }])
+      .mockResolvedValue([]);
     mockPrisma.feedbackResponse.findMany.mockResolvedValue([
       {
         id: 'feedback-1',
         createdAt: new Date('2026-05-02T09:00:00.000Z'),
         score: 2,
         comment: 'Demora larga',
+        acknowledgedByOwner: false,
         customer: { name: 'Maria Garcia' },
       },
     ]);
@@ -95,6 +102,14 @@ describe('MetricsService', () => {
     expect(result.reviewsByMonth.map((month) => month.total)).toEqual([
       1, 2, 3, 4, 8, 12,
     ]);
+    expect(result.activityByMonth).toHaveLength(6);
+    expect(result.activityByMonth[0]).toEqual({
+      month: '2025-12-01T00:00:00.000Z',
+      label: 'Dic',
+      messagesSent: 0,
+      reviewsGenerated: 0,
+      reactivatedCustomers: 0,
+    });
     expect(result.negativeFeedback).toEqual([
       {
         id: 'feedback-1',
@@ -102,6 +117,7 @@ describe('MetricsService', () => {
         customerName: 'Maria Garcia',
         score: 2,
         comment: 'Demora larga',
+        acknowledgedByOwner: false,
       },
     ]);
 
@@ -130,6 +146,7 @@ describe('MetricsService', () => {
 
   it('returns zero-safe values when there is no data', async () => {
     mockPrisma.googleReview.count.mockResolvedValue(0);
+    mockPrisma.message.count.mockResolvedValue(0);
     mockPrisma.googleReview.findMany.mockResolvedValue([]);
     mockPrisma.campaignExecution.findMany.mockResolvedValue([]);
     mockPrisma.feedbackResponse.findMany.mockResolvedValue([]);

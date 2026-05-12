@@ -48,6 +48,7 @@ const mockService = {
   update: jest.fn(),
   updateStatus: jest.fn(),
   getEmbedInfo: jest.fn(),
+  getToastPreviewReviews: jest.fn(),
   getPublicWidget: jest.fn(),
   getEmbeddableWidgetByBusiness: jest.fn(),
   trackPublicEvent: jest.fn(),
@@ -169,6 +170,29 @@ describe('WidgetsController', () => {
     expect(mockService.getEmbedInfo).toHaveBeenCalledWith(
       BUSINESS_ID,
       WIDGET_ID,
+    );
+  });
+
+  it('returns toast preview reviews for the current business', async () => {
+    mockService.getToastPreviewReviews.mockResolvedValue({
+      summary: { averageRating: 4.8, totalReviews: 2 },
+      reviews: [
+        {
+          id: 'google-1',
+          rating: 5,
+          content: 'Excelente',
+          authorDisplayName: 'Maria',
+          reviewedAt: new Date('2026-05-01T00:00:00.000Z'),
+        },
+      ],
+    });
+
+    const result = await controller.previewReviews(fakeReq(), '4');
+
+    expect(result.summary.totalReviews).toBe(2);
+    expect(mockService.getToastPreviewReviews).toHaveBeenCalledWith(
+      BUSINESS_ID,
+      4,
     );
   });
 
