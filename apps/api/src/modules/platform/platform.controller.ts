@@ -27,6 +27,25 @@ export class PlatformController {
     return this.platformService.listBusinesses();
   }
 
+  @Post('businesses')
+  createBusiness(
+    @Req() req: AuthenticatedRequest,
+    @Body()
+    body: {
+      name?: string;
+      legalName?: string;
+      vertical?: string;
+      country?: string;
+      timezone?: string;
+      ownerEmail?: string;
+      ownerFirstName?: string;
+      ownerLastName?: string;
+      whatsappPhone?: string;
+    },
+  ) {
+    return this.platformService.createBusiness(req.user.id, body);
+  }
+
   @Get('businesses/:businessId/onboarding')
   getOnboarding(
     @Req() req: AuthenticatedRequest,
@@ -45,6 +64,7 @@ export class PlatformController {
       vertical?: string;
       timezone?: string;
       whatsappPhone?: string;
+      logoUrl?: string | null;
     },
   ) {
     return this.platformService.updateOnboardingBusiness(

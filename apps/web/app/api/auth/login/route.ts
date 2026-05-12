@@ -1,5 +1,5 @@
-import { apiFetch, ApiError } from '@/lib/api';
-import { setSession, type Session } from '@/lib/auth';
+import { apiFetch, ApiError } from "@/lib/api";
+import { setSession, type Session } from "@/lib/auth";
 
 interface LoginResponse {
   accessToken: string;
@@ -23,14 +23,14 @@ export async function POST(request: Request) {
 
   if (!body?.email || !body?.password) {
     return Response.json(
-      { message: 'Email y contraseña requeridos' },
+      { message: "Email y contraseña requeridos" },
       { status: 400 },
     );
   }
 
   try {
-    const data = await apiFetch<LoginResponse>('/auth/login', null, {
-      method: 'POST',
+    const data = await apiFetch<LoginResponse>("/auth/login", null, {
+      method: "POST",
       body: { email: body.email, password: body.password },
     });
 
@@ -45,16 +45,19 @@ export async function POST(request: Request) {
 
     await setSession(session);
 
-    return Response.json({ ok: true });
+    return Response.json({
+      ok: true,
+      redirectTo: data.user.isPlatformAdmin ? "/platform" : "/dashboard",
+    });
   } catch (err) {
     if (err instanceof ApiError && err.status === 401) {
       return Response.json(
-        { message: 'Email o contraseña incorrectos' },
+        { message: "Email o contraseña incorrectos" },
         { status: 401 },
       );
     }
     return Response.json(
-      { message: 'Error al iniciar sesión' },
+      { message: "Error al iniciar sesión" },
       { status: 500 },
     );
   }

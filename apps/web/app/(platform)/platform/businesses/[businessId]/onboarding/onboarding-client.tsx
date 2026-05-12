@@ -12,6 +12,7 @@ interface Business {
   vertical: string | null;
   timezone: string;
   phone: string | null;
+  logoUrl: string | null;
   country: string;
   googlePlaceId: string | null;
   googleBusinessProfileUrl: string | null;
@@ -47,6 +48,7 @@ const emptyBusiness: Business = {
   vertical: "",
   timezone: "America/Montevideo",
   phone: "",
+  logoUrl: "",
   country: "UY",
   googlePlaceId: "",
   googleBusinessProfileUrl: "",
@@ -122,6 +124,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
             vertical: businessForm.vertical,
             timezone: businessForm.timezone,
             whatsappPhone: businessForm.phone,
+            logoUrl: businessForm.logoUrl,
           }),
         },
       );
@@ -221,6 +224,28 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
     });
   }
 
+  async function handleLogoFile(file: File | null) {
+    if (!file) return;
+    const allowedTypes = [
+      "image/png",
+      "image/jpeg",
+      "image/svg+xml",
+      "image/webp",
+    ];
+    if (!allowedTypes.includes(file.type)) {
+      setError("El logo debe ser PNG, JPG, SVG o WebP.");
+      return;
+    }
+    if (file.size > 350_000) {
+      setError("El logo debe pesar menos de 350 KB.");
+      return;
+    }
+
+    const logoUrl = await readFileAsDataUrl(file);
+    setBusinessForm((current) => ({ ...current, logoUrl }));
+    setError(null);
+  }
+
   async function run(label: string, task: () => Promise<void>) {
     setSaving(label);
     setError(null);
@@ -291,9 +316,58 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
         </div>
       )}
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-4">
+      <section
+        id="business"
+        className="rounded-lg border border-zinc-200 bg-white p-4"
+      >
         <h2 className="text-base font-semibold text-zinc-900">Negocio</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <div className="sm:col-span-2">
+            <span className="mb-2 block text-sm font-medium text-zinc-700">
+              Logo
+            </span>
+            <div className="flex flex-wrap items-center gap-3">
+              <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50">
+                {businessForm.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={businessForm.logoUrl}
+                    alt={`Logo de ${businessForm.name}`}
+                    className="h-full w-full object-contain"
+                  />
+                ) : (
+                  <span className="text-xs text-zinc-400">Logo</span>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <label className="cursor-pointer rounded-lg border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">
+                  Subir logo
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                    className="hidden"
+                    onChange={(event) =>
+                      void handleLogoFile(event.target.files?.[0] ?? null)
+                    }
+                  />
+                </label>
+                {businessForm.logoUrl ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setBusinessForm({ ...businessForm, logoUrl: null })
+                    }
+                    className="rounded-lg border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-500 hover:bg-zinc-50"
+                  >
+                    Quitar
+                  </button>
+                ) : null}
+              </div>
+              <p className="text-xs text-zinc-500">
+                PNG, JPG, SVG o WebP. Máximo 350 KB.
+              </p>
+            </div>
+          </div>
           <Field label="Nombre">
             <input
               className={inputClassName}
@@ -557,4 +631,13 @@ async function api<T = unknown>(path: string, init?: RequestInit): Promise<T> {
     throw new Error(payload.message ?? "Error de API");
   }
   return (await res.json()) as T;
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result));
+    reader.onerror = () => reject(new Error("No se pudo leer el logo"));
+    reader.readAsDataURL(file);
+  });
 }

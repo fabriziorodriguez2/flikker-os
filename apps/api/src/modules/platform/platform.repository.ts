@@ -1,6 +1,30 @@
 import { Injectable } from '@nestjs/common';
-import { BusinessStatus, MessageChannel, MessageStatus } from '@prisma/client';
+import {
+  BusinessStatus,
+  MembershipRole,
+  MembershipStatus,
+  MessageChannel,
+  MessageStatus,
+  SubscriptionStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+
+const PRO_PLAN_DATA = {
+  slug: 'pro',
+  name: 'Pro',
+  description: 'USD 129/mes, setup USD 99, incluye 600 mensajes WhatsApp/mes.',
+  maxBranches: 10,
+  maxMembers: 15,
+  maxCampaigns: 20,
+  maxReviewsPerMonth: 600,
+  priceMonthly: 12900,
+  priceUsd: 129,
+  setupFeeUsd: 99,
+  messageQuotaMonthly: 600,
+  trialDays: 0,
+  displayOrder: 2,
+  isActive: true,
+};
 
 @Injectable()
 export class PlatformRepository {
@@ -29,6 +53,8 @@ export class PlatformRepository {
           select: {
             branches: true,
             memberships: true,
+            customers: { where: { isActive: true } },
+            googleReviews: true,
           },
         },
       },
@@ -47,6 +73,85 @@ export class PlatformRepository {
     });
   }
 
+  async createBusinessWithOwner(input: {
+    name: string;
+    legalName?: string;
+    vertical?: string;
+    country: string;
+    timezone: string;
+    phone?: string;
+    ownerEmail: string;
+    ownerFirstName: string;
+    ownerLastName: string;
+    passwordHash: string;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const slug = await this.buildUniqueSlug(input.name);
+      let owner = await tx.user.findUnique({
+        where: { email: input.ownerEmail },
+      });
+      const reusedOwnerUser = Boolean(owner);
+
+      if (!owner) {
+        owner = await tx.user.create({
+          data: {
+            email: input.ownerEmail,
+            passwordHash: input.passwordHash,
+            firstName: input.ownerFirstName,
+            lastName: input.ownerLastName,
+            isActive: true,
+          },
+        });
+      }
+
+      const business = await tx.business.create({
+        data: {
+          name: input.name,
+          legalName: input.legalName,
+          slug,
+          status: BusinessStatus.ONBOARDING,
+          vertical: input.vertical,
+          country: input.country,
+          timezone: input.timezone,
+          currency: 'USD',
+          phone: input.phone,
+          messageQuotaMonthly: 600,
+          messageCountCurrentMonth: 0,
+        },
+      });
+
+      await tx.membership.create({
+        data: {
+          userId: owner.id,
+          businessId: business.id,
+          role: MembershipRole.OWNER,
+          status: MembershipStatus.ACTIVE,
+        },
+      });
+
+      const plan = await tx.plan.upsert({
+        where: { slug: 'pro' },
+        update: PRO_PLAN_DATA,
+        create: PRO_PLAN_DATA,
+      });
+      const currentPeriodStart = new Date();
+      const currentPeriodEnd = new Date(currentPeriodStart);
+      currentPeriodEnd.setMonth(currentPeriodEnd.getMonth() + 1);
+
+      await tx.subscription.create({
+        data: {
+          businessId: business.id,
+          planId: plan.id,
+          status: SubscriptionStatus.ACTIVE,
+          currentPeriodStart,
+          currentPeriodEnd,
+        },
+      });
+
+      return { business, owner, reusedOwnerUser };
+    });
+  }
+
   findOnboardingBusiness(businessId: string) {
     return this.prisma.business.findUnique({
       where: { id: businessId },
@@ -58,6 +163,7 @@ export class PlatformRepository {
         vertical: true,
         timezone: true,
         phone: true,
+        logoUrl: true,
         country: true,
         googlePlaceId: true,
         googleBusinessProfileUrl: true,
@@ -79,6 +185,7 @@ export class PlatformRepository {
       vertical?: string | null;
       timezone?: string;
       phone?: string | null;
+      logoUrl?: string | null;
     },
   ) {
     return this.prisma.business.update({
@@ -92,6 +199,7 @@ export class PlatformRepository {
         vertical: true,
         timezone: true,
         phone: true,
+        logoUrl: true,
       },
     });
   }
@@ -224,4 +332,35 @@ export class PlatformRepository {
       },
     });
   }
+
+  private async buildUniqueSlug(name: string) {
+    const baseSlug = slugify(name);
+    const existingBusinesses = await this.prisma.business.findMany({
+      where: { slug: { startsWith: baseSlug } },
+      select: { slug: true },
+    });
+    const existingSlugs = new Set(
+      existingBusinesses.map((business) => business.slug),
+    );
+    let slug = baseSlug;
+    let suffix = 2;
+
+    while (existingSlugs.has(slug)) {
+      slug = `${baseSlug}-${suffix}`;
+      suffix += 1;
+    }
+
+    return slug;
+  }
+}
+
+function slugify(value: string) {
+  const slug = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return slug || 'negocio';
 }

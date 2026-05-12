@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'crypto';
+import * as bcrypt from 'bcrypt';
 import type { StringValue } from 'ms';
 import { PlatformRepository } from './platform.repository';
 import { AuditService } from '../../common/services/audit.service';
@@ -12,6 +13,8 @@ import { normalizeToE164 } from '../../common/utils/phone.util';
 import { CustomersService } from '../customers/customers.service';
 import { CampaignsService } from '../campaigns/campaigns.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+
+const BCRYPT_ROUNDS = 12;
 
 @Injectable()
 export class PlatformService {
@@ -40,7 +43,91 @@ export class PlatformService {
       subscriptionStatus: b.subscription?.status ?? null,
       branchCount: b._count.branches,
       memberCount: b._count.memberships,
+      customerCount: b._count.customers,
+      reviewCount: b._count.googleReviews,
     }));
+  }
+
+  async createBusiness(
+    adminId: string,
+    dto: {
+      name?: string;
+      legalName?: string;
+      vertical?: string;
+      country?: string;
+      timezone?: string;
+      ownerEmail?: string;
+      ownerFirstName?: string;
+      ownerLastName?: string;
+      whatsappPhone?: string;
+    },
+  ) {
+    const name = dto.name?.trim();
+    const ownerEmail = dto.ownerEmail?.trim().toLowerCase();
+    const ownerFirstName = dto.ownerFirstName?.trim();
+    const ownerLastName = dto.ownerLastName?.trim();
+
+    if (!name) throw new BadRequestException('Business name is required');
+    if (!ownerEmail) throw new BadRequestException('Owner email is required');
+    if (!ownerFirstName) {
+      throw new BadRequestException('Owner first name is required');
+    }
+    if (!ownerLastName) {
+      throw new BadRequestException('Owner last name is required');
+    }
+
+    const temporaryPassword = generateTemporaryPassword();
+    const passwordHash = await bcrypt.hash(temporaryPassword, BCRYPT_ROUNDS);
+    const phone = dto.whatsappPhone?.trim()
+      ? normalizeToE164(dto.whatsappPhone)
+      : undefined;
+
+    const result = await this.repository.createBusinessWithOwner({
+      name,
+      legalName: dto.legalName?.trim() || undefined,
+      vertical: dto.vertical?.trim() || undefined,
+      country: dto.country?.trim() || 'UY',
+      timezone: dto.timezone?.trim() || 'America/Montevideo',
+      phone,
+      ownerEmail,
+      ownerFirstName,
+      ownerLastName,
+      passwordHash,
+    });
+
+    this.logPlatformWrite(
+      adminId,
+      result.business.id,
+      'PLATFORM_BUSINESS_CREATED',
+      {
+        ownerUserId: result.owner.id,
+        ownerEmail,
+        reusedOwnerUser: result.reusedOwnerUser,
+      },
+    );
+
+    const loginUrl = `${(
+      process.env.APP_PUBLIC_URL ??
+      process.env.WEB_BASE_URL ??
+      'https://app.flikker.com'
+    ).replace(/\/$/, '')}/login`;
+
+    return {
+      business: result.business,
+      owner: {
+        id: result.owner.id,
+        email: result.owner.email,
+        firstName: result.owner.firstName,
+        lastName: result.owner.lastName,
+        reusedOwnerUser: result.reusedOwnerUser,
+      },
+      credentials: {
+        loginUrl,
+        email: ownerEmail,
+        temporaryPassword: result.reusedOwnerUser ? null : temporaryPassword,
+        businessName: result.business.name,
+      },
+    };
   }
 
   async impersonate(adminId: string, targetBusinessId: string) {
@@ -115,6 +202,7 @@ export class PlatformService {
       vertical?: string;
       timezone?: string;
       whatsappPhone?: string;
+      logoUrl?: string | null;
     },
   ) {
     await this.assertBusinessExists(businessId);
@@ -124,6 +212,7 @@ export class PlatformService {
       vertical?: string | null;
       timezone?: string;
       phone?: string | null;
+      logoUrl?: string | null;
     } = {};
 
     if (dto.name !== undefined) {
@@ -141,6 +230,9 @@ export class PlatformService {
       data.phone = dto.whatsappPhone.trim()
         ? normalizeToE164(dto.whatsappPhone)
         : null;
+    }
+    if (dto.logoUrl !== undefined) {
+      data.logoUrl = dto.logoUrl?.trim() || null;
     }
 
     const updated = await this.repository.updateOnboardingBusiness(
@@ -354,4 +446,8 @@ function buildGoogleReviewUrl(placeId: string) {
   return `https://search.google.com/local/writereview?placeid=${encodeURIComponent(
     placeId,
   )}`;
+}
+
+function generateTemporaryPassword() {
+  return `Flk-${randomBytes(9).toString('base64url')}-1a`;
 }

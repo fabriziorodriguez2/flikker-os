@@ -8,6 +8,7 @@ import NegativeFeedbackList from "./negative-feedback-list";
 interface Business {
   name: string;
   industry: string | null;
+  logoUrl: string | null;
 }
 
 interface KpiMetric {
@@ -161,6 +162,7 @@ export default async function DashboardPage() {
       <PageHeader
         eyebrow="Inicio"
         title={business?.name ?? "Flikker"}
+        logoUrl={business?.logoUrl}
         subtitle={`Dashboard MVP de ${formatMonthRange(metrics.month.currentStart)}${
           business?.industry ? ` · ${business.industry}` : ""
         }`}
