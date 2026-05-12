@@ -1,7 +1,9 @@
-import { getSession } from '@/lib/auth';
-import { redirect } from 'next/navigation';
-import Link from 'next/link';
-import SessionExpiryHandler from '@/components/auth/session-expiry-handler';
+import { getSession } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import Link from "next/link";
+import BrandLogo from "@/components/brand/brand-logo";
+import ThemeToggle from "@/components/theme/theme-toggle";
+import SessionExpiryHandler from "@/components/auth/session-expiry-handler";
 
 export default async function PlatformLayout({
   children,
@@ -9,34 +11,36 @@ export default async function PlatformLayout({
   children: React.ReactNode;
 }) {
   const session = await getSession();
-  if (!session) redirect('/login');
-  if (!session.user.isPlatformAdmin) redirect('/dashboard');
+  if (!session) redirect("/login");
+  if (!session.user.isPlatformAdmin) redirect("/dashboard");
 
   return (
-    <div className="min-h-screen bg-zinc-50">
+    <div className="flikker-app-shell min-h-screen">
       <SessionExpiryHandler />
-      <header className="bg-white border-b border-zinc-200 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <span className="text-sm font-semibold text-zinc-900">
-            Flikker Platform
-          </span>
-          <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">
-            Admin
-          </span>
-        </div>
-        <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard"
-            className="text-xs text-zinc-500 hover:text-zinc-900 transition-colors"
-          >
-            Ir al panel
-          </Link>
-          <span className="text-sm text-zinc-500">
-            {session.user.firstName} {session.user.lastName}
-          </span>
+      <header className="sticky top-0 z-20 border-b border-[color:var(--border)] bg-[color:var(--background)]/95 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--background)]/88">
+        <div className="flex items-center justify-between gap-4 px-4 py-3 md:px-6">
+          <div className="flex items-center gap-3">
+            <BrandLogo width={126} height={107} className="h-auto w-[96px]" />
+            <span className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--brand-warm)]">
+              Admin
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Link
+              href="/dashboard"
+              className="flikker-control-subtle inline-flex h-9 items-center rounded-full px-4 text-xs font-semibold hover:border-[color:var(--border-strong)]"
+            >
+              Ir al panel
+            </Link>
+            <ThemeToggle />
+            <span className="flikker-control-subtle hidden h-9 items-center rounded-full px-4 text-sm font-medium sm:inline-flex">
+              {session.user.firstName} {session.user.lastName}
+            </span>
+          </div>
         </div>
       </header>
-      <main className="px-6 py-6">{children}</main>
+      <main className="px-4 py-5 md:px-6 md:py-6">{children}</main>
     </div>
   );
 }

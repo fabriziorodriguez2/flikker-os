@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 interface PlatformBusiness {
   id: string;
@@ -61,6 +62,13 @@ const emptyCreateForm: CreateBusinessForm = {
   whatsappPhone: "",
 };
 
+const inputClassName =
+  "flikker-input flikker-focus-ring w-full px-3 py-2.5 text-sm";
+const primaryButtonClassName =
+  "rounded-[14px] bg-[color:var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-[color:var(--background)] hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60";
+const subtleButtonClassName =
+  "rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1.5 text-xs font-semibold text-[color:var(--text-muted)] hover:border-[color:var(--border-strong)] hover:text-[color:var(--foreground)]";
+
 export default function PlatformPage() {
   const [businesses, setBusinesses] = useState<PlatformBusiness[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,6 +93,24 @@ export default function PlatformPage() {
     }
     void boot();
   }, []);
+
+  const stats = useMemo(() => {
+    return {
+      active: businesses.filter((business) => business.status === "ACTIVE")
+        .length,
+      onboarding: businesses.filter(
+        (business) => business.status === "ONBOARDING",
+      ).length,
+      customers: businesses.reduce(
+        (total, business) => total + business.customerCount,
+        0,
+      ),
+      reviews: businesses.reduce(
+        (total, business) => total + business.reviewCount,
+        0,
+      ),
+    };
+  }, [businesses]);
 
   async function loadBusinesses() {
     const res = await fetch("/api/proxy/platform/businesses");
@@ -151,49 +177,79 @@ export default function PlatformPage() {
         `Negocio: ${credentials.businessName}`,
         `Email: ${credentials.email}`,
         credentials.temporaryPassword
-          ? `Contraseña temporal: ${credentials.temporaryPassword}`
-          : "Contraseña temporal: usuario existente, usar contraseña actual o recuperar acceso",
+          ? `Contrasena temporal: ${credentials.temporaryPassword}`
+          : "Contrasena temporal: usuario existente, usar contrasena actual o recuperar acceso",
       ].join("\n"),
     );
   }
 
   if (loading) {
-    return <p className="text-sm text-zinc-500">Cargando cuentas...</p>;
+    return (
+      <div className="mx-auto max-w-7xl">
+        <div className="flikker-card rounded-[22px] p-5 text-sm text-[color:var(--text-muted)]">
+          Cargando cuentas...
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="max-w-7xl">
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold text-zinc-900">
-            Cuentas ({businesses.length})
-          </h1>
-          <p className="mt-1 text-sm text-zinc-500">
-            Consola operativa del fundador para alta, onboarding e
-            impersonation.
-          </p>
+    <div className="mx-auto max-w-7xl space-y-5">
+      <section className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 shadow-[var(--shadow-card)] md:p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+              Plataforma
+            </p>
+            <h1 className="mt-2 text-[1.8rem] font-semibold text-[color:var(--foreground)] md:text-[2.1rem]">
+              Cuentas ({businesses.length})
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[color:var(--text-muted)]">
+              Consola operativa del fundador para alta, onboarding e
+              impersonation de negocios.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => setShowCreate((value) => !value)}
+            className={primaryButtonClassName}
+          >
+            {showCreate ? "Cerrar alta" : "Crear negocio"}
+          </button>
         </div>
-        <button
-          type="button"
-          onClick={() => setShowCreate((value) => !value)}
-          className="rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard label="Activos" value={stats.active} />
+          <MetricCard label="En onboarding" value={stats.onboarding} />
+          <MetricCard label="Pacientes" value={stats.customers} />
+          <MetricCard label="Resenas detectadas" value={stats.reviews} />
+        </div>
+      </section>
+
+      {error ? (
+        <div
+          className="rounded-[18px] border px-4 py-3 text-sm text-[color:var(--danger-text)]"
+          style={{
+            backgroundColor: "var(--danger-bg)",
+            borderColor: "rgba(161,45,58,0.18)",
+          }}
         >
-          Crear negocio
-        </button>
-      </div>
-
-      {error && (
-        <div className="mt-4 rounded-lg border border-red-200 bg-red-50 p-3">
-          <p className="text-sm text-red-700">{error}</p>
+          {error}
         </div>
-      )}
+      ) : null}
 
-      {showCreate && (
-        <section className="mt-4 rounded-xl border border-zinc-200 bg-white p-4">
-          <h2 className="text-base font-semibold text-zinc-900">
-            Crear nuevo negocio
-          </h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
+      {showCreate ? (
+        <section className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 shadow-[var(--shadow-card)] md:p-6">
+          <div className="flex flex-col gap-1">
+            <h2 className="text-lg font-semibold text-[color:var(--foreground)]">
+              Crear nuevo negocio
+            </h2>
+            <p className="text-sm text-[color:var(--text-muted)]">
+              El negocio queda en onboarding y se genera un usuario OWNER para
+              el dueno.
+            </p>
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-4">
             <Input
               label="Nombre"
               value={createForm.name}
@@ -214,7 +270,7 @@ export default function PlatformPage() {
               }
             />
             <Input
-              label="País"
+              label="Pais"
               value={createForm.country}
               onChange={(country) => setCreateForm({ ...createForm, country })}
             />
@@ -226,7 +282,7 @@ export default function PlatformPage() {
               }
             />
             <Input
-              label="Email dueño"
+              label="Email dueno"
               type="email"
               value={createForm.ownerEmail}
               onChange={(ownerEmail) =>
@@ -234,14 +290,14 @@ export default function PlatformPage() {
               }
             />
             <Input
-              label="Nombre dueño"
+              label="Nombre dueno"
               value={createForm.ownerFirstName}
               onChange={(ownerFirstName) =>
                 setCreateForm({ ...createForm, ownerFirstName })
               }
             />
             <Input
-              label="Apellido dueño"
+              label="Apellido dueno"
               value={createForm.ownerLastName}
               onChange={(ownerLastName) =>
                 setCreateForm({ ...createForm, ownerLastName })
@@ -259,147 +315,171 @@ export default function PlatformPage() {
             type="button"
             onClick={() => void createBusiness()}
             disabled={creating}
-            className="mt-4 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-60"
+            className={`${primaryButtonClassName} mt-5`}
           >
             {creating ? "Creando..." : "Crear y generar credenciales"}
           </button>
         </section>
-      )}
+      ) : null}
 
-      {createdCredentials && (
-        <section className="mt-4 rounded-xl border border-green-200 bg-green-50 p-4">
+      {createdCredentials ? (
+        <section className="rounded-[24px] border border-[color:rgba(46,125,77,0.35)] bg-[color:var(--success-bg)] p-5 shadow-[var(--shadow-card)]">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-base font-semibold text-green-900">
+              <h2 className="text-lg font-semibold text-[color:var(--success-text)]">
                 Credenciales temporales
               </h2>
-              <p className="mt-1 text-sm text-green-800">
-                Copialas ahora. La contraseña no se vuelve a mostrar.
+              <p className="mt-1 text-sm text-[color:var(--success-text)]/90">
+                Copialas ahora. La contrasena no se vuelve a mostrar.
               </p>
               {createdCredentials.owner.reusedOwnerUser ? (
-                <p className="mt-2 text-xs text-amber-700">
-                  El usuario dueño ya existía. No se cambió su contraseña; usá
-                  recuperación si no la recuerda.
+                <p className="mt-2 text-xs text-[color:var(--warning-text)]">
+                  El usuario dueno ya existia. No se cambio su contrasena; usar
+                  recuperacion si no la recuerda.
                 </p>
               ) : null}
             </div>
             <button
               type="button"
               onClick={() => void copyCredentials()}
-              className="rounded-lg bg-green-700 px-4 py-2 text-sm font-semibold text-white hover:bg-green-800"
+              className="rounded-[14px] bg-[color:var(--success-text)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
             >
               Copiar credenciales
             </button>
           </div>
-          <pre className="mt-3 overflow-x-auto rounded-lg bg-white p-3 text-sm text-zinc-800">{`URL: ${createdCredentials.credentials.loginUrl}
+          <pre className="mt-4 overflow-x-auto rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] p-4 text-sm leading-6 text-[color:var(--foreground)]">{`URL: ${createdCredentials.credentials.loginUrl}
 Negocio: ${createdCredentials.credentials.businessName}
 Email: ${createdCredentials.credentials.email}
-Contraseña temporal: ${
+Contrasena temporal: ${
             createdCredentials.credentials.temporaryPassword ??
-            "usuario existente; usar contraseña actual o recuperar acceso"
+            "usuario existente; usar contrasena actual o recuperar acceso"
           }`}</pre>
         </section>
-      )}
+      ) : null}
 
-      <div className="mt-4 overflow-x-auto rounded-xl border border-zinc-200 bg-white">
-        {businesses.length === 0 ? (
-          <p className="p-5 text-sm text-zinc-500">No hay cuentas.</p>
-        ) : (
-          <table className="w-full min-w-[1100px] text-sm">
-            <thead>
-              <tr className="border-b border-zinc-100 bg-zinc-50">
-                <Th>Negocio</Th>
-                <Th>Plan</Th>
-                <Th>Estado</Th>
-                <Th>País</Th>
-                <Th align="right">Pacientes</Th>
-                <Th align="right">Reseñas</Th>
-                <Th>Creado</Th>
-                <Th align="right">Acción</Th>
-              </tr>
-            </thead>
-            <tbody>
-              {businesses.map((business) => (
-                <tr
-                  key={business.id}
-                  className="border-b border-zinc-50 last:border-0"
-                >
-                  <td className="px-4 py-3">
-                    <div>
-                      <span className="font-medium text-zinc-900">
-                        {business.name}
-                      </span>
-                      <span className="ml-1 text-xs text-zinc-400">
-                        /{business.slug}
-                      </span>
-                    </div>
-                    {business.industry && (
-                      <span className="text-xs text-zinc-400">
-                        {business.industry}
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="rounded-full bg-zinc-100 px-2 py-0.5 text-xs text-zinc-700">
-                      {business.plan}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <StatusBadge status={business.status} />
-                  </td>
-                  <td className="px-4 py-3 text-zinc-500">
-                    {business.country}
-                  </td>
-                  <td className="px-4 py-3 text-right text-zinc-500">
-                    {business.customerCount}
-                  </td>
-                  <td className="px-4 py-3 text-right text-zinc-500">
-                    {business.reviewCount}
-                  </td>
-                  <td className="px-4 py-3 text-zinc-500">
-                    {formatDate(business.createdAt)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <Link
-                        href={`/platform/businesses/${business.id}/onboarding`}
-                        className="rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
-                      >
-                        Onboarding
-                      </Link>
-                      <Link
-                        href={`/platform/businesses/${business.id}/onboarding#business`}
-                        className="rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
-                      >
-                        Editar
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={() => void impersonate(business)}
-                        disabled={impersonatingId === business.id}
-                        className="rounded-full border border-red-200 px-3 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60"
-                      >
-                        Ver dashboard
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void impersonate(business)}
-                        disabled={impersonatingId === business.id}
-                        className="rounded-full bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700 disabled:opacity-60"
-                      >
-                        {impersonatingId === business.id
-                          ? "Entrando..."
-                          : "Operar como negocio"}
-                      </button>
-                    </div>
-                  </td>
+      <section className="overflow-hidden rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--shadow-card)]">
+        <div className="flex flex-col gap-1 border-b border-[color:var(--border)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-[color:var(--foreground)]">
+              Negocios
+            </h2>
+            <p className="text-sm text-[color:var(--text-muted)]">
+              Acciones rapidas por cuenta.
+            </p>
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          {businesses.length === 0 ? (
+            <p className="p-5 text-sm text-[color:var(--text-muted)]">
+              No hay cuentas.
+            </p>
+          ) : (
+            <table className="w-full min-w-[1120px] text-sm">
+              <thead>
+                <tr className="border-b border-[color:var(--border)] bg-[color:var(--surface-muted)]/55">
+                  <Th>Negocio</Th>
+                  <Th>Plan</Th>
+                  <Th>Estado</Th>
+                  <Th>Pais</Th>
+                  <Th align="right">Pacientes</Th>
+                  <Th align="right">Resenas</Th>
+                  <Th>Creado</Th>
+                  <Th align="right">Accion</Th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+              </thead>
+              <tbody>
+                {businesses.map((business) => (
+                  <tr
+                    key={business.id}
+                    className="border-b border-[color:var(--border)]/60 last:border-0 hover:bg-[color:var(--surface-muted)]/35"
+                  >
+                    <td className="px-5 py-4">
+                      <div className="font-semibold text-[color:var(--foreground)]">
+                        {business.name}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-[color:var(--text-soft)]">
+                        <span>/{business.slug}</span>
+                        {business.industry ? (
+                          <span>{business.industry}</span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4">
+                      <span className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-2.5 py-1 text-xs font-medium text-[color:var(--text-muted)]">
+                        {business.plan}
+                      </span>
+                    </td>
+                    <td className="px-4 py-4">
+                      <StatusBadge status={business.status} />
+                    </td>
+                    <td className="px-4 py-4 text-[color:var(--text-muted)]">
+                      {business.country}
+                    </td>
+                    <td className="px-4 py-4 text-right font-semibold text-[color:var(--foreground)]">
+                      {business.customerCount}
+                    </td>
+                    <td className="px-4 py-4 text-right font-semibold text-[color:var(--foreground)]">
+                      {business.reviewCount}
+                    </td>
+                    <td className="px-4 py-4 text-[color:var(--text-muted)]">
+                      {formatDate(business.createdAt)}
+                    </td>
+                    <td className="px-5 py-4 text-right">
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Link
+                          href={`/platform/businesses/${business.id}/onboarding`}
+                          className={subtleButtonClassName}
+                        >
+                          Onboarding
+                        </Link>
+                        <Link
+                          href={`/platform/businesses/${business.id}/onboarding#business`}
+                          className={subtleButtonClassName}
+                        >
+                          Editar
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => void impersonate(business)}
+                          disabled={impersonatingId === business.id}
+                          className="rounded-full border border-[color:rgba(161,45,58,0.25)] bg-[color:var(--surface)] px-3 py-1.5 text-xs font-semibold text-[color:var(--danger-text)] hover:bg-[color:var(--danger-bg)] disabled:opacity-60"
+                        >
+                          Ver dashboard
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void impersonate(business)}
+                          disabled={impersonatingId === business.id}
+                          className="rounded-full bg-[#d90000] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#b80000] disabled:opacity-60"
+                        >
+                          {impersonatingId === business.id
+                            ? "Entrando..."
+                            : "Operar como negocio"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </section>
     </div>
+  );
+}
+
+function MetricCard({ label, value }: { label: string; value: number }) {
+  return (
+    <article className="rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface-muted)]/45 p-4">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-soft)]">
+        {label}
+      </p>
+      <p className="mt-3 text-3xl font-semibold text-[color:var(--foreground)]">
+        {value.toLocaleString("es-UY")}
+      </p>
+    </article>
   );
 }
 
@@ -416,12 +496,14 @@ function Input({
 }) {
   return (
     <label className="block text-sm">
-      <span className="mb-1 block font-medium text-zinc-700">{label}</span>
+      <span className="mb-1.5 block font-medium text-[color:var(--text-muted)]">
+        {label}
+      </span>
       <input
         type={type}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="w-full rounded-lg border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-400 focus:ring-2 focus:ring-zinc-100"
+        className={inputClassName}
       />
     </label>
   );
@@ -431,12 +513,12 @@ function Th({
   children,
   align = "left",
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   align?: "left" | "right";
 }) {
   return (
     <th
-      className={`px-4 py-2.5 font-medium text-zinc-600 ${
+      className={`px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[color:var(--text-soft)] ${
         align === "right" ? "text-right" : "text-left"
       }`}
     >
@@ -448,15 +530,17 @@ function Th({
 function StatusBadge({ status }: { status: string }) {
   const className =
     status === "ACTIVE"
-      ? "bg-green-50 text-green-700"
+      ? "bg-[color:var(--success-bg)] text-[color:var(--success-text)]"
       : status === "ONBOARDING"
-        ? "bg-blue-50 text-blue-700"
+        ? "bg-[color:rgba(145,136,245,0.16)] text-[color:var(--brand-accent)]"
         : status === "DRAFT"
-          ? "bg-amber-50 text-amber-700"
-          : "bg-zinc-100 text-zinc-500";
+          ? "bg-[color:var(--warning-bg)] text-[color:var(--warning-text)]"
+          : "bg-[color:var(--surface-muted)] text-[color:var(--text-muted)]";
 
   return (
-    <span className={`rounded-full px-2 py-0.5 text-xs ${className}`}>
+    <span
+      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${className}`}
+    >
       {status}
     </span>
   );
