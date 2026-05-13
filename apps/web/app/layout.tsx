@@ -4,11 +4,13 @@ import "./globals.css";
 
 const manrope = Manrope({
   variable: "--font-manrope",
+  weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
 });
 
 const syne = Syne({
   variable: "--font-syne",
+  weight: ["400", "700"],
   subsets: ["latin"],
 });
 
@@ -44,7 +46,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="flex min-h-full flex-col font-sans">{children}</body>
     </html>
   );
 }

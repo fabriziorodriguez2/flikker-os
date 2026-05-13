@@ -1,5 +1,7 @@
 "use client";
 
+import { Check, X } from "lucide-react";
+
 const URUGUAY_COUNTRY_CODE = "598";
 const URUGUAY_PHONE_PREFIX = `+${URUGUAY_COUNTRY_CODE}`;
 const VALID_MIN_DIGITS = 7;
@@ -12,6 +14,7 @@ interface PhoneInputProps {
   required?: boolean;
   placeholder?: string;
   className?: string;
+  disabled?: boolean;
 }
 
 export default function PhoneInput({
@@ -21,14 +24,14 @@ export default function PhoneInput({
   required,
   placeholder = "091 624 988",
   className = "",
+  disabled,
 }: PhoneInputProps) {
   const national = toNationalDigits(value);
   const touched = national.length > 0;
   const valid = isValidNationalPhone(national);
 
   function handleChange(nextValue: string) {
-    const normalized = normalizeUruguayNationalPhone(nextValue);
-    onChange(normalized ? `${URUGUAY_PHONE_PREFIX}${normalized}` : "");
+    onChange(normalizeUruguayNationalPhone(nextValue));
   }
 
   return (
@@ -39,13 +42,13 @@ export default function PhoneInput({
         </span>
       ) : null}
       <div
-        className={`flex items-center rounded-[16px] border bg-[color:var(--surface)] transition-colors ${
+        className={`flex items-center rounded-lg border bg-[color:var(--surface)] transition-colors ${
           touched && !valid
             ? "border-[color:var(--danger-text)]"
             : "border-[color:var(--border)] focus-within:border-[color:var(--brand-accent)]"
-        }`}
+        } ${disabled ? "opacity-60" : ""}`}
       >
-        <span className="shrink-0 border-r border-[color:var(--border)] px-3 text-sm font-semibold text-[color:var(--text-muted)]">
+        <span className="shrink-0 border-r border-[color:var(--border)] px-3 text-sm font-medium text-[color:var(--text-muted)]">
           {URUGUAY_PHONE_PREFIX}
         </span>
         <input
@@ -55,31 +58,28 @@ export default function PhoneInput({
           autoComplete="tel-national"
           required={required}
           placeholder={placeholder}
+          disabled={disabled}
           className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm text-[color:var(--foreground)] outline-none placeholder:text-[color:var(--text-soft)]"
         />
         <span className="flex w-10 shrink-0 justify-center">
           {touched ? (
             valid ? (
-              <span
+              <Check
                 aria-label="Teléfono válido"
-                className="text-sm font-bold text-[color:var(--success-text)]"
-              >
-                ✓
-              </span>
+                className="h-4 w-4 text-[color:var(--success-text)]"
+              />
             ) : (
-              <span
+              <X
                 aria-label="Teléfono inválido"
-                className="text-sm font-bold text-[color:var(--danger-text)]"
-              >
-                ×
-              </span>
+                className="h-4 w-4 text-[color:var(--danger-text)]"
+              />
             )
           ) : null}
         </span>
       </div>
       {touched && !valid ? (
         <p className="mt-2 text-xs text-[color:var(--danger-text)]">
-          Formato inválido — ingresá entre 7 y 9 dígitos
+          Formato inválido
         </p>
       ) : null}
     </label>

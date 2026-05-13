@@ -80,6 +80,7 @@ export class GoogleReviewDetectionWorker
           business.id,
           business.googlePlaceId!,
         );
+        await sleep(750);
       } catch (error) {
         failed += 1;
         this.logger.error(
@@ -257,4 +258,8 @@ export class GoogleReviewDetectionWorker
 
     return message?.id ?? null;
   }
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

@@ -9,10 +9,38 @@ export interface DetectedGoogleReview {
   postedAt: Date;
 }
 
+interface ScrapeDoReview {
+  review_id?: string;
+  rating?: number;
+  iso_date?: string;
+  date?: string;
+  snippet?: string;
+  extracted_snippet?: {
+    original?: string;
+    translated?: string;
+  };
+  user?: {
+    name?: string;
+  };
+}
+
+interface ScrapeDoReviewsResponse {
+  reviews?: ScrapeDoReview[];
+  pagination?: {
+    next_page_token?: string;
+  };
+}
+
+const SCRAPE_DO_REVIEWS_ENDPOINT =
+  'https://api.scrape.do/plugin/google/maps/reviews';
+const SCRAPE_TIMEOUT_MS = 50_000;
+const MAX_RETRIES = 2;
+const GOOGLE_REVIEWS_PAGE_SIZE = 20;
+const GOOGLE_REVIEWS_MAX_PAGES = 3;
+
 @Injectable()
 export class GoogleReviewsProvider {
   private readonly logger = new Logger('google-reviews');
-  private readonly scrapeTimeoutMs = 50_000;
 
   async fetchReviews(input: {
     businessId: string;
@@ -27,108 +55,139 @@ export class GoogleReviewsProvider {
       return [];
     }
 
-    const targetUrl = `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(
-      input.googlePlaceId,
-    )}`;
-    const scrapeParams = new URLSearchParams({
-      token,
-      url: targetUrl,
-      render: 'true',
-      super: 'true',
-      geoCode: 'uy',
-      waitUntil: 'domcontentloaded',
-      customWait: '3000',
-      retryTimeout: '5000',
-      timeout: '45000',
-    });
-    const scrapeUrl = `https://api.scrape.do/?${scrapeParams.toString()}`;
+    const reviews: DetectedGoogleReview[] = [];
+    let nextPageToken: string | undefined;
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), this.scrapeTimeoutMs);
-    let response: Response;
-    try {
-      response = await fetch(scrapeUrl, { signal: controller.signal });
-    } finally {
-      clearTimeout(timeout);
+    for (let page = 1; page <= GOOGLE_REVIEWS_MAX_PAGES; page += 1) {
+      const payload = await this.fetchReviewsPage({
+        token,
+        businessId: input.businessId,
+        googlePlaceId: input.googlePlaceId,
+        nextPageToken,
+      });
+
+      reviews.push(...payload.reviews.map(mapScrapeDoReview));
+      nextPageToken = payload.nextPageToken;
+      if (!nextPageToken) break;
+      await sleep(750);
     }
 
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      const detail = body ? `: ${body.slice(0, 300)}` : '';
-      throw new Error(
-        `Scrape.do failed for business ${input.businessId} (${response.status})${detail}`,
+    const unique = new Map<string, DetectedGoogleReview>();
+    for (const review of reviews) {
+      if (review.stars < 1 || review.stars > 5) continue;
+      unique.set(review.googleReviewId, review);
+    }
+
+    if (unique.size === 0) {
+      this.logger.warn(
+        `[google-reviews] WARNING: parsing devolvió 0 reseñas para businessId ${input.businessId} — puede que Google cambió la estructura o el negocio no tenga reseñas disponibles.`,
       );
-    }
-
-    const html = await response.text();
-    try {
-      const reviews = parseGoogleMapsReviews(html);
+    } else {
       this.logger.log(
-        `Parsed ${reviews.length} Google reviews for business ${input.businessId}`,
-      );
-      return reviews;
-    } catch (error) {
-      throw new Error(
-        `Could not parse Google Maps reviews for business ${input.businessId}: ${
-          error instanceof Error ? error.message : 'unknown error'
-        }`,
+        `[google-reviews] ${unique.size} reseñas detectadas para businessId ${input.businessId}`,
       );
     }
-  }
-}
 
-function parseGoogleMapsReviews(html: string): DetectedGoogleReview[] {
-  const segments = extractReviewSegments(html);
-  const reviews = segments
-    .map(parseReviewSegment)
-    .filter((review): review is DetectedGoogleReview => Boolean(review));
-  const unique = new Map<string, DetectedGoogleReview>();
-
-  for (const review of reviews) {
-    if (review.stars < 1 || review.stars > 5) continue;
-    unique.set(review.googleReviewId, review);
+    return [...unique.values()];
   }
 
-  return [...unique.values()];
-}
-
-function extractReviewSegments(html: string) {
-  const anchors = [
-    ...findIndexes(html, 'data-review-id='),
-    ...findIndexes(html, 'class="jftiEf'),
-    ...findIndexes(html, 'class="wiI7pd'),
-  ].sort((a, b) => a - b);
-
-  if (anchors.length === 0) return [];
-
-  return anchors.map((index) =>
-    html.slice(Math.max(0, index - 2500), Math.min(html.length, index + 9000)),
-  );
-}
-
-function parseReviewSegment(segment: string): DetectedGoogleReview | null {
-  const reviewerName = extractClassText(segment, 'd4r55');
-  const stars = extractStars(segment);
-  const text = extractClassText(segment, 'wiI7pd');
-  const postedAt = parseGoogleReviewDate(extractClassText(segment, 'rsqaWe'));
-  const explicitId =
-    matchFirst(segment, /data-review-id=["']([^"']+)["']/i) ??
-    matchFirst(segment, /reviewId["']?\s*[:=]\s*["']([^"']+)["']/i);
-
-  if (!reviewerName && !text) return null;
-  if (!stars) return null;
-
-  const googleReviewId =
-    explicitId ??
-    hashReviewId({
-      reviewerName,
-      stars,
-      text,
-      postedAt,
+  private async fetchReviewsPage(input: {
+    token: string;
+    businessId: string;
+    googlePlaceId: string;
+    nextPageToken?: string;
+  }) {
+    const params = new URLSearchParams({
+      token: input.token,
+      place_id: input.googlePlaceId,
+      num: String(GOOGLE_REVIEWS_PAGE_SIZE),
+      sort_by: 'newestFirst',
+      hl: 'es',
+      gl: 'uy',
     });
+    if (input.nextPageToken) {
+      params.set('next_page_token', input.nextPageToken);
+    }
+
+    const url = `${SCRAPE_DO_REVIEWS_ENDPOINT}?${params.toString()}`;
+    const safeUrl = url.replace(input.token, '[REDACTED]');
+
+    for (let attempt = 0; attempt <= MAX_RETRIES; attempt += 1) {
+      try {
+        const response = await fetchWithTimeout(url);
+        const body = await response.text();
+
+        if (!response.ok) {
+          const retryable = [429, 502, 503, 504].includes(response.status);
+          if (retryable && attempt < MAX_RETRIES) {
+            await sleep(1_000 * 2 ** attempt);
+            continue;
+          }
+          throw new Error(
+            `[google-reviews] Error para businessId ${input.businessId}: Scrape.do respondió ${response.status} ${response.statusText}. Body: ${body.slice(
+              0,
+              300,
+            )} | Status: ${response.status} | URL: ${safeUrl}`,
+          );
+        }
+
+        const parsed = JSON.parse(body) as ScrapeDoReviewsResponse;
+        return {
+          reviews: parsed.reviews ?? [],
+          nextPageToken: parsed.pagination?.next_page_token,
+        };
+      } catch (error) {
+        if (attempt < MAX_RETRIES && isRetryableFetchError(error)) {
+          await sleep(1_000 * 2 ** attempt);
+          continue;
+        }
+        throw new Error(
+          `[google-reviews] Error para businessId ${input.businessId}: ${
+            error instanceof Error ? error.message : String(error)
+          } | URL: ${safeUrl}`,
+        );
+      }
+    }
+
+    return { reviews: [], nextPageToken: undefined };
+  }
+}
+
+async function fetchWithTimeout(url: string) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), SCRAPE_TIMEOUT_MS);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+function mapScrapeDoReview(review: ScrapeDoReview): DetectedGoogleReview {
+  const reviewerName = review.user?.name?.trim() || null;
+  const text =
+    review.extracted_snippet?.original?.trim() ||
+    review.snippet?.trim() ||
+    null;
+  const stars = Math.max(
+    1,
+    Math.min(5, Math.round(Number(review.rating ?? 0))),
+  );
+  const isoDate = review.iso_date ? new Date(review.iso_date) : null;
+  const postedAt =
+    isoDate && !Number.isNaN(isoDate.getTime())
+      ? isoDate
+      : parseGoogleReviewDate(review.date ?? null);
 
   return {
-    googleReviewId,
+    googleReviewId:
+      review.review_id ??
+      hashReviewId({
+        reviewerName,
+        stars,
+        text,
+        postedAt,
+      }),
     reviewerName,
     stars,
     text,
@@ -136,30 +195,8 @@ function parseReviewSegment(segment: string): DetectedGoogleReview | null {
   };
 }
 
-function extractClassText(segment: string, className: string) {
-  const escaped = escapeRegExp(className);
-  const pattern = new RegExp(
-    `<[^>]+class=["'][^"']*\\b${escaped}\\b[^"']*["'][^>]*>(.*?)<\\/[^>]+>`,
-    'is',
-  );
-  const value = matchFirst(segment, pattern);
-  return value ? cleanHtmlText(value) : null;
-}
-
-function extractStars(segment: string) {
-  const ariaLabels = [...segment.matchAll(/aria-label=["']([^"']+)["']/gi)].map(
-    (match) => decodeHtmlEntities(match[1]),
-  );
-  const ratingLabel = ariaLabels.find((label) =>
-    /(\bstar\b|\bstars\b|estrella|estrellas)/i.test(label),
-  );
-  const value = ratingLabel?.match(/([1-5])(?:[,.]\d+)?/);
-  if (value) return Number(value[1]);
-
-  const fallback = segment.match(
-    /([1-5])(?:[,.]\d+)?\s*(?:stars?|estrellas?)/i,
-  );
-  return fallback ? Number(fallback[1]) : null;
+function isRetryableFetchError(error: unknown) {
+  return error instanceof Error && error.name === 'AbortError';
 }
 
 function parseGoogleReviewDate(value: string | null) {
@@ -205,35 +242,6 @@ function hashReviewId(input: {
     .slice(0, 24);
 }
 
-function findIndexes(value: string, pattern: string) {
-  const indexes: number[] = [];
-  let index = value.indexOf(pattern);
-  while (index !== -1) {
-    indexes.push(index);
-    index = value.indexOf(pattern, index + pattern.length);
-  }
-  return indexes;
-}
-
-function matchFirst(value: string, pattern: RegExp) {
-  return value.match(pattern)?.[1] ?? null;
-}
-
-function cleanHtmlText(value: string) {
-  return decodeHtmlEntities(value.replace(/<[^>]+>/g, ' '))
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function decodeHtmlEntities(value: string) {
-  return value
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>');
-}
-
-function escapeRegExp(value: string) {
-  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
