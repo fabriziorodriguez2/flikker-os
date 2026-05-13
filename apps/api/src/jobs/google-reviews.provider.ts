@@ -12,7 +12,7 @@ export interface DetectedGoogleReview {
 @Injectable()
 export class GoogleReviewsProvider {
   private readonly logger = new Logger('google-reviews');
-  private readonly scrapeTimeoutMs = 55_000;
+  private readonly scrapeTimeoutMs = 50_000;
 
   async fetchReviews(input: {
     businessId: string;
@@ -30,9 +30,18 @@ export class GoogleReviewsProvider {
     const targetUrl = `https://www.google.com/maps/place/?q=place_id:${encodeURIComponent(
       input.googlePlaceId,
     )}`;
-    const scrapeUrl = `https://api.scrape.do/?token=${encodeURIComponent(
+    const scrapeParams = new URLSearchParams({
       token,
-    )}&url=${encodeURIComponent(targetUrl)}&render=true`;
+      url: targetUrl,
+      render: 'true',
+      super: 'true',
+      geoCode: 'uy',
+      waitUntil: 'domcontentloaded',
+      customWait: '3000',
+      retryTimeout: '5000',
+      timeout: '45000',
+    });
+    const scrapeUrl = `https://api.scrape.do/?${scrapeParams.toString()}`;
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), this.scrapeTimeoutMs);
@@ -44,8 +53,10 @@ export class GoogleReviewsProvider {
     }
 
     if (!response.ok) {
+      const body = await response.text().catch(() => '');
+      const detail = body ? `: ${body.slice(0, 300)}` : '';
       throw new Error(
-        `Scrape.do failed for business ${input.businessId} (${response.status})`,
+        `Scrape.do failed for business ${input.businessId} (${response.status})${detail}`,
       );
     }
 
