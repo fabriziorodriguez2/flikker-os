@@ -97,43 +97,72 @@ export class GoogleReviewDetectionWorker
   }
 
   async runInitial(input: { businessId?: string }) {
-    if (!input.businessId) {
+    const businessId = input.businessId;
+    if (!businessId) {
       this.logger.warn('Initial Google review scrape missing businessId');
       return { created: 0, skipped: true };
     }
 
-    const business = await this.prisma.business.findFirst({
-      where: {
-        id: input.businessId,
-        isActive: true,
-        archivedAt: null,
-        googlePlaceId: { not: null },
-      },
-      select: {
-        id: true,
-        googlePlaceId: true,
-      },
-    });
-
-    if (!business?.googlePlaceId) {
-      this.logger.warn(
-        `Initial Google review scrape skipped for business ${input.businessId}`,
-      );
-      return { created: 0, skipped: true };
-    }
-
-    const created = await this.detectForBusiness(
-      business.id,
-      business.googlePlaceId,
+    this.logger.log(
+      `[initial-review-scrape] Iniciando para businessId: ${businessId}`,
     );
 
-    await this.prisma.business.update({
-      where: { id: business.id },
-      data: { googleReviewsLastSyncAt: new Date() },
-      select: { id: true },
-    });
+    let created = 0;
 
-    return { businessId: business.id, created };
+    try {
+      const business = await this.prisma.business.findFirst({
+        where: {
+          id: businessId,
+          isActive: true,
+          archivedAt: null,
+          googlePlaceId: { not: null },
+        },
+        select: {
+          id: true,
+          googlePlaceId: true,
+        },
+      });
+
+      if (!business?.googlePlaceId) {
+        this.logger.warn(
+          `[initial-review-scrape] Sin googlePlaceId activo para businessId: ${businessId}`,
+        );
+        return { created: 0, skipped: true };
+      }
+
+      created = await this.detectForBusiness(
+        business.id,
+        business.googlePlaceId,
+      );
+      this.logger.log(
+        `[initial-review-scrape] Completado: ${created} reseñas importadas`,
+      );
+
+      return { businessId: business.id, created };
+    } catch (error) {
+      this.logger.error(
+        `[initial-review-scrape] Falló: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      return { businessId, created, failed: true };
+    } finally {
+      try {
+        await this.prisma.business.update({
+          where: { id: businessId },
+          data: { googleReviewsLastSyncAt: new Date() },
+          select: { id: true },
+        });
+      } catch (error) {
+        this.logger.error(
+          `[initial-review-scrape] No se pudo marcar sync para businessId ${businessId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+          error instanceof Error ? error.stack : undefined,
+        );
+      }
+    }
   }
 
   async onModuleDestroy() {

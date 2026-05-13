@@ -79,13 +79,6 @@ const WidgetsIcon = () => (
   </Icon>
 );
 
-const SettingsIcon = () => (
-  <Icon>
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a7.6 7.6 0 0 0-1.7-1l-.3-2.6h-4l-.3 2.6a7.6 7.6 0 0 0-1.7 1l-2.4-1-2 3.5 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a7.6 7.6 0 0 0 1.7 1l.3 2.6h4l.3-2.6a7.6 7.6 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1Z" />
-  </Icon>
-);
-
 const BranchesIcon = () => (
   <Icon>
     <path d="M4 20V6l5-2v16" />
@@ -135,11 +128,6 @@ const NAV_ITEMS = [
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon /> },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
   { href: "/dashboard/widgets", label: "Prueba social", icon: <WidgetsIcon /> },
-  {
-    href: "/dashboard/settings",
-    label: "Configuración",
-    icon: <SettingsIcon />,
-  },
 ];
 
 type NavDefinition = {
@@ -254,10 +242,6 @@ export default function Sidebar({
   const activeBusiness = memberships.find(
     (m) => m.businessId === activeBusinessId,
   );
-  const navItems = NAV_ITEMS.filter(
-    (item) => isPlatformAdmin || item.href !== "/dashboard/settings",
-  );
-
   return (
     <aside
       className={`flikker-sidebar-glow sticky top-0 hidden h-screen shrink-0 overflow-hidden border-r border-[color:var(--border)] transition-[width] duration-200 lg:flex lg:flex-col ${
@@ -284,20 +268,17 @@ export default function Sidebar({
             >
               <PanelCollapseIcon />
             </SidebarActionButton>
-          ) : null}
-        </div>
-
-        {!isPlatformAdmin ? (
-          collapsed ? (
-          <div className="mt-4 flex justify-center">
+          ) : (
             <SidebarActionButton
               label="Expandir menú"
               onClick={() => setCollapsed(false)}
             >
               <PanelExpandIcon />
             </SidebarActionButton>
-          </div>
-        ) : (
+          )}
+        </div>
+
+        {!isPlatformAdmin && !collapsed ? (
           <div className="mt-5 rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-3">
             <BusinessSelector
               memberships={memberships}
@@ -305,13 +286,12 @@ export default function Sidebar({
               activeBusinessName={activeBusiness?.business.name ?? null}
             />
           </div>
-          )
         ) : null}
       </div>
 
       <div className="flikker-scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-3 py-2">
         <nav className="flex flex-col gap-1">
-          {navItems.map((item) => {
+          {NAV_ITEMS.map((item) => {
             const isActive =
               item.href === "/dashboard"
                 ? pathname === "/dashboard"

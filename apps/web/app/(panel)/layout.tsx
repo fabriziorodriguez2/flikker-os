@@ -75,7 +75,7 @@ export default async function PanelLayout({
           </div>
         </header>
 
-        <MobileNav isPlatformAdmin={user.isPlatformAdmin} />
+        <MobileNav />
 
         <main className="flex-1 overflow-auto px-4 py-5 md:px-6 md:py-6">
           <RoleProvider role={currentRole}>{children}</RoleProvider>

@@ -49,7 +49,7 @@ export class GoogleReviewDetectionQueue
       jobId: `${INITIAL_GOOGLE_REVIEW_SCRAPE_JOB}:${businessId}`,
       removeOnComplete: 30,
       removeOnFail: false,
-      timeout: 120_000,
+      timeout: 60_000,
     };
     return this.queue.add(
       INITIAL_GOOGLE_REVIEW_SCRAPE_JOB,

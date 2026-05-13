@@ -12,6 +12,7 @@ export interface DetectedGoogleReview {
 @Injectable()
 export class GoogleReviewsProvider {
   private readonly logger = new Logger('google-reviews');
+  private readonly scrapeTimeoutMs = 55_000;
 
   async fetchReviews(input: {
     businessId: string;
@@ -33,7 +34,15 @@ export class GoogleReviewsProvider {
       token,
     )}&url=${encodeURIComponent(targetUrl)}&render=true`;
 
-    const response = await fetch(scrapeUrl);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.scrapeTimeoutMs);
+    let response: Response;
+    try {
+      response = await fetch(scrapeUrl, { signal: controller.signal });
+    } finally {
+      clearTimeout(timeout);
+    }
+
     if (!response.ok) {
       throw new Error(
         `Scrape.do failed for business ${input.businessId} (${response.status})`,
