@@ -3,6 +3,7 @@ import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import SectionCard from "@/components/ui/section-card";
 import ActivityEvolutionChart from "./activity-evolution-chart";
+import ActivityFilters from "./activity-filters";
 import NegativeFeedbackList from "./negative-feedback-list";
 
 interface Business {
@@ -84,11 +85,6 @@ function formatDelta(delta: number, decimals = 0) {
   return `${sign}${formatKpiValue(delta, decimals)}`;
 }
 
-function formatInputDate(value?: string) {
-  if (!value) return "";
-  return new Date(value).toISOString().slice(0, 10);
-}
-
 function buildMetricsPath(params: Record<string, string | string[] | undefined>) {
   const query = new URLSearchParams();
   const granularity = firstValue(params.granularity);
@@ -101,16 +97,6 @@ function buildMetricsPath(params: Record<string, string | string[] | undefined>)
 
   const serialized = query.toString();
   return serialized ? `/metrics/overview?${serialized}` : "/metrics/overview";
-}
-
-function activityDescription(granularity: ActivityGranularity) {
-  const unit = {
-    day: "por día",
-    week: "por semana",
-    month: "por mes",
-  }[granularity];
-
-  return `Mensajes enviados, reseñas generadas y pacientes reactivados ${unit}.`;
 }
 
 function shouldShowGoogleImportBanner(business: Business | null) {
@@ -156,57 +142,6 @@ function KpiCard({
       </div>
       {note ? <p className="mt-2 text-xs text-[#8891A4]">{note}</p> : null}
     </article>
-  );
-}
-
-function ActivityFilters({
-  granularity,
-  from,
-  to,
-}: {
-  granularity: ActivityGranularity;
-  from: string;
-  to: string;
-}) {
-  return (
-    <form className="flex flex-wrap items-end gap-2" action="/dashboard">
-      <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-        Vista
-        <select
-          name="granularity"
-          defaultValue={granularity}
-          className="h-9 rounded-[8px] border border-[#E8EAF0] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#1A202C]"
-        >
-          <option value="day">Día</option>
-          <option value="week">Semana</option>
-          <option value="month">Mes</option>
-        </select>
-      </label>
-      <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-        Desde
-        <input
-          type="date"
-          name="from"
-          defaultValue={formatInputDate(from)}
-          className="h-9 rounded-[8px] border border-[#E8EAF0] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#1A202C]"
-        />
-      </label>
-      <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-        Hasta
-        <input
-          type="date"
-          name="to"
-          defaultValue={formatInputDate(to)}
-          className="h-9 rounded-[8px] border border-[#E8EAF0] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#1A202C]"
-        />
-      </label>
-      <button
-        type="submit"
-        className="h-9 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
-      >
-        Aplicar
-      </button>
-    </form>
   );
 }
 
@@ -305,8 +240,8 @@ export default async function DashboardPage({
       </section>
 
       <SectionCard
-        title="Actividad"
-        description={activityDescription(metrics.activityRange.granularity)}
+        title="Actividad últimos 6 meses"
+        description="Comparativo mensual de mensajes, reseñas y reactivaciones."
         action={
           <ActivityFilters
             granularity={metrics.activityRange.granularity}
@@ -318,12 +253,26 @@ export default async function DashboardPage({
         <ActivityEvolutionChart data={metrics.activityByMonth} />
       </SectionCard>
 
-      <SectionCard
-        title="Comentarios negativos recientes"
-        description="No se publicaron en Google. Respondé al paciente antes de que escale."
-      >
-        <NegativeFeedbackList items={metrics.negativeFeedback} />
-      </SectionCard>
+      {(() => {
+        const unread = metrics.negativeFeedback.filter(
+          (f) => !f.acknowledgedByOwner,
+        ).length;
+        return (
+          <SectionCard
+            title="Comentarios negativos recientes"
+            description="No se publicaron en Google. Respondé al paciente antes de que escale."
+            action={
+              unread > 0 ? (
+                <span className="rounded-full bg-[color:rgba(192,57,43,0.1)] px-2.5 py-1.5 text-xs font-semibold text-[#C0392B]">
+                  {unread} sin leer
+                </span>
+              ) : undefined
+            }
+          >
+            <NegativeFeedbackList items={metrics.negativeFeedback} />
+          </SectionCard>
+        );
+      })()}
     </div>
   );
 }

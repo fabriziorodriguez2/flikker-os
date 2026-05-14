@@ -1,5 +1,6 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { Building2 } from "lucide-react";
 import Sidebar from "./sidebar";
 import MobileNav from "./mobile-nav";
 import LogoutButton from "./logout-button";
@@ -27,6 +28,11 @@ export default async function PanelLayout({
   const activeMembership = memberships.find(
     (membership) => membership.businessId === activeBusinessId,
   );
+
+  const businessDisplayName =
+    session.impersonation?.businessName ?? activeMembership?.business?.name;
+  const userInitials =
+    `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase();
 
   if (!activeBusinessId || (!session.impersonation && !activeMembership)) {
     return (
@@ -65,10 +71,19 @@ export default async function PanelLayout({
               />
             </div>
 
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex items-center gap-2.5">
               <ThemeToggle />
-              <div className="flikker-control-subtle hidden h-9 items-center rounded-full px-4 text-sm font-medium sm:inline-flex">
-                {user.firstName} {user.lastName}
+              {businessDisplayName ? (
+                <div className="hidden items-center gap-1.5 text-sm font-medium text-[#1A202C] sm:flex">
+                  <Building2 className="h-4 w-4 shrink-0 text-[#8891A4]" aria-hidden="true" />
+                  <span className="max-w-[200px] truncate">{businessDisplayName}</span>
+                </div>
+              ) : null}
+              <div
+                aria-label={`${user.firstName} ${user.lastName}`}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#5C6BC0] text-sm font-bold text-white"
+              >
+                {userInitials}
               </div>
               <LogoutButton />
             </div>

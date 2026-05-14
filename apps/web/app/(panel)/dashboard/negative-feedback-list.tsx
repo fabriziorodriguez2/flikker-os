@@ -11,12 +11,25 @@ export interface NegativeFeedbackItem {
   acknowledgedByOwner: boolean;
 }
 
-function formatDate(value: string) {
-  return new Intl.DateTimeFormat("es-UY", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(value));
+function formatRelativeDate(value: string) {
+  const diffMs = Date.now() - new Date(value).getTime();
+  const minutes = Math.floor(diffMs / 60_000);
+  if (minutes < 60) return `hace ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `hace ${hours} h`;
+  if (hours < 48) return "ayer";
+  const days = Math.floor(hours / 24);
+  return `hace ${days} d`;
+}
+
+function Stars({ score }: { score: number }) {
+  return (
+    <span className="text-amber-400 tracking-tight" aria-label={`${score} de 5 estrellas`}>
+      {Array.from({ length: 5 }, (_, i) => (
+        <span key={i}>{i < score ? "★" : "☆"}</span>
+      ))}
+    </span>
+  );
 }
 
 export default function NegativeFeedbackList({
@@ -61,14 +74,13 @@ export default function NegativeFeedbackList({
         >
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#EEF0FB] text-xs font-semibold text-[#5C6BC0]">
+              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EEF0FB] text-xs font-semibold text-[#5C6BC0]">
                 {item.customerName.slice(0, 1).toUpperCase()}
               </span>
-              <div>
-                <p className="font-semibold text-[#1A202C]">
-                  {item.customerName}
-                </p>
-                <p className="text-xs text-[#8891A4]">{formatDate(item.createdAt)}</p>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                <p className="font-semibold text-[#1A202C]">{item.customerName}</p>
+                <Stars score={item.score} />
+                <p className="text-xs text-[#8891A4]">{formatRelativeDate(item.createdAt)}</p>
               </div>
             </div>
             <p className="mt-3 text-sm leading-6 text-[#1A202C]">
@@ -76,9 +88,6 @@ export default function NegativeFeedbackList({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <span className="rounded-full bg-[color:rgba(192,57,43,0.1)] px-2.5 py-1 text-xs font-semibold text-[#C0392B]">
-              {item.score}/5
-            </span>
             {item.acknowledgedByOwner ? (
               <span className="rounded-full bg-[color:rgba(99,153,34,0.12)] px-2.5 py-1 text-xs font-semibold text-[#639922]">
                 Leído
