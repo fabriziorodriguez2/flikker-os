@@ -1,6 +1,6 @@
-import { getSession } from "@/lib/auth";
+import { apiFetch } from "@/lib/api";
+import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { Building2 } from "lucide-react";
 import Sidebar from "./sidebar";
 import MobileNav from "./mobile-nav";
 import LogoutButton from "./logout-button";
@@ -8,8 +8,14 @@ import SelectBusiness from "./select-business";
 import { RoleProvider } from "./role-context";
 import ThemeToggle from "@/components/theme/theme-toggle";
 import BrandLogo from "@/components/brand/brand-logo";
+import BusinessLogo from "@/components/business/business-logo";
 import SessionExpiryHandler from "@/components/auth/session-expiry-handler";
 import ImpersonationBanner from "./impersonation-banner";
+
+interface CurrentBusiness {
+  name: string;
+  logoUrl: string | null;
+}
 
 export default async function PanelLayout({
   children,
@@ -29,8 +35,6 @@ export default async function PanelLayout({
     (membership) => membership.businessId === activeBusinessId,
   );
 
-  const businessDisplayName =
-    session.impersonation?.businessName ?? activeMembership?.business?.name;
   const userInitials =
     `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase();
 
@@ -46,6 +50,27 @@ export default async function PanelLayout({
   const currentRole = session.impersonation
     ? "OWNER"
     : (activeMembership?.role ?? null);
+  const effectiveApiContext = getEffectiveApiContext(session);
+  let currentBusiness: CurrentBusiness | null = null;
+
+  try {
+    if (effectiveApiContext.businessId) {
+      currentBusiness = await apiFetch<CurrentBusiness>(
+        "/businesses/current",
+        effectiveApiContext.accessToken,
+        { businessId: effectiveApiContext.businessId },
+      );
+    }
+  } catch {
+    currentBusiness = null;
+  }
+
+  const businessDisplayName =
+    currentBusiness?.name ??
+    session.impersonation?.businessName ??
+    activeMembership?.business?.name;
+  const businessLogoUrl =
+    currentBusiness?.logoUrl ?? activeMembership?.business?.logoUrl ?? null;
 
   return (
     <div className="flikker-app-shell min-h-screen lg:flex">
@@ -74,8 +99,12 @@ export default async function PanelLayout({
             <div className="ml-auto flex items-center gap-2.5">
               <ThemeToggle />
               {businessDisplayName ? (
-                <div className="hidden items-center gap-1.5 text-sm font-medium text-[#1A202C] sm:flex">
-                  <Building2 className="h-4 w-4 shrink-0 text-[#8891A4]" aria-hidden="true" />
+                <div className="hidden items-center gap-2 text-sm font-medium text-[#1A202C] sm:flex">
+                  <BusinessLogo
+                    logoUrl={businessLogoUrl}
+                    name={businessDisplayName}
+                    size="sm"
+                  />
                   <span className="max-w-[200px] truncate">{businessDisplayName}</span>
                 </div>
               ) : null}

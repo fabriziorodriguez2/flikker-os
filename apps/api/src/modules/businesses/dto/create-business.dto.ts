@@ -68,7 +68,8 @@ export class CreateBusinessDto {
   email?: string;
 
   @IsOptional()
-  @IsUrl()
+  @IsString()
+  @MaxLength(3000000)
   logoUrl?: string;
 
   @IsOptional()

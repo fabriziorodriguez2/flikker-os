@@ -13,7 +13,7 @@ export interface SessionUser {
 export interface SessionMembership {
   businessId: string;
   role: string;
-  business: { name: string; slug: string };
+  business: { name: string; slug: string; logoUrl?: string | null };
 }
 
 export interface Session {

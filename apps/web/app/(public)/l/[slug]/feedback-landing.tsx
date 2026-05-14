@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import BusinessLogo from "@/components/business/business-logo";
 
 type Score = 1 | 2 | 3 | 4 | 5;
 
@@ -62,23 +63,23 @@ export default function FeedbackLanding({
   return (
     <main className="min-h-dvh bg-[#f8fafc] px-4 py-5 text-[#101828]">
       <section className="mx-auto flex min-h-[calc(100dvh-40px)] max-w-md flex-col justify-center">
-        <div className="mb-8 flex items-center justify-center">
-          {businessLogo ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={businessLogo}
-              alt={businessName}
-              className="h-14 w-14 rounded-xl object-cover"
-            />
-          ) : (
-            <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-[#111827] text-xl font-semibold text-white">
-              {businessName.charAt(0).toUpperCase()}
-            </div>
-          )}
+        <div className="mb-7 flex flex-col items-center text-center">
+          <BusinessLogo
+            logoUrl={businessLogo}
+            name={businessName}
+            size="lg"
+            className="bg-white"
+          />
+          <p className="mt-3 text-sm font-semibold text-[#5C6BC0]">
+            {businessName}
+          </p>
         </div>
 
         {!score ? (
           <div className="text-center">
+            <h1 className="mb-6 text-2xl font-semibold leading-tight">
+              ¿Cómo fue tu experiencia con {businessName}?
+            </h1>
             <div className="grid grid-cols-5 gap-2" aria-label="Calificación">
               {scores.map((value) => (
                 <button
@@ -148,7 +149,7 @@ export default function FeedbackLanding({
             aria-hidden="true"
             className="h-5 w-auto"
           />
-          <span>Con tecnología de Flikker</span>
+          <span>Powered by Flikker</span>
         </footer>
       </section>
     </main>

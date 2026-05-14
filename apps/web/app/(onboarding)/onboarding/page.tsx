@@ -15,11 +15,14 @@ import {
   Building2,
   Check,
   ChevronRight,
+  ImageIcon,
   Loader2,
   MessageCircle,
   Pencil,
   Star,
+  Upload,
 } from "lucide-react";
+import BusinessLogo from "@/components/business/business-logo";
 import PhoneInput from "@/components/ui/phone-input";
 
 const VERTICAL_OPTIONS = [
@@ -45,6 +48,14 @@ const TIMEZONE_OPTIONS = [
   { value: "America/Mexico_City", label: "América / Ciudad de México" },
 ];
 
+const MAX_LOGO_SIZE_BYTES = 2 * 1024 * 1024;
+const ALLOWED_LOGO_TYPES = new Set([
+  "image/png",
+  "image/jpeg",
+  "image/webp",
+  "image/svg+xml",
+]);
+
 interface CreatedBusiness {
   id: string;
   name: string;
@@ -68,6 +79,7 @@ interface WizardState {
   vertical: string;
   timezone: string;
   phone: string;
+  logoUrl: string | null;
   google: GoogleVerification | null;
   whatsapp: WhatsAppVerification | null;
   existingBusiness: boolean;
@@ -79,6 +91,7 @@ const initialWizard: WizardState = {
   vertical: "",
   timezone: "America/Montevideo",
   phone: "",
+  logoUrl: null,
   google: null,
   whatsapp: null,
   existingBusiness: false,
@@ -91,6 +104,7 @@ interface PlatformOnboardingData {
     vertical: string | null;
     timezone: string;
     phone: string | null;
+    logoUrl: string | null;
     googlePlaceId: string | null;
     googleReviewsLastSyncAt: string | null;
   };
@@ -150,6 +164,7 @@ function OnboardingPageContent() {
           vertical: data.business.vertical ?? "",
           timezone: data.business.timezone || "America/Montevideo",
           phone: data.business.phone ?? "",
+          logoUrl: data.business.logoUrl ?? null,
           google: data.business.googlePlaceId
             ? {
                 placeId: data.business.googlePlaceId,
@@ -210,6 +225,7 @@ function OnboardingPageContent() {
             vertical: wizard.vertical,
             timezone: wizard.timezone,
             phone: wizard.phone,
+            logoUrl: wizard.logoUrl,
           }}
           onCreated={(business, draft) => {
             setWizard((current) => ({
@@ -219,6 +235,7 @@ function OnboardingPageContent() {
               vertical: draft.vertical,
               timezone: draft.timezone,
               phone: draft.phone,
+              logoUrl: draft.logoUrl,
               existingBusiness: current.existingBusiness,
             }));
             setCurrentStep(2);
@@ -367,10 +384,16 @@ function BusinessStep({
     vertical: string;
     timezone: string;
     phone: string;
+    logoUrl: string | null;
   };
   onCreated: (
     business: CreatedBusiness,
-    draft: { vertical: string; timezone: string; phone: string },
+    draft: {
+      vertical: string;
+      timezone: string;
+      phone: string;
+      logoUrl: string | null;
+    },
   ) => void;
 }) {
   const [name, setName] = useState(initial.name);
@@ -379,7 +402,9 @@ function BusinessStep({
     initial.timezone || "America/Montevideo",
   );
   const [phone, setPhone] = useState(initial.phone);
+  const [logoUrl, setLogoUrl] = useState<string | null>(initial.logoUrl);
   const [loading, setLoading] = useState(false);
+  const [logoError, setLogoError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const canContinue = useMemo(
     () => Boolean(name.trim() && vertical.trim()),
@@ -407,12 +432,14 @@ function BusinessStep({
                   vertical,
                   timezone,
                   whatsappPhone: phone,
+                  logoUrl,
                 }
               : {
                   name: name.trim(),
                   vertical,
                   timezone,
                   phone,
+                  logoUrl,
                 },
           ),
         },
@@ -429,7 +456,10 @@ function BusinessStep({
         );
       }
 
-      onCreated({ id: data.id, name: data.name }, { vertical, timezone, phone });
+      onCreated(
+        { id: data.id, name: data.name },
+        { vertical, timezone, phone, logoUrl },
+      );
     } catch (err) {
       setError(
         err instanceof Error
@@ -438,6 +468,24 @@ function BusinessStep({
       );
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleLogoFile(file: File | null) {
+    setLogoError(null);
+    if (!file) return;
+    if (!ALLOWED_LOGO_TYPES.has(file.type)) {
+      setLogoError("El logo debe ser PNG, JPG, JPEG, WebP o SVG.");
+      return;
+    }
+    if (file.size > MAX_LOGO_SIZE_BYTES) {
+      setLogoError("El logo debe pesar menos de 2 MB.");
+      return;
+    }
+    try {
+      setLogoUrl(await readFileAsDataUrl(file));
+    } catch {
+      setLogoError("No pudimos leer el archivo. Probá con otra imagen.");
     }
   }
 
@@ -500,6 +548,51 @@ function BusinessStep({
         <p className="-mt-2 text-xs text-[#8891A4]">
           Usamos este número solo para soporte. No se muestra a tus pacientes.
         </p>
+
+        <div className="rounded-lg border border-[#E8EAF0] bg-white p-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <BusinessLogo logoUrl={logoUrl} name={name} size="lg" />
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <ImageIcon className="h-4 w-4 text-[#8891A4]" aria-hidden="true" />
+                <p className="text-sm font-semibold text-[#1A202C]">
+                  Logo del negocio
+                </p>
+              </div>
+              <p className="mt-1 text-xs text-[#8891A4]">
+                Se usará en tu panel y en las páginas públicas de pedido de
+                reseña.
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]">
+                  <Upload className="h-4 w-4" aria-hidden="true" />
+                  {logoUrl ? "Reemplazar imagen" : "Subir logo"}
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                    className="sr-only"
+                    onChange={(event) => {
+                      void handleLogoFile(event.target.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+                {logoUrl ? (
+                  <button
+                    type="button"
+                    onClick={() => setLogoUrl(null)}
+                    className="inline-flex h-10 items-center rounded-lg px-3 text-sm font-semibold text-[#8891A4] hover:text-[#1A202C] hover:underline"
+                  >
+                    Quitar
+                  </button>
+                ) : null}
+              </div>
+              {logoError ? (
+                <p className="mt-2 text-xs text-[#C0392B]">{logoError}</p>
+              ) : null}
+            </div>
+          </div>
+        </div>
 
         <FormError message={error} />
 
@@ -1001,4 +1094,19 @@ const inputClassName =
 
 function formatRating(value: number | null) {
   return value === null ? "sin datos" : value.toFixed(1);
+}
+
+function readFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      if (typeof reader.result === "string") {
+        resolve(reader.result);
+      } else {
+        reject(new Error("Resultado inválido"));
+      }
+    };
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+    reader.readAsDataURL(file);
+  });
 }

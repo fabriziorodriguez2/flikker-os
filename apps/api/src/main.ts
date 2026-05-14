@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { json, urlencoded } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { AppModule } from './app.module';
@@ -17,6 +18,9 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: ['error', 'warn', 'log', 'debug'],
   });
+
+  app.use(json({ limit: '3mb' }));
+  app.use(urlencoded({ extended: true, limit: '3mb' }));
 
   app.useGlobalPipes(
     new ValidationPipe({

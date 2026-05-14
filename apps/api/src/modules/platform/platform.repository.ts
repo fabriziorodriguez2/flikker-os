@@ -70,6 +70,7 @@ export class PlatformRepository {
         id: true,
         name: true,
         slug: true,
+        logoUrl: true,
       },
     });
   }

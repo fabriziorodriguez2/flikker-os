@@ -57,6 +57,7 @@ export class PlatformService {
       id: b.id,
       name: b.name,
       slug: b.slug,
+      logoUrl: b.logoUrl,
       status: b.status,
       industry: b.industry,
       country: b.country,

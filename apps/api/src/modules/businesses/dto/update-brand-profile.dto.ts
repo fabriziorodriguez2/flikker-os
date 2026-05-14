@@ -8,7 +8,8 @@ import {
 
 export class UpdateBrandProfileDto {
   @IsOptional()
-  @IsUrl()
+  @IsString()
+  @MaxLength(3000000)
   logoUrl?: string;
 
   @IsOptional()
