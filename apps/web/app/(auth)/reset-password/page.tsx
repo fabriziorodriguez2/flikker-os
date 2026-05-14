@@ -15,6 +15,8 @@ export default function ResetPasswordPage() {
 function ResetPasswordContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token") ?? "";
+  const emailFromLink = searchParams.get("email") ?? "";
+  const [email, setEmail] = useState(emailFromLink);
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -22,10 +24,18 @@ function ResetPasswordContent() {
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const formData = new FormData(event.currentTarget);
+    const submittedEmail = String(formData.get("email") ?? "").trim();
     const newPassword = String(formData.get("password") ?? "");
 
-    if (!token) {
+    if (!token || !emailFromLink) {
       setError("El link no es válido o está incompleto.");
+      return;
+    }
+    if (
+      !submittedEmail ||
+      submittedEmail.toLowerCase() !== emailFromLink.toLowerCase()
+    ) {
+      setError("El email debe coincidir con el de la cuenta.");
       return;
     }
     if (newPassword.length < 8) {
@@ -39,7 +49,7 @@ function ResetPasswordContent() {
       const response = await fetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token, newPassword }),
+        body: JSON.stringify({ token, email: submittedEmail, newPassword }),
       });
       const data = (await response.json().catch(() => ({}))) as {
         message?: string;
@@ -93,11 +103,31 @@ function ResetPasswordContent() {
                 Creá una nueva contraseña
               </h1>
               <p className="mt-3 text-sm leading-6 text-[#8891A4]">
-                Ingresá una contraseña de al menos 8 caracteres.
+                Confirmá el email de la cuenta e ingresá una contraseña nueva.
               </p>
             </div>
 
             <div className="mt-6">
+              <label
+                htmlFor="email"
+                className="mb-2 block text-sm font-medium text-[#1A202C]"
+              >
+                Email de la cuenta
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="vos@negocio.com.uy"
+                className="h-12 w-full rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]"
+              />
+            </div>
+
+            <div className="mt-4">
               <label
                 htmlFor="password"
                 className="mb-2 block text-sm font-medium text-[#1A202C]"

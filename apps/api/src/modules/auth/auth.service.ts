@@ -4,6 +4,7 @@ import {
   BadRequestException,
   NotFoundException,
   ConflictException,
+  Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthRepository } from './auth.repository';
@@ -24,6 +25,8 @@ const PASSWORD_RESET_MESSAGE = 'Email enviado';
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly repository: AuthRepository,
     private readonly jwt: JwtService,
@@ -180,6 +183,9 @@ export class AuthService {
 
     // Always return 200 to avoid email enumeration
     if (!user || !user.isActive) {
+      this.logger.warn(
+        `Password reset requested for unknown or inactive email: ${dto.email.toLowerCase()}`,
+      );
       return { message: PASSWORD_RESET_MESSAGE };
     }
 
@@ -192,10 +198,10 @@ export class AuthService {
 
     const resetUrl = `${getAppPublicUrl()}/reset-password?token=${encodeURIComponent(
       rawToken,
-    )}`;
+    )}&email=${encodeURIComponent(user.email)}`;
 
-    void this.emailService
-      .send({
+    try {
+      await this.emailService.send({
         to: user.email,
         subject: 'Recuperá tu contraseña de Flikker',
         html: buildPasswordResetEmail({
@@ -203,8 +209,15 @@ export class AuthService {
           resetUrl,
           expiresInMinutes: RESET_TOKEN_EXPIRY_MINUTES,
         }),
-      })
-      .catch(() => undefined);
+      });
+      this.logger.log(`Password reset email sent to ${user.email}`);
+    } catch (error) {
+      this.logger.error(
+        `Password reset email failed for ${user.email}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
 
     if (process.env.NODE_ENV !== 'production') {
       return { message: PASSWORD_RESET_MESSAGE, _dev_token: rawToken };
@@ -215,11 +228,15 @@ export class AuthService {
 
   async resetPassword(dto: ResetPasswordDto) {
     const tokenHash = this.hashToken(dto.token);
+    const email = dto.email.toLowerCase();
 
     const resetToken = await this.repository.findResetToken(tokenHash);
 
     if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
       throw new BadRequestException('Invalid or expired token');
+    }
+    if (resetToken.user.email.toLowerCase() !== email) {
+      throw new BadRequestException('Email does not match reset token');
     }
 
     const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);

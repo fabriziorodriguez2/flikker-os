@@ -191,7 +191,10 @@ export class AuthRepository {
   }
 
   findResetToken(tokenHash: string) {
-    return this.prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+    return this.prisma.passwordResetToken.findUnique({
+      where: { tokenHash },
+      include: { user: { select: { email: true } } },
+    });
   }
 
   /**

@@ -11,13 +11,20 @@ export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [resent, setResent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function sendInstructions(nextEmail: string) {
-    await fetch("/api/auth/forgot-password", {
+    const response = await fetch("/api/auth/forgot-password", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email: nextEmail }),
-    }).catch(() => null);
+    });
+    const data = (await response.json().catch(() => ({}))) as {
+      message?: string;
+    };
+    if (!response.ok) {
+      throw new Error(data.message ?? "No pudimos enviar el email.");
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -27,19 +34,35 @@ export default function ForgotPasswordPage() {
 
     if (!nextEmail || loading) return;
     setEmail(nextEmail);
+    setError(null);
     setLoading(true);
-    await sendInstructions(nextEmail);
-    setLoading(false);
-    setStep("sent");
+    try {
+      await sendInstructions(nextEmail);
+      setStep("sent");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No pudimos enviar el email.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   async function handleResend() {
     if (!email || loading) return;
+    setError(null);
     setLoading(true);
-    await sendInstructions(email);
-    setLoading(false);
-    setResent(true);
-    window.setTimeout(() => setResent(false), 3000);
+    try {
+      await sendInstructions(email);
+      setResent(true);
+      window.setTimeout(() => setResent(false), 3000);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "No pudimos reenviar el email.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -84,6 +107,8 @@ export default function ForgotPasswordPage() {
               />
             </div>
 
+            {error ? <ErrorMessage message={error} /> : null}
+
             <button
               type="submit"
               disabled={loading}
@@ -108,6 +133,8 @@ export default function ForgotPasswordPage() {
               link vence en 30 minutos.
             </p>
 
+            {error ? <ErrorMessage message={error} /> : null}
+
             <button
               type="button"
               onClick={() => void handleResend()}
@@ -122,6 +149,14 @@ export default function ForgotPasswordPage() {
         )}
       </section>
     </main>
+  );
+}
+
+function ErrorMessage({ message }: { message: string }) {
+  return (
+    <div className="mt-4 rounded-lg border border-[#C0392B]/20 bg-[#C0392B]/10 px-4 py-3 text-sm text-[#C0392B]">
+      {message}
+    </div>
   );
 }
 
