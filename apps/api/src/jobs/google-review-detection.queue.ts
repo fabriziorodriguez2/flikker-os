@@ -46,7 +46,7 @@ export class GoogleReviewDetectionQueue
     if (!this.queue) return null;
     const options: InitialScrapeJobOptions = {
       attempts: 1,
-      jobId: `${INITIAL_GOOGLE_REVIEW_SCRAPE_JOB}:${businessId}`,
+      jobId: `${INITIAL_GOOGLE_REVIEW_SCRAPE_JOB}-${businessId}`,
       removeOnComplete: 30,
       removeOnFail: false,
       timeout: 60_000,

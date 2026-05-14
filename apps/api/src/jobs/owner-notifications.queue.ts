@@ -46,7 +46,7 @@ export class OwnerNotificationsQueue implements OnModuleInit, OnModuleDestroy {
     if (!this.queue) return null;
 
     return this.queue.add(WEEKLY_KPI_SUMMARY_JOB, data, {
-      jobId: `${WEEKLY_KPI_SUMMARY_JOB}:${data.businessId}:${data.weekStartIso}`,
+      jobId: `${WEEKLY_KPI_SUMMARY_JOB}-${data.businessId}-${data.weekStartIso}`,
       attempts: 3,
       removeOnComplete: 100,
       removeOnFail: false,
