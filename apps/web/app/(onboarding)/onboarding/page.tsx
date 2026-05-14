@@ -1,8 +1,15 @@
-"use client";
+﻿"use client";
 
-import { FormEvent, ReactNode, useMemo, useState } from "react";
+import {
+  FormEvent,
+  ReactNode,
+  Suspense,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   Building2,
@@ -16,26 +23,26 @@ import {
 import PhoneInput from "@/components/ui/phone-input";
 
 const VERTICAL_OPTIONS = [
-  { value: "dental", label: "Clínica dental" },
-  { value: "estetica", label: "Centro de estética" },
+  { value: "dental", label: "ClÃ­nica dental" },
+  { value: "estetica", label: "Centro de estÃ©tica" },
   { value: "fisio", label: "Fisioterapia" },
-  { value: "medico", label: "Consultorio médico" },
-  { value: "nutricion", label: "Nutrición" },
+  { value: "medico", label: "Consultorio mÃ©dico" },
+  { value: "nutricion", label: "NutriciÃ³n" },
   { value: "gimnasio", label: "Gimnasio/yoga/pilates" },
   { value: "otro", label: "Otro" },
 ];
 
 const TIMEZONE_OPTIONS = [
-  { value: "America/Montevideo", label: "América / Montevideo (UY)" },
+  { value: "America/Montevideo", label: "AmÃ©rica / Montevideo (UY)" },
   {
     value: "America/Argentina/Buenos_Aires",
-    label: "América / Buenos Aires (AR)",
+    label: "AmÃ©rica / Buenos Aires (AR)",
   },
-  { value: "America/Santiago", label: "América / Santiago (CL)" },
-  { value: "America/Sao_Paulo", label: "América / São Paulo (BR)" },
-  { value: "America/Bogota", label: "América / Bogotá (CO)" },
-  { value: "America/Lima", label: "América / Lima (PE)" },
-  { value: "America/Mexico_City", label: "América / Ciudad de México" },
+  { value: "America/Santiago", label: "AmÃ©rica / Santiago (CL)" },
+  { value: "America/Sao_Paulo", label: "AmÃ©rica / SÃ£o Paulo (BR)" },
+  { value: "America/Bogota", label: "AmÃ©rica / BogotÃ¡ (CO)" },
+  { value: "America/Lima", label: "AmÃ©rica / Lima (PE)" },
+  { value: "America/Mexico_City", label: "AmÃ©rica / Ciudad de MÃ©xico" },
 ];
 
 interface CreatedBusiness {
@@ -63,6 +70,7 @@ interface WizardState {
   phone: string;
   google: GoogleVerification | null;
   whatsapp: WhatsAppVerification | null;
+  existingBusiness: boolean;
 }
 
 const initialWizard: WizardState = {
@@ -73,17 +81,130 @@ const initialWizard: WizardState = {
   phone: "",
   google: null,
   whatsapp: null,
+  existingBusiness: false,
 };
 
+interface PlatformOnboardingData {
+  business: {
+    id: string;
+    name: string;
+    vertical: string | null;
+    timezone: string;
+    phone: string | null;
+    googlePlaceId: string | null;
+    googleReviewsLastSyncAt: string | null;
+  };
+}
+
 export default function OnboardingPage() {
+  return (
+    <Suspense
+      fallback={
+        <OnboardingLayout currentStep={1}>
+          <WizardCard badge="Onboarding" title="Cargando datos">
+            <p className="mt-3 flex items-center gap-2 text-sm text-[#8891A4]">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Estamos preparando el onboarding.
+            </p>
+          </WizardCard>
+        </OnboardingLayout>
+      }
+    >
+      <OnboardingPageContent />
+    </Suspense>
+  );
+}
+
+function OnboardingPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const existingBusinessId = searchParams.get("businessId");
   const [currentStep, setCurrentStep] = useState(1);
   const [wizard, setWizard] = useState<WizardState>(initialWizard);
+  const [loadingExisting, setLoadingExisting] = useState(Boolean(existingBusinessId));
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!existingBusinessId) return;
+
+    async function loadExistingBusiness() {
+      setLoadingExisting(true);
+      setLoadError(null);
+      try {
+        const response = await fetch(
+          `/api/proxy/platform/businesses/${existingBusinessId}/onboarding`,
+        );
+        const data = (await response.json().catch(() => ({}))) as
+          | PlatformOnboardingData
+          | { message?: string };
+        if (!response.ok || !("business" in data)) {
+          throw new Error(
+            "message" in data
+              ? data.message
+              : "No pudimos cargar el onboarding.",
+          );
+        }
+        setWizard({
+          businessId: data.business.id,
+          businessName: data.business.name,
+          vertical: data.business.vertical ?? "",
+          timezone: data.business.timezone || "America/Montevideo",
+          phone: data.business.phone ?? "",
+          google: data.business.googlePlaceId
+            ? {
+                placeId: data.business.googlePlaceId,
+                name: data.business.name,
+                rating: null,
+                reviewCount: 0,
+              }
+            : null,
+          whatsapp: data.business.phone
+            ? { phone: data.business.phone, connected: true }
+            : null,
+          existingBusiness: true,
+        });
+      } catch (error) {
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "No pudimos cargar el onboarding.",
+        );
+      } finally {
+        setLoadingExisting(false);
+      }
+    }
+
+    void loadExistingBusiness();
+  }, [existingBusinessId]);
+
+  if (loadingExisting) {
+    return (
+      <OnboardingLayout currentStep={1}>
+        <WizardCard badge="Onboarding" title="Cargando datos">
+          <p className="mt-3 flex items-center gap-2 text-sm text-[#8891A4]">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Estamos preparando el onboarding del negocio.
+          </p>
+        </WizardCard>
+      </OnboardingLayout>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <OnboardingLayout currentStep={1}>
+        <WizardCard badge="Onboarding" title="No pudimos cargar el negocio">
+          <FormError message={loadError} />
+        </WizardCard>
+      </OnboardingLayout>
+    );
+  }
 
   return (
     <OnboardingLayout currentStep={currentStep}>
       {currentStep === 1 ? (
         <BusinessStep
+          existingBusinessId={wizard.existingBusiness ? wizard.businessId : null}
           initial={{
             name: wizard.businessName,
             vertical: wizard.vertical,
@@ -98,6 +219,7 @@ export default function OnboardingPage() {
               vertical: draft.vertical,
               timezone: draft.timezone,
               phone: draft.phone,
+              existingBusiness: current.existingBusiness,
             }));
             setCurrentStep(2);
           }}
@@ -107,6 +229,8 @@ export default function OnboardingPage() {
       {currentStep === 2 && wizard.businessId ? (
         <GoogleStep
           businessId={wizard.businessId}
+          platformMode={wizard.existingBusiness}
+          businessName={wizard.businessName}
           initial={wizard.google}
           onBack={() => setCurrentStep(1)}
           onVerified={(google) =>
@@ -119,6 +243,7 @@ export default function OnboardingPage() {
       {currentStep === 3 && wizard.businessId ? (
         <WhatsAppStep
           businessId={wizard.businessId}
+          platformMode={wizard.existingBusiness}
           initialPhone={wizard.whatsapp?.phone ?? wizard.phone}
           verified={wizard.whatsapp}
           onBack={() => setCurrentStep(2)}
@@ -133,7 +258,15 @@ export default function OnboardingPage() {
         <SummaryStep
           wizard={wizard}
           onEdit={(step) => setCurrentStep(step)}
-          onGoToDashboard={() => router.push("/dashboard")}
+          onGoToDashboard={async () => {
+            if (wizard.existingBusiness && wizard.businessId) {
+              await fetch(
+                `/api/proxy/platform/businesses/${wizard.businessId}/onboarding/complete`,
+                { method: "POST" },
+              ).catch(() => undefined);
+            }
+            router.push("/dashboard");
+          }}
         />
       ) : null}
     </OnboardingLayout>
@@ -221,9 +354,11 @@ function ProgressBar({ currentStep }: { currentStep: number }) {
 }
 
 function BusinessStep({
+  existingBusinessId,
   initial,
   onCreated,
 }: {
+  existingBusinessId: string | null;
   initial: {
     name: string;
     vertical: string;
@@ -255,34 +390,48 @@ function BusinessStep({
     setError(null);
     setLoading(true);
     try {
-      const response = await fetch("/api/proxy/businesses", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: name.trim(),
-          vertical,
-          timezone,
-          phone,
-        }),
-      });
+      const response = await fetch(
+        existingBusinessId
+          ? `/api/proxy/platform/businesses/${existingBusinessId}/onboarding/business`
+          : "/api/proxy/businesses",
+        {
+          method: existingBusinessId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            existingBusinessId
+              ? {
+                  name: name.trim(),
+                  vertical,
+                  timezone,
+                  whatsappPhone: phone,
+                }
+              : {
+                  name: name.trim(),
+                  vertical,
+                  timezone,
+                  phone,
+                },
+          ),
+        },
+      );
       const data = (await response.json().catch(() => ({}))) as
-        | CreatedBusiness
+        | (CreatedBusiness & { id: string; name: string })
         | { message?: string };
 
       if (!response.ok || !("id" in data)) {
         throw new Error(
           "message" in data
             ? data.message
-            : "No pudimos crear el negocio. Probá de nuevo.",
+            : "No pudimos guardar el negocio. ProbÃ¡ de nuevo.",
         );
       }
 
-      onCreated(data, { vertical, timezone, phone });
+      onCreated({ id: data.id, name: data.name }, { vertical, timezone, phone });
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : "No pudimos crear el negocio. Probá de nuevo.",
+          : "No pudimos guardar el negocio. ProbÃ¡ de nuevo.",
       );
     } finally {
       setLoading(false);
@@ -292,7 +441,7 @@ function BusinessStep({
   return (
     <WizardCard badge="Paso 1 de 4" title="Contanos sobre tu negocio">
       <p className="mt-3 text-sm text-[#8891A4]">
-        Lo básico para empezar a generar reseñas.
+        Lo bÃ¡sico para empezar a generar reseÃ±as.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -302,7 +451,7 @@ function BusinessStep({
             onChange={(event) => setName(event.target.value)}
             required
             className={inputClassName}
-            placeholder="Clínica Sonrisa Pocitos"
+            placeholder="ClÃ­nica Sonrisa Pocitos"
           />
         </Field>
 
@@ -315,7 +464,7 @@ function BusinessStep({
               className={inputClassName}
             >
               <option value="" disabled>
-                Seleccioná un rubro
+                SeleccionÃ¡ un rubro
               </option>
               {VERTICAL_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -341,18 +490,18 @@ function BusinessStep({
         </div>
 
         <PhoneInput
-          label="Teléfono de contacto"
+          label="TelÃ©fono de contacto"
           value={phone}
           onChange={setPhone}
         />
         <p className="-mt-2 text-xs text-[#8891A4]">
-          Usamos este número solo para soporte. No se muestra a tus pacientes.
+          Usamos este nÃºmero solo para soporte. No se muestra a tus pacientes.
         </p>
 
         <FormError message={error} />
 
         <div className="flex flex-col gap-4 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-[#8891A4]">Se guarda automáticamente</p>
+          <p className="text-sm text-[#8891A4]">Se guarda automÃ¡ticamente</p>
           <PrimaryButton disabled={!canContinue || loading} loading={loading}>
             Continuar
           </PrimaryButton>
@@ -362,14 +511,19 @@ function BusinessStep({
   );
 }
 
+
 function GoogleStep({
   businessId,
+  platformMode,
+  businessName,
   initial,
   onBack,
   onVerified,
   onContinue,
 }: {
   businessId: string;
+  platformMode: boolean;
+  businessName: string;
   initial: GoogleVerification | null;
   onBack: () => void;
   onVerified: (google: GoogleVerification) => void;
@@ -386,17 +540,31 @@ function GoogleStep({
     setError(null);
     try {
       const response = await fetch(
-        `/api/proxy/businesses/${businessId}/verify-google-place?placeId=${encodeURIComponent(
-          placeId.trim(),
-        )}`,
+        platformMode
+          ? `/api/proxy/platform/businesses/${businessId}/onboarding/google`
+          : `/api/proxy/businesses/${businessId}/verify-google-place?placeId=${encodeURIComponent(
+              placeId.trim(),
+            )}`,
+        platformMode
+          ? {
+              method: "PATCH",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ googlePlaceId: placeId.trim() }),
+            }
+          : undefined,
       );
       const data = (await response.json().catch(() => ({}))) as
         | Omit<GoogleVerification, "placeId">
         | { message?: string };
-      if (!response.ok || !("name" in data)) {
+      if (!response.ok) {
         throw new Error("No encontramos ese negocio");
       }
-      const next = { ...data, placeId: placeId.trim() };
+      const next = {
+        name: "name" in data ? data.name : businessName,
+        rating: "rating" in data ? data.rating : null,
+        reviewCount: "reviewCount" in data ? data.reviewCount : 0,
+        placeId: placeId.trim(),
+      };
       setVerification(next);
       onVerified(next);
     } catch {
@@ -408,9 +576,9 @@ function GoogleStep({
   }
 
   return (
-    <WizardCard badge="Paso 2 de 4" title="Conectá tu ficha de Google">
+    <WizardCard badge="Paso 2 de 4" title="ConectÃ¡ tu ficha de Google">
       <p className="mt-3 text-sm text-[#8891A4]">
-        Pegá tu Google Place ID. Vamos a importar tus reseñas existentes y
+        PegÃ¡ tu Google Place ID. Vamos a importar tus reseÃ±as existentes y
         empezar a sumar nuevas.
       </p>
 
@@ -448,7 +616,7 @@ function GoogleStep({
           rel="noreferrer"
           className="mt-2 inline-flex text-xs font-semibold text-[#5C6BC0] hover:underline"
         >
-          ¿Cómo encuentro mi Place ID? Buscar →
+          Â¿CÃ³mo encuentro mi Place ID? Buscar â†’
         </a>
       </div>
 
@@ -457,13 +625,13 @@ function GoogleStep({
           <SuccessPanel
             className="mt-6"
             title={verification.name}
-            meta={`★ ${formatRating(verification.rating)} · ${verification.reviewCount} reseñas en Google`}
+            meta={`â˜… ${formatRating(verification.rating)} Â· ${verification.reviewCount} reseÃ±as en Google`}
             status="Verificado"
           />
           <div className="mt-3 inline-flex w-full items-center gap-2 rounded-lg bg-[#5C6BC0]/10 px-4 py-3 text-sm font-medium text-[#5C6BC0]">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             <span>
-              Importando tus reseñas en segundo plano... podés continuar.
+              Importando tus reseÃ±as en segundo plano... podÃ©s continuar.
             </span>
           </div>
         </>
@@ -481,6 +649,7 @@ function GoogleStep({
 
 function WhatsAppStep({
   businessId,
+  platformMode,
   initialPhone,
   verified,
   onBack,
@@ -488,6 +657,7 @@ function WhatsAppStep({
   onContinue,
 }: {
   businessId: string;
+  platformMode: boolean;
   initialPhone: string;
   verified: WhatsAppVerification | null;
   onBack: () => void;
@@ -508,21 +678,25 @@ function WhatsAppStep({
     setState("idle");
     try {
       const response = await fetch(
-        `/api/proxy/businesses/${businessId}/verify-whatsapp`,
+        platformMode
+          ? `/api/proxy/platform/businesses/${businessId}/onboarding/test-message`
+          : `/api/proxy/businesses/${businessId}/verify-whatsapp`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ phone }),
+          body: JSON.stringify(
+            platformMode ? { phone, name: "Prueba Flikker" } : { phone },
+          ),
         },
       );
       const data = (await response.json().catch(() => ({}))) as
         | { connected?: boolean }
         | { message?: string };
-      if (!response.ok || !("connected" in data) || !data.connected) {
+      if (!response.ok || (!platformMode && (!("connected" in data) || !data.connected))) {
         throw new Error(
           "message" in data
             ? data.message
-            : "No pudimos verificar la conexión.",
+            : "No pudimos verificar la conexiÃ³n.",
         );
       }
       const next = { phone, connected: true };
@@ -533,7 +707,7 @@ function WhatsAppStep({
       setError(
         err instanceof Error
           ? err.message
-          : "No pudimos verificar la conexión.",
+          : "No pudimos verificar la conexiÃ³n.",
       );
     } finally {
       setLoading(false);
@@ -541,14 +715,14 @@ function WhatsAppStep({
   }
 
   return (
-    <WizardCard badge="Paso 3 de 4" title="Conectá tu WhatsApp">
+    <WizardCard badge="Paso 3 de 4" title="ConectÃ¡ tu WhatsApp">
       <p className="mt-3 text-sm text-[#8891A4]">
-        El número desde el que vas a enviar pedidos de reseña a tus pacientes.
+        El nÃºmero desde el que vas a enviar pedidos de reseÃ±a a tus pacientes.
       </p>
 
       <div className="mt-6">
         <PhoneInput
-          label="Número de WhatsApp"
+          label="NÃºmero de WhatsApp"
           value={phone}
           onChange={(value) => {
             setPhone(value);
@@ -560,14 +734,14 @@ function WhatsAppStep({
 
       {state === "idle" ? (
         <div className="mt-4 rounded-lg border border-[#E8EAF0] bg-[#F5F6FA] px-4 py-3 text-sm text-[#8891A4]">
-          Verificá la conexión para recibir un mensaje de prueba de Flikker.
+          VerificÃ¡ la conexiÃ³n para recibir un mensaje de prueba de Flikker.
         </div>
       ) : null}
 
       {state === "ok" ? (
         <SuccessPanel
           className="mt-4"
-          title="Conexión verificada"
+          title="ConexiÃ³n verificada"
           meta={`Mensaje de prueba entregado a +598 ${phone}`}
           status="activo"
         />
@@ -575,7 +749,7 @@ function WhatsAppStep({
 
       {state === "error" ? (
         <div className="mt-4 rounded-lg border border-[#C0392B]/20 bg-[#C0392B]/10 px-4 py-3 text-sm text-[#C0392B]">
-          {error ?? "No pudimos verificar la conexión."}
+          {error ?? "No pudimos verificar la conexiÃ³n."}
         </div>
       ) : null}
 
@@ -586,7 +760,7 @@ function WhatsAppStep({
         className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-50"
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        {state === "ok" ? "Verificar conexión nuevamente" : "Verificar conexión"}
+        {state === "ok" ? "Verificar conexiÃ³n nuevamente" : "Verificar conexiÃ³n"}
       </button>
 
       <StepActions
@@ -605,7 +779,7 @@ function SummaryStep({
 }: {
   wizard: WizardState;
   onEdit: (step: number) => void;
-  onGoToDashboard: () => void;
+  onGoToDashboard: () => void | Promise<void>;
 }) {
   const verticalLabel =
     VERTICAL_OPTIONS.find((option) => option.value === wizard.vertical)?.label ??
@@ -615,9 +789,9 @@ function SummaryStep({
     wizard.timezone;
 
   return (
-    <WizardCard badge="Paso 4 de 4" title="Casi listo, revisá los datos">
+    <WizardCard badge="Paso 4 de 4" title="Casi listo, revisÃ¡ los datos">
       <p className="mt-3 text-sm text-[#8891A4]">
-        Si algo no es correcto podés editarlo. Después podés cambiar todo desde
+        Si algo no es correcto podÃ©s editarlo. DespuÃ©s podÃ©s cambiar todo desde
         tu panel.
       </p>
 
@@ -625,7 +799,7 @@ function SummaryStep({
         <SummaryCard
           icon={<Building2 className="h-5 w-5" />}
           title="Negocio"
-          text={`${wizard.businessName} · ${verticalLabel} · ${timezoneLabel}`}
+          text={`${wizard.businessName} Â· ${verticalLabel} Â· ${timezoneLabel}`}
           onEdit={() => onEdit(1)}
         />
         <SummaryCard
@@ -633,9 +807,9 @@ function SummaryStep({
           title="Google"
           text={
             wizard.google
-              ? `${wizard.google.name} · ${formatRating(
+              ? `${wizard.google.name} Â· ${formatRating(
                   wizard.google.rating,
-                )} · ${wizard.google.reviewCount} reseñas · Verificado`
+                )} Â· ${wizard.google.reviewCount} reseÃ±as Â· Verificado`
               : "Sin verificar"
           }
           onEdit={() => onEdit(2)}
@@ -645,7 +819,7 @@ function SummaryStep({
           title="WhatsApp"
           text={
             wizard.whatsapp?.connected
-              ? `+598 ${wizard.whatsapp.phone} · Conexión activa`
+              ? `+598 ${wizard.whatsapp.phone} Â· ConexiÃ³n activa`
               : "Sin verificar"
           }
           onEdit={() => onEdit(3)}
@@ -654,7 +828,7 @@ function SummaryStep({
 
       <button
         type="button"
-        onClick={onGoToDashboard}
+        onClick={() => void onGoToDashboard()}
         className="mt-6 inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-[#5C6BC0] px-6 text-sm font-semibold text-white hover:bg-[#4e5db0]"
       >
         Ir a mi panel

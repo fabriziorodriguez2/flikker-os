@@ -1,4 +1,4 @@
-import { OnboardingClient } from "./onboarding-client";
+import { redirect } from "next/navigation";
 
 export default async function BusinessOnboardingPage({
   params,
@@ -6,5 +6,5 @@ export default async function BusinessOnboardingPage({
   params: Promise<{ businessId: string }>;
 }) {
   const { businessId } = await params;
-  return <OnboardingClient businessId={businessId} />;
+  redirect(`/onboarding?businessId=${encodeURIComponent(businessId)}`);
 }
