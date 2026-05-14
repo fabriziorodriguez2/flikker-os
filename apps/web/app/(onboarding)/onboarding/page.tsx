@@ -23,26 +23,26 @@ import {
 import PhoneInput from "@/components/ui/phone-input";
 
 const VERTICAL_OPTIONS = [
-  { value: "dental", label: "ClÃ­nica dental" },
-  { value: "estetica", label: "Centro de estÃ©tica" },
+  { value: "dental", label: "Clínica dental" },
+  { value: "estetica", label: "Centro de estética" },
   { value: "fisio", label: "Fisioterapia" },
-  { value: "medico", label: "Consultorio mÃ©dico" },
-  { value: "nutricion", label: "NutriciÃ³n" },
+  { value: "medico", label: "Consultorio médico" },
+  { value: "nutricion", label: "Nutrición" },
   { value: "gimnasio", label: "Gimnasio/yoga/pilates" },
   { value: "otro", label: "Otro" },
 ];
 
 const TIMEZONE_OPTIONS = [
-  { value: "America/Montevideo", label: "AmÃ©rica / Montevideo (UY)" },
+  { value: "America/Montevideo", label: "América / Montevideo (UY)" },
   {
     value: "America/Argentina/Buenos_Aires",
-    label: "AmÃ©rica / Buenos Aires (AR)",
+    label: "América / Buenos Aires (AR)",
   },
-  { value: "America/Santiago", label: "AmÃ©rica / Santiago (CL)" },
-  { value: "America/Sao_Paulo", label: "AmÃ©rica / SÃ£o Paulo (BR)" },
-  { value: "America/Bogota", label: "AmÃ©rica / BogotÃ¡ (CO)" },
-  { value: "America/Lima", label: "AmÃ©rica / Lima (PE)" },
-  { value: "America/Mexico_City", label: "AmÃ©rica / Ciudad de MÃ©xico" },
+  { value: "America/Santiago", label: "América / Santiago (CL)" },
+  { value: "America/Sao_Paulo", label: "América / São Paulo (BR)" },
+  { value: "America/Bogota", label: "América / Bogotá (CO)" },
+  { value: "America/Lima", label: "América / Lima (PE)" },
+  { value: "America/Mexico_City", label: "América / Ciudad de México" },
 ];
 
 interface CreatedBusiness {
@@ -291,9 +291,12 @@ function OnboardingLayout({
       </Link>
 
       <div className="mx-auto flex w-full max-w-[760px] flex-col items-center">
-        <p className="flikker-brand-text text-[22px] font-bold leading-none text-[#5C6BC0]">
-          flikker.
-        </p>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/flikker-logotype.svg"
+          alt="Flikker"
+          className="h-auto w-[96px]"
+        />
         <ProgressBar currentStep={currentStep} />
         <div className="mt-10 w-full">{children}</div>
       </div>
@@ -422,7 +425,7 @@ function BusinessStep({
         throw new Error(
           "message" in data
             ? data.message
-            : "No pudimos guardar el negocio. ProbÃ¡ de nuevo.",
+            : "No pudimos guardar el negocio. Probá de nuevo.",
         );
       }
 
@@ -431,7 +434,7 @@ function BusinessStep({
       setError(
         err instanceof Error
           ? err.message
-          : "No pudimos guardar el negocio. ProbÃ¡ de nuevo.",
+          : "No pudimos guardar el negocio. Probá de nuevo.",
       );
     } finally {
       setLoading(false);
@@ -441,7 +444,7 @@ function BusinessStep({
   return (
     <WizardCard badge="Paso 1 de 4" title="Contanos sobre tu negocio">
       <p className="mt-3 text-sm text-[#8891A4]">
-        Lo bÃ¡sico para empezar a generar reseÃ±as.
+        Lo básico para empezar a generar reseñas.
       </p>
 
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -451,7 +454,7 @@ function BusinessStep({
             onChange={(event) => setName(event.target.value)}
             required
             className={inputClassName}
-            placeholder="ClÃ­nica Sonrisa Pocitos"
+            placeholder="Clínica Sonrisa Pocitos"
           />
         </Field>
 
@@ -464,7 +467,7 @@ function BusinessStep({
               className={inputClassName}
             >
               <option value="" disabled>
-                SeleccionÃ¡ un rubro
+                Seleccioná un rubro
               </option>
               {VERTICAL_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -490,18 +493,18 @@ function BusinessStep({
         </div>
 
         <PhoneInput
-          label="TelÃ©fono de contacto"
+          label="Teléfono de contacto"
           value={phone}
           onChange={setPhone}
         />
         <p className="-mt-2 text-xs text-[#8891A4]">
-          Usamos este nÃºmero solo para soporte. No se muestra a tus pacientes.
+          Usamos este número solo para soporte. No se muestra a tus pacientes.
         </p>
 
         <FormError message={error} />
 
         <div className="flex flex-col gap-4 pt-4 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm text-[#8891A4]">Se guarda automÃ¡ticamente</p>
+          <p className="text-sm text-[#8891A4]">Se guarda automáticamente</p>
           <PrimaryButton disabled={!canContinue || loading} loading={loading}>
             Continuar
           </PrimaryButton>
@@ -576,9 +579,9 @@ function GoogleStep({
   }
 
   return (
-    <WizardCard badge="Paso 2 de 4" title="ConectÃ¡ tu ficha de Google">
+    <WizardCard badge="Paso 2 de 4" title="Conectá tu ficha de Google">
       <p className="mt-3 text-sm text-[#8891A4]">
-        PegÃ¡ tu Google Place ID. Vamos a importar tus reseÃ±as existentes y
+        Pegá tu Google Place ID. Vamos a importar tus reseñas existentes y
         empezar a sumar nuevas.
       </p>
 
@@ -616,7 +619,7 @@ function GoogleStep({
           rel="noreferrer"
           className="mt-2 inline-flex text-xs font-semibold text-[#5C6BC0] hover:underline"
         >
-          Â¿CÃ³mo encuentro mi Place ID? Buscar â†’
+          ¿Cómo encuentro mi Place ID? Buscar →
         </a>
       </div>
 
@@ -625,13 +628,13 @@ function GoogleStep({
           <SuccessPanel
             className="mt-6"
             title={verification.name}
-            meta={`â˜… ${formatRating(verification.rating)} Â· ${verification.reviewCount} reseÃ±as en Google`}
+            meta={`★ ${formatRating(verification.rating)} · ${verification.reviewCount} reseñas en Google`}
             status="Verificado"
           />
           <div className="mt-3 inline-flex w-full items-center gap-2 rounded-lg bg-[#5C6BC0]/10 px-4 py-3 text-sm font-medium text-[#5C6BC0]">
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
             <span>
-              Importando tus reseÃ±as en segundo plano... podÃ©s continuar.
+              Importando tus reseñas en segundo plano... podés continuar.
             </span>
           </div>
         </>
@@ -696,7 +699,7 @@ function WhatsAppStep({
         throw new Error(
           "message" in data
             ? data.message
-            : "No pudimos verificar la conexiÃ³n.",
+            : "No pudimos verificar la conexión.",
         );
       }
       const next = { phone, connected: true };
@@ -707,7 +710,7 @@ function WhatsAppStep({
       setError(
         err instanceof Error
           ? err.message
-          : "No pudimos verificar la conexiÃ³n.",
+          : "No pudimos verificar la conexión.",
       );
     } finally {
       setLoading(false);
@@ -715,14 +718,14 @@ function WhatsAppStep({
   }
 
   return (
-    <WizardCard badge="Paso 3 de 4" title="ConectÃ¡ tu WhatsApp">
+    <WizardCard badge="Paso 3 de 4" title="Conectá tu WhatsApp">
       <p className="mt-3 text-sm text-[#8891A4]">
-        El nÃºmero desde el que vas a enviar pedidos de reseÃ±a a tus pacientes.
+        Pon tu número para recibir el mensaje que recibirán tus pacientes.
       </p>
 
       <div className="mt-6">
         <PhoneInput
-          label="NÃºmero de WhatsApp"
+          label="Número de WhatsApp"
           value={phone}
           onChange={(value) => {
             setPhone(value);
@@ -734,14 +737,14 @@ function WhatsAppStep({
 
       {state === "idle" ? (
         <div className="mt-4 rounded-lg border border-[#E8EAF0] bg-[#F5F6FA] px-4 py-3 text-sm text-[#8891A4]">
-          VerificÃ¡ la conexiÃ³n para recibir un mensaje de prueba de Flikker.
+          Verificá la conexión para recibir un mensaje de prueba de Flikker.
         </div>
       ) : null}
 
       {state === "ok" ? (
         <SuccessPanel
           className="mt-4"
-          title="ConexiÃ³n verificada"
+          title="Conexión verificada"
           meta={`Mensaje de prueba entregado a +598 ${phone}`}
           status="activo"
         />
@@ -749,7 +752,7 @@ function WhatsAppStep({
 
       {state === "error" ? (
         <div className="mt-4 rounded-lg border border-[#C0392B]/20 bg-[#C0392B]/10 px-4 py-3 text-sm text-[#C0392B]">
-          {error ?? "No pudimos verificar la conexiÃ³n."}
+          {error ?? "No pudimos verificar la conexión."}
         </div>
       ) : null}
 
@@ -760,7 +763,7 @@ function WhatsAppStep({
         className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-50"
       >
         {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        {state === "ok" ? "Verificar conexiÃ³n nuevamente" : "Verificar conexiÃ³n"}
+        {state === "ok" ? "Verificar conexión nuevamente" : "Verificar conexión"}
       </button>
 
       <StepActions
@@ -789,9 +792,9 @@ function SummaryStep({
     wizard.timezone;
 
   return (
-    <WizardCard badge="Paso 4 de 4" title="Casi listo, revisÃ¡ los datos">
+    <WizardCard badge="Paso 4 de 4" title="Casi listo, revisá los datos">
       <p className="mt-3 text-sm text-[#8891A4]">
-        Si algo no es correcto podÃ©s editarlo. DespuÃ©s podÃ©s cambiar todo desde
+        Si algo no es correcto podés editarlo. Después podés cambiar todo desde
         tu panel.
       </p>
 
@@ -799,7 +802,7 @@ function SummaryStep({
         <SummaryCard
           icon={<Building2 className="h-5 w-5" />}
           title="Negocio"
-          text={`${wizard.businessName} Â· ${verticalLabel} Â· ${timezoneLabel}`}
+          text={`${wizard.businessName} · ${verticalLabel} · ${timezoneLabel}`}
           onEdit={() => onEdit(1)}
         />
         <SummaryCard
@@ -807,9 +810,9 @@ function SummaryStep({
           title="Google"
           text={
             wizard.google
-              ? `${wizard.google.name} Â· ${formatRating(
+              ? `${wizard.google.name} · ${formatRating(
                   wizard.google.rating,
-                )} Â· ${wizard.google.reviewCount} reseÃ±as Â· Verificado`
+                )} · ${wizard.google.reviewCount} reseñas · Verificado`
               : "Sin verificar"
           }
           onEdit={() => onEdit(2)}
@@ -819,7 +822,7 @@ function SummaryStep({
           title="WhatsApp"
           text={
             wizard.whatsapp?.connected
-              ? `+598 ${wizard.whatsapp.phone} Â· ConexiÃ³n activa`
+              ? `+598 ${wizard.whatsapp.phone} · Conexión activa`
               : "Sin verificar"
           }
           onEdit={() => onEdit(3)}

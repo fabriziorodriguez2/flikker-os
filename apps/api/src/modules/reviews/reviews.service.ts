@@ -37,6 +37,10 @@ export class ReviewsService {
     return this.reviewsRepository.findMany(businessId, filters);
   }
 
+  listGoogleForBusiness(businessId: string, filters: ReviewFilters) {
+    return this.reviewsRepository.findGoogleReviews(businessId, filters);
+  }
+
   async findOneScoped(businessId: string, reviewId: string) {
     const review = await this.reviewsRepository.findOne(businessId, reviewId);
     if (!review) throw new NotFoundException('Review not found');

@@ -88,6 +88,72 @@ export class ReviewsRepository {
     return { data, total, page, limit };
   }
 
+  async findGoogleReviews(businessId: string, filters: ReviewFilters) {
+    const page = filters.page ?? 1;
+    const limit = Math.min(filters.limit ?? 25, 100);
+    const skip = (page - 1) * limit;
+
+    if (
+      filters.campaignId ||
+      filters.isHighlighted === true ||
+      filters.responded === true
+    ) {
+      return { data: [], total: 0, page, limit };
+    }
+
+    const where: Prisma.GoogleReviewWhereInput = { businessId };
+
+    if (filters.ratingMin !== undefined || filters.ratingMax !== undefined) {
+      where.stars = {
+        ...(filters.ratingMin !== undefined ? { gte: filters.ratingMin } : {}),
+        ...(filters.ratingMax !== undefined ? { lte: filters.ratingMax } : {}),
+      };
+    }
+
+    if (filters.search) {
+      where.OR = [
+        { text: { contains: filters.search, mode: 'insensitive' } },
+        { reviewerName: { contains: filters.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const sortMap = {
+      reviewedAt: 'postedAt',
+      rating: 'stars',
+      createdAt: 'createdAt',
+    } as const;
+    const sortBy = sortMap[filters.sortBy ?? 'reviewedAt'];
+    const sortOrder = filters.sortOrder ?? 'desc';
+
+    const [googleReviews, total] = await Promise.all([
+      this.prisma.googleReview.findMany({
+        where,
+        orderBy: { [sortBy]: sortOrder },
+        skip,
+        take: limit,
+      }),
+      this.prisma.googleReview.count({ where }),
+    ]);
+
+    return {
+      data: googleReviews.map((review) => ({
+        id: review.id,
+        rating: review.stars,
+        authorDisplayName: review.reviewerName,
+        reviewedAt: review.postedAt,
+        content: review.text,
+        campaign: null,
+        respondedAt: null,
+        respondedBy: null,
+        isHighlighted: false,
+        status: ReviewStatus.NEW,
+      })),
+      total,
+      page,
+      limit,
+    };
+  }
+
   /**
    * Creates a review atomically with dedup + insert inside a single
    * transaction to prevent TOCTOU races.

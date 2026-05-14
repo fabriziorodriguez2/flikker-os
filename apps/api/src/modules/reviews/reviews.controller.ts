@@ -34,6 +34,17 @@ export class ReviewsController {
     return this.reviewsService.listForBusiness(req.currentBusinessId!, query);
   }
 
+  @Get('google')
+  listGoogle(
+    @Req() req: AuthenticatedRequest,
+    @Query() query: ListReviewsQueryDto,
+  ) {
+    return this.reviewsService.listGoogleForBusiness(
+      req.currentBusinessId!,
+      query,
+    );
+  }
+
   /**
    * Returns a single review with relations — must belong to the current business.
    */

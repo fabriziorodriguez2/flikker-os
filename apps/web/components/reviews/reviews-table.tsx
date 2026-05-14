@@ -5,6 +5,7 @@ import { FEATURES } from "@/src/config/features";
 
 interface ReviewsTableProps {
   reviews: ReviewSummary[];
+  readOnly?: boolean;
 }
 
 function formatDate(value: string) {
@@ -38,15 +39,24 @@ function formatReviewStatus(status: string) {
   return labels[status] ?? status;
 }
 
-export default function ReviewsTable({ reviews }: ReviewsTableProps) {
+export default function ReviewsTable({
+  reviews,
+  readOnly = false,
+}: ReviewsTableProps) {
+  const desktopGrid = readOnly
+    ? "grid-cols-[minmax(0,1.5fr)_220px_180px]"
+    : "grid-cols-[minmax(0,1.5fr)_220px_180px_220px]";
+
   return (
     <div className="space-y-4">
       <div className="hidden overflow-hidden rounded-[28px] border border-[color:var(--border)] bg-[color:var(--surface)] lg:block">
-        <div className="grid grid-cols-[minmax(0,1.5fr)_220px_180px_220px] gap-4 border-b border-[color:var(--border)] bg-[color:var(--surface-muted)] px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
+        <div
+          className={`grid ${desktopGrid} gap-4 border-b border-[color:var(--border)] bg-[color:var(--surface-muted)] px-6 py-4 text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]`}
+        >
           <div>Reseña</div>
           <div>Campaña</div>
           <div>Estado</div>
-          <div className="text-right">Acciones</div>
+          {!readOnly ? <div className="text-right">Acciones</div> : null}
         </div>
 
         <div className="divide-y divide-[color:var(--border)]">
@@ -56,7 +66,7 @@ export default function ReviewsTable({ reviews }: ReviewsTableProps) {
             return (
               <div
                 key={review.id}
-                className="grid grid-cols-[minmax(0,1.5fr)_220px_180px_220px] gap-4 px-6 py-5 hover:bg-[color:var(--surface-muted)]/55"
+                className={`grid ${desktopGrid} gap-4 px-6 py-5 hover:bg-[color:var(--surface-muted)]/55`}
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -127,29 +137,31 @@ export default function ReviewsTable({ reviews }: ReviewsTableProps) {
                   ) : null}
                 </div>
 
-                <div className="flex flex-col items-end gap-3">
-                  <ReviewRowActions
-                    reviewId={review.id}
-                    isHighlighted={review.isHighlighted}
-                    isResponded={isResponded}
-                  />
-                  <div className="flex flex-col items-end gap-2 text-sm">
-                    <Link
-                      href={`/dashboard/reviews/${review.id}`}
-                      className="font-medium text-[color:var(--brand-accent)] hover:text-[color:var(--brand-primary)]"
-                    >
-                      Ver detalle
-                    </Link>
-                    {FEATURES.MANUAL_RESPONSES && !isResponded ? (
+                {!readOnly ? (
+                  <div className="flex flex-col items-end gap-3">
+                    <ReviewRowActions
+                      reviewId={review.id}
+                      isHighlighted={review.isHighlighted}
+                      isResponded={isResponded}
+                    />
+                    <div className="flex flex-col items-end gap-2 text-sm">
                       <Link
                         href={`/dashboard/reviews/${review.id}`}
-                        className="text-[color:var(--text-muted)] hover:text-[color:var(--foreground)]"
+                        className="font-medium text-[color:var(--brand-accent)] hover:text-[color:var(--brand-primary)]"
                       >
-                        Responder
+                        Ver detalle
                       </Link>
-                    ) : null}
+                      {FEATURES.MANUAL_RESPONSES && !isResponded ? (
+                        <Link
+                          href={`/dashboard/reviews/${review.id}`}
+                          className="text-[color:var(--text-muted)] hover:text-[color:var(--foreground)]"
+                        >
+                          Responder
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
+                ) : null}
               </div>
             );
           })}
@@ -211,29 +223,31 @@ export default function ReviewsTable({ reviews }: ReviewsTableProps) {
                 ) : null}
               </div>
 
-              <div className="mt-5 space-y-3">
-                <ReviewRowActions
-                  reviewId={review.id}
-                  isHighlighted={review.isHighlighted}
-                  isResponded={isResponded}
-                />
-                <div className="flex flex-wrap gap-3 text-sm">
-                  <Link
-                    href={`/dashboard/reviews/${review.id}`}
-                    className="font-medium text-[color:var(--brand-accent)]"
-                  >
-                    Ver detalle
-                  </Link>
-                  {FEATURES.MANUAL_RESPONSES && !isResponded ? (
+              {!readOnly ? (
+                <div className="mt-5 space-y-3">
+                  <ReviewRowActions
+                    reviewId={review.id}
+                    isHighlighted={review.isHighlighted}
+                    isResponded={isResponded}
+                  />
+                  <div className="flex flex-wrap gap-3 text-sm">
                     <Link
                       href={`/dashboard/reviews/${review.id}`}
-                      className="text-[color:var(--text-muted)]"
+                      className="font-medium text-[color:var(--brand-accent)]"
                     >
-                      Responder
+                      Ver detalle
                     </Link>
-                  ) : null}
+                    {FEATURES.MANUAL_RESPONSES && !isResponded ? (
+                      <Link
+                        href={`/dashboard/reviews/${review.id}`}
+                        className="text-[color:var(--text-muted)]"
+                      >
+                        Responder
+                      </Link>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </article>
           );
         })}

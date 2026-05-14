@@ -49,7 +49,7 @@ function buildReviewsPath(filters: ReviewFiltersState) {
   if (filters.campaignId) query.set('campaignId', filters.campaignId);
   if (filters.rating) query.set('ratingMin', filters.rating);
 
-  return `/reviews?${query.toString()}`;
+  return `/reviews/google?${query.toString()}`;
 }
 
 export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
@@ -133,7 +133,7 @@ export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
       <PageHeader
         eyebrow="Reseñas"
         title="Reseñas"
-        subtitle="Bandeja del negocio activo."
+        subtitle="Bandeja de reseñas detectadas en Google."
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -159,12 +159,12 @@ export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
           </h2>
           <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-[color:var(--text-muted)]">
             {hasActiveFilters
-              ? 'Ajusta los filtros para volver a ver todas las reseñas.'
-              : 'Cuando cargues reseñas, vas a verlas acá.'}
+              ? 'Ajustá los filtros para volver a ver todas las reseñas.'
+              : 'Cuando detectemos reseñas de Google, vas a verlas acá.'}
           </p>
         </div>
       ) : (
-        <ReviewsTable reviews={reviews} />
+        <ReviewsTable reviews={reviews} readOnly />
       )}
     </div>
   );
