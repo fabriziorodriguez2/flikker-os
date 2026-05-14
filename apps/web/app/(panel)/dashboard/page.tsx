@@ -2,8 +2,9 @@ import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import SectionCard from "@/components/ui/section-card";
-import ActivityEvolutionChart, { SERIES } from "./activity-evolution-chart";
+import ActivityEvolutionChart from "./activity-evolution-chart";
 import ActivityFilters, { type ActivityGranularity } from "./activity-filters";
+import { ACTIVITY_SERIES } from "./activity-series";
 import NegativeFeedbackList from "./negative-feedback-list";
 
 interface Business {
@@ -238,7 +239,7 @@ export default async function DashboardPage({
         description="Comparativo mensual de mensajes, reseñas y reactivaciones."
         action={
           <div className="hidden items-center gap-4 sm:flex">
-            {SERIES.map((s) => (
+            {ACTIVITY_SERIES.map((s) => (
               <span key={s.key} className="flex items-center gap-1.5 text-xs text-[#8891A4]">
                 <span
                   className="inline-block h-2.5 w-2.5 rounded-[3px]"
