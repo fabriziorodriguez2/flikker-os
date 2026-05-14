@@ -25,7 +25,7 @@ export default function ForgotPasswordPage() {
     const formData = new FormData(event.currentTarget);
     const nextEmail = String(formData.get("email") ?? "").trim();
 
-    if (!nextEmail) return;
+    if (!nextEmail || loading) return;
     setEmail(nextEmail);
     setLoading(true);
     await sendInstructions(nextEmail);
@@ -46,9 +46,12 @@ export default function ForgotPasswordPage() {
     <main className="flex min-h-screen items-center justify-center bg-[#F5F6FA] px-5 py-10">
       <section className="w-full max-w-[420px] rounded-xl border border-[#E8EAF0] bg-white px-8 py-8">
         <div className="mb-8 text-center">
-          <p className="flikker-brand-text text-[22px] font-bold leading-none text-[#5C6BC0]">
-            flikker.
-          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/flikker-logotype.svg"
+            alt="Flikker"
+            className="mx-auto h-auto w-[96px]"
+          />
         </div>
 
         {step === "form" ? (

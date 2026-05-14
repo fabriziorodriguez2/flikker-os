@@ -16,9 +16,10 @@ import { LogoutDto } from './dto/logout.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SignupDto } from './dto/signup.dto';
+import { EmailService } from '../../jobs/email.service';
 
 const BCRYPT_ROUNDS = 12;
-const RESET_TOKEN_EXPIRY_MINUTES = 60;
+const RESET_TOKEN_EXPIRY_MINUTES = 30;
 const PASSWORD_RESET_MESSAGE = 'Email enviado';
 
 @Injectable()
@@ -26,6 +27,7 @@ export class AuthService {
   constructor(
     private readonly repository: AuthRepository,
     private readonly jwt: JwtService,
+    private readonly emailService: EmailService,
   ) {}
 
   async signup(dto: SignupDto, userAgent?: string, ip?: string) {
@@ -188,7 +190,22 @@ export class AuthService {
 
     await this.repository.createResetToken(user.id, tokenHash, expiresAt);
 
-    // In production: send email with rawToken. For Phase 0 dev: return it directly.
+    const resetUrl = `${getAppPublicUrl()}/reset-password?token=${encodeURIComponent(
+      rawToken,
+    )}`;
+
+    void this.emailService
+      .send({
+        to: user.email,
+        subject: 'Recuperá tu contraseña de Flikker',
+        html: buildPasswordResetEmail({
+          firstName: user.firstName,
+          resetUrl,
+          expiresInMinutes: RESET_TOKEN_EXPIRY_MINUTES,
+        }),
+      })
+      .catch(() => undefined);
+
     if (process.env.NODE_ENV !== 'production') {
       return { message: PASSWORD_RESET_MESSAGE, _dev_token: rawToken };
     }
@@ -251,4 +268,42 @@ export class AuthService {
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
   }
+}
+
+function getAppPublicUrl() {
+  return (
+    process.env.APP_PUBLIC_URL ??
+    process.env.WEB_BASE_URL ??
+    process.env.WEB_PUBLIC_URL ??
+    'https://app.flikker.com'
+  ).replace(/\/$/, '');
+}
+
+function buildPasswordResetEmail(input: {
+  firstName?: string | null;
+  resetUrl: string;
+  expiresInMinutes: number;
+}) {
+  const name = input.firstName?.trim() || 'hola';
+  return `
+    <div style="font-family:Arial,sans-serif;background:#F5F6FA;padding:32px;color:#1A202C">
+      <div style="max-width:520px;margin:0 auto;background:#fff;border:1px solid #E8EAF0;border-radius:12px;padding:32px">
+        <h1 style="margin:0 0 12px;font-size:24px">Recuperá tu contraseña</h1>
+        <p style="margin:0 0 20px;color:#8891A4;line-height:1.6">Hola ${escapeHtml(
+          name,
+        )}, recibimos un pedido para crear una nueva contraseña en Flikker.</p>
+        <a href="${input.resetUrl}" style="display:inline-block;background:#5C6BC0;color:#fff;text-decoration:none;border-radius:8px;padding:14px 20px;font-weight:700">Crear nueva contraseña</a>
+        <p style="margin:20px 0 0;color:#8891A4;font-size:14px;line-height:1.6">El link vence en ${input.expiresInMinutes} minutos. Si no pediste este cambio, podés ignorar este email.</p>
+      </div>
+    </div>
+  `;
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
