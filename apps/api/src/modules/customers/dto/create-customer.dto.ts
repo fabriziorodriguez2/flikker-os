@@ -17,4 +17,8 @@ export class CreateCustomerDto {
   @IsOptional()
   @IsString()
   lastServiceAt?: string;
+
+  @IsOptional()
+  @IsString()
+  birthday?: string;
 }

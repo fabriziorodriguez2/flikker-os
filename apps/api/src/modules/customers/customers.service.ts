@@ -59,6 +59,7 @@ export class CustomersService {
       phoneE164,
       email: dto.email?.trim() || undefined,
       lastServiceAt: this.parseOptionalDate(dto.lastServiceAt),
+      birthday: this.parseOptionalDate(dto.birthday),
     });
   }
 
@@ -69,10 +70,16 @@ export class CustomersService {
       name?: string;
       phoneE164?: string;
       email?: string | null;
+      birthday?: Date | null;
     } = {};
 
     if (dto.name !== undefined) data.name = dto.name.trim();
     if (dto.email !== undefined) data.email = dto.email.trim() || null;
+    if (dto.birthday !== undefined) {
+      data.birthday = dto.birthday.trim()
+        ? this.parseOptionalDate(dto.birthday)
+        : null;
+    }
     if (dto.phone !== undefined) {
       const phoneE164 = normalizeToE164(dto.phone);
       const existing = await this.repository.findByPhone(businessId, phoneE164);

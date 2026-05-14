@@ -11,10 +11,12 @@ interface CustomerData {
   phoneE164: string;
   email?: string;
   lastServiceAt?: Date;
+  birthday?: Date;
 }
 
-type CustomerUpdateData = Partial<Omit<CustomerData, 'email'>> & {
+type CustomerUpdateData = Partial<Omit<CustomerData, 'email' | 'birthday'>> & {
   email?: string | null;
+  birthday?: Date | null;
   optedOut?: boolean;
   isActive?: boolean;
 };
@@ -89,6 +91,7 @@ export class CustomersRepository {
           name: data.name,
           phoneE164: data.phoneE164,
           email: data.email,
+          birthday: data.birthday,
         },
       });
 
@@ -116,6 +119,7 @@ export class CustomersRepository {
           name: row.name,
           phoneE164: row.phoneE164,
           email: row.email,
+          birthday: row.birthday,
         })),
       });
 

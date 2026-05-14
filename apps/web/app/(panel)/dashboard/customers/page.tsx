@@ -1,10 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { Check, Download, Edit2, Plus, Search, Trash2, Upload } from "lucide-react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
-import PageHeader from "@/components/ui/page-header";
-import SectionCard from "@/components/ui/section-card";
 import PhoneInput, {
   isValidNationalPhone,
   toNationalDigits,
@@ -17,6 +16,7 @@ interface Customer {
   phoneE164: string;
   optedOut: boolean;
   createdAt: string;
+  birthday: string | null;
 }
 
 interface CustomersResponse {
@@ -38,9 +38,30 @@ const IMPORT_FIELD_OPTIONS: Array<{ value: ImportField; label: string }> = [
   { value: "ignore", label: "Ignorar" },
   { value: "name", label: "Nombre" },
   { value: "phone", label: "Teléfono" },
-  { value: "email", label: "Email (opcional)" },
-  { value: "lastServiceAt", label: "Fecha último servicio" },
+  { value: "email", label: "Email opcional" },
+  { value: "lastServiceAt", label: "Fecha de atención" },
 ];
+
+const inputClass =
+  "h-10 w-full rounded-[8px] border border-[#E8EAF0] bg-white px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]";
+const buttonBase =
+  "inline-flex h-10 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-semibold transition-colors disabled:opacity-50";
+const secondaryButton = `${buttonBase} border border-[#E8EAF0] bg-white text-[#1A202C] hover:bg-[#F5F6FA]`;
+const primaryButton = `${buttonBase} bg-[#5C6BC0] text-white hover:bg-[#4f5eb0]`;
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "-";
+  return new Intl.DateTimeFormat("es-UY", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(value));
+}
+
+function toDateInput(value: string | null | undefined) {
+  if (!value) return "";
+  return new Date(value).toISOString().slice(0, 10);
+}
 
 export default function CustomersPage() {
   const canMutate = useCanMutate();
@@ -51,19 +72,17 @@ export default function CustomersPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Customer | null>(null);
+  const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
-
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [lastServiceAt, setLastServiceAt] = useState("");
+  const [birthday, setBirthday] = useState("");
   const [saving, setSaving] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importColumns, setImportColumns] = useState<string[]>([]);
-  const [importRows, setImportRows] = useState<Array<Record<string, string>>>(
-    [],
-  );
-  const [columnMapping, setColumnMapping] = useState<
-    Record<string, ImportField>
-  >({});
+  const [importRows, setImportRows] = useState<Array<Record<string, string>>>([]);
+  const [columnMapping, setColumnMapping] = useState<Record<string, ImportField>>({});
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [dragActive, setDragActive] = useState(false);
 
@@ -76,7 +95,6 @@ export default function CustomersPage() {
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
     setError(null);
-
     try {
       const res = await fetch(`/api/proxy/customers?${query}`);
       const data = (await res.json().catch(() => ({}))) as
@@ -92,79 +110,90 @@ export default function CustomersPage() {
       setCustomers((data as CustomersResponse).data);
       setTotal((data as CustomersResponse).total);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
+      setError(e instanceof Error ? e.message : "Error al cargar pacientes");
     } finally {
       setLoading(false);
     }
   }, [query]);
 
   useEffect(() => {
-    fetchCustomers();
+    void fetchCustomers();
   }, [fetchCustomers]);
 
-  function resetForm() {
+  function openNew() {
     setEditing(null);
     setName("");
     setPhone("");
+    setLastServiceAt("");
+    setBirthday("");
+    setShowForm(true);
   }
 
-  function startEdit(customer: Customer) {
+  function openEdit(customer: Customer) {
     setEditing(customer);
     setName(customer.name);
     setPhone(customer.phoneE164);
+    setLastServiceAt("");
+    setBirthday(toDateInput(customer.birthday));
+    setShowForm(true);
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!isValidNationalPhone(toNationalDigits(phone))) {
-      setError("Formato inválido — ingresá entre 7 y 9 dígitos");
+      setError("Formato inválido. Ingresá entre 7 y 9 dígitos.");
       return;
     }
+
     setSaving(true);
     setMessage(null);
     setError(null);
-
     try {
       const res = await fetch(
         editing ? `/api/proxy/customers/${editing.id}` : "/api/proxy/customers",
         {
           method: editing ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ name, phone }),
+          body: JSON.stringify({
+            name,
+            phone,
+            lastServiceAt: lastServiceAt || undefined,
+            birthday: birthday || undefined,
+          }),
         },
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message ?? "Error al guardar");
       setMessage(editing ? "Paciente actualizado" : "Paciente creado");
-      resetForm();
+      setShowForm(false);
       await fetchCustomers();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
+      setError(e instanceof Error ? e.message : "Error al guardar");
     } finally {
       setSaving(false);
     }
   }
 
-  async function handleOptOut(customerId: string) {
+  async function handleDelete(customer: Customer) {
+    if (!window.confirm(`¿Querés archivar a ${customer.name}?`)) return;
     setMessage(null);
     setError(null);
     try {
-      const res = await fetch(`/api/proxy/customers/${customerId}/opt-out`, {
-        method: "POST",
+      const res = await fetch(`/api/proxy/customers/${customer.id}`, {
+        method: "DELETE",
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message ?? "Error al aplicar opt-out");
-      setMessage("Opt-out aplicado");
+      if (!res.ok) throw new Error(data.message ?? "Error al archivar");
+      setMessage("Paciente archivado");
       await fetchCustomers();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
+      setError(e instanceof Error ? e.message : "Error al archivar");
     }
   }
 
   async function handleAttendedToday(customer: Customer) {
     setMessage(null);
     setError(null);
-
     try {
       const res = await fetch("/api/proxy/service-events", {
         method: "POST",
@@ -176,14 +205,12 @@ export default function CustomersPage() {
         }),
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        throw new Error(data.message ?? "Error al registrar atención");
-      }
+      if (!res.ok) throw new Error(data.message ?? "Error al registrar atención");
       setMessage(
-        `✓ ${customer.name} recibirá el pedido de reseña en las próximas 2 horas.`,
+        `${customer.name} recibirá el pedido de reseña en los próximos 30 minutos.`,
       );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
+      setError(e instanceof Error ? e.message : "Error al registrar atención");
     }
   }
 
@@ -206,13 +233,12 @@ export default function CustomersPage() {
       const formData = new FormData();
       formData.set("file", importFile);
       formData.set("mapping", JSON.stringify(mapping));
-
       const res = await fetch("/api/proxy/customers/import-csv", {
         method: "POST",
         body: formData,
       });
       const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.message ?? "Error al importar CSV");
+      if (!res.ok) throw new Error(data.message ?? "Error al importar");
       const result = data as ImportResult;
       setImportResult(result);
       setMessage(
@@ -220,24 +246,16 @@ export default function CustomersPage() {
       );
       await fetchCustomers();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error");
+      setError(e instanceof Error ? e.message : "Error al importar");
     } finally {
       setSaving(false);
     }
   }
 
-  const inputClass =
-    "mt-2 w-full rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-colors placeholder:text-[color:var(--text-soft)] focus:border-[color:var(--brand-accent)]";
-  const actionButtonClass =
-    "inline-flex items-center rounded-[16px] bg-[color:var(--brand-primary)] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[color:var(--brand-accent)] disabled:opacity-60";
-  const secondaryButtonClass =
-    "inline-flex items-center rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm font-semibold text-[color:var(--text-muted)] transition-colors hover:border-[color:var(--brand-accent)] hover:text-[color:var(--foreground)]";
-
   async function handleFile(file: File) {
     setError(null);
     setMessage(null);
     setImportResult(null);
-
     try {
       const parsed = await parseImportFile(file);
       setImportFile(file);
@@ -271,303 +289,315 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-8">
-      <PageHeader
-        eyebrow="Pacientes"
-        title="Pacientes"
-        subtitle="Base operativa para pedidos de resenas y contactos."
-        actions={
-          canMutate ? (
-            <button
-              className={secondaryButtonClass}
-              onClick={() => setShowImport((value) => !value)}
-            >
-              Importar CSV
-            </button>
-          ) : null
-        }
-      />
+    <div className="mx-auto max-w-6xl space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="font-display text-[22px] font-bold text-[#1A202C]">
+          Pacientes
+        </h1>
+      </div>
 
       {error || message ? (
         <div
-          className={`rounded-[24px] border px-5 py-4 text-sm ${
+          className={`rounded-[8px] border px-4 py-3 text-sm ${
             error
-              ? "text-[color:var(--danger-text)]"
-              : "text-[color:var(--success-text)]"
+              ? "border-red-200 bg-red-50 text-[#C0392B]"
+              : "border-green-200 bg-green-50 text-[#639922]"
           }`}
         >
           {error ?? message}
         </div>
       ) : null}
 
-      <SectionCard
-        title={editing ? "Editar paciente" : "Nuevo paciente"}
-        description="Telefono se normaliza a E.164 al guardar."
-      >
-        <form onSubmit={handleSave} className="grid gap-4 lg:grid-cols-3">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className={inputClass}
-            placeholder="Nombre"
-            required
-          />
-          <PhoneInput
-            label="Teléfono"
-            value={phone}
-            onChange={setPhone}
-            required
-          />
-          <div className="flex gap-2 self-end">
-            <button
-              type="submit"
-              disabled={!canMutate || saving}
-              className={actionButtonClass}
-            >
-              {saving ? "Guardando..." : editing ? "Actualizar" : "Crear"}
-            </button>
-            {editing ? (
-              <button
-                type="button"
-                onClick={resetForm}
-                className={secondaryButtonClass}
-              >
-                Cancelar
-              </button>
-            ) : null}
-          </div>
-        </form>
-      </SectionCard>
-
-      {showImport ? (
-        <SectionCard
-          title="Importar pacientes"
-          description="Subí un archivo .csv o .xlsx, revisá la vista previa y confirmá el mapeo."
-        >
-          <form onSubmit={handleImport} className="space-y-4">
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={downloadTemplate}
-                className={secondaryButtonClass}
-              >
-                Descargar plantilla
-              </button>
-            </div>
-
-            <label
-              onDragOver={(event) => {
-                event.preventDefault();
-                setDragActive(true);
-              }}
-              onDragLeave={() => setDragActive(false)}
-              onDrop={(event) => {
-                event.preventDefault();
-                setDragActive(false);
-                const file = event.dataTransfer.files[0];
-                if (file) void handleFile(file);
-              }}
-              className={`block cursor-pointer rounded-[24px] border border-dashed px-6 py-8 text-center transition-colors ${
-                dragActive
-                  ? "border-[color:var(--brand-accent)] bg-[color:var(--surface-muted)]"
-                  : "border-[color:var(--border-strong)] bg-[color:var(--surface)]"
-              }`}
-            >
-              <input
-                type="file"
-                accept=".csv,.xlsx"
-                className="sr-only"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  if (file) void handleFile(file);
-                }}
-              />
-              <span className="text-sm font-semibold text-[color:var(--foreground)]">
-                Arrastrá tu archivo acá o hacé clic para seleccionarlo
-              </span>
-              <span className="mt-2 block text-xs text-[color:var(--text-muted)]">
-                CSV o XLSX, máximo 5MB.
-              </span>
-              {importFile ? (
-                <span className="mt-3 block text-sm text-[color:var(--brand-accent)]">
-                  Archivo seleccionado: {importFile.name}
-                </span>
-              ) : null}
-            </label>
-
-            {importColumns.length > 0 ? (
-              <div className="grid gap-5">
-                <div>
-                  <h3 className="text-sm font-semibold text-[color:var(--foreground)]">
-                    Mapeo de columnas
-                  </h3>
-                  <div className="mt-3 grid gap-3 md:grid-cols-2">
-                    {importColumns.map((column) => (
-                      <label key={column} className="grid gap-2 text-sm">
-                        <span className="font-medium text-[color:var(--text-muted)]">
-                          {column}
-                        </span>
-                        <select
-                          className={inputClass}
-                          value={columnMapping[column] ?? "ignore"}
-                          onChange={(event) =>
-                            setColumnMapping((current) => ({
-                              ...current,
-                              [column]: event.target.value as ImportField,
-                            }))
-                          }
-                        >
-                          {IMPORT_FIELD_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-semibold text-[color:var(--foreground)]">
-                    Vista previa
-                  </h3>
-                  <div className="mt-3 overflow-x-auto rounded-[18px] border border-[color:var(--border)]">
-                    <table className="w-full min-w-[620px] text-left text-sm">
-                      <thead className="bg-[color:var(--surface-muted)] text-xs uppercase tracking-[0.12em] text-[color:var(--text-soft)]">
-                        <tr>
-                          {importColumns.map((column) => (
-                            <th key={column} className="px-4 py-3">
-                              {column}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {importRows.slice(0, 5).map((row, index) => (
-                          <tr
-                            key={index}
-                            className="border-t border-[color:var(--border)]"
-                          >
-                            {importColumns.map((column) => (
-                              <td key={column} className="px-4 py-3">
-                                {row[column] || "-"}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            ) : null}
-
-            {importResult ? (
-              <div className="rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-4 py-3 text-sm text-[color:var(--text-muted)]">
-                <p>
-                  Importados: {importResult.imported}. Duplicados:{" "}
-                  {importResult.duplicates}. Fallidos:{" "}
-                  {importResult.failed.length}.
-                </p>
-                {importResult.failed.length > 0 ? (
-                  <ul className="mt-2 list-inside list-disc space-y-1">
-                    {importResult.failed.map((failure) => (
-                      <li key={`${failure.row}-${failure.reason}`}>
-                        Fila {failure.row}: {failure.reason}
-                      </li>
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            ) : null}
-
-            <button
-              type="submit"
-              disabled={!canMutate || saving || !importFile}
-              className={actionButtonClass}
-            >
-              {saving ? "Importando..." : "Confirmar importación"}
-            </button>
-          </form>
-        </SectionCard>
-      ) : null}
-
-      <SectionCard
-        title="Listado"
-        description={`${total} pacientes activos encontrados.`}
-      >
-        <div className="mb-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <label className="relative w-full max-w-[340px]">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8891A4]" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className={inputClass}
-            placeholder="Buscar por nombre o telefono"
+            className="h-10 w-full rounded-[8px] border border-[#E8EAF0] bg-white pl-10 pr-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]"
+            placeholder="Buscar por nombre o teléfono"
           />
+        </label>
+        <div className="flex gap-2">
+          {canMutate ? (
+            <button
+              className={secondaryButton}
+              onClick={() => setShowImport((value) => !value)}
+            >
+              <Upload className="h-4 w-4" />
+              Importar CSV
+            </button>
+          ) : null}
+          <button className={primaryButton} onClick={openNew}>
+            <Plus className="h-4 w-4" />
+            Nuevo paciente
+          </button>
         </div>
+      </div>
 
-        {loading ? (
-          <div className="h-36 animate-pulse rounded-[24px] bg-[color:var(--surface-muted)]" />
-        ) : customers.length === 0 ? (
-          <div className="rounded-[24px] border border-dashed border-[color:var(--border-strong)] bg-[color:var(--surface-muted)] px-6 py-10 text-center text-sm text-[color:var(--text-muted)]">
-            No hay pacientes para mostrar.
+      {showImport ? (
+        <form
+          onSubmit={handleImport}
+          className="rounded-[12px] border border-[#E8EAF0] bg-white p-4"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-[#1A202C]">
+                Importar pacientes
+              </h2>
+              <p className="mt-1 text-sm text-[#8891A4]">
+                Subí un CSV o XLSX y confirmá el mapeo antes de importar.
+              </p>
+            </div>
+            <button type="button" onClick={downloadTemplate} className={secondaryButton}>
+              <Download className="h-4 w-4" />
+              Descargar plantilla
+            </button>
           </div>
-        ) : (
-          <div className="overflow-hidden rounded-[24px] border border-[color:var(--border)]">
-            {customers.map((customer) => (
-              <div
-                key={customer.id}
-                className="grid gap-4 border-b border-[color:var(--border)] px-5 py-4 last:border-b-0 lg:grid-cols-[minmax(0,1fr)_180px_220px_220px]"
-              >
-                <div>
-                  <p className="font-semibold text-[color:var(--foreground)]">
-                    {customer.name}
-                  </p>
-                </div>
-                <div className="text-sm text-[color:var(--text-muted)]">
-                  {customer.phoneE164}
-                </div>
-                <div className="text-sm">
-                  {customer.optedOut ? (
-                    <span className="text-[color:var(--warning-text)]">
-                      Opt-out
-                    </span>
-                  ) : (
-                    <span className="text-[color:var(--success-text)]">
-                      Contactable
-                    </span>
-                  )}
-                </div>
-                <div className="flex flex-wrap justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => handleAttendedToday(customer)}
-                    disabled={!canMutate || customer.optedOut}
-                    className={secondaryButtonClass}
-                  >
-                    Atendido hoy
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => startEdit(customer)}
-                    className={secondaryButtonClass}
-                  >
-                    Editar
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleOptOut(customer.id)}
-                    disabled={!canMutate || customer.optedOut}
-                    className={secondaryButtonClass}
-                  >
-                    Opt-out
-                  </button>
+
+          <label
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDragActive(true);
+            }}
+            onDragLeave={() => setDragActive(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragActive(false);
+              const file = event.dataTransfer.files[0];
+              if (file) void handleFile(file);
+            }}
+            className={`mt-4 block cursor-pointer rounded-[12px] border border-dashed px-5 py-6 text-center text-sm transition-colors ${
+              dragActive
+                ? "border-[#5C6BC0] bg-[#EEF0FB]"
+                : "border-[#E8EAF0] bg-[#F5F6FA]"
+            }`}
+          >
+            <input
+              type="file"
+              accept=".csv,.xlsx"
+              className="sr-only"
+              onChange={(event) => {
+                const file = event.target.files?.[0];
+                if (file) void handleFile(file);
+              }}
+            />
+            <span className="font-semibold text-[#1A202C]">
+              Arrastrá tu archivo acá o hacé clic para seleccionarlo
+            </span>
+            {importFile ? (
+              <span className="mt-2 block text-[#5C6BC0]">{importFile.name}</span>
+            ) : null}
+          </label>
+
+          {importColumns.length > 0 ? (
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <div>
+                <h3 className="text-sm font-semibold text-[#1A202C]">
+                  Mapeo de columnas
+                </h3>
+                <div className="mt-3 grid gap-2">
+                  {importColumns.map((column) => (
+                    <label key={column} className="grid grid-cols-2 items-center gap-2 text-sm">
+                      <span className="text-[#8891A4]">{column}</span>
+                      <select
+                        className={inputClass}
+                        value={columnMapping[column] ?? "ignore"}
+                        onChange={(event) =>
+                          setColumnMapping((current) => ({
+                            ...current,
+                            [column]: event.target.value as ImportField,
+                          }))
+                        }
+                      >
+                        {IMPORT_FIELD_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  ))}
                 </div>
               </div>
-            ))}
-          </div>
-        )}
-      </SectionCard>
+              <div className="overflow-hidden rounded-[8px] border border-[#E8EAF0]">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#F5F6FA] text-[#8891A4]">
+                    <tr>
+                      {importColumns.map((column) => (
+                        <th key={column} className="px-3 py-2 font-semibold">
+                          {column}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {importRows.slice(0, 5).map((row, index) => (
+                      <tr key={index} className="border-t border-[#E8EAF0]">
+                        {importColumns.map((column) => (
+                          <td key={column} className="px-3 py-2">
+                            {row[column] || "-"}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : null}
+
+          {importResult ? (
+            <p className="mt-4 text-sm text-[#8891A4]">
+              Importados: {importResult.imported}. Duplicados:{" "}
+              {importResult.duplicates}. Fallidos: {importResult.failed.length}.
+            </p>
+          ) : null}
+
+          <button
+            type="submit"
+            disabled={!canMutate || saving || !importFile}
+            className={`${primaryButton} mt-4`}
+          >
+            {saving ? "Importando..." : "Confirmar importación"}
+          </button>
+        </form>
+      ) : null}
+
+      <div className="overflow-hidden rounded-[12px] border border-[#E8EAF0] bg-white">
+        <table className="w-full min-w-[760px] text-left text-sm">
+          <thead className="bg-[#F5F6FA] text-[11px] uppercase tracking-[0.08em] text-[#8891A4]">
+            <tr>
+              <th className="px-4 py-3 font-semibold">Nombre</th>
+              <th className="px-4 py-3 font-semibold">Teléfono</th>
+              <th className="px-4 py-3 font-semibold">Fecha</th>
+              <th className="px-4 py-3 text-right font-semibold">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-10 text-center text-[#8891A4]">
+                  Cargando pacientes...
+                </td>
+              </tr>
+            ) : customers.length === 0 ? (
+              <tr>
+                <td colSpan={4} className="px-4 py-10 text-center text-[#8891A4]">
+                  No hay pacientes para mostrar.
+                </td>
+              </tr>
+            ) : (
+              customers.map((customer) => (
+                <tr key={customer.id} className="border-t border-[#E8EAF0]">
+                  <td className="px-4 py-4 font-semibold text-[#1A202C]">
+                    {customer.name}
+                  </td>
+                  <td className="px-4 py-4 text-[#1A202C]">
+                    {customer.phoneE164}
+                  </td>
+                  <td className="px-4 py-4 text-[#1A202C]">
+                    {formatDate(customer.createdAt)}
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleAttendedToday(customer)}
+                        disabled={!canMutate || customer.optedOut}
+                        className="inline-flex h-8 items-center gap-1 rounded-[8px] bg-[#639922] px-3 text-xs font-semibold text-white disabled:opacity-50"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        Atendido hoy
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openEdit(customer)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA]"
+                        aria-label="Editar paciente"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDelete(customer)}
+                        disabled={!canMutate}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA] disabled:opacity-50"
+                        aria-label="Archivar paciente"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      <p className="text-xs text-[#8891A4]">
+        Mostrando {customers.length} de {total} pacientes
+      </p>
+
+      {showForm ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
+          <form
+            onSubmit={handleSave}
+            className="w-full max-w-lg rounded-[12px] border border-[#E8EAF0] bg-white p-6"
+          >
+            <h2 className="text-lg font-bold text-[#1A202C]">
+              {editing ? "Editar paciente" : "Nuevo paciente"}
+            </h2>
+            <p className="mt-1 text-sm text-[#8891A4]">
+              La fecha de nacimiento es opcional y se usa para cumpleaños.
+            </p>
+            <div className="mt-5 grid gap-4">
+              <label className="grid gap-2 text-sm font-semibold text-[#1A202C]">
+                Nombre
+                <input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className={inputClass}
+                  placeholder="María García"
+                  required
+                />
+              </label>
+              <PhoneInput label="Teléfono" value={phone} onChange={setPhone} required />
+              <label className="grid gap-2 text-sm font-semibold text-[#1A202C]">
+                Fecha de alta / atención
+                <input
+                  type="date"
+                  value={lastServiceAt}
+                  onChange={(e) => setLastServiceAt(e.target.value)}
+                  className={inputClass}
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-semibold text-[#1A202C]">
+                Fecha de nacimiento opcional
+                <input
+                  type="date"
+                  value={birthday}
+                  onChange={(e) => setBirthday(e.target.value)}
+                  className={inputClass}
+                />
+              </label>
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                className={secondaryButton}
+                onClick={() => setShowForm(false)}
+              >
+                Cancelar
+              </button>
+              <button type="submit" disabled={saving || !canMutate} className={primaryButton}>
+                {saving ? "Guardando..." : "Guardar"}
+              </button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -595,10 +625,7 @@ async function parseImportFile(file: File): Promise<{
             return;
           }
           const columns = result.meta.fields?.filter(Boolean) ?? [];
-          resolve({
-            columns,
-            rows: normalizePreviewRows(result.data, columns),
-          });
+          resolve({ columns, rows: normalizePreviewRows(result.data, columns) });
         },
         error: () => reject(new Error("No se pudo leer el CSV")),
       });
@@ -609,25 +636,15 @@ async function parseImportFile(file: File): Promise<{
   const workbook = XLSX.read(buffer, { type: "array" });
   const firstSheet = workbook.SheetNames[0];
   if (!firstSheet) return { columns: [], rows: [] };
-
   const rows = XLSX.utils.sheet_to_json<Record<string, string>>(
     workbook.Sheets[firstSheet],
-    {
-      defval: "",
-      raw: false,
-    },
+    { defval: "", raw: false },
   );
   const columns = rows[0] ? Object.keys(rows[0]) : [];
-  return {
-    columns,
-    rows: normalizePreviewRows(rows, columns),
-  };
+  return { columns, rows: normalizePreviewRows(rows, columns) };
 }
 
-function normalizePreviewRows(
-  rows: Array<Record<string, unknown>>,
-  columns: string[],
-) {
+function normalizePreviewRows(rows: Array<Record<string, unknown>>, columns: string[]) {
   return rows.map((row) =>
     Object.fromEntries(
       columns.map((column) => [column, String(row[column] ?? "").trim()]),
@@ -640,11 +657,8 @@ function inferColumnMapping(columns: string[]): Record<string, ImportField> {
     columns.map((column) => {
       const normalized = normalizeColumn(column);
       let field: ImportField = "ignore";
-
       if (["nombre", "name"].includes(normalized)) field = "name";
-      if (["telefono", "teléfono", "phone"].includes(normalized)) {
-        field = "phone";
-      }
+      if (["telefono", "teléfono", "phone"].includes(normalized)) field = "phone";
       if (normalized === "email") field = "email";
       if (
         [
@@ -657,7 +671,6 @@ function inferColumnMapping(columns: string[]): Record<string, ImportField> {
       ) {
         field = "lastServiceAt";
       }
-
       return [column, field];
     }),
   );
