@@ -245,3 +245,23 @@ textarea {
 .flikker-scrollbar-hidden::-webkit-scrollbar {
   display: none;
 }
+
+.login-clean-input::selection {
+  background: transparent;
+  color: #1a202c;
+}
+
+.login-clean-input::-moz-selection {
+  background: transparent;
+  color: #1a202c;
+}
+
+.login-clean-input:-webkit-autofill,
+.login-clean-input:-webkit-autofill:hover,
+.login-clean-input:-webkit-autofill:focus,
+.login-clean-input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #ffffff inset !important;
+  -webkit-text-fill-color: #1a202c !important;
+  caret-color: #1a202c;
+  transition: background-color 9999s ease-out;
+}

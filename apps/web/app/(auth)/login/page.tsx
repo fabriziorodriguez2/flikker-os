@@ -76,7 +76,7 @@ export default function LoginPage() {
                 autoComplete="email"
                 required
                 placeholder="tu@clinica.com.uy"
-                className="min-w-0 flex-1 bg-transparent px-3 text-sm text-[#1A202C] outline-none selection:bg-[#5C6BC0] selection:text-white placeholder:text-[#8891A4] autofill:bg-white"
+                className="login-clean-input min-w-0 flex-1 bg-transparent px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4]"
               />
             </div>
           </div>
@@ -97,7 +97,7 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 required
                 placeholder="••••••••"
-                className="min-w-0 flex-1 bg-transparent px-3 text-sm text-[#1A202C] outline-none selection:bg-[#5C6BC0] selection:text-white placeholder:text-[#8891A4] autofill:bg-white"
+                className="login-clean-input min-w-0 flex-1 bg-transparent px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4]"
               />
               <button
                 type="button"
