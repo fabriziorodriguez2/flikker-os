@@ -50,9 +50,12 @@ export default function LoginPage() {
     <main className="flex min-h-screen items-center justify-center bg-[#F5F6FA] px-5 py-10">
       <section className="w-full max-w-[420px] rounded-xl border border-[#E8EAF0] bg-white px-8 py-8">
         <div className="mb-8 text-center">
-          <p className="flikker-brand-text text-[22px] font-bold leading-none text-[#5C6BC0]">
-            flikker.
-          </p>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/flikker-logotype.svg"
+            alt="Flikker"
+            className="mx-auto h-auto w-[96px]"
+          />
           <p className="mt-4 text-sm text-[#8891A4]">Ingresá a tu negocio</p>
         </div>
 
@@ -73,7 +76,7 @@ export default function LoginPage() {
                 autoComplete="email"
                 required
                 placeholder="tu@clinica.com.uy"
-                className="min-w-0 flex-1 bg-transparent px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4]"
+                className="min-w-0 flex-1 bg-transparent px-3 text-sm text-[#1A202C] outline-none selection:bg-[#5C6BC0] selection:text-white placeholder:text-[#8891A4] autofill:bg-white"
               />
             </div>
           </div>
@@ -94,7 +97,7 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 required
                 placeholder="••••••••"
-                className="min-w-0 flex-1 bg-transparent px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4]"
+                className="min-w-0 flex-1 bg-transparent px-3 text-sm text-[#1A202C] outline-none selection:bg-[#5C6BC0] selection:text-white placeholder:text-[#8891A4] autofill:bg-white"
               />
               <button
                 type="button"
@@ -145,13 +148,6 @@ export default function LoginPage() {
             )}
           </button>
         </form>
-
-        <p className="mt-7 text-center text-sm text-[#8891A4]">
-          ¿No tenés cuenta?{" "}
-          <Link href="/signup" className="font-semibold text-[#5C6BC0]">
-            Registrate
-          </Link>
-        </p>
       </section>
     </main>
   );
