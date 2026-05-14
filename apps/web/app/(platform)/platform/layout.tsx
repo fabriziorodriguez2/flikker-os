@@ -1,6 +1,8 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import Image from "next/image";
 import SessionExpiryHandler from "@/components/auth/session-expiry-handler";
+import PlatformLogoutButton from "./platform-logout-button";
 
 export default async function PlatformLayout({
   children,
@@ -20,9 +22,14 @@ export default async function PlatformLayout({
       <header className="sticky top-0 z-30 h-[60px] border-b border-[#E8EAF0] bg-[#0D1B2A]">
         <div className="flex h-full items-center justify-between px-6">
           <div className="flex items-center gap-3">
-            <span className="text-[25px] font-bold leading-none text-[#5C6BC0]">
-              Flikker
-            </span>
+            <Image
+              src="/flikker-wordmark-white.svg"
+              alt="Flikker"
+              width={110}
+              height={34}
+              priority
+              className="h-auto w-[88px]"
+            />
             <span className="rounded-full bg-[#5C6BC0]/20 px-3 py-1 text-xs font-semibold text-[#DCE2F0]">
               panel admin
             </span>
@@ -35,6 +42,7 @@ export default async function PlatformLayout({
             <span className="flex h-9 w-9 items-center justify-center rounded-full bg-[#5C6BC0]/20 text-xs font-bold text-white">
               {initials}
             </span>
+            <PlatformLogoutButton />
           </div>
         </div>
       </header>

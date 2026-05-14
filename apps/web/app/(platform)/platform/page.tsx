@@ -234,16 +234,24 @@ export default function PlatformPage() {
                       {business.customerCount.toLocaleString("es-UY")}
                     </td>
                     <td className="px-4 py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => void impersonate(business)}
-                        disabled={impersonatingId === business.id}
-                        className="inline-flex h-9 items-center justify-center rounded-lg bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4e5db0] disabled:opacity-60"
-                      >
-                        {impersonatingId === business.id
-                          ? "Entrando..."
-                          : "Operar como negocio"}
-                      </button>
+                      <div className="flex justify-end gap-2">
+                        <Link
+                          href={`/platform/businesses/${business.id}/onboarding`}
+                          className="inline-flex h-9 items-center justify-center rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]"
+                        >
+                          Onboarding
+                        </Link>
+                        <button
+                          type="button"
+                          onClick={() => void impersonate(business)}
+                          disabled={impersonatingId === business.id}
+                          className="inline-flex h-9 items-center justify-center rounded-lg bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4e5db0] disabled:opacity-60"
+                        >
+                          {impersonatingId === business.id
+                            ? "Entrando..."
+                            : "Operar como negocio"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
