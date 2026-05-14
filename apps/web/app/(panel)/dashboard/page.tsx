@@ -2,8 +2,8 @@ import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import SectionCard from "@/components/ui/section-card";
-import ActivityEvolutionChart from "./activity-evolution-chart";
-import ActivityFilters from "./activity-filters";
+import ActivityEvolutionChart, { SERIES } from "./activity-evolution-chart";
+import ActivityFilters, { type ActivityGranularity } from "./activity-filters";
 import NegativeFeedbackList from "./negative-feedback-list";
 
 interface Business {
@@ -20,8 +20,6 @@ interface KpiMetric {
   previous: number;
   delta: number;
 }
-
-type ActivityGranularity = "day" | "week" | "month";
 
 interface MetricsOverview {
   month: {
@@ -61,8 +59,8 @@ interface DashboardPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-function firstValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
+function firstValue(v: string | string[] | undefined) {
+  return Array.isArray(v) ? v[0] : v;
 }
 
 function formatMonthRange(start: string) {
@@ -73,6 +71,15 @@ function formatMonthRange(start: string) {
   }).format(new Date(start));
 }
 
+function formatPrevMonth(start: string) {
+  return new Intl.DateTimeFormat("es-UY", {
+    month: "short",
+    timeZone: "UTC",
+  })
+    .format(new Date(start))
+    .replace(".", "");
+}
+
 function formatKpiValue(value: number, decimals = 0) {
   return value.toLocaleString("es-UY", {
     minimumFractionDigits: decimals,
@@ -80,21 +87,14 @@ function formatKpiValue(value: number, decimals = 0) {
   });
 }
 
-function formatDelta(delta: number, decimals = 0) {
-  const sign = delta > 0 ? "+" : "";
-  return `${sign}${formatKpiValue(delta, decimals)}`;
-}
-
 function buildMetricsPath(params: Record<string, string | string[] | undefined>) {
   const query = new URLSearchParams();
   const granularity = firstValue(params.granularity);
   const from = firstValue(params.from);
   const to = firstValue(params.to);
-
   if (granularity) query.set("granularity", granularity);
   if (from) query.set("from", from);
   if (to) query.set("to", to);
-
   const serialized = query.toString();
   return serialized ? `/metrics/overview?${serialized}` : "/metrics/overview";
 }
@@ -111,18 +111,23 @@ function KpiCard({
   value,
   metric,
   decimals = 0,
+  percentageDelta = false,
+  prevMonth,
   note,
 }: {
   label: string;
   value: string;
   metric: KpiMetric;
   decimals?: number;
+  percentageDelta?: boolean;
+  prevMonth: string;
   note?: string;
 }) {
   const isPositive = metric.delta >= 0;
   const deltaClass = isPositive
     ? "bg-[color:rgba(99,153,34,0.12)] text-[#639922]"
     : "bg-[color:rgba(192,57,43,0.1)] text-[#C0392B]";
+  const deltaText = `${formatKpiValue(Math.abs(metric.delta), decimals)}${percentageDelta ? "%" : ""}`;
 
   return (
     <article className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
@@ -134,11 +139,9 @@ function KpiCard({
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
         <span className={`rounded-full px-2.5 py-1 font-semibold ${deltaClass}`}>
-          {isPositive ? "↑" : "↓"} {formatDelta(metric.delta, decimals)}
+          {isPositive ? "↑" : "↓"} {deltaText}
         </span>
-        <span className="text-[#8891A4]">
-          vs mes anterior ({formatKpiValue(metric.previous, decimals)})
-        </span>
+        <span className="text-[#8891A4]">vs {prevMonth}</span>
       </div>
       {note ? <p className="mt-2 text-xs text-[#8891A4]">{note}</p> : null}
     </article>
@@ -161,16 +164,8 @@ export default async function DashboardPage({
 
   try {
     [business, metrics] = await Promise.all([
-      apiFetch<Business>("/businesses/current", accessToken, {
-        businessId,
-      }),
-      apiFetch<MetricsOverview>(
-        buildMetricsPath(resolvedSearchParams),
-        accessToken,
-        {
-          businessId,
-        },
-      ),
+      apiFetch<Business>("/businesses/current", accessToken, { businessId }),
+      apiFetch<MetricsOverview>(buildMetricsPath(resolvedSearchParams), accessToken, { businessId }),
     ]);
   } catch (e) {
     if (isUnauthorizedApiError(e)) redirect("/session-expired");
@@ -180,9 +175,7 @@ export default async function DashboardPage({
   if (error || !metrics) {
     return (
       <div className="max-w-3xl">
-        <h1 className="font-display text-2xl font-bold text-[#1A202C]">
-          Panel
-        </h1>
+        <h1 className="font-display text-2xl font-bold text-[#1A202C]">Panel</h1>
         <p className="mt-2 text-sm text-[#8891A4]">
           No pudimos cargar el dashboard del negocio activo.
         </p>
@@ -193,18 +186,16 @@ export default async function DashboardPage({
     );
   }
 
+  const prevMonth = formatPrevMonth(metrics.month.previousStart);
+  const unread = metrics.negativeFeedback.filter((f) => !f.acknowledgedByOwner).length;
+
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-[#1A202C]">
-            Panel
-          </h1>
-          <p className="mt-1 text-sm text-[#8891A4]">
-            {business?.name ?? "Negocio"} ·{" "}
-            {formatMonthRange(metrics.month.currentStart)}
-          </p>
-        </div>
+      <div>
+        <h1 className="font-display text-2xl font-bold text-[#1A202C]">Panel</h1>
+        <p className="mt-1 text-sm text-[#8891A4]">
+          {business?.name ?? "Negocio"} · {formatMonthRange(metrics.month.currentStart)}
+        </p>
       </div>
 
       {shouldShowGoogleImportBanner(business) ? (
@@ -213,9 +204,7 @@ export default async function DashboardPage({
             aria-hidden="true"
             className="h-3 w-3 animate-spin rounded-full border-2 border-amber-300 border-t-amber-700"
           />
-          <span>
-            Importando reseñas de Google... Esto puede tardar algunos minutos.
-          </span>
+          <span>Importando reseñas de Google... Esto puede tardar algunos minutos.</span>
         </div>
       ) : null}
 
@@ -224,6 +213,8 @@ export default async function DashboardPage({
           label="Reseñas este mes"
           value={formatKpiValue(metrics.kpis.reviewsGenerated.current)}
           metric={metrics.kpis.reviewsGenerated}
+          percentageDelta
+          prevMonth={prevMonth}
           note="Estimación: algunas pueden no estar atribuidas"
         />
         <KpiCard
@@ -231,11 +222,14 @@ export default async function DashboardPage({
           value={formatKpiValue(metrics.kpis.averageRating.current, 1)}
           metric={metrics.kpis.averageRating}
           decimals={1}
+          prevMonth={prevMonth}
         />
         <KpiCard
           label="Pacientes reactivados"
           value={formatKpiValue(metrics.kpis.reactivatedCustomers.current)}
           metric={metrics.kpis.reactivatedCustomers}
+          percentageDelta
+          prevMonth={prevMonth}
         />
       </section>
 
@@ -243,36 +237,38 @@ export default async function DashboardPage({
         title="Actividad últimos 6 meses"
         description="Comparativo mensual de mensajes, reseñas y reactivaciones."
         action={
-          <ActivityFilters
-            granularity={metrics.activityRange.granularity}
-            from={metrics.activityRange.from}
-            to={metrics.activityRange.to}
-          />
+          <div className="hidden items-center gap-4 sm:flex">
+            {SERIES.map((s) => (
+              <span key={s.key} className="flex items-center gap-1.5 text-xs text-[#8891A4]">
+                <span
+                  className="inline-block h-2.5 w-2.5 rounded-[3px]"
+                  style={{ backgroundColor: s.color }}
+                />
+                {s.label}
+              </span>
+            ))}
+          </div>
         }
       >
-        <ActivityEvolutionChart data={metrics.activityByMonth} />
+        <div className="space-y-4">
+          <ActivityFilters granularity={metrics.activityRange.granularity} />
+          <ActivityEvolutionChart data={metrics.activityByMonth} />
+        </div>
       </SectionCard>
 
-      {(() => {
-        const unread = metrics.negativeFeedback.filter(
-          (f) => !f.acknowledgedByOwner,
-        ).length;
-        return (
-          <SectionCard
-            title="Comentarios negativos recientes"
-            description="No se publicaron en Google. Respondé al paciente antes de que escale."
-            action={
-              unread > 0 ? (
-                <span className="rounded-full bg-[color:rgba(192,57,43,0.1)] px-2.5 py-1.5 text-xs font-semibold text-[#C0392B]">
-                  {unread} sin leer
-                </span>
-              ) : undefined
-            }
-          >
-            <NegativeFeedbackList items={metrics.negativeFeedback} />
-          </SectionCard>
-        );
-      })()}
+      <SectionCard
+        title="Comentarios negativos recientes"
+        description="No se publicaron en Google. Respondé al paciente antes de que escale."
+        action={
+          unread > 0 ? (
+            <span className="rounded-full bg-[#FFAB76]/20 px-3 py-1.5 text-xs font-semibold text-[#D4600A]">
+              {unread} sin leer
+            </span>
+          ) : undefined
+        }
+      >
+        <NegativeFeedbackList items={metrics.negativeFeedback} />
+      </SectionCard>
     </div>
   );
 }

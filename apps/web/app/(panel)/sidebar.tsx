@@ -180,6 +180,21 @@ export default function Sidebar(props: SidebarProps) {
       </nav>
 
       <div className="mt-auto" />
+
+      <div className={`border-t border-[#223247] ${collapsed ? "px-3 py-4" : "px-6 py-4"}`}>
+        {!collapsed ? (
+          <>
+            <p className="text-xs text-[#A7B0C1]">
+              Plan <strong className="font-bold text-white">Pro</strong>
+            </p>
+            <p className="mt-0.5 text-[11px] text-[#5A6679]">Renueva el 14 de junio</p>
+          </>
+        ) : (
+          <div className="flex h-6 w-full items-center justify-center">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#639922]" />
+          </div>
+        )}
+      </div>
     </aside>
   );
 }
