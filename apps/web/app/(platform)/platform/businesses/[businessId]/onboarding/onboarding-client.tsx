@@ -81,7 +81,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
   const [csv, setCsv] = useState("");
   const [templates, setTemplates] = useState<Record<string, TemplateDraft>>({});
   const [testPhone, setTestPhone] = useState("");
-  const [testName, setTestName] = useState("Paciente de prueba");
+  const [testName, setTestName] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -242,12 +242,16 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
       setError("Formato inválido — ingresá entre 7 y 9 dígitos");
       return;
     }
+    if (!testName.trim()) {
+      setError("Ingresá el nombre de prueba.");
+      return;
+    }
     await run("test", async () => {
       const result = await api<{ trackingUrl: string }>(
         `/api/proxy/platform/businesses/${businessId}/onboarding/test-message`,
         {
           method: "POST",
-          body: JSON.stringify({ phone: testPhone, customerName: testName }),
+          body: JSON.stringify({ phone: testPhone, name: testName }),
         },
       );
       setNotice(`Mensaje de prueba enviado. Link: ${result.trackingUrl}`);
@@ -653,6 +657,8 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
               className={inputClassName}
               value={testName}
               onChange={(e) => setTestName(e.target.value)}
+              placeholder="Ej: María García"
+              required
             />
           </Field>
         </div>

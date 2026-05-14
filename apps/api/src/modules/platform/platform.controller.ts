@@ -125,7 +125,7 @@ export class PlatformController {
   sendOnboardingTestMessage(
     @Req() req: AuthenticatedRequest,
     @Param('businessId') businessId: string,
-    @Body() body: { phone?: string; customerName?: string },
+    @Body() body: { phone?: string; name?: string; customerName?: string },
   ) {
     return this.platformService.sendOnboardingTestMessage(
       req.user.id,

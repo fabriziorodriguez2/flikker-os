@@ -244,15 +244,18 @@ export class PlatformRepository {
           phoneE164: input.phoneE164,
         },
       });
-      const customer =
-        existingCustomer ??
-        (await tx.customer.create({
-          data: {
-            businessId: input.businessId,
-            name: input.customerName,
-            phoneE164: input.phoneE164,
-          },
-        }));
+      const customer = existingCustomer
+        ? await tx.customer.update({
+            where: { id: existingCustomer.id },
+            data: { name: input.customerName },
+          })
+        : await tx.customer.create({
+            data: {
+              businessId: input.businessId,
+              name: input.customerName,
+              phoneE164: input.phoneE164,
+            },
+          });
 
       const message = await tx.message.create({
         data: {

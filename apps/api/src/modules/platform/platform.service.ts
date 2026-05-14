@@ -391,14 +391,17 @@ export class PlatformService {
   async sendOnboardingTestMessage(
     adminId: string,
     businessId: string,
-    dto: { phone?: string; customerName?: string },
+    dto: { phone?: string; name?: string; customerName?: string },
   ) {
     const business = await this.repository.findOnboardingBusiness(businessId);
     if (!business) throw new NotFoundException('Business not found');
     if (!dto.phone?.trim()) throw new BadRequestException('phone is required');
 
     const phoneE164 = normalizeToE164(dto.phone);
-    const customerName = dto.customerName?.trim() || 'Paciente de prueba';
+    const customerName = dto.name?.trim() || dto.customerName?.trim();
+    if (!customerName) {
+      throw new BadRequestException('name is required');
+    }
     const trackingToken = randomBytes(8).toString('base64url');
     const appPublicUrl =
       process.env.APP_PUBLIC_URL ??
