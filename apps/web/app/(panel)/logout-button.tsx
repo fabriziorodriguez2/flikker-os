@@ -78,7 +78,7 @@ export default function LogoutButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-9 items-center rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#5A6679] transition-colors hover:bg-[#F5F6FA] hover:text-[#1A202C]"
+        className="inline-flex h-9 items-center rounded-lg border border-[#0D1B2A] bg-[#0D1B2A] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#16263A]"
       >
         Salir
       </button>
