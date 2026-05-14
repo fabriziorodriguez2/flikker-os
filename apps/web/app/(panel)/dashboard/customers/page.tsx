@@ -1,7 +1,16 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Check, Download, Edit2, Plus, Search, Trash2, Upload } from "lucide-react";
+import {
+  AlertTriangle,
+  Check,
+  Download,
+  Edit2,
+  Plus,
+  Search,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
 import PhoneInput, {
@@ -72,6 +81,7 @@ export default function CustomersPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState<Customer | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<Customer | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
   const [name, setName] = useState("");
@@ -175,9 +185,9 @@ export default function CustomersPage() {
   }
 
   async function handleDelete(customer: Customer) {
-    if (!window.confirm(`¿Querés archivar a ${customer.name}?`)) return;
     setMessage(null);
     setError(null);
+    setSaving(true);
     try {
       const res = await fetch(`/api/proxy/customers/${customer.id}`, {
         method: "DELETE",
@@ -185,9 +195,12 @@ export default function CustomersPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message ?? "Error al archivar");
       setMessage("Paciente archivado");
+      setPendingDelete(null);
       await fetchCustomers();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al archivar");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -520,7 +533,7 @@ export default function CustomersPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => void handleDelete(customer)}
+                        onClick={() => setPendingDelete(customer)}
                         disabled={!canMutate}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA] disabled:opacity-50"
                         aria-label="Archivar paciente"
@@ -596,6 +609,57 @@ export default function CustomersPage() {
               </button>
             </div>
           </form>
+        </div>
+      ) : null}
+
+      {pendingDelete ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="archive-customer-title"
+            className="w-full max-w-md rounded-[12px] border border-[#E8EAF0] bg-white p-6"
+          >
+            <div className="flex items-start gap-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#C0392B]/10 text-[#C0392B]">
+                <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h2
+                  id="archive-customer-title"
+                  className="text-lg font-bold text-[#1A202C]"
+                >
+                  Archivar paciente
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[#8891A4]">
+                  ¿Querés archivar a{" "}
+                  <span className="font-semibold text-[#1A202C]">
+                    {pendingDelete.name}
+                  </span>
+                  ? No va a aparecer en el listado principal.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                className={secondaryButton}
+                onClick={() => setPendingDelete(null)}
+                disabled={saving}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className={`${buttonBase} bg-[#C0392B] text-white hover:bg-[#a93226]`}
+                onClick={() => void handleDelete(pendingDelete)}
+                disabled={saving || !canMutate}
+              >
+                {saving ? "Archivando..." : "Archivar"}
+              </button>
+            </div>
+          </div>
         </div>
       ) : null}
     </div>

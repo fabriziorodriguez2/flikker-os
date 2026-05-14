@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import FlikkerLockup from '@/components/brand/flikker-lockup';
-import ThemeToggle from '@/components/theme/theme-toggle';
 
 interface PublicShellProps {
   eyebrow?: string;
@@ -25,9 +24,7 @@ export default function PublicShell({
           <div className="flex justify-center">
             <FlikkerLockup variant="stacked" compact />
           </div>
-          <div className="flex flex-1 justify-end">
-            <ThemeToggle />
-          </div>
+          <div className="flex-1" />
         </div>
 
         <div className="grid flex-1 items-center gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(340px,0.78fr)]">

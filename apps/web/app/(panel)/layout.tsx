@@ -6,7 +6,6 @@ import MobileNav from "./mobile-nav";
 import LogoutButton from "./logout-button";
 import SelectBusiness from "./select-business";
 import { RoleProvider } from "./role-context";
-import ThemeToggle from "@/components/theme/theme-toggle";
 import BrandLogo from "@/components/brand/brand-logo";
 import BusinessLogo from "@/components/business/business-logo";
 import SessionExpiryHandler from "@/components/auth/session-expiry-handler";
@@ -34,9 +33,6 @@ export default async function PanelLayout({
   const activeMembership = memberships.find(
     (membership) => membership.businessId === activeBusinessId,
   );
-
-  const userInitials =
-    `${user.firstName[0] ?? ""}${user.lastName[0] ?? ""}`.toUpperCase();
 
   if (!activeBusinessId || (!session.impersonation && !activeMembership)) {
     return (
@@ -97,23 +93,18 @@ export default async function PanelLayout({
             </div>
 
             <div className="ml-auto flex items-center gap-2.5">
-              <ThemeToggle />
               {businessDisplayName ? (
                 <div className="hidden items-center gap-2 text-sm font-medium text-[#1A202C] sm:flex">
-                  <BusinessLogo
-                    logoUrl={businessLogoUrl}
-                    name={businessDisplayName}
-                    size="sm"
-                  />
+                  {businessLogoUrl ? (
+                    <BusinessLogo
+                      logoUrl={businessLogoUrl}
+                      name={businessDisplayName}
+                      size="sm"
+                    />
+                  ) : null}
                   <span className="max-w-[200px] truncate">{businessDisplayName}</span>
                 </div>
               ) : null}
-              <div
-                aria-label={`${user.firstName} ${user.lastName}`}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#5C6BC0] text-sm font-bold text-white"
-              >
-                {userInitials}
-              </div>
               <LogoutButton />
             </div>
           </div>

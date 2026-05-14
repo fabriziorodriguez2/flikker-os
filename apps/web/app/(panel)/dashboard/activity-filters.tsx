@@ -18,7 +18,7 @@ export default function ActivityFilters({
   const router = useRouter();
 
   return (
-    <div className="flex overflow-hidden rounded-[8px] border border-[#E8EAF0] text-xs font-semibold">
+    <div className="inline-flex w-fit overflow-hidden rounded-[8px] border border-[#E8EAF0] bg-white text-xs font-semibold">
       {OPTIONS.map((opt, i) => (
         <button
           key={opt.value}
