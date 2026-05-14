@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
-import PageHeader from "@/components/ui/page-header";
 import SectionCard from "@/components/ui/section-card";
 import ActivityEvolutionChart from "./activity-evolution-chart";
 import NegativeFeedbackList from "./negative-feedback-list";
@@ -21,6 +20,8 @@ interface KpiMetric {
   delta: number;
 }
 
+type ActivityGranularity = "day" | "week" | "month";
+
 interface MetricsOverview {
   month: {
     currentStart: string;
@@ -33,11 +34,6 @@ interface MetricsOverview {
     averageRating: KpiMetric;
     reactivatedCustomers: KpiMetric;
   };
-  reviewsByMonth: Array<{
-    month: string;
-    label: string;
-    total: number;
-  }>;
   activityByMonth: Array<{
     month: string;
     label: string;
@@ -45,6 +41,11 @@ interface MetricsOverview {
     reviewsGenerated: number;
     reactivatedCustomers: number;
   }>;
+  activityRange: {
+    granularity: ActivityGranularity;
+    from: string;
+    to: string;
+  };
   negativeFeedback: Array<{
     id: string;
     createdAt: string;
@@ -53,6 +54,14 @@ interface MetricsOverview {
     comment: string | null;
     acknowledgedByOwner: boolean;
   }>;
+}
+
+interface DashboardPageProps {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}
+
+function firstValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }
 
 function formatMonthRange(start: string) {
@@ -73,6 +82,35 @@ function formatKpiValue(value: number, decimals = 0) {
 function formatDelta(delta: number, decimals = 0) {
   const sign = delta > 0 ? "+" : "";
   return `${sign}${formatKpiValue(delta, decimals)}`;
+}
+
+function formatInputDate(value?: string) {
+  if (!value) return "";
+  return new Date(value).toISOString().slice(0, 10);
+}
+
+function buildMetricsPath(params: Record<string, string | string[] | undefined>) {
+  const query = new URLSearchParams();
+  const granularity = firstValue(params.granularity);
+  const from = firstValue(params.from);
+  const to = firstValue(params.to);
+
+  if (granularity) query.set("granularity", granularity);
+  if (from) query.set("from", from);
+  if (to) query.set("to", to);
+
+  const serialized = query.toString();
+  return serialized ? `/metrics/overview?${serialized}` : "/metrics/overview";
+}
+
+function activityDescription(granularity: ActivityGranularity) {
+  const unit = {
+    day: "por día",
+    week: "por semana",
+    month: "por mes",
+  }[granularity];
+
+  return `Mensajes enviados, reseñas generadas y pacientes reactivados ${unit}.`;
 }
 
 function shouldShowGoogleImportBanner(business: Business | null) {
@@ -97,42 +135,91 @@ function KpiCard({
 }) {
   const isPositive = metric.delta >= 0;
   const deltaClass = isPositive
-    ? "bg-[color:rgba(46,125,77,0.1)] text-[color:#2e7d4d]"
-    : "bg-[color:rgba(161,45,58,0.1)] text-[color:#a12d3a]";
+    ? "bg-[color:rgba(99,153,34,0.12)] text-[#639922]"
+    : "bg-[color:rgba(192,57,43,0.1)] text-[#C0392B]";
 
   return (
-    <article className="rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-soft)]">
+    <article className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8891A4]">
         {label}
       </p>
-      <p className="mt-3 text-3xl font-semibold text-[color:var(--foreground)]">
+      <p className="mt-3 text-[32px] font-bold leading-none text-[#1A202C]">
         {value}
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-        <span
-          className={`rounded-full px-2.5 py-1 font-semibold ${deltaClass}`}
-        >
+        <span className={`rounded-full px-2.5 py-1 font-semibold ${deltaClass}`}>
           {isPositive ? "↑" : "↓"} {formatDelta(metric.delta, decimals)}
         </span>
-        <span className="text-[color:var(--text-muted)]">
+        <span className="text-[#8891A4]">
           vs mes anterior ({formatKpiValue(metric.previous, decimals)})
         </span>
       </div>
-      {note ? (
-        <p className="mt-2 text-xs leading-5 text-[color:var(--text-muted)]">
-          {note}
-        </p>
-      ) : null}
+      {note ? <p className="mt-2 text-xs text-[#8891A4]">{note}</p> : null}
     </article>
   );
 }
 
-export default async function DashboardPage() {
+function ActivityFilters({
+  granularity,
+  from,
+  to,
+}: {
+  granularity: ActivityGranularity;
+  from: string;
+  to: string;
+}) {
+  return (
+    <form className="flex flex-wrap items-end gap-2" action="/dashboard">
+      <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+        Vista
+        <select
+          name="granularity"
+          defaultValue={granularity}
+          className="h-9 rounded-[8px] border border-[#E8EAF0] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#1A202C]"
+        >
+          <option value="day">Día</option>
+          <option value="week">Semana</option>
+          <option value="month">Mes</option>
+        </select>
+      </label>
+      <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+        Desde
+        <input
+          type="date"
+          name="from"
+          defaultValue={formatInputDate(from)}
+          className="h-9 rounded-[8px] border border-[#E8EAF0] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#1A202C]"
+        />
+      </label>
+      <label className="grid gap-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+        Hasta
+        <input
+          type="date"
+          name="to"
+          defaultValue={formatInputDate(to)}
+          className="h-9 rounded-[8px] border border-[#E8EAF0] bg-white px-3 text-sm font-medium normal-case tracking-normal text-[#1A202C]"
+        />
+      </label>
+      <button
+        type="submit"
+        className="h-9 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
+      >
+        Aplicar
+      </button>
+    </form>
+  );
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: DashboardPageProps) {
   const session = await getSession();
   if (!session?.activeBusinessId) redirect("/dashboard");
 
+  const resolvedSearchParams = searchParams ? await searchParams : {};
   const { accessToken, businessId } = getEffectiveApiContext(session);
   if (!businessId) redirect("/dashboard");
+
   let business: Business | null = null;
   let metrics: MetricsOverview | null = null;
   let error: string | null = null;
@@ -142,9 +229,13 @@ export default async function DashboardPage() {
       apiFetch<Business>("/businesses/current", accessToken, {
         businessId,
       }),
-      apiFetch<MetricsOverview>("/metrics/overview", accessToken, {
-        businessId,
-      }),
+      apiFetch<MetricsOverview>(
+        buildMetricsPath(resolvedSearchParams),
+        accessToken,
+        {
+          businessId,
+        },
+      ),
     ]);
   } catch (e) {
     if (isUnauthorizedApiError(e)) redirect("/session-expired");
@@ -154,18 +245,13 @@ export default async function DashboardPage() {
   if (error || !metrics) {
     return (
       <div className="max-w-3xl">
-        <PageHeader
-          eyebrow="Inicio"
-          title="Resumen"
-          subtitle="No pudimos cargar el dashboard del negocio activo."
-        />
-        <div
-          className="mt-5 rounded-[20px] border px-4 py-3 text-sm text-[color:var(--danger-text)]"
-          style={{
-            backgroundColor: "var(--danger-bg)",
-            borderColor: "rgba(161,45,58,0.16)",
-          }}
-        >
+        <h1 className="font-display text-2xl font-bold text-[#1A202C]">
+          Panel
+        </h1>
+        <p className="mt-2 text-sm text-[#8891A4]">
+          No pudimos cargar el dashboard del negocio activo.
+        </p>
+        <div className="mt-5 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-[#C0392B]">
           {error ?? "Error al cargar datos"}
         </div>
       </div>
@@ -174,17 +260,20 @@ export default async function DashboardPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <PageHeader
-        eyebrow="Inicio"
-        title={business?.name ?? "Flikker"}
-        logoUrl={business?.logoUrl}
-        subtitle={`Panel MVP de ${formatMonthRange(metrics.month.currentStart)}${
-          business?.industry ? ` · ${business.industry}` : ""
-        }`}
-      />
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="font-display text-2xl font-bold text-[#1A202C]">
+            Panel
+          </h1>
+          <p className="mt-1 text-sm text-[#8891A4]">
+            {business?.name ?? "Negocio"} ·{" "}
+            {formatMonthRange(metrics.month.currentStart)}
+          </p>
+        </div>
+      </div>
 
       {shouldShowGoogleImportBanner(business) ? (
-        <div className="flex items-center gap-2 rounded-[20px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="flex items-center gap-2 rounded-[12px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <span
             aria-hidden="true"
             className="h-3 w-3 animate-spin rounded-full border-2 border-amber-300 border-t-amber-700"
@@ -195,42 +284,46 @@ export default async function DashboardPage() {
         </div>
       ) : null}
 
-      <section className="grid gap-3 md:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-3">
         <KpiCard
-          label="Resenas detectadas"
+          label="Reseñas este mes"
           value={formatKpiValue(metrics.kpis.reviewsGenerated.current)}
           metric={metrics.kpis.reviewsGenerated}
-          note="Estimacion: algunas pueden no estar atribuidas"
+          note="Estimación: algunas pueden no estar atribuidas"
         />
         <KpiCard
-          label="Calificacion promedio"
+          label="Calificación promedio"
           value={formatKpiValue(metrics.kpis.averageRating.current, 1)}
           metric={metrics.kpis.averageRating}
           decimals={1}
         />
         <KpiCard
-          label="Clientes reactivados"
+          label="Pacientes reactivados"
           value={formatKpiValue(metrics.kpis.reactivatedCustomers.current)}
           metric={metrics.kpis.reactivatedCustomers}
         />
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.85fr)]">
-        <SectionCard
-          title="Evolución de actividad"
-          description="Mensajes enviados, reseñas generadas y clientes reactivados en los últimos 6 meses."
-        >
-          <ActivityEvolutionChart data={metrics.activityByMonth} />
-        </SectionCard>
+      <SectionCard
+        title="Actividad"
+        description={activityDescription(metrics.activityRange.granularity)}
+        action={
+          <ActivityFilters
+            granularity={metrics.activityRange.granularity}
+            from={metrics.activityRange.from}
+            to={metrics.activityRange.to}
+          />
+        }
+      >
+        <ActivityEvolutionChart data={metrics.activityByMonth} />
+      </SectionCard>
 
-        <SectionCard
-          title="Comentarios negativos"
-          description="Respuestas con score menor a 4, ordenadas por fecha."
-          tone="tinted"
-        >
-          <NegativeFeedbackList items={metrics.negativeFeedback} />
-        </SectionCard>
-      </section>
+      <SectionCard
+        title="Comentarios negativos recientes"
+        description="No se publicaron en Google. Respondé al paciente antes de que escale."
+      >
+        <NegativeFeedbackList items={metrics.negativeFeedback} />
+      </SectionCard>
     </div>
   );
 }

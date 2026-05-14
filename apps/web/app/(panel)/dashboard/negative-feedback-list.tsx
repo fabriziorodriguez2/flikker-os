@@ -46,52 +46,54 @@ export default function NegativeFeedbackList({
 
   if (feedback.length === 0) {
     return (
-      <div className="rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] p-4 text-sm text-[color:var(--text-muted)]">
-        No hay feedback negativo registrado.
+      <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-4 text-sm text-[#8891A4]">
+        No hay comentarios negativos registrados.
       </div>
     );
   }
 
   return (
-    <div className="space-y-3">
+    <div className="divide-y divide-[#E8EAF0]">
       {feedback.map((item) => (
         <article
           key={item.id}
-          className="rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] p-4"
+          className="flex flex-wrap items-start justify-between gap-4 py-4"
         >
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <p className="font-semibold text-[color:var(--foreground)]">
-                {item.customerName}
-              </p>
-              <p className="mt-1 text-xs text-[color:var(--text-muted)]">
-                {formatDate(item.createdAt)}
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              {item.acknowledgedByOwner ? (
-                <span className="rounded-full bg-[color:rgba(46,125,77,0.1)] px-2.5 py-1 text-xs font-semibold text-[color:#2e7d4d]">
-                  Leído
-                </span>
-              ) : null}
-              <span className="rounded-full bg-[color:rgba(161,45,58,0.1)] px-2.5 py-1 text-xs font-semibold text-[color:#a12d3a]">
-                {item.score}/5
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[#EEF0FB] text-xs font-semibold text-[#5C6BC0]">
+                {item.customerName.slice(0, 1).toUpperCase()}
               </span>
+              <div>
+                <p className="font-semibold text-[#1A202C]">
+                  {item.customerName}
+                </p>
+                <p className="text-xs text-[#8891A4]">{formatDate(item.createdAt)}</p>
+              </div>
             </div>
+            <p className="mt-3 text-sm leading-6 text-[#1A202C]">
+              {item.comment?.trim() || "Sin comentario."}
+            </p>
           </div>
-          <p className="mt-3 text-sm leading-6 text-[color:var(--text-muted)]">
-            {item.comment?.trim() || "Sin comentario."}
-          </p>
-          {!item.acknowledgedByOwner ? (
-            <button
-              type="button"
-              onClick={() => void acknowledge(item.id)}
-              disabled={savingId === item.id}
-              className="mt-3 rounded-full border border-[color:var(--border)] px-3 py-1.5 text-xs font-semibold text-[color:var(--foreground)] hover:bg-[color:var(--surface-muted)] disabled:opacity-60"
-            >
-              {savingId === item.id ? "Marcando..." : "Marcar como leído"}
-            </button>
-          ) : null}
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="rounded-full bg-[color:rgba(192,57,43,0.1)] px-2.5 py-1 text-xs font-semibold text-[#C0392B]">
+              {item.score}/5
+            </span>
+            {item.acknowledgedByOwner ? (
+              <span className="rounded-full bg-[color:rgba(99,153,34,0.12)] px-2.5 py-1 text-xs font-semibold text-[#639922]">
+                Leído
+              </span>
+            ) : (
+              <button
+                type="button"
+                onClick={() => void acknowledge(item.id)}
+                disabled={savingId === item.id}
+                className="rounded-[8px] border border-[#E8EAF0] px-3 py-1.5 text-xs font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-60"
+              >
+                {savingId === item.id ? "Marcando..." : "Marcar como leído"}
+              </button>
+            )}
+          </div>
         </article>
       ))}
     </div>

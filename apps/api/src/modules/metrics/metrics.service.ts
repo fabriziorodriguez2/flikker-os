@@ -22,6 +22,20 @@ interface MonthlyActivityTotal {
   reactivatedCustomers: number;
 }
 
+type ActivityGranularity = 'day' | 'week' | 'month';
+
+interface MetricsOverviewOptions {
+  granularity?: string;
+  from?: string;
+  to?: string;
+}
+
+interface ActivityWindow {
+  start: Date;
+  end: Date;
+  label: string;
+}
+
 interface NegativeFeedbackItem {
   id: string;
   createdAt: string;
@@ -45,6 +59,11 @@ export interface MetricsOverview {
   };
   reviewsByMonth: MonthlyReviewTotal[];
   activityByMonth: MonthlyActivityTotal[];
+  activityRange: {
+    granularity: ActivityGranularity;
+    from: string;
+    to: string;
+  };
   negativeFeedback: NegativeFeedbackItem[];
 }
 
@@ -55,13 +74,17 @@ const NEGATIVE_FEEDBACK_LIMIT = 10;
 export class MetricsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async getOverview(businessId: string): Promise<MetricsOverview> {
+  async getOverview(
+    businessId: string,
+    options: MetricsOverviewOptions = {},
+  ): Promise<MetricsOverview> {
     const now = new Date();
     const currentStart = startOfMonth(now);
     const currentEnd = addMonths(currentStart, 1);
     const previousStart = addMonths(currentStart, -1);
     const previousEnd = currentStart;
     const chartMonths = buildMonthWindows(currentStart, 6);
+    const activityWindows = buildActivityWindows(now, options);
 
     const [
       currentReviews,
@@ -86,11 +109,11 @@ export class MetricsService {
         ),
       ),
       Promise.all(
-        chartMonths.map(async ({ start, end }) => {
+        activityWindows.windows.map(async ({ start, end }) => {
           const [messagesSent, reviewsGenerated, reactivatedCustomers] =
             await Promise.all([
               this.countMessagesSent(businessId, start, end),
-              this.countDetectedGoogleReviews(businessId, start, end),
+              this.countGoogleReviews(businessId, start, end),
               this.countReactivatedCustomersByExecutionDate(
                 businessId,
                 start,
@@ -150,14 +173,19 @@ export class MetricsService {
         label: formatMonthLabel(month.start),
         total: monthlyReviewCounts[index] ?? 0,
       })),
-      activityByMonth: chartMonths.map((month, index) => ({
-        month: month.start.toISOString(),
-        label: formatMonthLabel(month.start),
+      activityByMonth: activityWindows.windows.map((window, index) => ({
+        month: window.start.toISOString(),
+        label: window.label,
         messagesSent: monthlyActivityCounts[index]?.messagesSent ?? 0,
         reviewsGenerated: monthlyActivityCounts[index]?.reviewsGenerated ?? 0,
         reactivatedCustomers:
           monthlyActivityCounts[index]?.reactivatedCustomers ?? 0,
       })),
+      activityRange: {
+        granularity: activityWindows.granularity,
+        from: activityWindows.from.toISOString(),
+        to: activityWindows.to.toISOString(),
+      },
       negativeFeedback: negativeFeedback.map((item) => ({
         id: item.id,
         createdAt: item.createdAt.toISOString(),
@@ -200,22 +228,6 @@ export class MetricsService {
       where: {
         businessId,
         postedAt: {
-          gte: from,
-          lt: to,
-        },
-      },
-    });
-  }
-
-  private countDetectedGoogleReviews(
-    businessId: string,
-    from: Date,
-    to: Date,
-  ): Promise<number> {
-    return this.prisma.googleReview.count({
-      where: {
-        businessId,
-        detectedAt: {
           gte: from,
           lt: to,
         },
@@ -330,6 +342,26 @@ function addMonths(date: Date, months: number): Date {
   );
 }
 
+function startOfDay(date: Date): Date {
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()),
+  );
+}
+
+function addDays(date: Date, days: number): Date {
+  return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
+}
+
+function startOfWeek(date: Date): Date {
+  const day = date.getUTCDay();
+  const daysFromMonday = day === 0 ? 6 : day - 1;
+  return addDays(startOfDay(date), -daysFromMonday);
+}
+
+function addWeeks(date: Date, weeks: number): Date {
+  return addDays(date, weeks * 7);
+}
+
 function buildMonthWindows(currentStart: Date, count: number) {
   return Array.from({ length: count }, (_, index) => {
     const start = addMonths(currentStart, index - count + 1);
@@ -356,4 +388,132 @@ function formatMonthLabel(date: Date): string {
     'Dic',
   ];
   return labels[date.getUTCMonth()];
+}
+
+function formatDayLabel(date: Date): string {
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${day} ${formatMonthLabel(date)}`;
+}
+
+function formatWeekLabel(date: Date): string {
+  return `Sem ${formatDayLabel(date)}`;
+}
+
+function parseDate(value?: string): Date | null {
+  if (!value) return null;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeGranularity(value?: string): ActivityGranularity {
+  return value === 'day' || value === 'week' || value === 'month'
+    ? value
+    : 'month';
+}
+
+function chooseGranularity(from: Date, to: Date): ActivityGranularity {
+  const days = Math.ceil((to.getTime() - from.getTime()) / 86_400_000);
+  if (days <= 31) return 'day';
+  if (days <= 120) return 'week';
+  return 'month';
+}
+
+function buildActivityWindows(
+  now: Date,
+  options: MetricsOverviewOptions,
+): {
+  windows: ActivityWindow[];
+  granularity: ActivityGranularity;
+  from: Date;
+  to: Date;
+} {
+  const customFrom = parseDate(options.from);
+  const customTo = parseDate(options.to);
+
+  if (customFrom && customTo && customFrom <= customTo) {
+    const from = customFrom;
+    const to = addDays(customTo, 1);
+    const granularity = options.granularity
+      ? normalizeGranularity(options.granularity)
+      : chooseGranularity(from, to);
+
+    return {
+      windows: buildWindows(from, to, granularity),
+      granularity,
+      from,
+      to,
+    };
+  }
+
+  const granularity = normalizeGranularity(options.granularity);
+
+  if (granularity === 'day') {
+    const to = addDays(startOfDay(now), 1);
+    const from = addDays(to, -14);
+    return {
+      windows: buildWindows(from, to, granularity),
+      granularity,
+      from,
+      to,
+    };
+  }
+
+  if (granularity === 'week') {
+    const to = addWeeks(startOfWeek(now), 1);
+    const from = addWeeks(to, -8);
+    return {
+      windows: buildWindows(from, to, granularity),
+      granularity,
+      from,
+      to,
+    };
+  }
+
+  const currentStart = startOfMonth(now);
+  const from = addMonths(currentStart, -5);
+  const to = addMonths(currentStart, 1);
+  return {
+    windows: buildWindows(from, to, granularity),
+    granularity,
+    from,
+    to,
+  };
+}
+
+function buildWindows(
+  from: Date,
+  to: Date,
+  granularity: ActivityGranularity,
+): ActivityWindow[] {
+  const windows: ActivityWindow[] = [];
+  let cursor =
+    granularity === 'month'
+      ? startOfMonth(from)
+      : granularity === 'week'
+        ? startOfWeek(from)
+        : startOfDay(from);
+
+  while (cursor < to && windows.length < 36) {
+    const next =
+      granularity === 'month'
+        ? addMonths(cursor, 1)
+        : granularity === 'week'
+          ? addWeeks(cursor, 1)
+          : addDays(cursor, 1);
+
+    windows.push({
+      start: cursor,
+      end: next > to ? to : next,
+      label:
+        granularity === 'month'
+          ? formatMonthLabel(cursor)
+          : granularity === 'week'
+            ? formatWeekLabel(cursor)
+            : formatDayLabel(cursor),
+    });
+
+    cursor = next;
+  }
+
+  return windows;
 }

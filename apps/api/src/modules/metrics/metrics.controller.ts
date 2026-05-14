@@ -4,6 +4,7 @@ import {
   NotFoundException,
   Param,
   Post,
+  Query,
   Req,
   UseGuards,
 } from '@nestjs/common';
@@ -18,8 +19,16 @@ export class MetricsController {
   constructor(private readonly metricsService: MetricsService) {}
 
   @Get('overview')
-  overview(@Req() req: AuthenticatedRequest) {
-    return this.metricsService.getOverview(req.currentBusinessId!);
+  overview(
+    @Req() req: AuthenticatedRequest,
+    @Query()
+    query: {
+      granularity?: string;
+      from?: string;
+      to?: string;
+    },
+  ) {
+    return this.metricsService.getOverview(req.currentBusinessId!, query);
   }
 
   @Post('feedback/:feedbackId/acknowledge')

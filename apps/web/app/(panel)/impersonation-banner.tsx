@@ -1,5 +1,6 @@
 "use client";
 
+import { AlertTriangle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { Session } from "@/lib/auth";
 
@@ -19,19 +20,23 @@ export default function ImpersonationBanner({
   }
 
   return (
-    <div className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-3 bg-[#b42318] px-4 py-3 text-white shadow-[0_10px_24px_rgba(180,35,24,0.25)] md:px-6">
-      <p className="text-sm font-semibold">
-        ⚠️ Operando como {impersonation.businessName}
-        <span className="ml-2 font-normal opacity-85">
-          /{impersonation.businessSlug}
+    <div className="sticky top-0 z-50 flex min-h-10 flex-wrap items-center justify-between gap-3 bg-[#C0392B] px-4 py-2 text-white md:px-6">
+      <p className="flex items-center gap-2 text-sm font-semibold">
+        <AlertTriangle aria-hidden="true" className="h-4 w-4" />
+        <span>
+          Estás operando como {impersonation.businessName}
+          <span className="font-normal">
+            {" "}
+            · Cualquier acción queda registrada con tu usuario.
+          </span>
         </span>
       </p>
       <button
         type="button"
         onClick={() => void exitImpersonation()}
-        className="rounded-full border border-white/30 bg-white/12 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-white hover:bg-white/20"
+        className="rounded-[8px] border border-white/30 bg-white/10 px-3 py-1.5 text-xs font-semibold text-white hover:bg-white/20"
       >
-        Salir
+        Salir de impersonation
       </button>
     </div>
   );

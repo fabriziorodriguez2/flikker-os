@@ -32,7 +32,7 @@ const SERIES = [
   },
   {
     key: "reactivatedCustomers",
-    label: "Clientes reactivados",
+    label: "Pacientes reactivados",
     color: "#FFAB76",
   },
 ] as const;
@@ -44,18 +44,18 @@ interface ActivityEvolutionChartProps {
 export default function ActivityEvolutionChart({
   data,
 }: ActivityEvolutionChartProps) {
-  const activeMonths = data.filter(
+  const activePeriods = data.filter(
     (item) =>
       item.messagesSent > 0 ||
       item.reviewsGenerated > 0 ||
       item.reactivatedCustomers > 0,
   ).length;
-  const showDataNotice = activeMonths < 2;
+  const showDataNotice = activePeriods < 2;
 
   return (
     <div className="space-y-4">
       {showDataNotice ? (
-        <div className="rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-4 py-3 text-sm leading-6 text-[color:var(--text-muted)]">
+        <div className="rounded-[12px] border border-[#E8EAF0] bg-[#F5F6FA] px-4 py-3 text-sm leading-6 text-[#8891A4]">
           Los datos se completan con el tiempo - seguí usando Flikker para ver
           la evolución.
         </div>
@@ -68,19 +68,15 @@ export default function ActivityEvolutionChart({
             margin={{ top: 8, right: 8, bottom: 0, left: -18 }}
             barGap={4}
           >
-            <CartesianGrid
-              stroke="var(--border)"
-              strokeDasharray="4 4"
-              vertical={false}
-            />
+            <CartesianGrid stroke="#E8EAF0" strokeDasharray="4 4" vertical={false} />
             <XAxis
               dataKey="label"
               tickLine={false}
               axisLine={false}
               tick={{
-                fill: "var(--text-muted)",
+                fill: "#8891A4",
                 fontSize: 12,
-                fontFamily: "var(--font-manrope)",
+                fontFamily: "Manrope",
               }}
             />
             <YAxis
@@ -88,9 +84,9 @@ export default function ActivityEvolutionChart({
               tickLine={false}
               axisLine={false}
               tick={{
-                fill: "var(--text-muted)",
+                fill: "#8891A4",
                 fontSize: 12,
-                fontFamily: "var(--font-manrope)",
+                fontFamily: "Manrope",
               }}
             />
             <Tooltip
@@ -99,10 +95,8 @@ export default function ActivityEvolutionChart({
                 if (!active || !payload?.length) return null;
 
                 return (
-                  <div className="rounded-[14px] border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm shadow-[0_18px_45px_rgba(9,16,43,0.16)]">
-                    <p className="mb-2 font-semibold text-[color:var(--foreground)]">
-                      {label}
-                    </p>
+                  <div className="rounded-[12px] border border-[#E8EAF0] bg-white px-4 py-3 text-sm shadow-[0_18px_45px_rgba(9,16,43,0.12)]">
+                    <p className="mb-2 font-semibold text-[#1A202C]">{label}</p>
                     <div className="space-y-1.5">
                       {SERIES.map((series) => {
                         const item = payload.find(
@@ -111,7 +105,7 @@ export default function ActivityEvolutionChart({
                         return (
                           <p
                             key={series.key}
-                            className="flex items-center justify-between gap-5 text-xs text-[color:var(--text-muted)]"
+                            className="flex items-center justify-between gap-5 text-xs text-[#8891A4]"
                           >
                             <span className="flex items-center gap-2">
                               <span
@@ -120,7 +114,7 @@ export default function ActivityEvolutionChart({
                               />
                               {series.label}
                             </span>
-                            <span className="font-semibold text-[color:var(--foreground)]">
+                            <span className="font-semibold text-[#1A202C]">
                               {Number(item?.value ?? 0).toLocaleString(
                                 "es-UY",
                               )}
@@ -137,9 +131,9 @@ export default function ActivityEvolutionChart({
               verticalAlign="bottom"
               iconType="circle"
               wrapperStyle={{
-                color: "var(--text-muted)",
+                color: "#8891A4",
                 fontSize: 12,
-                fontFamily: "var(--font-manrope)",
+                fontFamily: "Manrope",
                 paddingTop: 12,
               }}
               formatter={(value) =>
