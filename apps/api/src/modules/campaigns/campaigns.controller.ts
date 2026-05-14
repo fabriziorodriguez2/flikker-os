@@ -48,6 +48,15 @@ export class CampaignsController {
   }
 
   /**
+   * Returns recent campaign executions for the current business.
+   * Must be declared before :id to avoid route shadowing.
+   */
+  @Get('activity')
+  recentActivity(@Req() req: AuthenticatedRequest) {
+    return this.campaignsService.getRecentActivity(req.currentBusinessId!);
+  }
+
+  /**
    * Returns a specific campaign — must belong to the current business.
    */
   @Get(':id')

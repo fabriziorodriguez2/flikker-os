@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   CampaignStatus,
   CampaignChannel,
+  CampaignExecutionStatus,
   DestinationType,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -11,19 +12,58 @@ import { REPEAT_TEMPLATE_DEFAULTS, REPEAT_TEMPLATES } from './repeat-templates';
 export class CampaignsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findManyByBusiness(businessId: string, status?: CampaignStatus) {
-    return this.prisma.campaign.findMany({
-      where: {
-        businessId,
-        ...(status ? { status } : {}),
-      },
+  async findManyByBusiness(businessId: string, status?: CampaignStatus) {
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const [campaigns, monthlySentGroups, respondedGroups] = await Promise.all([
+      this.prisma.campaign.findMany({
+        where: { businessId, ...(status ? { status } : {}) },
+        include: {
+          branch: { select: { id: true, name: true, slug: true } },
+          _count: { select: { qrCodes: true, scanEvents: true, executions: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.campaignExecution.groupBy({
+        by: ['campaignId'],
+        where: {
+          businessId,
+          executedAt: { gte: monthStart },
+          status: { in: [CampaignExecutionStatus.sent, CampaignExecutionStatus.responded] },
+        },
+        _count: { id: true },
+      }),
+      this.prisma.campaignExecution.groupBy({
+        by: ['campaignId'],
+        where: { businessId, status: CampaignExecutionStatus.responded },
+        _count: { id: true },
+      }),
+    ]);
+
+    const monthlySentMap = new Map(monthlySentGroups.map((g) => [g.campaignId, g._count.id]));
+    const respondedMap = new Map(respondedGroups.map((g) => [g.campaignId, g._count.id]));
+
+    return campaigns.map((c) => ({
+      ...c,
+      monthlySent: monthlySentMap.get(c.id) ?? 0,
+      respondedTotal: respondedMap.get(c.id) ?? 0,
+    }));
+  }
+
+  findRecentActivity(businessId: string, limit = 20) {
+    return this.prisma.campaignExecution.findMany({
+      where: { businessId },
+      orderBy: { executedAt: 'desc' },
+      take: limit,
       include: {
-        branch: { select: { id: true, name: true, slug: true } },
-        _count: {
-          select: { qrCodes: true, scanEvents: true, executions: true },
+        customer: { select: { id: true, name: true } },
+        campaign: { select: { id: true, name: true, templateKind: true } },
+        message: {
+          select: { id: true, status: true, sentAt: true, deliveredAt: true },
         },
       },
-      orderBy: { createdAt: 'desc' },
     });
   }
 

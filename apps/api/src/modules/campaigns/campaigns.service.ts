@@ -231,6 +231,10 @@ export class CampaignsService {
     return updated;
   }
 
+  getRecentActivity(businessId: string) {
+    return this.campaignsRepository.findRecentActivity(businessId, 20);
+  }
+
   async updateStatus(
     businessId: string,
     campaignId: string,

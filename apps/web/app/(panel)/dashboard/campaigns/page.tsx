@@ -1,107 +1,75 @@
-import Link from "next/link";
-import { Clock3, Edit2, Gift, UserRound } from "lucide-react";
 import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
-import CampaignStatusToggle from "@/components/campaigns/campaign-status-toggle";
+import RepeatCampaignsSection, {
+  type RepeatCampaign,
+} from "./repeat-campaigns-section";
 
-interface Campaign {
+// ---------------------------------------------------------------------------
+// Types matching the backend responses
+// ---------------------------------------------------------------------------
+
+interface ActivityItem {
   id: string;
-  name: string;
-  slug: string;
-  status: string;
-  channel: string;
-  description: string | null;
-  templateKind: string | null;
-  triggerOffsetDays: number | null;
-  offerText?: string | null;
-  _count: { qrCodes: number; scanEvents: number; executions?: number };
+  status: string; // CampaignExecutionStatus: queued | sent | failed | responded
+  executedAt: string;
+  customer: { id: string; name: string };
+  campaign: { id: string; name: string; templateKind: string | null };
+  message: { id: string; status: string; sentAt: string | null; deliveredAt: string | null } | null;
 }
 
-const RECENT_ACTIVITY = [
-  {
-    patient: "Camila Fernández",
-    campaign: "Pedido de reseña post-servicio",
-    status: "respondido",
-    date: "hoy 11:42",
-  },
-  {
-    patient: "Sofía Bentancur",
-    campaign: "Pedido de reseña post-servicio",
-    status: "entregado",
-    date: "hoy 10:18",
-  },
-  {
-    patient: "Diego Pereira",
-    campaign: "Reactivación de pacientes",
-    status: "enviado",
-    date: "hoy 09:05",
-  },
-  {
-    patient: "Federico Lamas",
-    campaign: "Reactivación de pacientes",
-    status: "fallido",
-    date: "ayer 17:21",
-  },
-  {
-    patient: "Valentina Ríos",
-    campaign: "Pedido de reseña post-servicio",
-    status: "respondido",
-    date: "ayer 14:08",
-  },
-];
+// ---------------------------------------------------------------------------
+// Status mapping
+// Whapi webhook tracks: sent, delivered, read → stored in Message.status
+// CampaignExecution.status tracks: queued, sent, failed, responded
+// "responded" is set when an inbound reply from the customer is detected
+// ---------------------------------------------------------------------------
 
-function statusLabel(status: string) {
-  return status === "ACTIVE" ? "activa" : "inactiva";
+const EXECUTION_STATUS_UI: Record<
+  string,
+  { label: string; className: string }
+> = {
+  responded: { label: "respondido", className: "bg-[#EEF7E8] text-[#639922]" },
+  delivered: { label: "entregado", className: "bg-[#EEF0FB] text-[#5C6BC0]" },
+  read: { label: "leído", className: "bg-[#EEF0FB] text-[#5C6BC0]" },
+  sent: { label: "enviado", className: "bg-[#F1F4F9] text-[#8891A4]" },
+  failed: { label: "fallido", className: "bg-[#FBEDEC] text-[#C0392B]" },
+  queued: { label: "en cola", className: "bg-[#F1F4F9] text-[#8891A4]" },
+};
+
+function resolveUiStatus(item: ActivityItem) {
+  if (item.status === "responded") return EXECUTION_STATUS_UI.responded;
+  const msgStatus = item.message?.status;
+  if (msgStatus === "read") return EXECUTION_STATUS_UI.read;
+  if (msgStatus === "delivered") return EXECUTION_STATUS_UI.delivered;
+  if (item.status === "failed" || msgStatus === "failed") return EXECUTION_STATUS_UI.failed;
+  if (item.status === "sent" || msgStatus === "sent") return EXECUTION_STATUS_UI.sent;
+  return EXECUTION_STATUS_UI.queued;
 }
 
-function CampaignIcon({ kind }: { kind: string | null }) {
-  const className = "h-5 w-5";
-  if (kind === "birthday") return <Gift className={className} />;
-  if (kind === "reactivation") return <UserRound className={className} />;
-  return <Clock3 className={className} />;
+function formatActivityDate(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const target = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const hhmm = d.toLocaleTimeString("es-UY", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  if (target.getTime() === today.getTime()) return `hoy ${hhmm}`;
+  if (target.getTime() === yesterday.getTime()) return `ayer ${hhmm}`;
+  return new Intl.DateTimeFormat("es-UY", {
+    day: "numeric",
+    month: "short",
+  }).format(d);
 }
 
-function descriptionFor(campaign: Campaign) {
-  if (campaign.templateKind === "birthday") {
-    return "Se envía el día del cumpleaños del paciente.";
-  }
-  if (campaign.templateKind === "reactivation") {
-    return "Para pacientes que no vinieron en más de 6 meses.";
-  }
-  return campaign.description || "Se envía automáticamente después de cada atención.";
-}
-
-function metadataFor(campaign: Campaign) {
-  if (campaign.templateKind === "birthday") {
-    return "WhatsApp · 09:00 hora local · texto editable";
-  }
-  if (campaign.templateKind === "reactivation") {
-    return "WhatsApp · primer martes de cada mes · 10:00";
-  }
-  const offset = campaign.triggerOffsetDays ?? 0;
-  return `WhatsApp · ${offset > 0 ? `${offset} días` : "30 min"} después del check-out · pacientes con consentimiento`;
-}
-
-function reviewCountFor(campaign: Campaign) {
-  return Math.round((campaign._count.executions ?? 0) * 0.5);
-}
-
-function badgeClass(status: string) {
-  return status === "ACTIVE"
-    ? "bg-[#EEF7E8] text-[#639922]"
-    : "bg-[#F1F4F9] text-[#8891A4]";
-}
-
-function activityBadgeClass(status: string) {
-  const classes: Record<string, string> = {
-    respondido: "bg-[#EEF7E8] text-[#639922]",
-    entregado: "bg-[#EEF0FB] text-[#5C6BC0]",
-    enviado: "bg-[#F1F4F9] text-[#8891A4]",
-    fallido: "bg-[#FBEDEC] text-[#C0392B]",
-  };
-  return classes[status] ?? classes.enviado;
-}
+// ---------------------------------------------------------------------------
+// Page
+// ---------------------------------------------------------------------------
 
 export default async function CampaignsPage() {
   const session = await getSession();
@@ -110,19 +78,19 @@ export default async function CampaignsPage() {
   const { accessToken, businessId } = getEffectiveApiContext(session);
   if (!businessId) redirect("/dashboard");
 
-  let campaigns: Campaign[] = [];
+  let campaigns: RepeatCampaign[] = [];
+  let activity: ActivityItem[] = [];
   let error: string | null = null;
 
   try {
-    campaigns = await apiFetch<Campaign[]>("/campaigns", accessToken, {
-      businessId,
-    });
+    [campaigns, activity] = await Promise.all([
+      apiFetch<RepeatCampaign[]>("/campaigns", accessToken, { businessId }),
+      apiFetch<ActivityItem[]>("/campaigns/activity", accessToken, { businessId }),
+    ]);
   } catch (e) {
     if (isUnauthorizedApiError(e)) redirect("/session-expired");
     error = e instanceof Error ? e.message : "Error al cargar campañas";
   }
-
-  const activeCount = campaigns.filter((campaign) => campaign.status === "ACTIVE").length;
 
   if (error) {
     return (
@@ -138,86 +106,7 @@ export default async function CampaignsPage() {
         Campañas
       </h1>
 
-      <section className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="text-base font-bold text-[#1A202C]">
-              Campañas automáticas
-            </h2>
-            <p className="mt-1 text-sm text-[#8891A4]">
-              Las 3 campañas Repeat vienen pre-armadas. Activá o pausá cuando quieras.
-            </p>
-          </div>
-          <span className="rounded-full bg-[#EEF7E8] px-3 py-1 text-xs font-semibold text-[#639922]">
-            {activeCount} activas
-          </span>
-        </div>
-
-        <div className="mt-5 space-y-3">
-          {campaigns.map((campaign) => (
-            <article
-              key={campaign.id}
-              className="flex flex-wrap items-center gap-4 rounded-[12px] border border-[#E8EAF0] bg-white p-4"
-            >
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-[#EEF0FB] text-[#5C6BC0]">
-                <CampaignIcon kind={campaign.templateKind} />
-              </div>
-
-              <div className="min-w-[240px] flex-1">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-sm font-bold text-[#1A202C]">
-                    {campaign.name}
-                  </h3>
-                  <span
-                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${badgeClass(campaign.status)}`}
-                  >
-                    {statusLabel(campaign.status)}
-                  </span>
-                </div>
-                <p className="mt-1 text-sm text-[#8891A4]">
-                  {descriptionFor(campaign)}
-                </p>
-                <p className="mt-1 text-[11px] font-medium text-[#8891A4]">
-                  {metadataFor(campaign)}
-                </p>
-              </div>
-
-              <div className="hidden h-12 w-px bg-[#E8EAF0] lg:block" />
-
-              <div className="grid grid-cols-2 gap-5 text-center">
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
-                    Enviados mes
-                  </p>
-                  <p className="mt-1 text-lg font-bold text-[#1A202C]">
-                    {campaign._count.executions ?? 0}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
-                    Reseñas
-                  </p>
-                  <p className="mt-1 text-lg font-bold text-[#639922]">
-                    {reviewCountFor(campaign)}
-                  </p>
-                </div>
-              </div>
-
-              <CampaignStatusToggle
-                campaignId={campaign.id}
-                initialStatus={campaign.status}
-              />
-              <Link
-                href={`/dashboard/campaigns/${campaign.id}`}
-                className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#E8EAF0] px-3 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]"
-              >
-                <Edit2 className="h-4 w-4" />
-                Editar
-              </Link>
-            </article>
-          ))}
-        </div>
-      </section>
+      <RepeatCampaignsSection initialCampaigns={campaigns} />
 
       <section className="overflow-hidden rounded-[12px] border border-[#E8EAF0] bg-white">
         <div className="flex items-start justify-between gap-3 px-5 py-4">
@@ -229,40 +118,54 @@ export default async function CampaignsPage() {
               Últimos mensajes salidos de tus campañas activas.
             </p>
           </div>
-          <Link href="/dashboard/campaigns" className="text-sm font-semibold text-[#5C6BC0]">
-            Ver todo
-          </Link>
         </div>
-        <table className="w-full min-w-[680px] text-left text-sm">
-          <thead className="bg-[#F5F6FA] text-[11px] uppercase tracking-[0.08em] text-[#8891A4]">
-            <tr>
-              <th className="px-4 py-3 font-semibold">Paciente</th>
-              <th className="px-4 py-3 font-semibold">Campaña</th>
-              <th className="px-4 py-3 font-semibold">Estado</th>
-              <th className="px-4 py-3 text-right font-semibold">Fecha</th>
-            </tr>
-          </thead>
-          <tbody>
-            {RECENT_ACTIVITY.map((item) => (
-              <tr key={`${item.patient}-${item.date}`} className="border-t border-[#E8EAF0]">
-                <td className="px-4 py-4 font-semibold text-[#1A202C]">
-                  {item.patient}
-                </td>
-                <td className="px-4 py-4 text-[#1A202C]">{item.campaign}</td>
-                <td className="px-4 py-4">
-                  <span
-                    className={`rounded-full px-2.5 py-1 text-xs font-semibold ${activityBadgeClass(item.status)}`}
-                  >
-                    {item.status}
-                  </span>
-                </td>
-                <td className="px-4 py-4 text-right text-[#1A202C]">
-                  {item.date}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+
+        {activity.length === 0 ? (
+          <div className="px-5 pb-8 pt-2 text-center text-sm text-[#8891A4]">
+            Todavía no hay actividad reciente.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[680px] text-left text-sm">
+              <thead className="bg-[#F5F6FA] text-[11px] uppercase tracking-[0.08em] text-[#8891A4]">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Paciente</th>
+                  <th className="px-4 py-3 font-semibold">Campaña</th>
+                  <th className="px-4 py-3 font-semibold">Estado</th>
+                  <th className="px-4 py-3 text-right font-semibold">Fecha</th>
+                </tr>
+              </thead>
+              <tbody>
+                {activity.map((item) => {
+                  const ui = resolveUiStatus(item);
+                  return (
+                    <tr
+                      key={item.id}
+                      className="border-t border-[#E8EAF0] hover:bg-[#FAFBFC]"
+                    >
+                      <td className="px-4 py-3.5 font-semibold text-[#1A202C]">
+                        {item.customer.name}
+                      </td>
+                      <td className="px-4 py-3.5 text-[#1A202C]">
+                        {item.campaign.name}
+                      </td>
+                      <td className="px-4 py-3.5">
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ui.className}`}
+                        >
+                          {ui.label}
+                        </span>
+                      </td>
+                      <td className="px-4 py-3.5 text-right text-[#8891A4]">
+                        {formatActivityDate(item.executedAt)}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
     </div>
   );

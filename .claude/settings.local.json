@@ -19,7 +19,8 @@
       "Bash(docker compose:*)",
       "Bash(npx ts-node:*)",
       "Bash(npx eslint:*)",
-      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\" -Force)"
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\" -Force)",
+      "Bash(xargs grep *)"
     ]
   }
 }

@@ -57,6 +57,28 @@ export default async function CampaignDetailPage({
     );
   }
 
+  if (campaign.templateKind === "post_service") {
+    return (
+      <div className="mx-auto max-w-4xl space-y-4">
+        <Link
+          href="/dashboard/campaigns"
+          className="inline-flex items-center gap-2 text-sm font-semibold text-[#5C6BC0]"
+        >
+          <ChevronLeft className="h-4 w-4" />
+          Volver a Campañas
+        </Link>
+        <div className="rounded-[12px] border border-[#E8EAF0] bg-white px-6 py-8 text-center">
+          <p className="text-base font-semibold text-[#1A202C]">
+            Esta campaña no es editable
+          </p>
+          <p className="mt-1.5 text-sm text-[#8891A4]">
+            Repeat: post-servicio se activa automáticamente luego de cada atención.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-5xl space-y-4">
       <Link
