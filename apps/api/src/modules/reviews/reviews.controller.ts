@@ -34,6 +34,11 @@ export class ReviewsController {
     return this.reviewsService.listForBusiness(req.currentBusinessId!, query);
   }
 
+  @Get('google/stats')
+  googleStats(@Req() req: AuthenticatedRequest) {
+    return this.reviewsService.getGoogleStats(req.currentBusinessId!);
+  }
+
   @Get('google')
   listGoogle(
     @Req() req: AuthenticatedRequest,

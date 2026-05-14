@@ -41,6 +41,10 @@ export class ReviewsService {
     return this.reviewsRepository.findGoogleReviews(businessId, filters);
   }
 
+  getGoogleStats(businessId: string) {
+    return this.reviewsRepository.getGoogleStats(businessId);
+  }
+
   async findOneScoped(businessId: string, reviewId: string) {
     const review = await this.reviewsRepository.findOne(businessId, reviewId);
     if (!review) throw new NotFoundException('Review not found');

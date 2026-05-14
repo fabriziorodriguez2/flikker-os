@@ -15,6 +15,7 @@ export interface ReviewFilters {
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
+  from?: string;
 }
 
 @Injectable()
@@ -117,6 +118,10 @@ export class ReviewsRepository {
       ];
     }
 
+    if (filters.from) {
+      where.postedAt = { gte: new Date(filters.from) };
+    }
+
     const sortMap = {
       reviewedAt: 'postedAt',
       rating: 'stars',
@@ -142,6 +147,7 @@ export class ReviewsRepository {
         authorDisplayName: review.reviewerName,
         reviewedAt: review.postedAt,
         content: review.text,
+        attributedMessageId: review.attributedMessageId,
         campaign: null,
         respondedAt: null,
         respondedBy: null,
@@ -151,6 +157,29 @@ export class ReviewsRepository {
       total,
       page,
       limit,
+    };
+  }
+
+  async getGoogleStats(businessId: string) {
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
+    const [total, thisMonth, agg] = await Promise.all([
+      this.prisma.googleReview.count({ where: { businessId } }),
+      this.prisma.googleReview.count({
+        where: { businessId, postedAt: { gte: monthStart } },
+      }),
+      this.prisma.googleReview.aggregate({
+        where: { businessId },
+        _avg: { stars: true },
+      }),
+    ]);
+
+    return {
+      total,
+      thisMonth,
+      avgStars: Math.round((agg._avg.stars ?? 0) * 10) / 10,
     };
   }
 

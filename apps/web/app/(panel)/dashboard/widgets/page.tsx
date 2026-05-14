@@ -1,26 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { useCanMutate } from "../../role-context";
-import PageHeader from "@/components/ui/page-header";
-import SectionCard from "@/components/ui/section-card";
-import type { Widget, WidgetCreateInput } from "@/components/widgets/types";
-
-const inputClass = "flikker-input w-full px-4 py-3 text-sm";
-
-const DEFAULT_FORM: WidgetCreateInput = {
-  name: "Toast de prueba social",
-  type: "REVIEW_LIST",
-  mode: "toast",
-  position: "bottom_right",
-  title: "",
-  maxItems: 6,
-  minStars: 4,
-  primaryColor: "#5B5BD6",
-  rotationSeconds: 9,
-  showAuthorName: true,
-  showDate: true,
-};
+import { Copy, Check } from "lucide-react";
+import type { Widget } from "@/components/widgets/types";
 
 interface Business {
   id: string;
@@ -36,90 +18,40 @@ interface PreviewReview {
 }
 
 interface PreviewPayload {
-  summary: {
-    averageRating: number;
-    totalReviews: number;
-  };
+  summary: { averageRating: number; totalReviews: number };
   reviews: PreviewReview[];
 }
 
-function buildSnippet(businessId: string) {
-  if (typeof window === "undefined") return "";
-  return `<script async src="${window.location.origin}/widget.js" data-business="${businessId}" data-mode="toast"></script>`;
-}
+const MODE_OPTIONS = [
+  { value: "toast", label: "Toast" },
+  { value: "carousel", label: "Carrusel" },
+  { value: "grid", label: "Grid" },
+] as const;
+
+const POSITION_OPTIONS = [
+  { value: "bottom_left", label: "Inferior izquierda" },
+  { value: "bottom_right", label: "Inferior derecha" },
+] as const;
+
+const STAR_OPTIONS = [1, 2, 3, 4, 5] as const;
 
 function daysAgo(value: string) {
-  const days = Math.max(
-    0,
-    Math.round((Date.now() - new Date(value).getTime()) / 86400000),
-  );
+  const days = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 86400000));
   if (days === 0) return "hoy";
-  if (days === 1) return "hace 1 dia";
-  if (days < 30) return `hace ${days} dias`;
+  if (days === 1) return "hace 1 día";
+  if (days < 30) return `hace ${days} días`;
   const months = Math.max(1, Math.round(days / 30));
-  if (months === 1) return "hace 1 mes";
-  if (months < 12) return `hace ${months} meses`;
+  if (months < 12) return `hace ${months} mes${months > 1 ? "es" : ""}`;
   const years = Math.max(1, Math.round(months / 12));
-  if (years === 1) return "hace 1 ano";
-  return `hace ${years} anos`;
+  return `hace ${years} año${years > 1 ? "s" : ""}`;
 }
 
-function stars(value: number) {
-  return "★".repeat(value) + "☆".repeat(5 - value);
+function buildSnippet(businessId: string, mode: string, minStars: number, color: string, position: string) {
+  if (typeof window === "undefined") return "";
+  return `<script async\n  src="${window.location.origin}/widget.js"\n  data-business="${businessId}"\n  data-mode="${mode}"\n  data-min-stars="${minStars}"\n  data-color="${color}"\n  data-position="${position}">\n</script>`;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function ToastPreview({
-  review,
-  color,
-  position,
-  businessName,
-}: {
-  review?: PreviewReview;
-  color: string;
-  position: string;
-  businessName: string;
-}) {
-  return (
-    <div className="relative min-h-72 overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(145,136,245,0.08))]" />
-      <div
-        className={`absolute bottom-4 w-[min(330px,calc(100%-32px))] ${
-          position === "bottom_left" ? "left-4" : "right-4"
-        }`}
-      >
-        {review ? (
-          <article className="rounded-[18px] border border-[color:rgba(28,31,64,0.12)] bg-white p-4 shadow-[0_18px_45px_rgba(9,16,43,0.18)]">
-            <div className="flex items-center gap-2">
-              <span
-                className="h-2.5 w-2.5 rounded-full"
-                style={{ backgroundColor: color }}
-              />
-              <p className="truncate text-sm font-semibold text-[#15162f]">
-                {review.authorDisplayName ?? "Cliente verificado"}
-              </p>
-            </div>
-            <p className="mt-2 text-sm text-[#f5a524]">
-              {stars(review.rating)}
-            </p>
-            <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#2d304f]">
-              {review.content?.trim() || "Excelente experiencia."}
-            </p>
-            <p className="mt-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#767a91]">
-              {businessName} · {daysAgo(review.reviewedAt)}
-            </p>
-          </article>
-        ) : (
-          <div className="rounded-[18px] border border-dashed border-[color:var(--border-strong)] bg-white p-5 text-sm text-[color:var(--text-muted)]">
-            No hay reseñas detectadas con este filtro.
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ToastPreviewCard({
   review,
   color,
   position,
@@ -128,50 +60,45 @@ function ToastPreviewCard({
   review?: PreviewReview;
   color: string;
   position: string;
-  businessName: string;
   minStars: number;
 }) {
   return (
-    <div className="relative min-h-72 overflow-hidden rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
-      <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.82),rgba(145,136,245,0.08))]" />
+    <div className="relative min-h-[220px] overflow-hidden rounded-[12px] bg-[#F5F6FA]">
       <div
-        className={`absolute bottom-4 w-[min(320px,calc(100%-32px))] ${
-          position === "bottom_left" ? "left-4" : "right-4"
+        className={`absolute bottom-4 w-[min(300px,calc(100%-24px))] ${
+          position === "bottom_left" ? "left-3" : "right-3"
         }`}
       >
         {review ? (
-          <article className="relative grid min-h-[108px] grid-cols-[40px_1fr] gap-2.5 rounded-[18px] border border-[rgba(93,104,135,0.18)] bg-[#e8eefb] py-5 pl-[18px] pr-[42px] shadow-[0_18px_42px_rgba(5,12,35,0.22)]">
+          <article className="relative grid grid-cols-[40px_1fr] gap-2.5 rounded-[16px] border border-[rgba(93,104,135,0.18)] bg-[#e8eefb] py-4 pl-4 pr-10 shadow-[0_12px_32px_rgba(5,12,35,0.18)]">
             <button
               type="button"
               aria-label="Cerrar"
-              className="absolute right-2.5 top-2.5 flex h-[23px] w-[23px] items-center justify-center rounded-full bg-white/60 text-[17px] leading-none text-[#6d7691]"
+              className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white/60 text-[14px] leading-none text-[#6d7691]"
             >
               ×
             </button>
             <div
-              className="flex h-[38px] w-[38px] items-center justify-center rounded-[10px] text-xl font-extrabold leading-none text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]"
+              className="flex h-[36px] w-[36px] items-center justify-center rounded-[9px] text-lg font-extrabold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]"
               style={{ backgroundColor: color }}
             >
               ★
             </div>
             <div className="min-w-0">
-              <p className="m-0 text-[13.5px] font-extrabold leading-[1.18] tracking-[0.01em] text-[#10183d]">
-        {(review.authorDisplayName ?? "Alguien")} nos dejó{" "}
-                {review.rating} estrellas
+              <p className="text-[13px] font-extrabold leading-tight text-[#10183d]">
+                {review.authorDisplayName ?? "Alguien"} nos dejó {review.rating} estrellas
               </p>
-              <p className="mt-[7px] text-[13px] font-bold leading-none tracking-[0.12em] text-[#ff9f1c]">
-                {Array.from({ length: 5 }, (_, index) =>
-                  index < review.rating ? "★" : "☆",
-                ).join("")}
+              <p className="mt-1.5 text-[12px] font-bold text-[#ff9f1c]">
+                {"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}
               </p>
-              <p className="mt-1.5 truncate text-[11.5px] font-medium leading-tight text-[#69718f]">
-                {daysAgo(review.reviewedAt)} • Con tecnología de Flikker
+              <p className="mt-1 truncate text-[11px] font-medium text-[#69718f]">
+                {daysAgo(review.reviewedAt)} · Con tecnología de Flikker
               </p>
             </div>
           </article>
         ) : (
-          <div className="rounded-[18px] border border-dashed border-[color:var(--border-strong)] bg-white p-5 text-sm text-[color:var(--text-muted)]">
-            No hay reseñas con {minStars} estrellas o más todavía.
+          <div className="rounded-[16px] border border-dashed border-[#E8EAF0] bg-white p-4 text-xs text-[#8891A4]">
+            No hay reseñas con {minStars}★ o más todavía.
           </div>
         )}
       </div>
@@ -180,40 +107,52 @@ function ToastPreviewCard({
 }
 
 export default function WidgetsPage() {
-  const canMutate = useCanMutate();
   const [business, setBusiness] = useState<Business | null>(null);
   const [widgets, setWidgets] = useState<Widget[]>([]);
   const [preview, setPreview] = useState<PreviewPayload | null>(null);
-  const [form, setForm] = useState<WidgetCreateInput>(DEFAULT_FORM);
+  const [mode, setMode] = useState<string>("toast");
+  const [position, setPosition] = useState<string>("bottom_right");
+  const [minStars, setMinStars] = useState(4);
+  const [color, setColor] = useState("#5C6BC0");
   const [loading, setLoading] = useState(true);
   const [previewLoading, setPreviewLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [statusLoadingId, setStatusLoadingId] = useState<string | null>(null);
-  const [message, setMessage] = useState<string | null>(null);
+  const [togglingStatus, setTogglingStatus] = useState(false);
+  const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
 
-  const activeToast = useMemo(
-    () => widgets.find((widget) => widget.mode === "toast"),
-    [widgets],
+  const activeWidget = useMemo(
+    () => widgets.find((w) => w.mode === mode) ?? widgets[0] ?? null,
+    [widgets, mode],
   );
-  const snippet = business ? buildSnippet(business.id) : "";
+
+  const isActive = activeWidget?.status === "ACTIVE";
+
+  const snippet = useMemo(
+    () => (business ? buildSnippet(business.id, mode, minStars, color, position) : ""),
+    [business, mode, minStars, color, position],
+  );
 
   const loadPage = useCallback(async () => {
     setLoading(true);
     setError(null);
-
     try {
-      const [businessRes, widgetsRes] = await Promise.all([
+      const [bizRes, widRes] = await Promise.all([
         fetch("/api/proxy/businesses/current"),
         fetch("/api/proxy/widgets"),
       ]);
-
-      if (!businessRes.ok || !widgetsRes.ok) {
-        throw new Error("No se pudo cargar widgets");
+      if (!bizRes.ok || !widRes.ok) throw new Error("No se pudo cargar widgets");
+      setBusiness((await bizRes.json()) as Business);
+      const ws = (await widRes.json()) as Widget[];
+      setWidgets(ws);
+      const first = ws.find((w) => w.mode === "toast") ?? ws[0];
+      if (first) {
+        setMode(first.mode);
+        setPosition(first.position);
+        setMinStars(first.minStars);
+        setColor(first.primaryColor ?? "#5C6BC0");
       }
-
-      setBusiness((await businessRes.json()) as Business);
-      setWidgets((await widgetsRes.json()) as Widget[]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar widgets");
     } finally {
@@ -221,22 +160,12 @@ export default function WidgetsPage() {
     }
   }, []);
 
-  const loadPreview = useCallback(async (minStars: number) => {
+  const loadPreview = useCallback(async (stars: number) => {
     setPreviewLoading(true);
     try {
-      const previewRes = await fetch(
-        `/api/proxy/widgets/preview/reviews?minStars=${minStars}`,
-      );
-
-      if (!previewRes.ok) {
-        throw new Error("No se pudo cargar la vista previa");
-      }
-
-      setPreview((await previewRes.json()) as PreviewPayload);
-    } catch (e) {
-      setError(
-        e instanceof Error ? e.message : "Error al cargar la vista previa",
-      );
+      const res = await fetch(`/api/proxy/widgets/preview/reviews?minStars=${stars}`);
+      if (!res.ok) throw new Error("No se pudo cargar la vista previa");
+      setPreview((await res.json()) as PreviewPayload);
     } finally {
       setPreviewLoading(false);
     }
@@ -247,61 +176,38 @@ export default function WidgetsPage() {
   }, [loadPage]);
 
   useEffect(() => {
-    void loadPreview(form.minStars);
-  }, [form.minStars, loadPreview]);
+    void loadPreview(minStars);
+  }, [minStars, loadPreview]);
 
-  useEffect(() => {
-    if (!activeToast) return;
-
-    setForm({
-      name: activeToast.name,
-      type: "REVIEW_LIST",
-      mode: "toast",
-      position: activeToast.position,
-      title: activeToast.title ?? "",
-      maxItems: activeToast.maxItems,
-      minStars: activeToast.minStars,
-      primaryColor: activeToast.primaryColor ?? "#5B5BD6",
-      rotationSeconds: activeToast.rotationSeconds,
-      showAuthorName: activeToast.showAuthorName,
-      showDate: activeToast.showDate,
-    });
-  }, [activeToast]);
-
-  function updateForm<K extends keyof WidgetCreateInput>(
-    key: K,
-    value: WidgetCreateInput[K],
-  ) {
-    setForm((current) => ({ ...current, [key]: value }));
-  }
-
-  async function saveWidget(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!canMutate) return;
-
+  async function saveWidget(e: React.FormEvent) {
+    e.preventDefault();
     setSaving(true);
-    setMessage(null);
     setError(null);
-
+    setSaved(false);
     try {
-      const path = activeToast
-        ? `/api/proxy/widgets/${activeToast.id}`
-        : "/api/proxy/widgets";
+      const path = activeWidget ? `/api/proxy/widgets/${activeWidget.id}` : "/api/proxy/widgets";
       const res = await fetch(path, {
-        method: activeToast ? "PATCH" : "POST",
+        method: activeWidget ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...form,
-          title: form.title.trim() || undefined,
+          name: "Widget principal",
+          type: "REVIEW_LIST",
+          mode,
+          position,
+          minStars,
+          primaryColor: color,
+          maxItems: 6,
+          rotationSeconds: 9,
+          showAuthorName: true,
+          showDate: true,
+          title: "",
         }),
       });
-
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({})) as { message?: string };
         throw new Error(data.message ?? "No se pudo guardar el widget");
       }
-
-      setMessage(activeToast ? "Widget actualizado" : "Widget creado");
+      setSaved(true);
       await loadPage();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar widget");
@@ -310,204 +216,245 @@ export default function WidgetsPage() {
     }
   }
 
-  async function toggleStatus(widget: Widget) {
-    if (!canMutate) return;
-    setStatusLoadingId(widget.id);
-    setMessage(null);
+  async function toggleStatus() {
+    if (!activeWidget) return;
+    setTogglingStatus(true);
     setError(null);
-
     try {
-      const res = await fetch(`/api/proxy/widgets/${widget.id}/status`, {
+      const res = await fetch(`/api/proxy/widgets/${activeWidget.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          status: widget.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
-        }),
+        body: JSON.stringify({ status: isActive ? "INACTIVE" : "ACTIVE" }),
       });
-
       if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
+        const data = await res.json().catch(() => ({})) as { message?: string };
         throw new Error(data.message ?? "No se pudo actualizar estado");
       }
-
       await loadPage();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al actualizar estado");
     } finally {
-      setStatusLoadingId(null);
+      setTogglingStatus(false);
     }
   }
 
   async function copySnippet() {
+    if (!snippet) return;
     await navigator.clipboard.writeText(snippet);
-    setMessage("Código copiado");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
+  function SegmentedButtons<T extends string>({
+    options,
+    value,
+    onChange,
+  }: {
+    options: readonly { value: T; label: string }[];
+    value: T;
+    onChange: (v: T) => void;
+  }) {
+    return (
+      <div className="inline-flex overflow-hidden rounded-[8px] border border-[#E8EAF0] text-xs font-semibold">
+        {options.map((opt, i) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => onChange(opt.value)}
+            className={`px-3 py-2 transition-colors ${i > 0 ? "border-l border-[#E8EAF0]" : ""} ${
+              value === opt.value
+                ? "bg-[#5C6BC0] text-white"
+                : "bg-white text-[#8891A4] hover:bg-[#F5F6FA]"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
+    );
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader
-        eyebrow="Prueba social"
-        title="Prueba social"
-        subtitle="Aviso flotante embebible para el sitio del negocio."
-      />
+    <div className="mx-auto max-w-6xl space-y-4">
+      <h1 className="font-display text-[22px] font-bold text-[#1A202C]">
+        Widget
+      </h1>
 
       {error ? (
-        <div className="rounded-[20px] border border-[rgba(161,45,58,0.16)] bg-[color:var(--danger-bg)] px-5 py-4 text-sm text-[color:var(--danger-text)]">
+        <div className="rounded-[12px] border border-red-200 bg-red-50 p-4 text-sm text-[#C0392B]">
           {error}
         </div>
       ) : null}
-      {message ? (
-        <div className="rounded-[20px] border border-[rgba(21,102,63,0.14)] bg-[color:var(--success-bg)] px-5 py-4 text-sm text-[color:var(--success-text)]">
-          {message}
-        </div>
-      ) : null}
 
-      <section className="grid gap-6 xl:grid-cols-[minmax(0,0.95fr)_minmax(340px,0.75fr)]">
-        <SectionCard
-          title="Configuracion"
-          description="Modo aviso flotante."
-          action={
-            activeToast ? (
+      {loading ? (
+        <div className="h-[400px] animate-pulse rounded-[12px] bg-[#F5F6FA]" />
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
+          {/* Config card */}
+          <section className="rounded-[12px] border border-[#E8EAF0] bg-white">
+            {/* Toggle row */}
+            <div className="flex items-center justify-between border-b border-[#E8EAF0] px-5 py-4">
+              <div>
+                <p className="text-sm font-bold text-[#1A202C]">Mostrar widget</p>
+                <p className="mt-0.5 text-xs text-[#8891A4]">
+                  {isActive
+                    ? "El widget está visible en tu sitio."
+                    : "El widget está oculto."}
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => void toggleStatus(activeToast)}
-                disabled={statusLoadingId === activeToast.id}
-                className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] text-[color:var(--text-muted)] hover:border-[color:var(--brand-accent)] hover:text-[color:var(--foreground)] disabled:opacity-60"
+                onClick={() => void toggleStatus()}
+                disabled={togglingStatus || !activeWidget}
+                aria-pressed={isActive}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
+                  isActive ? "bg-[#639922]" : "bg-[#D2D8E5]"
+                }`}
               >
-                {activeToast.status === "ACTIVE" ? "Pausar" : "Activar"}
-              </button>
-            ) : null
-          }
-        >
-          <form onSubmit={saveWidget} className="grid gap-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
-                  Nombre
-                </span>
-                <input
-                  className={inputClass}
-                  value={form.name}
-                  onChange={(event) => updateForm("name", event.target.value)}
-                  disabled={!canMutate}
+                <span
+                  className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                    isActive ? "translate-x-[22px]" : "translate-x-1"
+                  }`}
                 />
-              </label>
-              <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
-                  Posicion
-                </span>
-                <select
-                  className={inputClass}
-                  value={form.position}
-                  onChange={(event) =>
-                    updateForm(
-                      "position",
-                      event.target.value as WidgetCreateInput["position"],
-                    )
-                  }
-                  disabled={!canMutate}
-                >
-                  <option value="bottom_right">Abajo derecha</option>
-                  <option value="bottom_left">Abajo izquierda</option>
-                </select>
-              </label>
-              <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
-                  Minimo estrellas
-                </span>
-                <select
-                  className={inputClass}
-                  value={form.minStars}
-                  onChange={(event) =>
-                    updateForm("minStars", Number(event.target.value))
-                  }
-                  disabled={!canMutate}
-                >
-                  <option value={4}>4+</option>
-                  <option value={5}>5</option>
-                </select>
-              </label>
-              <label className="grid gap-2">
-                <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
-                  Color
-                </span>
-                <input
-                  className="h-12 w-full rounded-[14px] border border-[color:var(--border)] bg-[color:var(--surface)] p-1"
-                  type="color"
-                  value={form.primaryColor}
-                  onChange={(event) =>
-                    updateForm("primaryColor", event.target.value)
-                  }
-                  disabled={!canMutate}
-                />
-              </label>
-            </div>
-
-            <label className="grid gap-2">
-              <span className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
-                Titulo opcional
-              </span>
-              <input
-                className={inputClass}
-                value={form.title}
-                onChange={(event) => updateForm("title", event.target.value)}
-                disabled={!canMutate}
-              />
-            </label>
-
-            <div className="flex flex-wrap gap-3">
-              <button
-                type="submit"
-                disabled={!canMutate || saving}
-                className="rounded-[16px] bg-[color:var(--brand-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[color:var(--brand-accent)] disabled:opacity-60"
-              >
-                {saving ? "Guardando..." : activeToast ? "Guardar" : "Crear"}
               </button>
             </div>
-          </form>
-        </SectionCard>
 
-        <SectionCard
-          title="Vista previa"
-          description={
-            previewLoading
-              ? "Cargando reseñas..."
-              : `${preview?.summary.totalReviews ?? 0} reseñas disponibles.`
-          }
-          tone="tinted"
-        >
-          {loading || previewLoading ? (
-            <div className="h-72 animate-pulse rounded-[20px] bg-[color:var(--surface-muted)]" />
-          ) : (
-            <ToastPreviewCard
-              review={preview?.reviews[0]}
-              color={form.primaryColor}
-              position={form.position}
-              minStars={form.minStars}
-              businessName={business?.name ?? "Flikker"}
-            />
-          )}
-        </SectionCard>
-      </section>
+            {/* Form */}
+            <form onSubmit={(e) => void saveWidget(e)} className="space-y-5 p-5">
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+                  Modo
+                </p>
+                <SegmentedButtons
+                  options={MODE_OPTIONS}
+                  value={mode as (typeof MODE_OPTIONS)[number]["value"]}
+                  onChange={(v) => setMode(v)}
+                />
+              </div>
 
-      <SectionCard
-        title="Código"
-        description="Código generado para este negocio."
-      >
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-          <pre className="overflow-x-auto rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4 text-xs leading-6 text-[color:var(--foreground)]">
-            {snippet || "Cargando..."}
-          </pre>
-          <button
-            type="button"
-            onClick={() => void copySnippet()}
-            disabled={!snippet}
-            className="h-12 rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] px-5 text-sm font-semibold text-[color:var(--foreground)] hover:border-[color:var(--brand-accent)] disabled:opacity-60"
-          >
-            Copiar
-          </button>
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+                  Posición
+                </p>
+                <SegmentedButtons
+                  options={POSITION_OPTIONS}
+                  value={position as (typeof POSITION_OPTIONS)[number]["value"]}
+                  onChange={(v) => setPosition(v)}
+                />
+              </div>
+
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+                  Mínimo de estrellas
+                </p>
+                <div className="inline-flex overflow-hidden rounded-[8px] border border-[#E8EAF0] text-xs font-semibold">
+                  {STAR_OPTIONS.map((s, i) => (
+                    <button
+                      key={s}
+                      type="button"
+                      onClick={() => setMinStars(s)}
+                      className={`px-3 py-2 transition-colors ${i > 0 ? "border-l border-[#E8EAF0]" : ""} ${
+                        minStars === s
+                          ? "bg-[#5C6BC0] text-white"
+                          : "bg-white text-[#8891A4] hover:bg-[#F5F6FA]"
+                      }`}
+                    >
+                      {s}★
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+                  Color primario
+                </p>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="color"
+                    value={color}
+                    onChange={(e) => setColor(e.target.value)}
+                    className="h-10 w-10 cursor-pointer rounded-[8px] border border-[#E8EAF0] p-0.5"
+                  />
+                  <span className="font-mono text-sm text-[#1A202C]">{color}</span>
+                </div>
+              </div>
+
+              <div className="pt-1">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex h-9 items-center rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4A5AB0] disabled:opacity-60"
+                >
+                  {saving ? "Guardando..." : saved ? "Guardado ✓" : "Guardar cambios"}
+                </button>
+              </div>
+            </form>
+          </section>
+
+          {/* Right column */}
+          <div className="space-y-4">
+            {/* Preview card */}
+            <section className="rounded-[12px] border border-[#E8EAF0] bg-white">
+              <div className="border-b border-[#E8EAF0] px-5 py-4">
+                <h2 className="text-sm font-bold text-[#1A202C]">Vista previa</h2>
+                <p className="mt-0.5 text-xs text-[#8891A4]">
+                  {previewLoading
+                    ? "Cargando..."
+                    : `${preview?.summary.totalReviews ?? 0} reseñas disponibles`}
+                </p>
+              </div>
+              <div className="p-4">
+                {previewLoading ? (
+                  <div className="h-[220px] animate-pulse rounded-[12px] bg-[#F5F6FA]" />
+                ) : (
+                  <ToastPreview
+                    review={preview?.reviews[0]}
+                    color={color}
+                    position={position}
+                    minStars={minStars}
+                  />
+                )}
+              </div>
+            </section>
+
+            {/* Snippet card */}
+            <section className="rounded-[12px] border border-[#E8EAF0] bg-white">
+              <div className="flex items-center justify-between border-b border-[#E8EAF0] px-5 py-4">
+                <div>
+                  <h2 className="text-sm font-bold text-[#1A202C]">Código de instalación</h2>
+                  <p className="mt-0.5 text-xs text-[#8891A4]">
+                    Pegá este script en el HTML de tu sitio.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void copySnippet()}
+                  disabled={!snippet}
+                  className="inline-flex items-center gap-1.5 rounded-[8px] border border-[#E8EAF0] px-3 py-1.5 text-xs font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-50"
+                >
+                  {copied ? (
+                    <>
+                      <Check className="h-3.5 w-3.5 text-[#639922]" />
+                      Copiado
+                    </>
+                  ) : (
+                    <>
+                      <Copy className="h-3.5 w-3.5" />
+                      Copiar
+                    </>
+                  )}
+                </button>
+              </div>
+              <div className="p-4">
+                <pre className="overflow-x-auto rounded-[8px] bg-[#F5F6FA] p-3 text-[11px] leading-5 text-[#1A202C]">
+                  {snippet || "Cargando..."}
+                </pre>
+              </div>
+            </section>
+          </div>
         </div>
-      </SectionCard>
+      )}
     </div>
   );
 }

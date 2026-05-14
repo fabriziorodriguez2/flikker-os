@@ -1,171 +1,244 @@
-import { redirect } from 'next/navigation';
-import { getEffectiveApiContext, getSession } from '@/lib/auth';
-import { apiFetch, isUnauthorizedApiError } from '@/lib/api';
-import PageHeader from '@/components/ui/page-header';
-import ReviewFiltersBar from '@/components/reviews/review-filters-bar';
-import ReviewsTable from '@/components/reviews/reviews-table';
-import MetricCard from '@/components/ui/metric-card';
-import type {
-  ReviewCampaignSummary,
-  ReviewFiltersState,
-  ReviewsResponse,
-} from '@/components/reviews/types';
+import { Suspense } from "react";
+import { redirect } from "next/navigation";
+import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
+import { getEffectiveApiContext, getSession } from "@/lib/auth";
+import ReviewsFilters from "./reviews-filters";
 
-interface CampaignOption {
+interface GoogleReview {
   id: string;
-  name: string;
-  slug: string;
+  rating: number;
+  authorDisplayName: string | null;
+  reviewedAt: string;
+  content: string | null;
+  attributedMessageId: string | null;
 }
 
-interface ReviewsPageProps {
+interface ReviewsResponse {
+  data: GoogleReview[];
+  total: number;
+}
+
+interface GoogleStats {
+  total: number;
+  thisMonth: number;
+  avgStars: number;
+}
+
+interface PageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-function firstValue(value: string | string[] | undefined) {
-  return Array.isArray(value) ? value[0] : value;
+function firstValue(v: string | string[] | undefined) {
+  return Array.isArray(v) ? v[0] : (v ?? "");
 }
 
-function buildFilters(
-  params: Record<string, string | string[] | undefined>,
-): ReviewFiltersState {
-  const responded = firstValue(params.responded);
-  const highlighted = firstValue(params.highlighted);
-  const campaignId = firstValue(params.campaignId);
-  const rating = firstValue(params.rating);
-
-  return {
-    ...(responded ? { responded } : {}),
-    ...(highlighted ? { highlighted } : {}),
-    ...(campaignId ? { campaignId } : {}),
-    ...(rating ? { rating } : {}),
-  };
+function periodToFrom(period: string): string | null {
+  const now = new Date();
+  if (period === "month") {
+    return new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+  }
+  if (period === "3m") {
+    const d = new Date(now);
+    d.setMonth(d.getMonth() - 3);
+    return d.toISOString();
+  }
+  if (period === "6m") {
+    const d = new Date(now);
+    d.setMonth(d.getMonth() - 6);
+    return d.toISOString();
+  }
+  return null;
 }
 
-function buildReviewsPath(filters: ReviewFiltersState) {
-  const query = new URLSearchParams({ limit: '50', sortBy: 'reviewedAt' });
-
-  if (filters.responded) query.set('responded', filters.responded);
-  if (filters.highlighted) query.set('isHighlighted', filters.highlighted);
-  if (filters.campaignId) query.set('campaignId', filters.campaignId);
-  if (filters.rating) query.set('ratingMin', filters.rating);
-
-  return `/reviews/google?${query.toString()}`;
+function buildReviewsPath(stars: string, period: string, search: string) {
+  const q = new URLSearchParams({ limit: "50", sortBy: "reviewedAt" });
+  if (stars) {
+    q.set("ratingMin", stars);
+    q.set("ratingMax", stars);
+  }
+  const from = periodToFrom(period);
+  if (from) q.set("from", from);
+  if (search) q.set("search", search);
+  return `/reviews/google?${q.toString()}`;
 }
 
-export default async function ReviewsPage({ searchParams }: ReviewsPageProps) {
+function formatReviewDate(iso: string) {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffDays = Math.floor(diffMs / 86400000);
+  if (diffDays === 0) return "hoy";
+  if (diffDays === 1) return "ayer";
+  if (diffDays < 30) return `hace ${diffDays} d`;
+  const diffMonths = Math.floor(diffDays / 30);
+  if (diffMonths < 12) return `hace ${diffMonths} mes${diffMonths > 1 ? "es" : ""}`;
+  const diffYears = Math.floor(diffMonths / 12);
+  return `hace ${diffYears} año${diffYears > 1 ? "s" : ""}`;
+}
+
+function StarRating({ value }: { value: number }) {
+  return (
+    <span className="text-sm text-amber-400">
+      {Array.from({ length: 5 }, (_, i) => (i < value ? "★" : "☆")).join("")}
+    </span>
+  );
+}
+
+function ReviewerAvatar({ name }: { name: string | null }) {
+  const initials = name
+    ? name
+        .split(" ")
+        .slice(0, 2)
+        .map((w) => w[0])
+        .join("")
+        .toUpperCase()
+    : "?";
+  return (
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#EEF0FB] text-xs font-bold text-[#5C6BC0]">
+      {initials}
+    </div>
+  );
+}
+
+export default async function ReviewsPage({ searchParams }: PageProps) {
   const session = await getSession();
-  if (!session?.activeBusinessId) redirect('/dashboard');
+  if (!session?.activeBusinessId) redirect("/dashboard");
 
-  const resolvedSearchParams = searchParams ? await searchParams : {};
-  const filters = buildFilters(resolvedSearchParams);
   const { accessToken, businessId } = getEffectiveApiContext(session);
-  if (!businessId) redirect('/dashboard');
+  if (!businessId) redirect("/dashboard");
 
-  let reviews: ReviewsResponse['data'] = [];
-  let total = 0;
-  let campaigns: ReviewCampaignSummary[] = [];
+  const resolved = searchParams ? await searchParams : {};
+  const stars = firstValue(resolved.stars);
+  const period = firstValue(resolved.period);
+  const search = firstValue(resolved.search);
+
+  let stats: GoogleStats = { total: 0, thisMonth: 0, avgStars: 0 };
+  let reviews: GoogleReview[] = [];
   let error: string | null = null;
 
   try {
-    const reviewsResponse = await apiFetch<ReviewsResponse>(
-      buildReviewsPath(filters),
-      accessToken,
-      {
-        businessId,
-        cache: 'no-store',
-      },
-    );
-
-    reviews = reviewsResponse.data;
-    total = reviewsResponse.total;
+    [stats, { data: reviews }] = await Promise.all([
+      apiFetch<GoogleStats>("/reviews/google/stats", accessToken, { businessId }),
+      apiFetch<ReviewsResponse>(buildReviewsPath(stars, period, search), accessToken, { businessId }),
+    ]);
   } catch (e) {
-    if (isUnauthorizedApiError(e)) redirect('/session-expired');
-    error = e instanceof Error ? e.message : 'Error al cargar reseñas';
+    if (isUnauthorizedApiError(e)) redirect("/session-expired");
+    error = e instanceof Error ? e.message : "Error al cargar reseñas";
   }
-
-  try {
-    const campaignOptions = await apiFetch<CampaignOption[]>(
-      '/campaigns',
-      accessToken,
-      {
-        businessId,
-        cache: 'no-store',
-      },
-    );
-
-    campaigns = campaignOptions.map((campaign) => ({
-      id: campaign.id,
-      name: campaign.name,
-      slug: campaign.slug,
-    }));
-  } catch (e) {
-    if (isUnauthorizedApiError(e)) redirect('/session-expired');
-    campaigns = [];
-  }
-
-  const hasActiveFilters = Object.values(filters).some(Boolean);
-  const respondedCount = reviews.filter((review) => Boolean(review.respondedAt)).length;
-  const highlightedCount = reviews.filter((review) => review.isHighlighted).length;
 
   if (error) {
     return (
-      <div className="mx-auto max-w-4xl">
-        <PageHeader
-          eyebrow="Reseñas"
-          title="Reseñas"
-          subtitle="No pudimos cargar las reseñas del negocio activo."
-        />
-        <div
-          className="mt-6 rounded-[24px] border px-5 py-4 text-sm text-[color:var(--danger-text)]"
-          style={{
-            backgroundColor: 'var(--danger-bg)',
-            borderColor: 'rgba(161,45,58,0.16)',
-          }}
-        >
-          {error}
-        </div>
+      <div className="rounded-[12px] border border-red-200 bg-red-50 p-4 text-sm text-[#C0392B]">
+        {error}
       </div>
     );
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader
-        eyebrow="Reseñas"
-        title="Reseñas"
-        subtitle="Bandeja de reseñas detectadas en Google."
-      />
+    <div className="mx-auto max-w-6xl space-y-4">
+      <h1 className="font-display text-[22px] font-bold text-[#1A202C]">
+        Reseñas
+      </h1>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Total" value={total} tone="accent" />
-        <MetricCard label="Respondidas" value={respondedCount} />
-        <MetricCard label="Destacadas" value={highlightedCount} />
-        <MetricCard
-          label="Con filtros"
-          value={hasActiveFilters ? 'Sí' : 'No'}
-          hint="Estado actual"
-          tone="warm"
-        />
-      </section>
-
-      <ReviewFiltersBar filters={filters} campaigns={campaigns} />
-
-      {reviews.length === 0 ? (
-        <div className="flikker-card rounded-[28px] px-6 py-10 text-center">
-          <h2 className="text-2xl font-semibold text-[color:var(--foreground)]">
-            {hasActiveFilters
-              ? 'No hay reseñas para esos filtros'
-              : 'Todavía no hay reseñas'}
-          </h2>
-          <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-[color:var(--text-muted)]">
-            {hasActiveFilters
-              ? 'Ajustá los filtros para volver a ver todas las reseñas.'
-              : 'Cuando detectemos reseñas de Google, vas a verlas acá.'}
+      {/* KPI cards */}
+      <div className="grid gap-4 sm:grid-cols-3">
+        <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
+          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+            Total de Reseñas
+          </p>
+          <p className="mt-2 text-3xl font-bold text-[#1A202C]">{stats.total}</p>
+        </div>
+        <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
+          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+            Calificación Promedio
+          </p>
+          <p className="mt-2 text-3xl font-bold text-[#1A202C]">
+            {stats.avgStars > 0 ? (
+              <>
+                {stats.avgStars.toFixed(1)}{" "}
+                <span className="text-xl text-amber-400">★</span>
+              </>
+            ) : (
+              "—"
+            )}
           </p>
         </div>
-      ) : (
-        <ReviewsTable reviews={reviews} readOnly />
-      )}
+        <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
+          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+            Reseñas Este Mes
+          </p>
+          <p className="mt-2 text-3xl font-bold text-[#1A202C]">{stats.thisMonth}</p>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <Suspense>
+        <ReviewsFilters />
+      </Suspense>
+
+      {/* Table */}
+      <section className="overflow-hidden rounded-[12px] border border-[#E8EAF0] bg-white">
+        {reviews.length === 0 ? (
+          <div className="px-5 py-10 text-center text-sm text-[#8891A4]">
+            {stars || period || search
+              ? "No hay reseñas para esos filtros."
+              : "Todavía no hay reseñas de Google detectadas."}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[640px] text-left text-sm">
+              <thead className="bg-[#F5F6FA] text-[11px] uppercase tracking-[0.08em] text-[#8891A4]">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Reseñador</th>
+                  <th className="px-4 py-3 font-semibold">Estrellas</th>
+                  <th className="px-4 py-3 font-semibold">Comentario</th>
+                  <th className="px-4 py-3 font-semibold">Fecha</th>
+                  <th className="px-4 py-3 font-semibold">Atribuida</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reviews.map((review) => (
+                  <tr
+                    key={review.id}
+                    className="border-t border-[#E8EAF0] hover:bg-[#FAFBFC]"
+                  >
+                    <td className="px-4 py-3.5">
+                      <div className="flex items-center gap-2.5">
+                        <ReviewerAvatar name={review.authorDisplayName} />
+                        <span className="font-semibold text-[#1A202C]">
+                          {review.authorDisplayName ?? "Anónimo"}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3.5">
+                      <StarRating value={review.rating} />
+                    </td>
+                    <td className="px-4 py-3.5 max-w-[260px]">
+                      <p className="truncate text-[#1A202C]">
+                        {review.content?.trim() || (
+                          <span className="text-[#8891A4]">Sin comentario</span>
+                        )}
+                      </p>
+                    </td>
+                    <td className="px-4 py-3.5 text-[#8891A4]">
+                      {formatReviewDate(review.reviewedAt)}
+                    </td>
+                    <td className="px-4 py-3.5">
+                      {review.attributedMessageId ? (
+                        <span className="rounded-full bg-[#EEF7E8] px-2.5 py-1 text-xs font-semibold text-[#639922]">
+                          vía Flikker
+                        </span>
+                      ) : (
+                        <span className="text-[#8891A4]">—</span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
