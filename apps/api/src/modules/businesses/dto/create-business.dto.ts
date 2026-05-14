@@ -14,26 +14,26 @@ export class CreateBusinessDto {
   @MaxLength(120)
   name: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(80)
   @Matches(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, {
     message: 'slug must be lowercase, alphanumeric and hyphen-separated',
   })
-  slug: string;
+  slug?: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  country: string;
+  country?: string;
 
   @IsString()
   @IsNotEmpty()
   timezone: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
   @MaxLength(3)
-  currency: string;
+  currency?: string;
 
   @IsOptional()
   @IsString()
@@ -44,6 +44,11 @@ export class CreateBusinessDto {
   @IsString()
   @MaxLength(80)
   industry?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  vertical?: string;
 
   @IsOptional()
   @IsString()

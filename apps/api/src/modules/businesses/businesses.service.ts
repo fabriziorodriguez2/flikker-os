@@ -11,6 +11,10 @@ import { UpdateBusinessDto } from './dto/update-business.dto';
 import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
 import { UpdateBrandProfileDto } from './dto/update-brand-profile.dto';
 import { AuditService } from '../../common/services/audit.service';
+import { normalizeToE164 } from '../../common/utils/phone.util';
+import { GoogleReviewsProvider } from '../../jobs/google-reviews.provider';
+import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.queue';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 
 /**
  * Valid status transitions.
@@ -38,6 +42,9 @@ export class BusinessesService {
   constructor(
     private readonly repository: BusinessesRepository,
     private readonly auditService: AuditService,
+    private readonly googleReviewsProvider: GoogleReviewsProvider,
+    private readonly googleReviewDetectionQueue: GoogleReviewDetectionQueue,
+    private readonly whatsAppBspService: WhatsAppBspService,
   ) {}
 
   /**
@@ -45,7 +52,14 @@ export class BusinessesService {
    * Slug uniqueness is checked atomically inside the transaction.
    */
   async create(dto: CreateBusinessDto, userId: string) {
-    const business = await this.repository.createWithOwner(dto, userId);
+    const payload = {
+      ...dto,
+      slug: dto.slug ?? slugify(dto.name),
+      country: dto.country ?? 'UY',
+      currency: dto.currency ?? 'USD',
+      industry: dto.industry ?? dto.vertical,
+    };
+    const business = await this.repository.createWithOwner(payload, userId);
     if (!business) throw new ConflictException('Slug already taken');
     return business;
   }
@@ -155,6 +169,69 @@ export class BusinessesService {
     return this.repository.update(businessId, dto);
   }
 
+  async verifyGooglePlace(
+    businessId: string,
+    userId: string,
+    placeId?: string,
+  ) {
+    const business = await this.findOneScoped(businessId, userId);
+    const googlePlaceId = placeId?.trim();
+    if (!googlePlaceId) {
+      throw new BadRequestException('Google Place ID is required');
+    }
+
+    try {
+      const reviews = await this.googleReviewsProvider.fetchReviews({
+        businessId,
+        googlePlaceId,
+        googleRefreshToken: business.googleRefreshToken,
+      });
+      const rating =
+        reviews.length > 0
+          ? Number(
+              (
+                reviews.reduce((total, review) => total + review.stars, 0) /
+                reviews.length
+              ).toFixed(1),
+            )
+          : null;
+      const googleReviewUrl = buildGoogleReviewUrl(googlePlaceId);
+
+      await this.repository.update(businessId, {
+        googlePlaceId,
+        googleBusinessProfileUrl: googleReviewUrl,
+        defaultReviewRedirectUrl: googleReviewUrl,
+        googleReviewsLastSyncAt: null,
+      });
+
+      void this.googleReviewDetectionQueue
+        .enqueueInitialScrape(businessId)
+        .catch(() => undefined);
+
+      return {
+        name: business.name,
+        rating,
+        reviewCount: reviews.length,
+      };
+    } catch {
+      throw new BadRequestException('No encontramos ese negocio');
+    }
+  }
+
+  async verifyWhatsApp(businessId: string, userId: string, phone?: string) {
+    const business = await this.findOneScoped(businessId, userId);
+    if (!phone?.trim()) throw new BadRequestException('phone is required');
+
+    const phoneE164 = normalizeToE164(phone);
+    await this.whatsAppBspService.sendText({
+      phone: phoneE164,
+      text: `Flikker conectado con ${business.name}. Ya podés enviar pedidos de reseña desde este número.`,
+    });
+    await this.repository.update(businessId, { phone: phoneE164 });
+
+    return { connected: true };
+  }
+
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
@@ -174,4 +251,21 @@ export class BusinessesService {
       return acc;
     }, {});
   }
+}
+
+function slugify(value: string) {
+  const slug = value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+  return slug || 'negocio';
+}
+
+function buildGoogleReviewUrl(placeId: string) {
+  return `https://search.google.com/local/writereview?placeid=${encodeURIComponent(
+    placeId,
+  )}`;
 }

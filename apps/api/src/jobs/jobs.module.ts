@@ -38,6 +38,7 @@ import { RepeatsProcessor } from './repeats.processor';
     WhatsAppInboundQueue,
     OwnerNotificationsQueue,
     GoogleReviewDetectionQueue,
+    GoogleReviewsProvider,
     WhatsAppBspService,
   ],
 })

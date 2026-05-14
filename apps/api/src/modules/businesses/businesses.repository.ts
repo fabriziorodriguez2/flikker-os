@@ -80,6 +80,7 @@ export class BusinessesRepository {
       currency: string;
       legalName?: string;
       industry?: string;
+      vertical?: string;
       description?: string;
       website?: string;
       phone?: string;

@@ -4,6 +4,8 @@ import {
   Post,
   Patch,
   Body,
+  Param,
+  Query,
   UseGuards,
   Req,
 } from '@nestjs/common';
@@ -75,6 +77,32 @@ export class BusinessesController {
     return this.businessesService.updateBrandProfile(
       req.currentBusinessId!,
       dto,
+    );
+  }
+
+  @Get(':id/verify-google-place')
+  verifyGooglePlace(
+    @Param('id') businessId: string,
+    @Query('placeId') placeId: string,
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.businessesService.verifyGooglePlace(
+      businessId,
+      user.id,
+      placeId,
+    );
+  }
+
+  @Post(':id/verify-whatsapp')
+  verifyWhatsApp(
+    @Param('id') businessId: string,
+    @Body() body: { phone?: string },
+    @CurrentUser() user: { id: string },
+  ) {
+    return this.businessesService.verifyWhatsApp(
+      businessId,
+      user.id,
+      body.phone,
     );
   }
 
