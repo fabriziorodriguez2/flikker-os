@@ -78,7 +78,7 @@ export default function LogoutButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flikker-control-subtle inline-flex h-9 items-center rounded-full px-4 text-sm font-medium transition-colors hover:border-[#cc4f58] hover:bg-[#cc4f58] hover:text-white"
+        className="inline-flex h-9 items-center rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#5A6679] transition-colors hover:bg-[#F5F6FA] hover:text-[#1A202C]"
       >
         Salir
       </button>
