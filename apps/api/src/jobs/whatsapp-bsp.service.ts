@@ -22,7 +22,7 @@ export class WhatsAppBspService {
   ): Promise<SendReviewRequestResult> {
     return this.sendText({
       phone: input.phone,
-      text: `Hola ${input.customerName}, gracias por visitarnos. Nos ayudas con una reseña? ${input.trackingUrl}`,
+      text: `Hola ${input.customerName}, gracias por venir hoy. Tu opinión nos ayuda muchísimo a seguir mejorando. ¿Nos dejás una reseña? ${input.trackingUrl} 💜`,
     });
   }
 

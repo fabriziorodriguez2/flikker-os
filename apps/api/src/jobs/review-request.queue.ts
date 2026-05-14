@@ -5,6 +5,7 @@ import { createRedisConnection, REDIS_CONFIGURED } from './redis-connection';
 
 export const REVIEW_REQUESTS_QUEUE = 'review-requests';
 export const REVIEW_REQUEST_JOB = 'review-request';
+const DEFAULT_REVIEW_REQUEST_DELAY_MS = 30 * 60 * 1000;
 
 export interface ReviewRequestJobData {
   messageId: string;
@@ -47,6 +48,8 @@ export class ReviewRequestQueue implements OnModuleInit, OnModuleDestroy {
   }
 
   private resolveDelayMs() {
-    return Number(process.env.REVIEW_REQUEST_DELAY_MS ?? 2 * 60 * 60 * 1000);
+    return Number(
+      process.env.REVIEW_REQUEST_DELAY_MS ?? DEFAULT_REVIEW_REQUEST_DELAY_MS,
+    );
   }
 }
