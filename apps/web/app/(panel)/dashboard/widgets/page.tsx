@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Copy, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import Switch from "@/components/ui/switch";
+import PoweredByFlikker from "@/components/ui/powered-by-flikker";
 import type { Widget } from "@/components/widgets/types";
 
 interface Business {
@@ -138,9 +139,11 @@ function ToastPreview({
                 {"★".repeat(review.rating)}
                 {"☆".repeat(5 - review.rating)}
               </p>
-              <p className="mt-1 truncate text-[11px] font-medium text-[#69718f]">
-                {daysAgo(review.reviewedAt)} · Powered by Flikker
-              </p>
+              <div className="mt-1 flex items-center gap-1 text-[11px] font-medium text-[#69718f]">
+                <span className="truncate">{daysAgo(review.reviewedAt)}</span>
+                <span>·</span>
+                <PoweredByFlikker className="shrink-0" />
+              </div>
             </div>
           </article>
         </div>
@@ -224,8 +227,8 @@ function CarouselPreview({
         </div>
       )}
 
-      <p className="mt-2 text-center text-[10px] text-[#CBD5E0]">
-        Con tecnología de Flikker
+      <p className="mt-2 flex items-center justify-center text-[10px] text-[#CBD5E0]">
+        <PoweredByFlikker />
       </p>
     </div>
   );
@@ -270,8 +273,8 @@ function GridPreview({
           </div>
         ))}
       </div>
-      <p className="mt-2 text-right text-[10px] text-[#CBD5E0]">
-        Con tecnología de Flikker
+      <p className="mt-2 flex items-center justify-end text-[10px] text-[#CBD5E0]">
+        <PoweredByFlikker />
       </p>
     </div>
   );

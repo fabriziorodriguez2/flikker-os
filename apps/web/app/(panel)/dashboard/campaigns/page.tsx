@@ -101,15 +101,15 @@ export default async function CampaignsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
-      <h1 className="font-display text-[22px] font-bold text-[#1A202C]">
+    <div className="mx-auto max-w-6xl space-y-5">
+      <h1 className="font-display text-[24px] font-bold text-[#1A202C]">
         Campañas
       </h1>
 
       <RepeatCampaignsSection initialCampaigns={campaigns} />
 
       <section className="overflow-hidden rounded-[12px] border border-[#E8EAF0] bg-white">
-        <div className="flex items-start justify-between gap-3 px-5 py-4">
+        <div className="flex items-start justify-between gap-3 px-5 py-5">
           <div>
             <h2 className="text-base font-bold text-[#1A202C]">
               Actividad reciente
@@ -126,13 +126,13 @@ export default async function CampaignsPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[680px] text-left text-sm">
-              <thead className="bg-[#F5F6FA] text-[11px] uppercase tracking-[0.08em] text-[#8891A4]">
+            <table className="flk-table w-full min-w-[680px] text-left text-sm">
+              <thead className="bg-[#F5F6FA] text-[12px] uppercase tracking-[0.08em] text-[#8891A4]">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Paciente</th>
-                  <th className="px-4 py-3 font-semibold">Campaña</th>
-                  <th className="px-4 py-3 font-semibold">Estado</th>
-                  <th className="px-4 py-3 text-right font-semibold">Fecha</th>
+                  <th className="px-5 py-3 font-semibold">Paciente</th>
+                  <th className="px-5 py-3 font-semibold">Campaña</th>
+                  <th className="px-5 py-3 font-semibold">Estado</th>
+                  <th className="px-5 py-3 text-right font-semibold">Fecha</th>
                 </tr>
               </thead>
               <tbody>
@@ -143,20 +143,20 @@ export default async function CampaignsPage() {
                       key={item.id}
                       className="border-t border-[#E8EAF0] hover:bg-[#FAFBFC]"
                     >
-                      <td className="px-4 py-3.5 font-semibold text-[#1A202C]">
+                      <td className="px-5 py-4 font-semibold text-[#1A202C]">
                         {item.customer.name}
                       </td>
-                      <td className="px-4 py-3.5 text-[#1A202C]">
+                      <td className="px-5 py-4 text-[#1A202C]">
                         {item.campaign.name}
                       </td>
-                      <td className="px-4 py-3.5">
+                      <td className="px-5 py-4">
                         <span
                           className={`rounded-full px-2.5 py-1 text-xs font-semibold ${ui.className}`}
                         >
                           {ui.label}
                         </span>
                       </td>
-                      <td className="px-4 py-3.5 text-right text-[#8891A4]">
+                      <td className="px-5 py-4 text-right text-[#8891A4]">
                         {formatActivityDate(item.executedAt)}
                       </td>
                     </tr>

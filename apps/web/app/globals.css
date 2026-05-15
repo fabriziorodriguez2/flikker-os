@@ -186,6 +186,8 @@ textarea {
   background: var(--surface);
   color: var(--foreground);
   border-radius: 14px;
+  min-height: 44px;
+  padding: 10px 14px;
 }
 
 .flikker-input::placeholder {
@@ -203,7 +205,7 @@ textarea {
 }
 
 .flikker-control {
-  height: 40px;
+  height: 42px;
   border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -212,7 +214,7 @@ textarea {
 }
 
 .flikker-control-subtle {
-  height: 40px;
+  height: 42px;
   border-radius: 14px;
   border: 1px solid var(--border);
   background: var(--surface);
@@ -244,6 +246,25 @@ textarea {
 
 .flikker-scrollbar-hidden::-webkit-scrollbar {
   display: none;
+}
+
+/* ── Shared table scale tokens ──────────────────────────────────────────── */
+/* Apply .flk-table to <table> elements for consistent sizing across pages   */
+.flk-table thead th {
+  font-size: 12px;
+  padding-top: 11px;
+  padding-bottom: 11px;
+}
+
+.flk-table tbody td {
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+/* ── Section spacing ─────────────────────────────────────────────────────── */
+.flk-page {
+  padding-top: 6px;
+  padding-bottom: 24px;
 }
 
 .login-clean-input::selection {

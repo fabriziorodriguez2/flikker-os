@@ -12,8 +12,8 @@ export default function KPICard({
   positive,
 }: KPICardProps) {
   return (
-    <article className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] p-4">
-      <p className="text-xs font-medium uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
+    <article className="rounded-xl border border-[color:var(--border)] bg-[color:var(--surface)] p-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
         {label}
       </p>
       <p className="mt-3 text-[32px] font-bold leading-none text-[color:var(--foreground)]">

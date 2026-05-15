@@ -69,12 +69,22 @@ const WidgetIcon = () => (
   </Icon>
 );
 
-const NAV_ITEMS = [
+const TestLabIcon = () => (
+  <Icon>
+    <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18" />
+  </Icon>
+);
+
+const MAIN_NAV_ITEMS = [
   { href: "/dashboard", label: "Panel", icon: <HomeIcon /> },
   { href: "/dashboard/customers", label: "Pacientes", icon: <CustomersIcon /> },
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon /> },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
   { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon /> },
+];
+
+const ADMIN_NAV_ITEMS = [
+  { href: "/dashboard/test-lab", label: "Test Lab", icon: <TestLabIcon /> },
 ];
 
 function isItemActive(pathname: string, href: string) {
@@ -98,6 +108,9 @@ export default function Sidebar(props: SidebarProps) {
   const activeBusiness = props.memberships.find(
     (membership) => membership.businessId === props.activeBusinessId,
   );
+  const activeRole = activeBusiness?.role ?? null;
+  const canSeeAdminNav =
+    activeRole === "OWNER" || activeRole === "ADMIN" || props.isPlatformAdmin;
 
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(collapsed));
@@ -143,9 +156,8 @@ export default function Sidebar(props: SidebarProps) {
       </div>
 
       <nav className={`mt-8 flex flex-col gap-2 ${collapsed ? "px-4" : "px-5"}`}>
-        {NAV_ITEMS.map((item) => {
+        {MAIN_NAV_ITEMS.map((item) => {
           const active = isItemActive(pathname, item.href);
-
           return (
             <Link
               key={item.href}
@@ -166,6 +178,41 @@ export default function Sidebar(props: SidebarProps) {
             </Link>
           );
         })}
+
+        {canSeeAdminNav ? (
+          <>
+            <div
+              className={`my-1 border-t border-[#223247] ${collapsed ? "mx-1" : "mx-0"}`}
+            />
+            {!collapsed ? (
+              <span className="px-4 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#4A5568]">
+                Herramientas
+              </span>
+            ) : null}
+            {ADMIN_NAV_ITEMS.map((item) => {
+              const active = isItemActive(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={`group relative flex min-h-11 items-center rounded-[8px] py-3 text-[15px] font-semibold transition-colors ${
+                    collapsed ? "justify-center px-2" : "gap-3.5 px-4"
+                  } ${
+                    active
+                      ? "bg-[#EEF0FB] text-[#5C6BC0]"
+                      : "text-[#A7B0C1] hover:bg-[#16263A] hover:text-white"
+                  }`}
+                >
+                  <span className={active ? "text-[#5C6BC0]" : "text-[#A7B0C1]"}>
+                    {item.icon}
+                  </span>
+                  {!collapsed ? item.label : null}
+                  {collapsed ? <SidebarTooltip label={item.label} /> : null}
+                </Link>
+              );
+            })}
+          </>
+        ) : null}
       </nav>
 
       <div className="mt-auto" />

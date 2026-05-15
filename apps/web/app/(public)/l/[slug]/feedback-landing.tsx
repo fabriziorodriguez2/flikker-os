@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import BusinessLogo from "@/components/business/business-logo";
+import PoweredByFlikker from "@/components/ui/powered-by-flikker";
 
 type Score = 1 | 2 | 3 | 4 | 5;
 
@@ -141,15 +142,8 @@ export default function FeedbackLanding({
             ) : null}
           </div>
         )}
-        <footer className="mt-8 flex items-center justify-center gap-2 text-xs text-[color:var(--text-soft)]">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/flikker-mark.svg"
-            alt=""
-            aria-hidden="true"
-            className="h-5 w-auto"
-          />
-          <span>Powered by Flikker</span>
+        <footer className="mt-8 flex items-center justify-center text-xs text-[color:var(--text-soft)]">
+          <PoweredByFlikker />
         </footer>
       </section>
     </main>

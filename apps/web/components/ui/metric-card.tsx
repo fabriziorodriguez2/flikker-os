@@ -19,13 +19,13 @@ export default function MetricCard({
         : "flikker-card";
 
   return (
-    <div className={`rounded-[20px] border p-4 ${toneClasses}`}>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[color:var(--text-soft)]">
+    <div className={`rounded-[16px] border p-5 ${toneClasses}`}>
+      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--text-soft)]">
         {label}
       </p>
-      <p className="mt-2 text-3xl font-semibold text-[color:var(--foreground)]">{value}</p>
+      <p className="mt-2.5 text-3xl font-semibold text-[color:var(--foreground)]">{value}</p>
       {hint ? (
-        <p className="mt-1.5 text-xs leading-5 text-[color:var(--text-muted)]">{hint}</p>
+        <p className="mt-2 text-xs leading-5 text-[color:var(--text-muted)]">{hint}</p>
       ) : null}
     </div>
   );

@@ -9,6 +9,11 @@ export interface DetectedGoogleReview {
   postedAt: Date;
 }
 
+// Scrape.do /plugin/google/maps/reviews does not return reviewer photos.
+// `user` only contains `name`. To add photos, a different endpoint or a
+// headless-browser scrape that captures `user.thumbnail` would be required,
+// along with a `reviewerPhotoUrl` column on GoogleReview and object-storage
+// proxying to avoid hot-linking Google CDN URLs (they expire).
 interface ScrapeDoReview {
   review_id?: string;
   rating?: number;
@@ -21,6 +26,7 @@ interface ScrapeDoReview {
   };
   user?: {
     name?: string;
+    // thumbnail?: string; // not delivered by current endpoint
   };
 }
 

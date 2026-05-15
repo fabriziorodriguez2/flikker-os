@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const NAV_ITEMS = [
+const MAIN_NAV_ITEMS = [
   { href: "/dashboard", label: "Panel" },
   { href: "/dashboard/customers", label: "Pacientes" },
   { href: "/dashboard/campaigns", label: "Campañas" },
@@ -11,13 +11,21 @@ const NAV_ITEMS = [
   { href: "/dashboard/widgets", label: "Widget" },
 ];
 
-export default function MobileNav() {
+const ADMIN_NAV_ITEMS = [
+  { href: "/dashboard/test-lab", label: "Test Lab" },
+];
+
+export default function MobileNav({ role }: { role: string | null }) {
   const pathname = usePathname();
+  const canSeeAdminNav = role === "OWNER" || role === "ADMIN";
+  const items = canSeeAdminNav
+    ? [...MAIN_NAV_ITEMS, ...ADMIN_NAV_ITEMS]
+    : MAIN_NAV_ITEMS;
 
   return (
     <nav className="border-b border-[#E8EAF0] bg-white px-4 py-2.5 lg:hidden">
       <div className="flex gap-2 overflow-x-auto pb-1">
-        {NAV_ITEMS.map((item) => {
+        {items.map((item) => {
           const isActive =
             item.href === "/dashboard"
               ? pathname === "/dashboard"

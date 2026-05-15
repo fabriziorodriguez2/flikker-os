@@ -84,7 +84,7 @@ export default async function PanelLayout({
           <ImpersonationBanner impersonation={session.impersonation} />
         ) : null}
         <header className="sticky top-0 z-10 bg-[color:var(--background)]/96 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--background)]/92">
-          <div className="flex items-center justify-between gap-4 px-4 py-3 md:px-6">
+          <div className="flex items-center justify-between gap-4 px-4 py-3.5 md:px-6">
             <div className="lg:hidden">
               <BrandLogo
                 width={126}
@@ -111,9 +111,9 @@ export default async function PanelLayout({
           </div>
         </header>
 
-        <MobileNav />
+        <MobileNav role={currentRole} />
 
-        <main className="flex-1 overflow-auto px-4 py-5 md:px-6 md:py-6">
+        <main className="flex-1 overflow-auto px-4 py-6 md:px-6 md:py-8">
           <RoleProvider role={currentRole}>{children}</RoleProvider>
         </main>
       </div>

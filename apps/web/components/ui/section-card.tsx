@@ -17,7 +17,7 @@ export default function SectionCard({
 }: SectionCardProps) {
   return (
     <section
-      className={`rounded-[20px] border p-4 md:p-5 ${
+      className={`rounded-[16px] border p-5 md:p-6 ${
         tone === "tinted"
           ? "border-[color:rgba(145,136,245,0.14)] bg-[color:rgba(145,136,245,0.04)]"
           : "flikker-card"
@@ -38,7 +38,7 @@ export default function SectionCard({
         {action ? <div className="flex items-center gap-2">{action}</div> : null}
       </div>
 
-      <div className="mt-4">{children}</div>
+      <div className="mt-5">{children}</div>
     </section>
   );
 }

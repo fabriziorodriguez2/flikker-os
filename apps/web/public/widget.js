@@ -12,6 +12,16 @@
   var source = container || script;
   if (!source) return;
 
+  var FLK_MARK =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 516.34 402.58"' +
+    ' style="height:.75em;width:auto;display:inline-block;vertical-align:-.12em;fill:currentColor"' +
+    ' aria-hidden="true">' +
+    '<polygon points="169.64 200.96 214.33 149.16 173.32 101.62 0 302.58 86.22 402.58 173.32 301.6 260.42 402.58 346.69 302.58 300.58 249.13 255.86 300.95 169.64 200.96"/>' +
+    '<polygon points="430.11 300.95 516.34 200.96 342.99 0 214.33 149.16 300.58 249.13 342.99 199.96 430.11 300.95"/>' +
+    '</svg>';
+  var FLK_BRAND =
+    'Powered by ' + FLK_MARK + ' <strong>Flikker</strong>';
+
   var businessId = source.getAttribute('data-business');
   var mode = source.getAttribute('data-mode') || 'toast';
   var accentColor = source.getAttribute('data-color') || '#5C6BC0';
@@ -160,8 +170,8 @@
         rating +
         ' estrellas';
       starsEl.innerHTML = starsHtml(rating);
-      metaEl.textContent =
-        daysAgo(review.reviewedAt) + '  •  Powered by Flikker';
+      metaEl.innerHTML =
+        daysAgo(review.reviewedAt) + ' • ' + FLK_BRAND;
       card.setAttribute('data-review-id', review.id || '');
       index += 1;
     }
@@ -282,7 +292,7 @@
       '<div class="flk-c-dots" id="flkD"></div>' +
       '<button class="flk-c-btn" id="flkN" aria-label="Siguiente">&#8594;</button>' +
       '</div>' +
-      '<p class="flk-c-brand">Con tecnología de Flikker</p>' +
+      '<p class="flk-c-brand">' + FLK_BRAND + '</p>' +
       '</div>';
 
     var viewport = shadow.getElementById('flkV');
@@ -411,7 +421,7 @@
       '<div class="flk-g-grid">' +
       cardsHtml +
       '</div>' +
-      '<p class="flk-g-brand">Con tecnología de Flikker</p>' +
+      '<p class="flk-g-brand">' + FLK_BRAND + '</p>' +
       '</div>';
 
     postEvent('impression');

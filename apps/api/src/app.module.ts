@@ -20,6 +20,7 @@ import { ServiceEventsModule } from './modules/service-events/service-events.mod
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { JobsModule } from './jobs/jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { TestLabModule } from './modules/test-lab/test-lab.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -44,6 +45,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     ServiceEventsModule,
     WebhooksModule,
     JobsModule,
+    TestLabModule,
   ],
   controllers: [AppController],
 })
