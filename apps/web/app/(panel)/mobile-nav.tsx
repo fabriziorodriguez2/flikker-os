@@ -11,16 +11,9 @@ const MAIN_NAV_ITEMS = [
   { href: "/dashboard/widgets", label: "Widget" },
 ];
 
-const ADMIN_NAV_ITEMS = [
-  { href: "/dashboard/test-lab", label: "Test Lab" },
-];
-
 export default function MobileNav({ role }: { role: string | null }) {
   const pathname = usePathname();
-  const canSeeAdminNav = role === "OWNER" || role === "ADMIN";
-  const items = canSeeAdminNav
-    ? [...MAIN_NAV_ITEMS, ...ADMIN_NAV_ITEMS]
-    : MAIN_NAV_ITEMS;
+  const items = MAIN_NAV_ITEMS;
 
   return (
     <nav className="border-b border-[#E8EAF0] bg-white px-4 py-2.5 lg:hidden">
