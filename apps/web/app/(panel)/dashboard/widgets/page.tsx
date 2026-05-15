@@ -429,7 +429,7 @@ export default function WidgetsPage() {
           minStars,
           primaryColor: color,
           maxItems: 6,
-          rotationSeconds: 9,
+          rotationSeconds: 10,
           showAuthorName: true,
           showDate: true,
           title: "",

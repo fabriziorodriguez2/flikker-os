@@ -238,7 +238,9 @@ export class AuthRepository {
       select: {
         businessId: true,
         role: true,
-        business: { select: { name: true, slug: true, status: true, logoUrl: true } },
+        business: {
+          select: { name: true, slug: true, status: true, logoUrl: true },
+        },
       },
     });
   }

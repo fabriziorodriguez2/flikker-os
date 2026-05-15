@@ -62,7 +62,9 @@ export class TestLabService {
 
     if (!business) throw new NotFoundException('Business not found');
 
-    const activeCampaigns = campaigns.filter((c) => c.status === 'ACTIVE').length;
+    const activeCampaigns = campaigns.filter(
+      (c) => c.status === 'ACTIVE',
+    ).length;
     const baseUrl = process.env.APP_PUBLIC_URL ?? 'https://app.flikker.com';
 
     return {
@@ -84,7 +86,13 @@ export class TestLabService {
   ) {
     const campaign = await this.prisma.campaign.findFirst({
       where: { id: campaignId, businessId },
-      select: { id: true, name: true, messageBody: true, offerText: true, templateKind: true },
+      select: {
+        id: true,
+        name: true,
+        messageBody: true,
+        offerText: true,
+        templateKind: true,
+      },
     });
 
     if (!campaign) throw new NotFoundException('Campaign not found');
@@ -126,7 +134,11 @@ export class TestLabService {
       offerText?: string;
     },
   ) {
-    const renderResult = await this.renderMessage(businessId, campaignId, input);
+    const renderResult = await this.renderMessage(
+      businessId,
+      campaignId,
+      input,
+    );
 
     const normalizedPhone = input.phone.replace(/\D/g, '');
 

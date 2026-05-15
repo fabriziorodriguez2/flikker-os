@@ -33,7 +33,7 @@
   if (mode === 'toast') {
     try {
       if (sessionStorage.getItem(storageKey) === '1') return;
-    } catch (e) {}
+    } catch {}
   }
 
   var scriptOrigin =
@@ -62,7 +62,7 @@
         );
         return;
       }
-    } catch (e) {}
+    } catch {}
     fetch(eventsUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -180,7 +180,7 @@
       e.stopPropagation();
       try {
         sessionStorage.setItem(storageKey, '1');
-      } catch (e) {}
+      } catch {}
       postEvent('close', card.getAttribute('data-review-id'));
       root.remove();
     });
@@ -196,7 +196,7 @@
     postEvent('impression', card.getAttribute('data-review-id'));
     setInterval(
       showReview,
-      Math.min(120, Math.max(8, cfg.rotationSeconds || 9)) * 1000,
+      Math.min(120, Math.max(10, cfg.rotationSeconds || 10)) * 1000,
     );
   }
 

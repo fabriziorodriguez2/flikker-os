@@ -52,7 +52,7 @@ export class WidgetsService {
       minStars: dto.minStars ?? 4,
       maxReviewsShown: dto.maxItems ?? 6,
       primaryColor: dto.primaryColor,
-      rotationSeconds: dto.rotationSeconds ?? 9,
+      rotationSeconds: dto.rotationSeconds ?? 10,
       showAuthorName: dto.showAuthorName ?? true,
       showDate: dto.showDate ?? false,
     });

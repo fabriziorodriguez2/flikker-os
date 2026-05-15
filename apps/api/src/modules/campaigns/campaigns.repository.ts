@@ -22,7 +22,9 @@ export class CampaignsRepository {
         where: { businessId, ...(status ? { status } : {}) },
         include: {
           branch: { select: { id: true, name: true, slug: true } },
-          _count: { select: { qrCodes: true, scanEvents: true, executions: true } },
+          _count: {
+            select: { qrCodes: true, scanEvents: true, executions: true },
+          },
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -31,7 +33,12 @@ export class CampaignsRepository {
         where: {
           businessId,
           executedAt: { gte: monthStart },
-          status: { in: [CampaignExecutionStatus.sent, CampaignExecutionStatus.responded] },
+          status: {
+            in: [
+              CampaignExecutionStatus.sent,
+              CampaignExecutionStatus.responded,
+            ],
+          },
         },
         _count: { id: true },
       }),
@@ -42,8 +49,12 @@ export class CampaignsRepository {
       }),
     ]);
 
-    const monthlySentMap = new Map(monthlySentGroups.map((g) => [g.campaignId, g._count.id]));
-    const respondedMap = new Map(respondedGroups.map((g) => [g.campaignId, g._count.id]));
+    const monthlySentMap = new Map(
+      monthlySentGroups.map((g) => [g.campaignId, g._count.id]),
+    );
+    const respondedMap = new Map(
+      respondedGroups.map((g) => [g.campaignId, g._count.id]),
+    );
 
     return campaigns.map((c) => ({
       ...c,
