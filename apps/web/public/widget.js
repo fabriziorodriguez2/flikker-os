@@ -209,12 +209,12 @@
     var color = cfg.primaryColor || accentColor;
     var isPaused = false;
 
-    var host = document.createElement('div');
+    var host = container || document.createElement('div');
     host.setAttribute('data-flikker-carousel', '1');
     host.style.cssText = 'display:block;box-sizing:border-box;width:100%';
-    if (script && script.parentNode) {
+    if (!container && script && script.parentNode) {
       script.parentNode.insertBefore(host, script);
-    } else {
+    } else if (!container) {
       document.body.appendChild(host);
     }
 
@@ -360,12 +360,12 @@
     var maxItems = cfg.maxItems || cfg.maxReviewsShown || 6;
     var shown = reviews.slice(0, maxItems);
 
-    var host = document.createElement('div');
+    var host = container || document.createElement('div');
     host.setAttribute('data-flikker-grid', '1');
     host.style.cssText = 'display:block;box-sizing:border-box;width:100%';
-    if (script && script.parentNode) {
+    if (!container && script && script.parentNode) {
       script.parentNode.insertBefore(host, script);
-    } else {
+    } else if (!container) {
       document.body.appendChild(host);
     }
 

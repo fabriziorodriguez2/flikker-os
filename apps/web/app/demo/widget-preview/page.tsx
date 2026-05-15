@@ -141,6 +141,16 @@ export default async function DemoWidgetPreviewPage({
                   El widget se renderiza debajo usando el script real.
                 </p>
               )}
+              {mode !== "toast" ? (
+                <div
+                  data-flikker-widget
+                  data-business={business.id}
+                  data-mode={mode}
+                  data-min-stars="4"
+                  data-color={business.primaryColor ?? "#5C6BC0"}
+                  data-position="bottom_right"
+                />
+              ) : null}
               <Script
                 id={`flikker-demo-widget-${mode}`}
                 src="/widget.js"

@@ -2,6 +2,10 @@
 
 import { useState } from "react";
 import CopyBlock from "@/components/ui/copy-block";
+import PhoneInput, {
+  isValidNationalPhone,
+  toNationalDigits,
+} from "@/components/ui/phone-input";
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -61,12 +65,20 @@ interface RenderResult {
 
 interface SendResult {
   success: boolean;
+  isTest?: boolean;
   whatsappMessageId: string;
   phone: string;
   message: string;
   campaignName: string;
   sentAt: string;
   note: string;
+}
+
+interface ReviewRequestTestResult {
+  ok: boolean;
+  messageId: string;
+  customerId: string;
+  trackingUrl: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -378,6 +390,138 @@ function CampaignTester({
   );
 }
 
+function ReviewRequestTester({ business }: { business: Business }) {
+  const [name, setName] = useState("María García");
+  const [phone, setPhone] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState<ReviewRequestTestResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const isDemo = business.slug === "clinica-demo-flikker";
+
+  async function sendReviewRequestTest() {
+    setError(null);
+    setResult(null);
+
+    if (!name.trim()) {
+      setError("Ingresá el nombre de prueba.");
+      return;
+    }
+
+    if (!isValidNationalPhone(toNationalDigits(phone))) {
+      setError("Formato inválido — ingresá entre 7 y 9 dígitos.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/proxy/platform/businesses/${business.id}/onboarding/test-message`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phone, name }),
+        },
+      );
+      const data = (await res.json().catch(() => ({}))) as
+        | ReviewRequestTestResult
+        | { message?: string };
+      if (!res.ok) {
+        throw new Error(
+          (data as { message?: string }).message ??
+            "No se pudo enviar el mensaje de prueba",
+        );
+      }
+      setResult(data as ReviewRequestTestResult);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error inesperado");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 md:p-6">
+      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="text-base font-bold text-[#1A202C]">
+              Mensaje de prueba
+            </h2>
+            <Badge
+              label={isDemo ? "modo demo" : "admin"}
+              cls={
+                isDemo
+                  ? "bg-[#EEF0FB] text-[#5C6BC0]"
+                  : "bg-[#FFF4E5] text-[#9d5d0e]"
+              }
+            />
+          </div>
+          <p className="mt-1 text-sm text-[#8891A4]">
+            Enviá el pedido de reseña como lo recibiría un paciente. Usa el
+            flujo real del onboarding y genera una landing con tracking.
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-4 grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-end">
+        <label className="block">
+          <span className="mb-2 block text-sm font-medium text-[#475467]">
+            Nombre de prueba
+          </span>
+          <input
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            placeholder="Ej: María García"
+            className="h-11 w-full rounded-[8px] border border-[#E8EAF0] bg-white px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]"
+          />
+        </label>
+
+        <PhoneInput
+          label="Teléfono"
+          value={phone}
+          onChange={setPhone}
+          placeholder="091 624 988"
+          disabled={loading}
+        />
+
+        <button
+          type="button"
+          onClick={() => void sendReviewRequestTest()}
+          disabled={loading}
+          className="inline-flex h-11 items-center justify-center rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4e5db0] disabled:opacity-60"
+        >
+          {loading ? "Enviando..." : "Enviar prueba"}
+        </button>
+      </div>
+
+      {error ? (
+        <div className="mt-4 rounded-[10px] border border-[#C0392B]/20 bg-[#C0392B]/10 px-4 py-3 text-sm text-[#C0392B]">
+          {error}
+        </div>
+      ) : null}
+
+      {result ? (
+        <div className="mt-4 rounded-[10px] border border-[#639922]/20 bg-[#EEF7E8] px-4 py-3 text-sm text-[#1A202C]">
+          <p className="font-semibold text-[#639922]">
+            Mensaje de prueba enviado.
+          </p>
+          <p className="mt-1 text-[#475467]">
+            Link generado:{" "}
+            <a
+              href={result.trackingUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="font-semibold text-[#5C6BC0] underline-offset-2 hover:underline"
+            >
+              {result.trackingUrl}
+            </a>
+          </p>
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
 // ── Widget section ────────────────────────────────────────────────────────
 
 function WidgetSection({
@@ -576,6 +720,8 @@ export default function TestLabClient({
       </section>
 
       {/* B. Campañas */}
+      <ReviewRequestTester business={business} />
+
       <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 md:p-6">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-base font-bold text-[#1A202C]">
