@@ -108,12 +108,12 @@ function ToastPreview({
 }) {
   return (
     <div className="relative min-h-[220px] overflow-hidden rounded-[12px] bg-[#F5F6FA]">
-      {!review  (
+      {!review ? (
         <EmptyState minStars={minStars} />
       ) : (
         <div
           className={`absolute bottom-4 w-[min(300px,calc(100%-24px))] ${
-            position === "bottom_left"  "left-3" : "right-3"
+            position === "bottom_left" ? "left-3" : "right-3"
           }`}
         >
           <article className="relative grid grid-cols-[40px_1fr] gap-2.5 rounded-[16px] border border-[rgba(93,104,135,0.18)] bg-[#e8eefb] py-4 pl-4 pr-10 shadow-[0_12px_32px_rgba(5,12,35,0.18)]">
@@ -177,7 +177,7 @@ function CarouselPreview({
             <p className="truncate text-sm font-bold text-[#1A202C]">
               {review.authorDisplayName ?? "Anónimo"}
             </p>
-            <StarRow rating={review.rating  5} />
+            <StarRow rating={review.rating ?? 5} />
           </div>
         </div>
         {review.content && (
@@ -197,7 +197,7 @@ function CarouselPreview({
             onClick={() => setIdx((i) => Math.max(0, i - 1))}
             disabled={idx === 0}
             className="flex h-8 w-8 items-center justify-center rounded-full border border-[#E8EAF0] bg-white text-[#718096] disabled:opacity-30 hover:border-current"
-            style={{ color: idx === 0  undefined : color }}
+            style={{ color: idx === 0 ? undefined : color }}
           >
             <ChevronLeft className="h-4 w-4" />
           </button>
@@ -208,8 +208,8 @@ function CarouselPreview({
                 key={i}
                 className="h-1.5 rounded-full transition-all duration-200"
                 style={{
-                  width: i === idx  "16px" : "6px",
-                  backgroundColor: i === idx  color : "#E2E8F0",
+                  width: i === idx ? "16px" : "6px",
+                  backgroundColor: i === idx ? color : "#E2E8F0",
                 }}
               />
             ))}
@@ -220,7 +220,7 @@ function CarouselPreview({
             onClick={() => setIdx((i) => Math.min(total - 1, i + 1))}
             disabled={idx === total - 1}
             className="flex h-8 w-8 items-center justify-center rounded-full border border-[#E8EAF0] bg-white text-[#718096] disabled:opacity-30 hover:border-current"
-            style={{ color: idx === total - 1  undefined : color }}
+            style={{ color: idx === total - 1 ? undefined : color }}
           >
             <ChevronRight className="h-4 w-4" />
           </button>
@@ -261,7 +261,7 @@ function GridPreview({
                 {review.authorDisplayName ?? "Anónimo"}
               </p>
             </div>
-            <StarRow rating={review.rating  5} />
+            <StarRow rating={review.rating ?? 5} />
             {review.content && (
               <p className="line-clamp-3 text-[11px] leading-relaxed text-[#4A5568]">
                 {review.content}
@@ -296,7 +296,7 @@ function buildSnippet(
     `  data-mode="${mode}"`,
     `  data-min-stars="${minStars}"`,
     `  data-color="${color}"`,
-    ...(mode === "toast"  [`  data-position="${position}"`] : []),
+    ...(mode === "toast" ? [`  data-position="${position}"`] : []),
     `></script>`,
   ];
   return lines.join("\n");
@@ -320,7 +320,7 @@ function SegmentedButtons<T extends string>({
           onClick={() => onChange(opt.value)}
           className={`px-3 py-2 transition-colors ${i > 0 ? "border-l border-[#E8EAF0]" : ""} ${
             value === opt.value
-               "bg-[#5C6BC0] text-white"
+              ? "bg-[#5C6BC0] text-white"
               : "bg-white text-[#8891A4] hover:bg-[#F5F6FA]"
           }`}
         >
@@ -348,7 +348,7 @@ export default function WidgetsPage() {
   const [saved, setSaved] = useState(false);
 
   const activeWidget = useMemo(
-    () => widgets.find((w) => w.mode === mode)  widgets[0]  null,
+    () => widgets.find((w) => w.mode === mode) ?? widgets[0] ?? null,
     [widgets, mode],
   );
 
@@ -357,7 +357,7 @@ export default function WidgetsPage() {
   const snippet = useMemo(
     () =>
       business
-         buildSnippet(business.id, mode, minStars, color, position)
+        ? buildSnippet(business.id, mode, minStars, color, position)
         : "",
     [business, mode, minStars, color, position],
   );
@@ -374,12 +374,12 @@ export default function WidgetsPage() {
       setBusiness((await bizRes.json()) as Business);
       const ws = (await widRes.json()) as Widget[];
       setWidgets(ws);
-      const first = ws.find((w) => w.mode === "toast")  ws[0];
+      const first = ws.find((w) => w.mode === "toast") ?? ws[0];
       if (first) {
         setMode(first.mode);
         setPosition(first.position);
         setMinStars(first.minStars);
-        setColor(first.primaryColor  "#5C6BC0");
+        setColor(first.primaryColor ?? "#5C6BC0");
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar widgets");
@@ -416,10 +416,10 @@ export default function WidgetsPage() {
     setSaved(false);
     try {
       const path = activeWidget
-         `/api/proxy/widgets/${activeWidget.id}`
+        ? `/api/proxy/widgets/${activeWidget.id}`
         : "/api/proxy/widgets";
       const res = await fetch(path, {
-        method: activeWidget  "PATCH" : "POST",
+        method: activeWidget ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: "Widget principal",
@@ -453,14 +453,14 @@ export default function WidgetsPage() {
   async function toggleStatus() {
     if (!activeWidget) return;
     const widgetId = activeWidget.id;
-    const nextStatus = isActive  "INACTIVE" : "ACTIVE";
+    const nextStatus = isActive ? "INACTIVE" : "ACTIVE";
     const previousWidgets = widgets;
 
     setTogglingStatus(true);
     setError(null);
     setWidgets((current) =>
       current.map((widget) =>
-        widget.id === widgetId  { ...widget, status: nextStatus } : widget,
+        widget.id === widgetId ? { ...widget, status: nextStatus } : widget,
       ),
     );
 
@@ -479,7 +479,7 @@ export default function WidgetsPage() {
       const updatedWidget = (await res.json()) as Widget;
       setWidgets((current) =>
         current.map((widget) =>
-          widget.id === updatedWidget.id  updatedWidget : widget,
+          widget.id === updatedWidget.id ? updatedWidget : widget,
         ),
       );
     } catch (e) {
@@ -523,7 +523,7 @@ export default function WidgetsPage() {
                 </p>
                 <p className="mt-0.5 text-xs text-[#8891A4]">
                   {isActive
-                     "El widget está visible en tu sitio."
+                    ? "El widget está visible en tu sitio."
                     : "El widget está oculto."}
                 </p>
               </div>
@@ -531,7 +531,7 @@ export default function WidgetsPage() {
                 checked={isActive}
                 onCheckedChange={() => void toggleStatus()}
                 disabled={togglingStatus || !activeWidget}
-                label={isActive  "Desactivar widget" : "Activar widget"}
+                label={isActive ? "Desactivar widget" : "Activar widget"}
               />
             </div>
 
@@ -575,7 +575,7 @@ export default function WidgetsPage() {
                       onClick={() => setMinStars(s)}
                       className={`px-3 py-2 transition-colors ${i > 0 ? "border-l border-[#E8EAF0]" : ""} ${
                         minStars === s
-                           "bg-[#5C6BC0] text-white"
+                          ? "bg-[#5C6BC0] text-white"
                           : "bg-white text-[#8891A4] hover:bg-[#F5F6FA]"
                       }`}
                     >
@@ -608,7 +608,7 @@ export default function WidgetsPage() {
                   disabled={saving}
                   className="inline-flex h-9 items-center rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4A5AB0] disabled:opacity-60"
                 >
-                  {saving  "Guardando..." : saved  "Guardado ✓" : "Guardar cambios"}
+                  {saving ? "Guardando..." : saved ? "Guardado ✓" : "Guardar cambios"}
                 </button>
               </div>
             </form>
@@ -624,22 +624,22 @@ export default function WidgetsPage() {
                 </h2>
                 <p className="mt-0.5 text-xs text-[#8891A4]">
                   {previewLoading
-                     "Cargando..."
-                    : `${preview?.summary.totalReviews  0} reseñas disponibles`}
+                    ? "Cargando..."
+                    : `${preview?.summary.totalReviews ?? 0} reseñas disponibles`}
                 </p>
               </div>
               <div className="p-4">
-                {previewLoading  (
+                {previewLoading ? (
                   <div className="h-[220px] animate-pulse rounded-[12px] bg-[#F5F6FA]" />
-                ) : mode === "carousel"  (
+                ) : mode === "carousel" ? (
                   <CarouselPreview
-                    reviews={preview?.reviews  []}
+                    reviews={preview?.reviews ?? []}
                     color={color}
                     minStars={minStars}
                   />
-                ) : mode === "grid"  (
+                ) : mode === "grid" ? (
                   <GridPreview
-                    reviews={preview?.reviews  []}
+                    reviews={preview?.reviews ?? []}
                     color={color}
                     minStars={minStars}
                   />
@@ -671,7 +671,7 @@ export default function WidgetsPage() {
                   disabled={!snippet}
                   className="inline-flex items-center gap-1.5 rounded-[8px] border border-[#E8EAF0] px-3 py-1.5 text-xs font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-50"
                 >
-                  {copied  (
+                  {copied ? (
                     <>
                       <Check className="h-3.5 w-3.5 text-[#639922]" />
                       Copiado

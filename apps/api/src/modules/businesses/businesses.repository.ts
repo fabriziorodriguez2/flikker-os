@@ -130,7 +130,7 @@ export class BusinessesRepository {
       where: { id },
       data: {
         status,
-        archivedAt: status === BusinessStatus.ARCHIVED  new Date() : undefined,
+        archivedAt: status === BusinessStatus.ARCHIVED ? new Date() : undefined,
       },
     });
   }

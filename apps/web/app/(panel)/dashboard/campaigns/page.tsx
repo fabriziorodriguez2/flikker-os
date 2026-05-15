@@ -1,4 +1,4 @@
-﻿import { redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import RepeatCampaignsSection, {
@@ -20,7 +20,7 @@ interface ActivityItem {
 
 // ---------------------------------------------------------------------------
 // Status mapping
-// Whapi webhook tracks: sent, delivered, read â†’ stored in Message.status
+// Whapi webhook tracks: sent, delivered, read → stored in Message.status
 // CampaignExecution.status tracks: queued, sent, failed, responded
 // "responded" is set when an inbound reply from the customer is detected
 // ---------------------------------------------------------------------------
@@ -31,7 +31,7 @@ const EXECUTION_STATUS_UI: Record<
 > = {
   responded: { label: "respondido", className: "bg-[#EEF7E8] text-[#639922]" },
   delivered: { label: "entregado", className: "bg-[#EEF0FB] text-[#5C6BC0]" },
-  read: { label: "leÃ­do", className: "bg-[#EEF0FB] text-[#5C6BC0]" },
+  read: { label: "leído", className: "bg-[#EEF0FB] text-[#5C6BC0]" },
   sent: { label: "enviado", className: "bg-[#F1F4F9] text-[#8891A4]" },
   failed: { label: "fallido", className: "bg-[#FBEDEC] text-[#C0392B]" },
   queued: { label: "en cola", className: "bg-[#F1F4F9] text-[#8891A4]" },
@@ -89,7 +89,7 @@ export default async function CampaignsPage() {
     ]);
   } catch (e) {
     if (isUnauthorizedApiError(e)) redirect("/session-expired");
-    error = e instanceof Error ? e.message : "Error al cargar campaÃ±as";
+    error = e instanceof Error ? e.message : "Error al cargar campañas";
   }
 
   if (error) {
@@ -103,7 +103,7 @@ export default async function CampaignsPage() {
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <h1 className="font-display text-[24px] font-bold text-[#1A202C]">
-        CampaÃ±as
+        Campañas
       </h1>
 
       <RepeatCampaignsSection initialCampaigns={campaigns} />
@@ -115,22 +115,22 @@ export default async function CampaignsPage() {
               Actividad reciente
             </h2>
             <p className="mt-1 text-sm text-[#8891A4]">
-              Ãšltimos mensajes salidos de tus campaÃ±as activas.
+              Últimos mensajes salidos de tus campañas activas.
             </p>
           </div>
         </div>
 
         {activity.length === 0 ? (
           <div className="px-5 pb-8 pt-2 text-center text-sm text-[#8891A4]">
-            TodavÃ­a no hay actividad reciente.
+            Todavía no hay actividad reciente.
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="flk-table w-full min-w-[680px] text-left text-sm">
               <thead className="bg-[#F5F6FA] text-[12px] uppercase tracking-[0.08em] text-[#8891A4]">
                 <tr>
-                  <th className="px-5 py-3 font-semibold">Cliente</th>
-                  <th className="px-5 py-3 font-semibold">CampaÃ±a</th>
+                  <th className="px-5 py-3 font-semibold">Paciente</th>
+                  <th className="px-5 py-3 font-semibold">Campaña</th>
                   <th className="px-5 py-3 font-semibold">Estado</th>
                   <th className="px-5 py-3 text-right font-semibold">Fecha</th>
                 </tr>
@@ -170,4 +170,3 @@ export default async function CampaignsPage() {
     </div>
   );
 }
-

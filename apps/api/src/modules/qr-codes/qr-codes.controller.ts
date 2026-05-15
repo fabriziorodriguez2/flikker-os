@@ -164,7 +164,7 @@ export class QrCodesController {
     );
     const buffer = await this.qrGeneratorService.generatePdf(
       qr.slug,
-      qr.label  undefined,
+      qr.label ?? undefined,
     );
 
     res.set({

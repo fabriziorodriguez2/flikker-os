@@ -21,7 +21,7 @@ export class EmailService {
       return null;
     }
 
-    const baseUrl = process.env.RESEND_BASE_URL  'https://api.resend.com';
+    const baseUrl = process.env.RESEND_BASE_URL ?? 'https://api.resend.com';
     const response = await fetch(`${baseUrl.replace(/\/$/, '')}/emails`, {
       method: 'POST',
       headers: {
@@ -30,7 +30,7 @@ export class EmailService {
       },
       body: JSON.stringify({
         from,
-        to: Array.isArray(input.to)  input.to : [input.to],
+        to: Array.isArray(input.to) ? input.to : [input.to],
         subject: input.subject,
         html: input.html,
       }),

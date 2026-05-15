@@ -49,7 +49,7 @@ export class ReviewRequestQueue implements OnModuleInit, OnModuleDestroy {
 
   private resolveDelayMs() {
     return Number(
-      process.env.REVIEW_REQUEST_DELAY_MS  DEFAULT_REVIEW_REQUEST_DELAY_MS,
+      process.env.REVIEW_REQUEST_DELAY_MS ?? DEFAULT_REVIEW_REQUEST_DELAY_MS,
     );
   }
 }

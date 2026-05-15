@@ -70,14 +70,14 @@ const WidgetIcon = () => (
 
 const MAIN_NAV_ITEMS = [
   { href: "/dashboard", label: "Panel", icon: <HomeIcon /> },
-  { href: "/dashboard/customers", label: "Clientes", icon: <CustomersIcon /> },
+  { href: "/dashboard/customers", label: "Pacientes", icon: <CustomersIcon /> },
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon /> },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
   { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon /> },
 ];
 
 function isItemActive(pathname: string, href: string) {
-  return href === "/dashboard"  pathname === href : pathname.startsWith(href);
+  return href === "/dashboard" ? pathname === href : pathname.startsWith(href);
 }
 
 function SidebarTooltip({ label }: { label: string }) {
@@ -103,44 +103,44 @@ export default function Sidebar(props: SidebarProps) {
 
   return (
     <aside
-      aria-label={`Navegación del panel${activeBusiness  ` de ${activeBusiness.business.name}` : ""}`}
+      aria-label={`Navegación del panel${activeBusiness ? ` de ${activeBusiness.business.name}` : ""}`}
       className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-[#223247] bg-[#0D1B2A] transition-[width] duration-200 lg:flex ${
-        collapsed  "w-[88px]" : "w-[250px]"
+        collapsed ? "w-[88px]" : "w-[250px]"
       }`}
     >
       <button
         type="button"
         onClick={() => setCollapsed((value) => !value)}
-        aria-label={collapsed  "Abrir sidebar" : "Cerrar sidebar"}
+        aria-label={collapsed ? "Abrir sidebar" : "Cerrar sidebar"}
         className="absolute right-0 top-1/2 z-30 inline-flex h-9 w-9 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[10px] border border-[#223247] bg-[#0D1B2A] text-[#A7B0C1] transition-colors hover:bg-[#16263A] hover:text-white"
       >
-        {collapsed  (
+        {collapsed ? (
           <ChevronRight aria-hidden="true" className="h-[18px] w-[18px]" />
         ) : (
           <ChevronLeft aria-hidden="true" className="h-[18px] w-[18px]" />
         )}
       </button>
 
-      <div className={collapsed  "px-5 pt-6" : "px-7 pt-6"}>
-        <div className={`flex items-center ${collapsed  "justify-center" : "justify-start"}`}>
+      <div className={collapsed ? "px-5 pt-6" : "px-7 pt-6"}>
+        <div className={`flex items-center ${collapsed ? "justify-center" : "justify-start"}`}>
           <Link
             href="/dashboard"
             aria-label="Ir al panel"
             className="inline-flex min-w-0 items-center"
           >
             <Image
-              src={collapsed  "/flikker-mark-white.svg" : "/flikker-wordmark-white.svg"}
+              src={collapsed ? "/flikker-mark-white.svg" : "/flikker-wordmark-white.svg"}
               alt="Flikker"
-              width={collapsed  44 : 148}
-              height={collapsed  44 : 44}
+              width={collapsed ? 44 : 148}
+              height={collapsed ? 44 : 44}
               priority
-              className={`h-auto ${collapsed  "w-[34px]" : "w-[122px]"}`}
+              className={`h-auto ${collapsed ? "w-[34px]" : "w-[122px]"}`}
             />
           </Link>
         </div>
       </div>
 
-      <nav className={`mt-8 flex flex-col gap-2 ${collapsed  "px-4" : "px-5"}`}>
+      <nav className={`mt-8 flex flex-col gap-2 ${collapsed ? "px-4" : "px-5"}`}>
         {MAIN_NAV_ITEMS.map((item) => {
           const active = isItemActive(pathname, item.href);
           return (
@@ -148,18 +148,18 @@ export default function Sidebar(props: SidebarProps) {
               key={item.href}
               href={item.href}
               className={`group relative flex min-h-11 items-center rounded-[8px] py-3 text-[15px] font-semibold transition-colors ${
-                collapsed  "justify-center px-2" : "gap-3.5 px-4"
+                collapsed ? "justify-center px-2" : "gap-3.5 px-4"
               } ${
                 active
-                   "bg-[#EEF0FB] text-[#5C6BC0]"
+                  ? "bg-[#EEF0FB] text-[#5C6BC0]"
                   : "text-[#A7B0C1] hover:bg-[#16263A] hover:text-white"
               }`}
             >
-              <span className={active  "text-[#5C6BC0]" : "text-[#A7B0C1]"}>
+              <span className={active ? "text-[#5C6BC0]" : "text-[#A7B0C1]"}>
                 {item.icon}
               </span>
-              {!collapsed  item.label : null}
-              {collapsed  <SidebarTooltip label={item.label} /> : null}
+              {!collapsed ? item.label : null}
+              {collapsed ? <SidebarTooltip label={item.label} /> : null}
             </Link>
           );
         })}

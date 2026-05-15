@@ -40,7 +40,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       ...user,
       isImpersonating: payload.isImpersonating === true,
       impersonatedBusinessId:
-        payload.isImpersonating === true  payload.businessId : undefined,
+        payload.isImpersonating === true ? payload.businessId : undefined,
     };
   }
 }

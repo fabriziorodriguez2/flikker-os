@@ -5,7 +5,7 @@ import { RedirectsRepository } from './redirects.repository';
 /** Window (in minutes) used to detect duplicate scans from the same IP. */
 const DUPLICATE_WINDOW_MINUTES = 5;
 
-const WEB_BASE_URL = process.env.WEB_BASE_URL  'http://localhost:3001';
+const WEB_BASE_URL = process.env.WEB_BASE_URL ?? 'http://localhost:3001';
 
 export interface ResolveResult {
   /** The URL the controller should redirect to (landing page or final destination). */
@@ -59,13 +59,13 @@ export class RedirectsService {
     // 3. Determine whether to show landing or redirect directly
     const landingShown = qr.campaign.enableLanding;
     const redirectUrl = landingShown
-       `${WEB_BASE_URL}/l/${slug}`
+      ? `${WEB_BASE_URL}/l/${slug}`
       : destinationUrl;
 
     // 4. Parse metadata
-    const ipHash = meta.ip  RedirectsService.hashIp(meta.ip) : undefined;
+    const ipHash = meta.ip ? RedirectsService.hashIp(meta.ip) : undefined;
     const deviceType = meta.userAgent
-       RedirectsService.parseDeviceType(meta.userAgent)
+      ? RedirectsService.parseDeviceType(meta.userAgent)
       : undefined;
 
     // 5. Detect duplicate
@@ -85,7 +85,7 @@ export class RedirectsService {
       qrCodeId: qr.id,
       campaignId: qr.campaign.id,
       businessId: qr.business.id,
-      branchId: qr.branchId  undefined,
+      branchId: qr.branchId ?? undefined,
       ipHash,
       userAgent: meta.userAgent?.slice(0, 512),
       referer: meta.referer?.slice(0, 2048),
@@ -98,8 +98,8 @@ export class RedirectsService {
 
     const ms = Date.now() - start;
     this.logger.log(
-      `resolve slug=${slug} qr=${qr.id} device=${deviceType  'unknown'} dup=${isDuplicate} landing=${landingShown} ${ms}ms` +
-        (meta.requestId  ` rid=${meta.requestId}` : ''),
+      `resolve slug=${slug} qr=${qr.id} device=${deviceType ?? 'unknown'} dup=${isDuplicate} landing=${landingShown} ${ms}ms` +
+        (meta.requestId ? ` rid=${meta.requestId}` : ''),
     );
 
     return { redirectUrl };
@@ -113,9 +113,9 @@ export class RedirectsService {
     if (!qr) throw new NotFoundException();
 
     const destinationUrl =
-      qr.destinationUrl ?
-      qr.campaign.destinationUrl ?
-      qr.business.defaultReviewRedirectUrl ?
+      qr.destinationUrl ??
+      qr.campaign.destinationUrl ??
+      qr.business.defaultReviewRedirectUrl ??
       qr.business.googleBusinessProfileUrl;
 
     if (!destinationUrl) throw new NotFoundException();
@@ -141,10 +141,10 @@ export class RedirectsService {
     };
   }): string | undefined {
     return (
-      qr.destinationUrl ?
-      qr.campaign.destinationUrl ?
-      qr.business.defaultReviewRedirectUrl ?
-      qr.business.googleBusinessProfileUrl ?
+      qr.destinationUrl ??
+      qr.campaign.destinationUrl ??
+      qr.business.defaultReviewRedirectUrl ??
+      qr.business.googleBusinessProfileUrl ??
       undefined
     );
   }

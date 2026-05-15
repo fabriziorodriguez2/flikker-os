@@ -76,7 +76,7 @@ export default function FeedbackLanding({
           </p>
         </div>
 
-        {!score  (
+        {!score ? (
           <div className="text-center">
             <h1 className="mb-6 text-2xl font-semibold leading-tight">
               ¿Cómo fue tu experiencia con {businessName}?

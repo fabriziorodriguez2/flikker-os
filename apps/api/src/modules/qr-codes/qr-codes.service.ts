@@ -69,7 +69,7 @@ export class QrCodesService {
     }
 
     // Resolve branchId: explicit > inherited from campaign > null
-    const effectiveBranchId = dto.branchId  campaign.branchId  undefined;
+    const effectiveBranchId = dto.branchId ?? campaign.branchId ?? undefined;
 
     // Generate unique slug with retry
     for (let attempt = 0; attempt < MAX_SLUG_RETRIES; attempt++) {

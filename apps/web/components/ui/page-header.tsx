@@ -18,13 +18,13 @@ export default function PageHeader({
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="max-w-3xl">
-        {eyebrow  (
+        {eyebrow ? (
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
             {eyebrow}
           </p>
         ) : null}
         <div className="mt-1.5 flex items-center gap-3">
-          {logoUrl  (
+          {logoUrl ? (
             <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-[color:var(--border)] bg-[color:var(--surface)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -33,7 +33,7 @@ export default function PageHeader({
                 className="h-full w-full object-contain"
               />
             </span>
-          ) : logoUrl === null  (
+          ) : logoUrl === null ? (
             <span
               aria-hidden="true"
               className="h-10 w-10 shrink-0 rounded-[10px] border border-[color:var(--border)] bg-[color:var(--surface-muted)]"
@@ -43,14 +43,14 @@ export default function PageHeader({
             {title}
           </h1>
         </div>
-        {subtitle  (
+        {subtitle ? (
           <p className="mt-2 max-w-2xl text-sm leading-5 text-[color:var(--text-muted)]">
             {subtitle}
           </p>
         ) : null}
       </div>
 
-      {actions  (
+      {actions ? (
         <div className="flex flex-wrap items-center gap-2">{actions}</div>
       ) : null}
     </div>

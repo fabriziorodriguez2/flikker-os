@@ -38,14 +38,14 @@ export default function ReviewRowActions({
       const res = await fetch(path, { method: "POST" });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message  "No se pudo actualizar la reseña");
+        throw new Error(data.message ?? "No se pudo actualizar la reseña");
       }
 
       startTransition(() => {
         router.refresh();
       });
     } catch (e) {
-      setError(e instanceof Error  e.message : "Error al actualizar reseña");
+      setError(e instanceof Error ? e.message : "Error al actualizar reseña");
     }
   }
 
@@ -56,40 +56,40 @@ export default function ReviewRowActions({
           type="button"
           onClick={() =>
             runAction(
-              `/api/proxy/reviews/${reviewId}/${isHighlighted  "unhighlight" : "highlight"}`,
+              `/api/proxy/reviews/${reviewId}/${isHighlighted ? "unhighlight" : "highlight"}`,
             )
           }
           disabled={isPending}
           className={actionClass("accent")}
         >
           {isPending && !error
-             "Guardando..."
+            ? "Guardando..."
             : isHighlighted
-               "Quitar highlight"
+              ? "Quitar highlight"
               : "Highlight"}
         </button>
 
-        {FEATURES.MANUAL_RESPONSES  (
+        {FEATURES.MANUAL_RESPONSES ? (
           <button
             type="button"
             onClick={() =>
               runAction(
-                `/api/proxy/reviews/${reviewId}/${isResponded  "mark-unresponded" : "mark-responded"}`,
+                `/api/proxy/reviews/${reviewId}/${isResponded ? "mark-unresponded" : "mark-responded"}`,
               )
             }
             disabled={isPending}
             className={actionClass("default")}
           >
             {isPending && !error
-               "Guardando..."
+              ? "Guardando..."
               : isResponded
-                 "Marcar pendiente"
+                ? "Marcar pendiente"
                 : "Marcar respondida"}
           </button>
         ) : null}
       </div>
 
-      {error  (
+      {error ? (
         <p className="max-w-[220px] text-right text-xs text-[color:var(--danger-text)]">
           {error}
         </p>

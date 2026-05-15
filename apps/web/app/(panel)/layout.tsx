@@ -44,7 +44,7 @@ export default async function PanelLayout({
   }
 
   const currentRole = session.impersonation
-     "OWNER"
+    ? "OWNER"
     : (activeMembership?.role ?? null);
   const effectiveApiContext = getEffectiveApiContext(session);
   let currentBusiness: CurrentBusiness | null = null;
@@ -63,11 +63,11 @@ export default async function PanelLayout({
   }
 
   const businessDisplayName =
-    currentBusiness?.name ?
-    session.impersonation?.businessName ?
+    currentBusiness?.name ??
+    session.impersonation?.businessName ??
     activeMembership?.business?.name;
   const businessLogoUrl =
-    currentBusiness?.logoUrl  activeMembership?.business?.logoUrl  null;
+    currentBusiness?.logoUrl ?? activeMembership?.business?.logoUrl ?? null;
 
   return (
     <div className="flikker-app-shell min-h-screen lg:flex">
@@ -79,7 +79,7 @@ export default async function PanelLayout({
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {session.impersonation  (
+        {session.impersonation ? (
           <ImpersonationBanner impersonation={session.impersonation} />
         ) : null}
         <header className="sticky top-0 z-10 bg-[color:var(--background)]/96 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--background)]/92">
@@ -93,9 +93,9 @@ export default async function PanelLayout({
             </div>
 
             <div className="ml-auto flex items-center gap-2.5">
-              {businessDisplayName  (
+              {businessDisplayName ? (
                 <div className="hidden items-center gap-2 text-sm font-medium text-[#1A202C] sm:flex">
-                  {businessLogoUrl  (
+                  {businessLogoUrl ? (
                     <BusinessLogo
                       logoUrl={businessLogoUrl}
                       name={businessDisplayName}

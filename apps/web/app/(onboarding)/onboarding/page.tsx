@@ -26,8 +26,8 @@ import BusinessLogo from "@/components/business/business-logo";
 import PhoneInput from "@/components/ui/phone-input";
 
 const VERTICAL_OPTIONS = [
-  { value: "dental", label: "Servicios profesionales" },
-  { value: "estetica", label: "Belleza y bienestar" },
+  { value: "dental", label: "Clínica dental" },
+  { value: "estetica", label: "Centro de estética" },
   { value: "fisio", label: "Fisioterapia" },
   { value: "medico", label: "Consultorio médico" },
   { value: "nutricion", label: "Nutrición" },
@@ -153,20 +153,20 @@ function OnboardingPageContent() {
           | { message?: string };
         if (!response.ok || !("business" in data)) {
           throw new Error(
-            "message" in data ?
-               data.message
+            "message" in data
+              ? data.message
               : "No pudimos cargar el onboarding.",
           );
         }
         setWizard({
           businessId: data.business.id,
           businessName: data.business.name,
-          vertical: data.business.vertical  "",
+          vertical: data.business.vertical ?? "",
           timezone: data.business.timezone || "America/Montevideo",
-          phone: data.business.phone  "",
-          logoUrl: data.business.logoUrl  null,
+          phone: data.business.phone ?? "",
+          logoUrl: data.business.logoUrl ?? null,
           google: data.business.googlePlaceId
-             {
+            ? {
                 placeId: data.business.googlePlaceId,
                 name: data.business.name,
                 rating: null,
@@ -174,14 +174,14 @@ function OnboardingPageContent() {
               }
             : null,
           whatsapp: data.business.phone
-             { phone: data.business.phone, connected: true }
+            ? { phone: data.business.phone, connected: true }
             : null,
           existingBusiness: true,
         });
       } catch (error) {
         setLoadError(
-          error instanceof Error ?
-             error.message
+          error instanceof Error
+            ? error.message
             : "No pudimos cargar el onboarding.",
         );
       } finally {
@@ -217,9 +217,9 @@ function OnboardingPageContent() {
 
   return (
     <OnboardingLayout currentStep={currentStep}>
-      {currentStep === 1  (
+      {currentStep === 1 ? (
         <BusinessStep
-          existingBusinessId={wizard.existingBusiness  wizard.businessId : null}
+          existingBusinessId={wizard.existingBusiness ? wizard.businessId : null}
           initial={{
             name: wizard.businessName,
             vertical: wizard.vertical,
@@ -243,7 +243,7 @@ function OnboardingPageContent() {
         />
       ) : null}
 
-      {currentStep === 2 && wizard.businessId  (
+      {currentStep === 2 && wizard.businessId ? (
         <GoogleStep
           businessId={wizard.businessId}
           platformMode={wizard.existingBusiness}
@@ -257,11 +257,11 @@ function OnboardingPageContent() {
         />
       ) : null}
 
-      {currentStep === 3 && wizard.businessId  (
+      {currentStep === 3 && wizard.businessId ? (
         <WhatsAppStep
           businessId={wizard.businessId}
           platformMode={wizard.existingBusiness}
-          initialPhone={wizard.whatsapp?.phone  wizard.phone}
+          initialPhone={wizard.whatsapp?.phone ?? wizard.phone}
           verified={wizard.whatsapp}
           onBack={() => setCurrentStep(2)}
           onVerified={(whatsapp) =>
@@ -271,7 +271,7 @@ function OnboardingPageContent() {
         />
       ) : null}
 
-      {currentStep === 4  (
+      {currentStep === 4 ? (
         <SummaryStep
           wizard={wizard}
           onEdit={(step) => setCurrentStep(step)}
@@ -339,10 +339,10 @@ function ProgressBar({ currentStep }: { currentStep: number }) {
 
           return (
             <div key={label} className="relative flex flex-col items-center">
-              {index > 0  (
+              {index > 0 ? (
                 <span
                   className={`absolute right-1/2 top-[15px] h-px w-full ${
-                    completed || active  "bg-[#639922]" : "bg-[#E8EAF0]"
+                    completed || active ? "bg-[#639922]" : "bg-[#E8EAF0]"
                   }`}
                   aria-hidden="true"
                 />
@@ -350,17 +350,17 @@ function ProgressBar({ currentStep }: { currentStep: number }) {
               <span
                 className={`relative z-10 flex h-8 w-8 items-center justify-center rounded-full border text-xs font-semibold ${
                   completed
-                     "border-[#639922] bg-[#639922] text-white"
+                    ? "border-[#639922] bg-[#639922] text-white"
                     : active
-                       "border-[#5C6BC0] bg-[#5C6BC0] text-white"
+                      ? "border-[#5C6BC0] bg-[#5C6BC0] text-white"
                       : "border-[#E8EAF0] bg-white text-[#8891A4]"
                 }`}
               >
-                {completed  <Check className="h-4 w-4" /> : step}
+                {completed ? <Check className="h-4 w-4" /> : step}
               </span>
               <span
                 className={`mt-3 text-center text-xs font-semibold ${
-                  active  "text-[#5C6BC0]" : "text-[#8891A4]"
+                  active ? "text-[#5C6BC0]" : "text-[#8891A4]"
                 }`}
               >
                 {label}
@@ -420,14 +420,14 @@ function BusinessStep({
     try {
       const response = await fetch(
         existingBusinessId
-           `/api/proxy/platform/businesses/${existingBusinessId}/onboarding/business`
+          ? `/api/proxy/platform/businesses/${existingBusinessId}/onboarding/business`
           : "/api/proxy/businesses",
         {
-          method: existingBusinessId  "PATCH" : "POST",
+          method: existingBusinessId ? "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
             existingBusinessId
-               {
+              ? {
                   name: name.trim(),
                   vertical,
                   timezone,
@@ -450,8 +450,8 @@ function BusinessStep({
 
       if (!response.ok || !("id" in data)) {
         throw new Error(
-          "message" in data ?
-             data.message
+          "message" in data
+            ? data.message
             : "No pudimos guardar el negocio. Probá de nuevo.",
         );
       }
@@ -462,8 +462,8 @@ function BusinessStep({
       );
     } catch (err) {
       setError(
-        err instanceof Error ?
-           err.message
+        err instanceof Error
+          ? err.message
           : "No pudimos guardar el negocio. Probá de nuevo.",
       );
     } finally {
@@ -502,7 +502,7 @@ function BusinessStep({
             onChange={(event) => setName(event.target.value)}
             required
             className={inputClassName}
-            placeholder="Negocio Ejemplo"
+            placeholder="Clínica Sonrisa Pocitos"
           />
         </Field>
 
@@ -546,7 +546,7 @@ function BusinessStep({
           onChange={setPhone}
         />
         <p className="-mt-2 text-xs text-[#8891A4]">
-          Usamos este número solo para soporte. No se muestra públicamente.
+          Usamos este número solo para soporte. No se muestra a tus pacientes.
         </p>
 
         <div className="rounded-lg border border-[#E8EAF0] bg-white p-4">
@@ -566,13 +566,13 @@ function BusinessStep({
               <div className="mt-3 flex flex-wrap gap-2">
                 <label className="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]">
                   <Upload className="h-4 w-4" aria-hidden="true" />
-                  {logoUrl  "Reemplazar imagen" : "Subir logo"}
+                  {logoUrl ? "Reemplazar imagen" : "Subir logo"}
                   <input
                     type="file"
                     accept="image/png,image/jpeg,image/webp,image/svg+xml"
                     className="sr-only"
                     onChange={(event) => {
-                      void handleLogoFile(event.target.files?.[0]  null);
+                      void handleLogoFile(event.target.files?.[0] ?? null);
                       event.currentTarget.value = "";
                     }}
                   />
@@ -587,7 +587,7 @@ function BusinessStep({
                   </button>
                 ) : null}
               </div>
-              {logoError  (
+              {logoError ? (
                 <p className="mt-2 text-xs text-[#C0392B]">{logoError}</p>
               ) : null}
             </div>
@@ -625,7 +625,7 @@ function GoogleStep({
   onVerified: (google: GoogleVerification) => void;
   onContinue: () => void;
 }) {
-  const [placeId, setPlaceId] = useState(initial?.placeId  "");
+  const [placeId, setPlaceId] = useState(initial?.placeId ?? "");
   const [verification, setVerification] = useState(initial);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -637,12 +637,12 @@ function GoogleStep({
     try {
       const response = await fetch(
         platformMode
-           `/api/proxy/platform/businesses/${businessId}/onboarding/google`
+          ? `/api/proxy/platform/businesses/${businessId}/onboarding/google`
           : `/api/proxy/businesses/${businessId}/verify-google-place?placeId=${encodeURIComponent(
               placeId.trim(),
             )}`,
         platformMode
-           {
+          ? {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ googlePlaceId: placeId.trim() }),
@@ -656,9 +656,9 @@ function GoogleStep({
         throw new Error("No encontramos ese negocio");
       }
       const next = {
-        name: "name" in data  data.name : businessName,
-        rating: "rating" in data  data.rating : null,
-        reviewCount: "reviewCount" in data  data.reviewCount : 0,
+        name: "name" in data ? data.name : businessName,
+        rating: "rating" in data ? data.rating : null,
+        reviewCount: "reviewCount" in data ? data.reviewCount : 0,
         placeId: placeId.trim(),
       };
       setVerification(next);
@@ -712,11 +712,11 @@ function GoogleStep({
           rel="noreferrer"
           className="mt-2 inline-flex text-xs font-semibold text-[#5C6BC0] hover:underline"
         >
-          ¿Cómo encuentro mi Place ID Buscar →
+          ¿Cómo encuentro mi Place ID? Buscar →
         </a>
       </div>
 
-      {verification  (
+      {verification ? (
         <>
           <SuccessPanel
             className="mt-6"
@@ -760,10 +760,10 @@ function WhatsAppStep({
   onVerified: (whatsapp: WhatsAppVerification) => void;
   onContinue: () => void;
 }) {
-  const [phone, setPhone] = useState(verified?.phone  initialPhone);
+  const [phone, setPhone] = useState(verified?.phone ?? initialPhone);
   const [loading, setLoading] = useState(false);
   const [state, setState] = useState<"idle" | "ok" | "error">(
-    verified?.connected  "ok" : "idle",
+    verified?.connected ? "ok" : "idle",
   );
   const [error, setError] = useState<string | null>(null);
 
@@ -775,13 +775,13 @@ function WhatsAppStep({
     try {
       const response = await fetch(
         platformMode
-           `/api/proxy/platform/businesses/${businessId}/onboarding/test-message`
+          ? `/api/proxy/platform/businesses/${businessId}/onboarding/test-message`
           : `/api/proxy/businesses/${businessId}/verify-whatsapp`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
-            platformMode  { phone, name: "Prueba Flikker" } : { phone },
+            platformMode ? { phone, name: "Prueba Flikker" } : { phone },
           ),
         },
       );
@@ -790,8 +790,8 @@ function WhatsAppStep({
         | { message?: string };
       if (!response.ok || (!platformMode && (!("connected" in data) || !data.connected))) {
         throw new Error(
-          "message" in data ?
-             data.message
+          "message" in data
+            ? data.message
             : "No pudimos verificar la conexión.",
         );
       }
@@ -801,8 +801,8 @@ function WhatsAppStep({
     } catch (err) {
       setState("error");
       setError(
-        err instanceof Error ?
-           err.message
+        err instanceof Error
+          ? err.message
           : "No pudimos verificar la conexión.",
       );
     } finally {
@@ -813,7 +813,7 @@ function WhatsAppStep({
   return (
     <WizardCard badge="Paso 3 de 4" title="Conectá tu WhatsApp">
       <p className="mt-3 text-sm text-[#8891A4]">
-        Poné tu número para recibir el mensaje que verán tus clientes.
+        Pon tu número para recibir el mensaje que recibirán tus pacientes.
       </p>
 
       <div className="mt-6">
@@ -828,13 +828,13 @@ function WhatsAppStep({
         />
       </div>
 
-      {state === "idle"  (
+      {state === "idle" ? (
         <div className="mt-4 rounded-lg border border-[#E8EAF0] bg-[#F5F6FA] px-4 py-3 text-sm text-[#8891A4]">
           Verificá la conexión para recibir un mensaje de prueba de Flikker.
         </div>
       ) : null}
 
-      {state === "ok"  (
+      {state === "ok" ? (
         <SuccessPanel
           className="mt-4"
           title="Conexión verificada"
@@ -843,9 +843,9 @@ function WhatsAppStep({
         />
       ) : null}
 
-      {state === "error"  (
+      {state === "error" ? (
         <div className="mt-4 rounded-lg border border-[#C0392B]/20 bg-[#C0392B]/10 px-4 py-3 text-sm text-[#C0392B]">
-          {error  "No pudimos verificar la conexión."}
+          {error ?? "No pudimos verificar la conexión."}
         </div>
       ) : null}
 
@@ -855,8 +855,8 @@ function WhatsAppStep({
         disabled={!phone.trim() || loading}
         className="mt-4 inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-50"
       >
-        {loading  <Loader2 className="h-4 w-4 animate-spin" /> : null}
-        {state === "ok"  "Verificar conexión nuevamente" : "Verificar conexión"}
+        {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+        {state === "ok" ? "Verificar conexión nuevamente" : "Verificar conexión"}
       </button>
 
       <StepActions
@@ -878,10 +878,10 @@ function SummaryStep({
   onGoToDashboard: () => void | Promise<void>;
 }) {
   const verticalLabel =
-    VERTICAL_OPTIONS.find((option) => option.value === wizard.vertical)?.label ?
+    VERTICAL_OPTIONS.find((option) => option.value === wizard.vertical)?.label ??
     wizard.vertical;
   const timezoneLabel =
-    TIMEZONE_OPTIONS.find((option) => option.value === wizard.timezone)?.label ?
+    TIMEZONE_OPTIONS.find((option) => option.value === wizard.timezone)?.label ??
     wizard.timezone;
 
   return (
@@ -903,7 +903,7 @@ function SummaryStep({
           title="Google"
           text={
             wizard.google
-               `${wizard.google.name} · ${formatRating(
+              ? `${wizard.google.name} · ${formatRating(
                   wizard.google.rating,
                 )} · ${wizard.google.reviewCount} reseñas · Verificado`
               : "Sin verificar"
@@ -915,7 +915,7 @@ function SummaryStep({
           title="WhatsApp"
           text={
             wizard.whatsapp?.connected
-               `+598 ${wizard.whatsapp.phone} · Conexión activa`
+              ? `+598 ${wizard.whatsapp.phone} · Conexión activa`
               : "Sin verificar"
           }
           onEdit={() => onEdit(3)}
@@ -1014,9 +1014,9 @@ function PrimaryButton({
       disabled={disabled}
       className="inline-flex h-12 items-center justify-center gap-2 rounded-lg bg-[#5C6BC0] px-6 text-sm font-semibold text-white hover:bg-[#4e5db0] disabled:cursor-not-allowed disabled:opacity-50"
     >
-      {loading  <Loader2 className="h-4 w-4 animate-spin" /> : null}
-      <span>{loading  "Guardando..." : children}</span>
-      {!loading  <ChevronRight className="h-4 w-4" aria-hidden="true" /> : null}
+      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+      <span>{loading ? "Guardando..." : children}</span>
+      {!loading ? <ChevronRight className="h-4 w-4" aria-hidden="true" /> : null}
     </button>
   );
 }
@@ -1093,7 +1093,7 @@ const inputClassName =
   "h-12 w-full rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]";
 
 function formatRating(value: number | null) {
-  return value === null  "sin datos" : value.toFixed(1);
+  return value === null ? "sin datos" : value.toFixed(1);
 }
 
 function readFileAsDataUrl(file: File) {
@@ -1110,4 +1110,3 @@ function readFileAsDataUrl(file: File) {
     reader.readAsDataURL(file);
   });
 }
-

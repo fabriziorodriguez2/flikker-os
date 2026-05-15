@@ -163,8 +163,8 @@ export class MetricsService {
       }),
     ]);
 
-    const quotaUsed = businessQuota?.messageCountCurrentMonth  0;
-    const quotaLimit = businessQuota?.messageQuotaMonthly  0;
+    const quotaUsed = businessQuota?.messageCountCurrentMonth ?? 0;
+    const quotaLimit = businessQuota?.messageQuotaMonthly ?? 0;
 
     return {
       month: {
@@ -187,15 +187,15 @@ export class MetricsService {
       reviewsByMonth: chartMonths.map((month, index) => ({
         month: month.start.toISOString(),
         label: formatMonthLabel(month.start),
-        total: monthlyReviewCounts[index]  0,
+        total: monthlyReviewCounts[index] ?? 0,
       })),
       activityByMonth: activityWindows.windows.map((window, index) => ({
         month: window.start.toISOString(),
         label: window.label,
-        messagesSent: monthlyActivityCounts[index]?.messagesSent  0,
-        reviewsGenerated: monthlyActivityCounts[index]?.reviewsGenerated  0,
+        messagesSent: monthlyActivityCounts[index]?.messagesSent ?? 0,
+        reviewsGenerated: monthlyActivityCounts[index]?.reviewsGenerated ?? 0,
         reactivatedCustomers:
-          monthlyActivityCounts[index]?.reactivatedCustomers  0,
+          monthlyActivityCounts[index]?.reactivatedCustomers ?? 0,
       })),
       activityRange: {
         granularity: activityWindows.granularity,
@@ -206,7 +206,7 @@ export class MetricsService {
         used: quotaUsed,
         limit: quotaLimit,
         percentage:
-          quotaLimit > 0  Math.round((quotaUsed / quotaLimit) * 100) : 0,
+          quotaLimit > 0 ? Math.round((quotaUsed / quotaLimit) * 100) : 0,
       },
       negativeFeedback: negativeFeedback.map((item) => ({
         id: item.id,
@@ -275,14 +275,14 @@ export class MetricsService {
 
   private findRatingSample(businessId: string, from?: Date, to?: Date) {
     const postedAt = {
-      ...(from  { gte: from } : {}),
-      ...(to  { lt: to } : {}),
+      ...(from ? { gte: from } : {}),
+      ...(to ? { lt: to } : {}),
     };
 
     return this.prisma.googleReview.findMany({
       where: {
         businessId,
-        ...(from || to  { postedAt } : {}),
+        ...(from || to ? { postedAt } : {}),
       },
       orderBy: { postedAt: 'desc' },
       take: GOOGLE_REVIEW_LIMIT,
@@ -376,7 +376,7 @@ function addDays(date: Date, days: number): Date {
 
 function startOfWeek(date: Date): Date {
   const day = date.getUTCDay();
-  const daysFromMonday = day === 0  6 : day - 1;
+  const daysFromMonday = day === 0 ? 6 : day - 1;
   return addDays(startOfDay(date), -daysFromMonday);
 }
 
@@ -424,12 +424,12 @@ function formatWeekLabel(date: Date): string {
 function parseDate(value?: string): Date | null {
   if (!value) return null;
   const parsed = new Date(`${value}T00:00:00.000Z`);
-  return Number.isNaN(parsed.getTime())  null : parsed;
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function normalizeGranularity(value?: string): ActivityGranularity {
   return value === 'day' || value === 'week' || value === 'month'
-     value
+    ? value
     : 'month';
 }
 
@@ -456,7 +456,7 @@ function buildActivityWindows(
     const from = customFrom;
     const to = addDays(customTo, 1);
     const granularity = options.granularity
-       normalizeGranularity(options.granularity)
+      ? normalizeGranularity(options.granularity)
       : chooseGranularity(from, to);
 
     return {
@@ -510,27 +510,27 @@ function buildWindows(
   const windows: ActivityWindow[] = [];
   let cursor =
     granularity === 'month'
-       startOfMonth(from)
+      ? startOfMonth(from)
       : granularity === 'week'
-         startOfWeek(from)
+        ? startOfWeek(from)
         : startOfDay(from);
 
   while (cursor < to && windows.length < 36) {
     const next =
       granularity === 'month'
-         addMonths(cursor, 1)
+        ? addMonths(cursor, 1)
         : granularity === 'week'
-           addWeeks(cursor, 1)
+          ? addWeeks(cursor, 1)
           : addDays(cursor, 1);
 
     windows.push({
       start: cursor,
-      end: next > to  to : next,
+      end: next > to ? to : next,
       label:
         granularity === 'month'
-           formatMonthLabel(cursor)
+          ? formatMonthLabel(cursor)
           : granularity === 'week'
-             formatWeekLabel(cursor)
+            ? formatWeekLabel(cursor)
             : formatDayLabel(cursor),
     });
 

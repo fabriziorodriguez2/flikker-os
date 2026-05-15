@@ -22,7 +22,7 @@ export class FeedbackService {
     }
 
     const googleReviewUrl =
-      message.business.defaultReviewRedirectUrl ?
+      message.business.defaultReviewRedirectUrl ??
       message.business.googleBusinessProfileUrl;
     if (!googleReviewUrl) throw new NotFoundException();
 

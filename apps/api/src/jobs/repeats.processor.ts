@@ -106,7 +106,7 @@ export class RepeatsProcessor {
   }
 
   private async findPostServiceCustomers(campaign: RepeatCampaign, now: Date) {
-    const offset = campaign.triggerOffsetDays  30;
+    const offset = campaign.triggerOffsetDays ?? 30;
     const target = this.daysAgo(now, offset);
     const start = this.startOfDay(target);
     const end = this.addDays(start, 1);
@@ -131,7 +131,7 @@ export class RepeatsProcessor {
   }
 
   private async findReactivationCustomers(campaign: RepeatCampaign, now: Date) {
-    const offset = campaign.triggerOffsetDays  180;
+    const offset = campaign.triggerOffsetDays ?? 180;
     const cutoff = this.startOfDay(this.daysAgo(now, offset));
 
     const rows = await this.prisma.$queryRaw<Array<{ id: string }>>`

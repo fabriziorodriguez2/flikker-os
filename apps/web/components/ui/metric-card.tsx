@@ -13,9 +13,9 @@ export default function MetricCard({
 }: MetricCardProps) {
   const toneClasses =
     tone === "accent"
-       "border-[color:rgba(145,136,245,0.18)] bg-[color:rgba(145,136,245,0.06)]"
+      ? "border-[color:rgba(145,136,245,0.18)] bg-[color:rgba(145,136,245,0.06)]"
       : tone === "warm"
-         "border-[color:rgba(250,171,75,0.2)] bg-[color:rgba(250,171,75,0.08)]"
+        ? "border-[color:rgba(250,171,75,0.2)] bg-[color:rgba(250,171,75,0.08)]"
         : "flikker-card";
 
   return (
@@ -24,7 +24,7 @@ export default function MetricCard({
         {label}
       </p>
       <p className="mt-2.5 text-3xl font-semibold text-[color:var(--foreground)]">{value}</p>
-      {hint  (
+      {hint ? (
         <p className="mt-2 text-xs leading-5 text-[color:var(--text-muted)]">{hint}</p>
       ) : null}
     </div>

@@ -85,7 +85,7 @@ export class GoogleReviewDetectionWorker
         failed += 1;
         this.logger.error(
           `Google review detection failed for business ${business.id}`,
-          error instanceof Error  error.stack || error.message : error,
+          error instanceof Error ? error.stack || error.message : error,
         );
       }
     }
@@ -143,9 +143,9 @@ export class GoogleReviewDetectionWorker
     } catch (error) {
       this.logger.error(
         `[initial-review-scrape] Falló: ${
-          error instanceof Error  error.message : String(error)
+          error instanceof Error ? error.message : String(error)
         }`,
-        error instanceof Error  error.stack : undefined,
+        error instanceof Error ? error.stack : undefined,
       );
       return { businessId, created, failed: true };
     } finally {
@@ -158,9 +158,9 @@ export class GoogleReviewDetectionWorker
       } catch (error) {
         this.logger.error(
           `[initial-review-scrape] No se pudo marcar sync para businessId ${businessId}: ${
-            error instanceof Error  error.message : String(error)
+            error instanceof Error ? error.message : String(error)
           }`,
-          error instanceof Error  error.stack : undefined,
+          error instanceof Error ? error.stack : undefined,
         );
       }
     }
@@ -256,7 +256,7 @@ export class GoogleReviewDetectionWorker
       },
     });
 
-    return message?.id  null;
+    return message?.id ?? null;
   }
 }
 

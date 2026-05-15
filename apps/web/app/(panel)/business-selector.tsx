@@ -37,10 +37,10 @@ export default function BusinessSelector({
     }
   }
 
-  const label = activeBusinessName  'Negocio';
+  const label = activeBusinessName ?? 'Negocio';
 
   if (memberships.length <= 1) {
-    return collapsed  (
+    return collapsed ? (
       <div
         aria-hidden="true"
         className="h-9 w-9 rounded-xl border border-[color:var(--border)] bg-[color:var(--surface-muted)]"
@@ -57,12 +57,12 @@ export default function BusinessSelector({
       <button
         onClick={() => setOpen(!open)}
         disabled={loading}
-        title={collapsed  label : undefined}
+        title={collapsed ? label : undefined}
         className={`flikker-focus-ring flex items-center justify-between gap-3 rounded-xl bg-[color:var(--surface)] text-left font-semibold text-[color:var(--foreground)] disabled:opacity-50 ${
-          collapsed  'h-9 w-9 justify-center border border-[color:var(--border)] text-sm' : 'w-full text-sm'
+          collapsed ? 'h-9 w-9 justify-center border border-[color:var(--border)] text-sm' : 'w-full text-sm'
         }`}
       >
-        {collapsed  (
+        {collapsed ? (
           <span
             aria-hidden="true"
             className="h-5 w-5 rounded-md bg-[color:var(--surface-muted)]"
@@ -78,7 +78,7 @@ export default function BusinessSelector({
       {open && (
         <div
           className={`absolute top-full z-50 mt-2 overflow-hidden rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--shadow-soft)] ${
-            collapsed  'left-full ml-3 w-60' : 'left-0 w-full'
+            collapsed ? 'left-full ml-3 w-60' : 'left-0 w-full'
           }`}
         >
           {memberships.map((m) => (
@@ -88,7 +88,7 @@ export default function BusinessSelector({
               disabled={loading}
               className={`w-full px-4 py-3 text-left text-sm transition-colors ${
                 m.businessId === activeBusinessId
-                   'bg-[color:var(--brand-soft)] text-[color:var(--brand-primary)]'
+                  ? 'bg-[color:var(--brand-soft)] text-[color:var(--brand-primary)]'
                   : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-muted)]'
               }`}
             >

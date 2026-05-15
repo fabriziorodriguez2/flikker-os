@@ -1,6 +1,6 @@
-﻿export const BUSINESS_VERTICAL_OPTIONS = [
-  { value: "dental", label: "Servicios profesionales" },
-  { value: "estetica", label: "Belleza y bienestar" },
+export const BUSINESS_VERTICAL_OPTIONS = [
+  { value: "dental", label: "Clinica dental" },
+  { value: "estetica", label: "Centro de estetica / spa" },
   { value: "fisio", label: "Fisioterapia / kinesiologia" },
   { value: "medico", label: "Consultorio medico" },
   { value: "nutricion", label: "Nutricion" },
@@ -28,4 +28,3 @@ export function isValidBusinessVertical(value: string | null | undefined) {
 export function isValidBusinessTimezone(value: string | null | undefined) {
   return BUSINESS_TIMEZONE_OPTIONS.some((option) => option.value === value);
 }
-

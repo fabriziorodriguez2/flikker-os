@@ -28,7 +28,7 @@ interface PoweredByFlikkerProps {
 export default function PoweredByFlikker({ className }: PoweredByFlikkerProps) {
   return (
     <span
-      className={`inline-flex items-center gap-1 ${className  ""}`}
+      className={`inline-flex items-center gap-1 ${className ?? ""}`}
       aria-label="Powered by Flikker"
     >
       <span aria-hidden="true">Powered by</span>

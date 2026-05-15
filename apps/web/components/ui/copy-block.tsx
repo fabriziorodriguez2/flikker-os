@@ -25,7 +25,7 @@ export default function CopyBlock({ code }: CopyBlockProps) {
         onClick={() => void copy()}
         className="shrink-0 rounded-lg border border-[#E8EAF0]/20 px-3 py-1.5 text-xs font-semibold text-[#E8EAF0] hover:bg-white/10"
       >
-        {copied  "Copiado ✓" : "Copiar"}
+        {copied ? "Copiado ✓" : "Copiar"}
       </button>
     </div>
   );

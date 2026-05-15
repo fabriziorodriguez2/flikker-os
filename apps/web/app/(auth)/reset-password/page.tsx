@@ -60,8 +60,8 @@ function ResetPasswordContent() {
       setDone(true);
     } catch (err) {
       setError(
-        err instanceof Error ?
-           err.message
+        err instanceof Error
+          ? err.message
           : "No pudimos cambiar la contraseña.",
       );
     } finally {
@@ -81,7 +81,7 @@ function ResetPasswordContent() {
           />
         </div>
 
-        {done  (
+        {done ? (
           <div className="text-center">
             <h1 className="text-2xl font-bold text-[#1A202C]">
               Contraseña actualizada
@@ -157,7 +157,7 @@ function ResetPasswordContent() {
               disabled={loading}
               className="mt-5 flex h-12 w-full items-center justify-center rounded-lg bg-[#5C6BC0] text-sm font-semibold text-white hover:bg-[#4e5db0] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {loading  "Guardando..." : "Guardar contraseña"}
+              {loading ? "Guardando..." : "Guardar contraseña"}
             </button>
           </form>
         )}

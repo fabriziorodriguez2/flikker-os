@@ -10,6 +10,6 @@ export function getInitialTheme(): ThemeMode {
   if (savedTheme === 'light' || savedTheme === 'dark') return savedTheme;
 
   return window.matchMedia('(prefers-color-scheme: dark)').matches
-     'dark'
+    ? 'dark'
     : 'light';
 }

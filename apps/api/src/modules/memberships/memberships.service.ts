@@ -229,7 +229,7 @@ export class MembershipsService {
       userId: actorUserId,
       businessId,
       metadata: {
-        targetUserId: after.user?.id  before.userId,
+        targetUserId: after.user?.id ?? before.userId,
         before: { role: before.role },
         after: { role: after.role },
       },

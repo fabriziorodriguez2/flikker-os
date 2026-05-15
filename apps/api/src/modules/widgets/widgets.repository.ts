@@ -82,14 +82,14 @@ export class WidgetsRepository {
   findActiveByMode(businessId: string, mode?: string) {
     const validModes = Object.values(WidgetMode) as string[];
     const modeFilter =
-      mode && validModes.includes(mode)  (mode as WidgetMode) : undefined;
+      mode && validModes.includes(mode) ? (mode as WidgetMode) : undefined;
 
     return this.prisma.widget.findFirst({
       where: {
         businessId,
         status: WidgetStatus.ACTIVE,
         enabled: true,
-        ...(modeFilter  { mode: modeFilter } : {}),
+        ...(modeFilter ? { mode: modeFilter } : {}),
       },
       orderBy: { updatedAt: 'desc' },
       include: {

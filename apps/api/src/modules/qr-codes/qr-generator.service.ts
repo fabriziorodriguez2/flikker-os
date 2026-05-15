@@ -3,7 +3,7 @@ import * as QRCode from 'qrcode';
 import PDFDocument from 'pdfkit';
 
 const API_BASE_URL =
-  process.env.API_BASE_URL  `http://localhost:${process.env.PORT  3000}`;
+  process.env.API_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
 
 const PNG_SIZE = 1024;
 const PDF_QR_SIZE = 200;
@@ -85,7 +85,7 @@ export class QrGeneratorService {
       }
 
       // URL below label
-      const urlY = label  textY + 24 : textY;
+      const urlY = label ? textY + 24 : textY;
       doc
         .fontSize(8)
         .font('Helvetica')

@@ -40,7 +40,7 @@ export class ReviewRequestWorker implements OnModuleInit, OnModuleDestroy {
 
     this.worker.on('failed', (job, error) => {
       this.reportToSentry(
-        `Review request job ${job?.id  'unknown'} failed`,
+        `Review request job ${job?.id ?? 'unknown'} failed`,
         error,
       );
     });
@@ -134,13 +134,13 @@ export class ReviewRequestWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private buildTrackingUrl(trackingToken: string) {
-    const baseUrl = process.env.APP_PUBLIC_URL  'https://app.flikker.com';
+    const baseUrl = process.env.APP_PUBLIC_URL ?? 'https://app.flikker.com';
     return `${baseUrl.replace(/\/$/, '')}/r/${trackingToken}`;
   }
 
   private reportToSentry(message: string, error: unknown) {
     const detail =
-      error instanceof Error  error.stack || error.message : error;
+      error instanceof Error ? error.stack || error.message : error;
     // TODO: conectar SDK de Sentry cuando esté instalado/configurado.
     this.logger.error(message, detail);
   }

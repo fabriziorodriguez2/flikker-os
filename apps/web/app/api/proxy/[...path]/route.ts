@@ -30,11 +30,11 @@ async function handler(
     path[0] === "platform" || path[0] === "auth" || path[0] === "billing";
   const effectiveAccessToken =
     isImpersonating && !useOriginalAdminToken
-       session.impersonation!.accessToken
+      ? session.impersonation!.accessToken
       : session.accessToken;
   const effectiveBusinessId =
     isImpersonating && !useOriginalAdminToken
-       session.impersonation!.businessId
+      ? session.impersonation!.businessId
       : session.activeBusinessId;
 
   const incomingContentType = request.headers.get("Content-Type");
@@ -54,7 +54,7 @@ async function handler(
 
   const body =
     request.method !== "GET" && request.method !== "HEAD"
-       await request.arrayBuffer()
+      ? await request.arrayBuffer()
       : undefined;
 
   const sendRequest = (accessToken: string, businessId: string | null) => {

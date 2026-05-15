@@ -27,14 +27,14 @@ export default function BrandWordmark({
     const syncTheme = () => {
       const nextTheme = (document.documentElement.dataset.theme ||
         getInitialTheme()) as ThemeMode;
-      setTheme(nextTheme === 'dark'  'dark' : 'light');
+      setTheme(nextTheme === 'dark' ? 'dark' : 'light');
     };
 
     syncTheme();
 
     const handleThemeChange = (event: Event) => {
       const customEvent = event as CustomEvent<ThemeMode>;
-      setTheme(customEvent.detail === 'dark'  'dark' : 'light');
+      setTheme(customEvent.detail === 'dark' ? 'dark' : 'light');
     };
 
     const observer = new MutationObserver(syncTheme);
@@ -53,7 +53,7 @@ export default function BrandWordmark({
 
   return (
     <Image
-      src={theme === 'dark'  '/flikker-wordmark-white.svg' : '/flikker-wordmark.svg'}
+      src={theme === 'dark' ? '/flikker-wordmark-white.svg' : '/flikker-wordmark.svg'}
       alt="Flikker"
       width={width}
       height={height}

@@ -77,7 +77,7 @@ export default function ForgotPasswordPage() {
           />
         </div>
 
-        {step === "form"  (
+        {step === "form" ? (
           <form onSubmit={handleSubmit}>
             <div className="text-center">
               <h1 className="text-2xl font-bold text-[#1A202C]">
@@ -141,7 +141,7 @@ export default function ForgotPasswordPage() {
               disabled={loading}
               className="mt-6 flex h-12 w-full items-center justify-center rounded-lg border border-[#E8EAF0] bg-white text-sm font-semibold text-[#1A202C] hover:border-[#5C6BC0] hover:text-[#5C6BC0] disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {resent  "Enviado ✓" : loading  "Enviando..." : "¿No llegó Reenviar"}
+              {resent ? "Enviado ✓" : loading ? "Enviando..." : "¿No llegó? Reenviar"}
             </button>
 
             <BackToLoginLink />

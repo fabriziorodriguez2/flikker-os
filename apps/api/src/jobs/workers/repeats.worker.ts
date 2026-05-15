@@ -78,10 +78,10 @@ export class RepeatsWorker implements OnModuleInit, OnModuleDestroy {
       const result = await this.whatsAppBspService.sendText({
         phone: execution.customer.phoneE164,
         text: this.renderMessage({
-          body: execution.campaign.messageBody  '',
+          body: execution.campaign.messageBody ?? '',
           customerName: execution.customer.name,
           clinicName: execution.business.name,
-          offer: execution.campaign.offerText  '',
+          offer: execution.campaign.offerText ?? '',
         }),
       });
 

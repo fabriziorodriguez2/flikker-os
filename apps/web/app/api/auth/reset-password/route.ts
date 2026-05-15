@@ -24,8 +24,8 @@ export async function POST(request: Request) {
     return Response.json(
       {
         message:
-          error instanceof Error ?
-             error.message
+          error instanceof Error
+            ? error.message
             : "No pudimos cambiar la contraseña",
       },
       { status: 400 },

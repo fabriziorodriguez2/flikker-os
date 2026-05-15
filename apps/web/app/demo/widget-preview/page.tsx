@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import Script from "next/script";
 import PoweredByFlikker from "@/components/ui/powered-by-flikker";
 
@@ -30,7 +30,7 @@ export default async function DemoWidgetPreviewPage({
 }) {
   const params = await searchParams;
   const mode = VALID_MODES.includes(params.mode as DemoMode)
-     (params.mode as DemoMode)
+    ? (params.mode as DemoMode)
     : "toast";
   const business = await getDemoBusiness();
 
@@ -40,7 +40,7 @@ export default async function DemoWidgetPreviewPage({
         <div className="mx-auto max-w-2xl rounded-xl border border-[#E8EAF0] bg-white p-6">
           <h1 className="font-display text-2xl font-bold">Landing demo</h1>
           <p className="mt-2 text-sm text-[#8891A4]">
-            TodavÃ­a no existe el negocio demo. EntrÃ¡ al panel admin y abrÃ­ Test
+            Todavía no existe el negocio demo. Entrá al panel admin y abrí Test
             Lab para prepararlo.
           </p>
         </div>
@@ -81,14 +81,14 @@ export default async function DemoWidgetPreviewPage({
                   href={`/demo/widget-preview?mode=${item}`}
                   className={`inline-flex h-9 items-center rounded-lg border px-3 text-sm font-semibold ${
                     mode === item
-                       "border-[#5C6BC0] bg-[#5C6BC0] text-white"
+                      ? "border-[#5C6BC0] bg-[#5C6BC0] text-white"
                       : "border-[#E8EAF0] bg-white text-[#1A202C] hover:bg-[#F5F6FA]"
                   }`}
                 >
                   {item === "carousel"
-                     "Carrusel"
+                    ? "Carrusel"
                     : item === "grid"
-                       "Grid"
+                      ? "Grid"
                       : "Toast"}
                 </Link>
               ))}
@@ -99,19 +99,19 @@ export default async function DemoWidgetPreviewPage({
         <section className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
           <article className="rounded-xl border border-[#E8EAF0] bg-white p-6">
             <p className="text-sm font-semibold text-[#5C6BC0]">
-              ClÃ­nica demo
+              Clínica demo
             </p>
             <h2 className="mt-3 font-display text-3xl font-bold leading-tight">
-              AtenciÃ³n clara, seguimiento simple y reseÃ±as visibles.
+              Atención clara, seguimiento simple y reseñas visibles.
             </h2>
             <p className="mt-4 text-sm leading-6 text-[#8891A4]">
-              Esta pÃ¡gina simula el sitio de un negocio real para mostrar cÃ³mo
-              se ve el widget de prueba instalado con el snippet pÃºblico de
+              Esta página simula el sitio de un negocio real para mostrar cómo
+              se ve el widget de prueba instalado con el snippet público de
               Flikker.
             </p>
 
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              {["Servicio especializado", "Servicio principal", "Control general"].map((item) => (
+              {["Ortodoncia", "Limpieza dental", "Control"].map((item) => (
                 <div
                   key={item}
                   className="rounded-lg border border-[#E8EAF0] bg-[#F5F6FA] p-4 text-sm font-semibold"
@@ -127,12 +127,12 @@ export default async function DemoWidgetPreviewPage({
             <p className="mt-1 text-sm text-[#8891A4]">
               Modo seleccionado:{" "}
               <span className="font-semibold text-[#1A202C]">
-                {mode === "carousel"  "Carrusel" : mode === "grid"  "Grid" : "Toast"}
+                {mode === "carousel" ? "Carrusel" : mode === "grid" ? "Grid" : "Toast"}
               </span>
             </p>
 
             <div className="mt-5 min-h-[260px] rounded-xl border border-dashed border-[#D9DEE8] bg-[#F5F6FA] p-4">
-              {mode === "toast"  (
+              {mode === "toast" ? (
                 <p className="text-sm text-[#8891A4]">
                   El toast aparece flotando abajo a la derecha.
                 </p>
@@ -141,13 +141,13 @@ export default async function DemoWidgetPreviewPage({
                   El widget se renderiza debajo usando el script real.
                 </p>
               )}
-              {mode !== "toast"  (
+              {mode !== "toast" ? (
                 <div
                   data-flikker-widget
                   data-business={business.id}
                   data-mode={mode}
                   data-min-stars="4"
-                  data-color={business.primaryColor  "#5C6BC0"}
+                  data-color={business.primaryColor ?? "#5C6BC0"}
                   data-position="bottom_right"
                 />
               ) : null}
@@ -158,7 +158,7 @@ export default async function DemoWidgetPreviewPage({
                 data-business={business.id}
                 data-mode={mode}
                 data-min-stars="4"
-                data-color={business.primaryColor  "#5C6BC0"}
+                data-color={business.primaryColor ?? "#5C6BC0"}
                 data-position="bottom_right"
               />
             </div>
@@ -172,4 +172,3 @@ export default async function DemoWidgetPreviewPage({
     </main>
   );
 }
-

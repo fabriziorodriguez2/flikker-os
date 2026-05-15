@@ -58,15 +58,4 @@ export class TestLabController {
   ) {
     return this.testLabService.sendTest(req.currentBusinessId!, id, dto);
   }
-
-  @Post('review-link')
-  generateReviewLink(
-    @Req() req: AuthenticatedRequest,
-    @Body() dto: { customerName?: string; phone?: string },
-  ) {
-    return this.testLabService.generateReviewLink(
-      req.currentBusinessId!,
-      dto,
-    );
-  }
 }

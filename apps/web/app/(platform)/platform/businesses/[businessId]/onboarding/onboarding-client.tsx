@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -101,21 +101,21 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
       );
       setData(next);
       setBusinessForm(normalizeBusinessForm(next.business));
-      setGooglePlaceId(next.business.googlePlaceId  "");
+      setGooglePlaceId(next.business.googlePlaceId ?? "");
       setTemplates(
         Object.fromEntries(
           next.templates.map((template) => [
             template.id,
             {
-              messageBody: template.messageBody  "",
-              triggerOffsetDays: String(template.triggerOffsetDays  ""),
-              offerText: template.offerText  "",
+              messageBody: template.messageBody ?? "",
+              triggerOffsetDays: String(template.triggerOffsetDays ?? ""),
+              offerText: template.offerText ?? "",
             },
           ]),
         ),
       );
     } catch (e) {
-      setError(e instanceof Error  e.message : "Error al cargar onboarding");
+      setError(e instanceof Error ? e.message : "Error al cargar onboarding");
     } finally {
       setLoading(false);
     }
@@ -133,15 +133,15 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
       businessForm.phone &&
       !isValidNationalPhone(toNationalDigits(businessForm.phone))
     ) {
-      setError("Formato invÃ¡lido â€” ingresÃ¡ entre 7 y 9 dÃ­gitos");
+      setError("Formato inválido — ingresá entre 7 y 9 dígitos");
       return;
     }
     if (!isValidBusinessVertical(businessForm.vertical)) {
-      setError("SeleccionÃ¡ una vertical vÃ¡lida.");
+      setError("Seleccioná una vertical válida.");
       return;
     }
     if (!isValidBusinessTimezone(businessForm.timezone)) {
-      setError("SeleccionÃ¡ un timezone vÃ¡lido.");
+      setError("Seleccioná un timezone válido.");
       return;
     }
     await run("business", async () => {
@@ -160,7 +160,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
       );
       setData((current) =>
         current
-           { ...current, business: { ...current.business, ...updated } }
+          ? { ...current, business: { ...current.business, ...updated } }
           : current,
       );
       setNotice("Datos del negocio guardados.");
@@ -177,11 +177,11 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
       });
       setData((current) =>
         current
-           { ...current, business: { ...current.business, ...updated } }
+          ? { ...current, business: { ...current.business, ...updated } }
           : current,
       );
       setNotice(
-        "Estamos importando tus reseÃƒÂ±as de Google en segundo plano. En unos minutos las vas a ver en tu dashboard.",
+        "Estamos importando tus reseÃ±as de Google en segundo plano. En unos minutos las vas a ver en tu dashboard.",
       );
     });
   }
@@ -199,7 +199,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
         },
       );
       setNotice(
-        `Importación lista: ${result.created} clientes creados, ${result.errors.length} errores.`,
+        `Importacion lista: ${result.created} pacientes creados, ${result.errors.length} errores.`,
       );
       await load();
     });
@@ -211,7 +211,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
         draft.triggerOffsetDays && !isValidOffsetDays(draft.triggerOffsetDays),
     );
     if (invalidOffset) {
-      setError("IngresÃ¡ dÃ­as de offset entre 0 y 365.");
+      setError("Ingresá días de offset entre 0 y 365.");
       return;
     }
 
@@ -225,7 +225,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
               campaignId,
               messageBody: draft.messageBody,
               triggerOffsetDays: draft.triggerOffsetDays
-                 Number(draft.triggerOffsetDays)
+                ? Number(draft.triggerOffsetDays)
                 : undefined,
               offerText: draft.offerText,
             })),
@@ -239,11 +239,11 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
 
   async function sendTestMessage() {
     if (!isValidNationalPhone(toNationalDigits(testPhone))) {
-      setError("Formato invÃ¡lido â€” ingresÃ¡ entre 7 y 9 dÃ­gitos");
+      setError("Formato inválido — ingresá entre 7 y 9 dígitos");
       return;
     }
     if (!testName.trim()) {
-      setError("IngresÃ¡ el nombre de prueba.");
+      setError("Ingresá el nombre de prueba.");
       return;
     }
     await run("test", async () => {
@@ -266,7 +266,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
       );
       setData((current) =>
         current
-           { ...current, business: { ...current.business, ...updated } }
+          ? { ...current, business: { ...current.business, ...updated } }
           : current,
       );
       setNotice("Setup marcado como completo. El negocio quedo ACTIVE.");
@@ -302,7 +302,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
     try {
       await task();
     } catch (e) {
-      setError(e instanceof Error  e.message : "Error");
+      setError(e instanceof Error ? e.message : "Error");
     } finally {
       setSaving(null);
     }
@@ -335,7 +335,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
             Onboarding: {data.business.name}
           </h1>
           <p className="text-sm text-zinc-500">
-            Estado {data.business.status} Â· {data.customerCount} clientes
+            Estado {data.business.status} · {data.customerCount} pacientes
             activos
           </p>
         </div>
@@ -372,7 +372,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
             </span>
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50">
-                {businessForm.logoUrl  (
+                {businessForm.logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
                     src={businessForm.logoUrl}
@@ -394,11 +394,11 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
                     accept="image/png,image/jpeg,image/svg+xml,image/webp"
                     className="hidden"
                     onChange={(event) =>
-                      void handleLogoFile(event.target.files?.[0]  null)
+                      void handleLogoFile(event.target.files?.[0] ?? null)
                     }
                   />
                 </label>
-                {businessForm.logoUrl  (
+                {businessForm.logoUrl ? (
                   <button
                     type="button"
                     onClick={() =>
@@ -411,7 +411,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
                 ) : null}
               </div>
               <p className="text-xs text-zinc-500">
-                PNG, JPG, SVG o WebP. MÃ¡ximo 350 KB.
+                PNG, JPG, SVG o WebP. Máximo 350 KB.
               </p>
             </div>
           </div>
@@ -427,7 +427,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
           <Field label="Vertical">
             <select
               className={inputClassName}
-              value={businessForm.vertical  DEFAULT_BUSINESS_VERTICAL}
+              value={businessForm.vertical ?? DEFAULT_BUSINESS_VERTICAL}
               onChange={(e) =>
                 setBusinessForm({ ...businessForm, vertical: e.target.value })
               }
@@ -456,7 +456,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
           </Field>
           <PhoneInput
             label="WhatsApp Business"
-            value={businessForm.phone  ""}
+            value={businessForm.phone ?? ""}
             onChange={(phone) => setBusinessForm({ ...businessForm, phone })}
           />
         </div>
@@ -476,7 +476,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
         </h2>
         <p className="mt-1 text-sm text-zinc-500">
           Buscar el negocio en Google Place ID Finder y pegar el Place ID. Se
-          genera automaticamente el link de reseÃ±a.
+          genera automaticamente el link de reseña.
         </p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <Field label="Google place_id">
@@ -486,7 +486,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
               onChange={(e) => setGooglePlaceId(e.target.value)}
             />
           </Field>
-          <Field label="URL de reseÃ±a de Google">
+          <Field label="URL de reseña de Google">
             <input
               className={`${inputClassName} bg-zinc-50`}
               value={
@@ -506,14 +506,14 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
         >
           Conectar Google
         </button>
-        {data.business.googlePlaceId && !data.business.googleReviewsLastSyncAt  (
+        {data.business.googlePlaceId && !data.business.googleReviewsLastSyncAt ? (
           <div className="mt-3 inline-flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
             <span
               aria-hidden="true"
               className="h-3 w-3 animate-spin rounded-full border-2 border-amber-300 border-t-amber-700"
             />
             <span>
-              Estamos importando tus reseÃƒÂ±as de Google en segundo plano. En
+              Estamos importando tus reseÃ±as de Google en segundo plano. En
               unos minutos las vas a ver en tu dashboard.
             </span>
           </div>
@@ -522,7 +522,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
 
       <section className="rounded-lg border border-zinc-200 bg-white p-4">
         <h2 className="text-base font-semibold text-zinc-900">
-          Importación de clientes
+          Importacion de pacientes
         </h2>
         <p className="mt-1 text-sm text-zinc-500">
           Formato: nombre, telefono, email, fecha ultimo servicio.
@@ -551,7 +551,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
         </h2>
         <div className="mt-4 space-y-4">
           {data.templates.map((template) => {
-            const draft = templates[template.id]  {
+            const draft = templates[template.id] ?? {
               messageBody: "",
               triggerOffsetDays: "",
               offerText: "",
@@ -657,7 +657,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
               className={inputClassName}
               value={testName}
               onChange={(e) => setTestName(e.target.value)}
-              placeholder="Ej: MarÃ­a GarcÃ­a"
+              placeholder="Ej: María García"
               required
             />
           </Field>
@@ -689,14 +689,14 @@ async function api<T = unknown>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       "Content-Type": "application/json",
-      ...(init?.headers  {}),
+      ...(init?.headers ?? {}),
     },
   });
   if (!res.ok) {
     const payload = (await res.json().catch(() => ({}))) as {
       message?: string;
     };
-    throw new Error(payload.message  "Error de API");
+    throw new Error(payload.message ?? "Error de API");
   }
   return (await res.json()) as T;
 }
@@ -713,7 +713,7 @@ function readFileAsDataUrl(file: File) {
 function validateOffsetDays(value: string) {
   return {
     valid: isValidOffsetDays(value),
-    message: "IngresÃ¡ un nÃºmero entre 0 y 365 dÃ­as.",
+    message: "Ingresá un número entre 0 y 365 días.",
   };
 }
 
@@ -730,7 +730,7 @@ function BackToAccountsLink() {
       className="fixed left-4 top-4 z-40 inline-flex min-h-9 items-center gap-2 rounded-full bg-white/90 px-3 py-2 text-sm font-semibold text-[color:var(--text-muted)] shadow-sm ring-1 ring-zinc-200 backdrop-blur transition-colors hover:text-[color:var(--foreground)] hover:underline md:left-6"
     >
       <span aria-hidden="true" className="text-base leading-none">
-        â†
+        ←
       </span>
       <span>Volver a mis negocios</span>
     </Link>
@@ -741,11 +741,10 @@ function normalizeBusinessForm(business: Business): Business {
   return {
     ...business,
     vertical: isValidBusinessVertical(business.vertical)
-       business.vertical
+      ? business.vertical
       : DEFAULT_BUSINESS_VERTICAL,
     timezone: isValidBusinessTimezone(business.timezone)
-       business.timezone
+      ? business.timezone
       : DEFAULT_BUSINESS_TIMEZONE,
   };
 }
-

@@ -160,7 +160,7 @@ export class ReviewsService {
     const review = await this.ensureEditable(businessId, reviewId);
     const fallbackStatus =
       review.status === ReviewStatus.ARCHIVED
-         ReviewStatus.NEW
+        ? ReviewStatus.NEW
         : ReviewStatus.REVIEWED;
 
     return this.reviewsRepository.updateStatus(

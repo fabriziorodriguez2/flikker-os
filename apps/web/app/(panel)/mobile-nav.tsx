@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 const MAIN_NAV_ITEMS = [
   { href: "/dashboard", label: "Panel" },
-  { href: "/dashboard/customers", label: "Clientes" },
+  { href: "/dashboard/customers", label: "Pacientes" },
   { href: "/dashboard/campaigns", label: "Campañas" },
   { href: "/dashboard/reviews", label: "Reseñas" },
   { href: "/dashboard/widgets", label: "Widget" },
@@ -21,7 +21,7 @@ export default function MobileNav() {
         {items.map((item) => {
           const isActive =
             item.href === "/dashboard"
-               pathname === "/dashboard"
+              ? pathname === "/dashboard"
               : pathname.startsWith(item.href);
 
           return (
@@ -30,7 +30,7 @@ export default function MobileNav() {
               href={item.href}
               className={`shrink-0 rounded-full px-3 py-2 text-xs font-medium transition-colors ${
                 isActive
-                   "bg-[#5C6BC0] text-white"
+                  ? "bg-[#5C6BC0] text-white"
                   : "border border-[#E8EAF0] bg-white text-[#8891A4]"
               }`}
             >

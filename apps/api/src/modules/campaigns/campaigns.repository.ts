@@ -19,7 +19,7 @@ export class CampaignsRepository {
 
     const [campaigns, monthlySentGroups, respondedGroups] = await Promise.all([
       this.prisma.campaign.findMany({
-        where: { businessId, ...(status  { status } : {}) },
+        where: { businessId, ...(status ? { status } : {}) },
         include: {
           branch: { select: { id: true, name: true, slug: true } },
           _count: {
@@ -58,8 +58,8 @@ export class CampaignsRepository {
 
     return campaigns.map((c) => ({
       ...c,
-      monthlySent: monthlySentMap.get(c.id)  0,
-      respondedTotal: respondedMap.get(c.id)  0,
+      monthlySent: monthlySentMap.get(c.id) ?? 0,
+      respondedTotal: respondedMap.get(c.id) ?? 0,
     }));
   }
 
@@ -156,8 +156,8 @@ export class CampaignsRepository {
         data: {
           businessId,
           ...rest,
-          ...(startsAt  { startsAt: new Date(startsAt) } : {}),
-          ...(endsAt  { endsAt: new Date(endsAt) } : {}),
+          ...(startsAt ? { startsAt: new Date(startsAt) } : {}),
+          ...(endsAt ? { endsAt: new Date(endsAt) } : {}),
         },
       });
     });
@@ -186,8 +186,8 @@ export class CampaignsRepository {
         where: { id: campaignId, businessId },
         data: {
           ...rest,
-          ...(startsAt !== undefined  { startsAt: new Date(startsAt) } : {}),
-          ...(endsAt !== undefined  { endsAt: new Date(endsAt) } : {}),
+          ...(startsAt !== undefined ? { startsAt: new Date(startsAt) } : {}),
+          ...(endsAt !== undefined ? { endsAt: new Date(endsAt) } : {}),
         },
       });
       return tx.campaign.findUniqueOrThrow({ where: { id: campaignId } });
@@ -237,9 +237,9 @@ export class CampaignsRepository {
         data: {
           status,
           ...(status === CampaignStatus.ARCHIVED
-             { archivedAt: new Date() }
+            ? { archivedAt: new Date() }
             : {}),
-          ...(status !== CampaignStatus.ARCHIVED  { archivedAt: null } : {}),
+          ...(status !== CampaignStatus.ARCHIVED ? { archivedAt: null } : {}),
         },
       });
       return tx.campaign.findUniqueOrThrow({ where: { id: campaignId } });

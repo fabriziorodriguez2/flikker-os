@@ -11,10 +11,10 @@ export function createRedisConnection() {
   const options = { maxRetriesPerRequest: null };
 
   const connection = process.env.REDIS_URL
-     new IORedis(process.env.REDIS_URL, options)
+    ? new IORedis(process.env.REDIS_URL, options)
     : new IORedis({
-        host: process.env.REDIS_HOST  '127.0.0.1',
-        port: Number(process.env.REDIS_PORT  6379),
+        host: process.env.REDIS_HOST ?? '127.0.0.1',
+        port: Number(process.env.REDIS_PORT ?? 6379),
         maxRetriesPerRequest: null,
       });
 

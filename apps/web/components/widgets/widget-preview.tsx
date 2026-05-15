@@ -34,7 +34,7 @@ export default function WidgetPreview({
   if (type === 'BADGE') {
     return (
       <div className="rounded-[26px] border border-[color:rgba(145,136,245,0.16)] bg-[color:var(--brand-primary)] p-6 text-white shadow-[0_12px_28px_rgba(0,4,65,0.18)]">
-        {title  (
+        {title ? (
           <p className="text-sm font-semibold uppercase tracking-[0.14em] text-white/72">
             {title}
           </p>
@@ -69,20 +69,20 @@ export default function WidgetPreview({
 
   return (
     <div className="rounded-[26px] border border-[color:var(--border)] bg-[color:var(--surface)] p-5 shadow-[var(--shadow-card)]">
-      {title  (
+      {title ? (
         <div className="mb-4 flex items-center justify-between gap-3">
           <p className="text-xl font-semibold text-[color:var(--foreground)]">
             {title}
           </p>
           <span className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
-            {type === 'REVIEW_GRID'  'Grilla' : 'Lista'}
+            {type === 'REVIEW_GRID' ? 'Grilla' : 'Lista'}
           </span>
         </div>
       ) : null}
 
       <div
         className={`grid gap-3 ${
-          type === 'REVIEW_GRID'  'sm:grid-cols-2' : 'grid-cols-1'
+          type === 'REVIEW_GRID' ? 'sm:grid-cols-2' : 'grid-cols-1'
         }`}
       >
         {reviews.length === 0 ? (
@@ -91,11 +91,11 @@ export default function WidgetPreview({
           </div>
         ) : (
           reviews.map((review, index) => {
-            const formattedDate = showDate  formatDate(review.reviewedAt) : null;
+            const formattedDate = showDate ? formatDate(review.reviewedAt) : null;
 
             return (
               <article
-                key={review.id  `review-${index}`}
+                key={review.id ?? `review-${index}`}
                 className="rounded-[22px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4"
               >
                 <div className="text-sm font-medium text-[color:var(--brand-warm)]">
@@ -104,12 +104,12 @@ export default function WidgetPreview({
                 <p className="mt-3 line-clamp-4 text-sm leading-7 text-[color:var(--foreground)]">
                   {review.content?.trim() || 'Sin texto cargado.'}
                 </p>
-                {(showAuthorName || formattedDate)  (
+                {(showAuthorName || formattedDate) ? (
                   <div className="mt-4 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[color:var(--text-muted)]">
-                    {showAuthorName  (
-                      <span>{review.authorDisplayName  'Autor no informado'}</span>
+                    {showAuthorName ? (
+                      <span>{review.authorDisplayName ?? 'Autor no informado'}</span>
                     ) : null}
-                    {formattedDate  <span>{formattedDate}</span> : null}
+                    {formattedDate ? <span>{formattedDate}</span> : null}
                   </div>
                 ) : null}
               </article>

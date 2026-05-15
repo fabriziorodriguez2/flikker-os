@@ -19,7 +19,7 @@ function makeGroupByMock(config: {
 }) {
   return jest.fn().mockImplementation((args: { by: string[] }) => {
     const field = args.by[0];
-    return Promise.resolve(config[field as keyof typeof config]  []);
+    return Promise.resolve(config[field as keyof typeof config] ?? []);
   });
 }
 

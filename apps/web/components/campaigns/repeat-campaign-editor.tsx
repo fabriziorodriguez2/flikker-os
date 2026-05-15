@@ -102,7 +102,7 @@ export default function RepeatCampaignEditor({
           disabled={saving}
           className="rounded-full bg-[color:var(--brand-primary)] px-5 py-3 text-sm font-semibold text-white disabled:opacity-50"
         >
-          {saving  "Guardando..." : "Guardar"}
+          {saving ? "Guardando..." : "Guardar"}
         </button>
         {message ? (
           <span className="text-sm text-[color:var(--success-text)]">

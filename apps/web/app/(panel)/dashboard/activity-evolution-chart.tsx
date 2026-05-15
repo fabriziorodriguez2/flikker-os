@@ -76,7 +76,7 @@ export default function ActivityEvolutionChart({
                             {series.label}
                           </span>
                           <span className="font-semibold text-[#1A202C]">
-                            {Number(item?.value  0).toLocaleString("es-UY")}
+                            {Number(item?.value ?? 0).toLocaleString("es-UY")}
                           </span>
                         </p>
                       );

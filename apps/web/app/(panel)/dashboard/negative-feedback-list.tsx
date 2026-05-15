@@ -26,7 +26,7 @@ function Stars({ score }: { score: number }) {
   return (
     <span className="text-amber-400 tracking-tight" aria-label={`${score} de 5 estrellas`}>
       {Array.from({ length: 5 }, (_, i) => (
-        <span key={i}>{i < score  "★" : "☆"}</span>
+        <span key={i}>{i < score ? "★" : "☆"}</span>
       ))}
     </span>
   );
@@ -49,7 +49,7 @@ export default function NegativeFeedbackList({
       if (!res.ok) throw new Error("No se pudo marcar como leído");
       setFeedback((current) =>
         current.map((item) =>
-          item.id === id  { ...item, acknowledgedByOwner: true } : item,
+          item.id === id ? { ...item, acknowledgedByOwner: true } : item,
         ),
       );
     } finally {
@@ -88,7 +88,7 @@ export default function NegativeFeedbackList({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {item.acknowledgedByOwner  (
+            {item.acknowledgedByOwner ? (
               <span className="rounded-full bg-[color:rgba(99,153,34,0.12)] px-2.5 py-1 text-xs font-semibold text-[#639922]">
                 Leído
               </span>
@@ -99,7 +99,7 @@ export default function NegativeFeedbackList({
                 disabled={savingId === item.id}
                 className="rounded-[8px] border border-[#E8EAF0] px-3 py-1.5 text-xs font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-60"
               >
-                {savingId === item.id  "Marcando..." : "Marcar como leído"}
+                {savingId === item.id ? "Marcando..." : "Marcar como leído"}
               </button>
             )}
           </div>

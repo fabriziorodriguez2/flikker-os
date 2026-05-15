@@ -77,9 +77,9 @@ export class PlatformService {
       industry: b.industry,
       country: b.country,
       createdAt: b.createdAt,
-      plan: b.subscription?.plan?.name  'Free',
-      planSlug: b.subscription?.plan?.slug  'free',
-      subscriptionStatus: b.subscription?.status  null,
+      plan: b.subscription?.plan?.name ?? 'Free',
+      planSlug: b.subscription?.plan?.slug ?? 'free',
+      subscriptionStatus: b.subscription?.status ?? null,
       branchCount: b._count.branches,
       memberCount: b._count.memberships,
       customerCount: b._count.customers,
@@ -127,8 +127,8 @@ export class PlatformService {
     ]);
 
     const baseUrl = (
-      process.env.APP_PUBLIC_URL ?
-      process.env.WEB_BASE_URL ?
+      process.env.APP_PUBLIC_URL ??
+      process.env.WEB_BASE_URL ??
       'https://app.flikker.com'
     ).replace(/\/$/, '');
 
@@ -178,7 +178,7 @@ export class PlatformService {
     const temporaryPassword = generateTemporaryPassword();
     const passwordHash = await bcrypt.hash(temporaryPassword, BCRYPT_ROUNDS);
     const phone = dto.whatsappPhone?.trim()
-       normalizeToE164(dto.whatsappPhone)
+      ? normalizeToE164(dto.whatsappPhone)
       : undefined;
     const vertical = this.parseVertical(dto.vertical);
     const timezone = this.parseTimezone(dto.timezone);
@@ -208,8 +208,8 @@ export class PlatformService {
     );
 
     const loginUrl = `${(
-      process.env.APP_PUBLIC_URL ?
-      process.env.WEB_BASE_URL ?
+      process.env.APP_PUBLIC_URL ??
+      process.env.WEB_BASE_URL ??
       'https://app.flikker.com'
     ).replace(/\/$/, '')}/login`;
 
@@ -225,7 +225,7 @@ export class PlatformService {
       credentials: {
         loginUrl,
         email: ownerEmail,
-        temporaryPassword: result.reusedOwnerUser  null : temporaryPassword,
+        temporaryPassword: result.reusedOwnerUser ? null : temporaryPassword,
         businessName: result.business.name,
       },
     };
@@ -256,7 +256,7 @@ export class PlatformService {
       },
       {
         secret: process.env.JWT_SECRET!,
-        expiresIn: (process.env.JWT_IMPERSONATION_EXPIRES_IN ?
+        expiresIn: (process.env.JWT_IMPERSONATION_EXPIRES_IN ??
           '1h') as StringValue,
       },
     );
@@ -341,7 +341,7 @@ export class PlatformService {
     }
     if (dto.whatsappPhone !== undefined) {
       data.phone = dto.whatsappPhone.trim()
-         normalizeToE164(dto.whatsappPhone)
+        ? normalizeToE164(dto.whatsappPhone)
         : null;
     }
     if (dto.logoUrl !== undefined) {
@@ -373,7 +373,7 @@ export class PlatformService {
     }
 
     const googleReviewUrl =
-      dto.googleReviewUrl?.trim()  buildGoogleReviewUrl(googlePlaceId);
+      dto.googleReviewUrl?.trim() ?? buildGoogleReviewUrl(googlePlaceId);
     const updated = await this.repository.updateGoogleBusinessProfile(
       businessId,
       {
@@ -393,7 +393,7 @@ export class PlatformService {
       .catch((error) => {
         this.logger.warn(
           `Could not enqueue initial Google review scrape for business ${businessId}: ${
-            error instanceof Error  error.message : String(error)
+            error instanceof Error ? error.message : String(error)
           }`,
         );
       });
@@ -443,7 +443,7 @@ export class PlatformService {
     },
   ) {
     await this.assertBusinessExists(businessId);
-    const templates = dto.templates  [];
+    const templates = dto.templates ?? [];
     if (!Array.isArray(templates)) {
       throw new BadRequestException('templates must be an array');
     }
@@ -492,8 +492,8 @@ export class PlatformService {
     }
     const trackingToken = randomBytes(8).toString('base64url');
     const appPublicUrl =
-      process.env.APP_PUBLIC_URL ?
-      process.env.WEB_BASE_URL ?
+      process.env.APP_PUBLIC_URL ??
+      process.env.WEB_BASE_URL ??
       'https://app.flikker.com';
     const trackingUrl = `${appPublicUrl.replace(/\/$/, '')}/r/${trackingToken}`;
     const { customer, message } =
@@ -529,7 +529,7 @@ export class PlatformService {
       await this.repository.markMessageFailed(message.id);
       throw new BadRequestException(
         error instanceof Error
-           error.message
+          ? error.message
           : 'Could not send test WhatsApp message',
       );
     }
@@ -555,8 +555,8 @@ export class PlatformService {
 
   private async ensureDemoBusiness(adminId: string) {
     const appPublicUrl = (
-      process.env.APP_PUBLIC_URL ?
-      process.env.WEB_BASE_URL ?
+      process.env.APP_PUBLIC_URL ??
+      process.env.WEB_BASE_URL ??
       'https://app.flikker.com'
     ).replace(/\/$/, '');
     const now = new Date();
@@ -773,9 +773,9 @@ export class PlatformService {
         const widgetData = {
           name:
             mode === WidgetMode.toast
-               'Demo Toast'
+              ? 'Demo Toast'
               : mode === WidgetMode.carousel
-                 'Demo Carrusel'
+                ? 'Demo Carrusel'
                 : 'Demo Grid',
           status: WidgetStatus.ACTIVE,
           type: WidgetType.REVIEW_LIST,

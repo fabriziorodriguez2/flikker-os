@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -22,9 +22,9 @@ function isBirthdayCampaign(kind: string | null) {
 }
 
 function conditionText(kind: string | null, offset: string) {
-  if (kind === "birthday") return "CumpleaÃ±os del cliente";
-  if (kind === "reactivation") return "Sin atenciÃ³n registrada en 6 meses";
-  return `DespuÃ©s de la atenciÃ³n (${offset || "0"} dÃ­as de offset)`;
+  if (kind === "birthday") return "Cumpleaños del paciente";
+  if (kind === "reactivation") return "Sin atención registrada en 6 meses";
+  return `Después de la atención (${offset || "0"} días de offset)`;
 }
 
 export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
@@ -44,9 +44,9 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
     setMessage(null);
     try {
       const nextStatus = active
-         "ACTIVE"
+        ? "ACTIVE"
         : campaign.status === "ACTIVE"
-           "PAUSED"
+          ? "PAUSED"
           : campaign.status;
       const shouldUpdateStatus = nextStatus !== campaign.status;
       const [campaignRes, repeatRes, statusRes] = await Promise.all([
@@ -56,7 +56,7 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
           body: JSON.stringify({ name }),
         }),
         campaign.templateKind
-           fetch(`/api/proxy/campaigns/${campaign.id}/repeats`, {
+          ? fetch(`/api/proxy/campaigns/${campaign.id}/repeats`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -67,7 +67,7 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
             })
           : Promise.resolve(new Response(null, { status: 200 })),
         shouldUpdateStatus
-           fetch(`/api/proxy/campaigns/${campaign.id}/status`, {
+          ? fetch(`/api/proxy/campaigns/${campaign.id}/status`, {
               method: "PATCH",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ status: nextStatus }),
@@ -94,7 +94,7 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_280px]">
         <div className="space-y-4">
           <label className="grid gap-2 text-sm font-semibold text-[#1A202C]">
-            Nombre de campaÃ±a
+            Nombre de campaña
             <input
               value={name}
               onChange={(event) => setName(event.target.value)}
@@ -113,7 +113,7 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
             </div>
             <div className="rounded-[8px] border border-[#E8EAF0] bg-[#F5F6FA] p-4">
               <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#8891A4]">
-                Audiencia / condiciÃ³n
+                Audiencia / condición
               </p>
               <p className="mt-2 text-sm font-semibold text-[#1A202C]">
                 {conditionText(campaign.templateKind, offset)}
@@ -122,9 +122,9 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
           </div>
 
           <label className="grid gap-2 text-sm font-semibold text-[#1A202C]">
-            Horario de envÃ­o
+            Horario de envío
             <input
-              value={isBirthdayCampaign(campaign.templateKind)  "09:00 hora local" : "SegÃºn regla de campaÃ±a"}
+              value={isBirthdayCampaign(campaign.templateKind) ? "09:00 hora local" : "Según regla de campaña"}
               readOnly
               className="h-10 rounded-[8px] border border-[#E8EAF0] bg-[#F5F6FA] px-3 text-sm text-[#8891A4] outline-none"
             />
@@ -141,7 +141,7 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="grid gap-2 text-sm font-semibold text-[#1A202C]">
-              DÃ­as de offset
+              Días de offset
               <input
                 type="number"
                 min="0"
@@ -157,14 +157,14 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
                 value={offer}
                 onChange={(event) => setOffer(event.target.value)}
                 className="h-10 rounded-[8px] border border-[#E8EAF0] px-3 text-sm outline-none focus:border-[#5C6BC0]"
-                placeholder="Ej: 15% off en tu prÃ³xima visita"
+                placeholder="Ej: 15% off en tu próxima visita"
               />
             </label>
           </div>
 
           {isBirthdayCampaign(campaign.templateKind) ? (
             <div className="rounded-[8px] border border-[#E8EAF0] bg-[#F5F6FA] px-4 py-3 text-sm text-[#8891A4]">
-              Solo se enviarÃ¡ a clientes con fecha de nacimiento cargada.
+              Solo se enviará a pacientes con fecha de nacimiento cargada.
             </div>
           ) : null}
         </div>
@@ -183,7 +183,7 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
               <Switch
                 checked={active}
                 onCheckedChange={() => setActive((value) => !value)}
-                label={active ? "Desactivar campaÃ±a" : "Activar campaÃ±a"}
+                label={active ? "Desactivar campaña" : "Activar campaña"}
               />
             </div>
           </div>
@@ -198,7 +198,7 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
                 "{{negocio}}",
                 "{{link_resena}}",
                 ...(isBirthdayCampaign(campaign.templateKind)
-                   ["{{fecha_cumpleanos}}"]
+                  ? ["{{fecha_cumpleanos}}"]
                   : []),
               ].map((variable) => (
                 <span
@@ -214,8 +214,8 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
       </div>
 
       {error || message ? (
-        <p className={`mt-4 text-sm ${error  "text-[#C0392B]" : "text-[#639922]"}`}>
-          {error  message}
+        <p className={`mt-4 text-sm ${error ? "text-[#C0392B]" : "text-[#639922]"}`}>
+          {error ?? message}
         </p>
       ) : null}
 
@@ -231,10 +231,9 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
           disabled={saving}
           className="inline-flex h-10 items-center rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
         >
-          {saving  "Guardando..." : "Guardar cambios"}
+          {saving ? "Guardando..." : "Guardar cambios"}
         </button>
       </div>
     </form>
   );
 }
-

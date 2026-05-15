@@ -6,9 +6,9 @@ import { useRouter } from 'next/navigation';
 function isApiRequest(input: RequestInfo | URL) {
   const rawUrl =
     typeof input === 'string'
-       input
+      ? input
       : input instanceof URL
-         input.toString()
+        ? input.toString()
         : input.url;
 
   try {

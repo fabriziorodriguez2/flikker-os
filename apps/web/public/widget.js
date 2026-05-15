@@ -7,7 +7,7 @@
     (script &&
     script.previousElementSibling &&
     script.previousElementSibling.getAttribute('data-flikker-widget') !== null
-       script.previousElementSibling
+      ? script.previousElementSibling
       : null) || document.querySelector('[data-flikker-widget]');
   var source = container || script;
   if (!source) return;
@@ -37,7 +37,7 @@
   }
 
   var scriptOrigin =
-    script && script.src  new URL(script.src).origin : window.location.origin;
+    script && script.src ? new URL(script.src).origin : window.location.origin;
   var apiUrl =
     scriptOrigin +
     '/api/widget/' +
@@ -89,7 +89,7 @@
   function starsHtml(count) {
     var out = '';
     for (var i = 0; i < 5; i += 1) {
-      out += i < count  '&#9733;' : '&#9734;';
+      out += i < count ? '&#9733;' : '&#9734;';
     }
     return out;
   }
@@ -97,8 +97,8 @@
   function initial(name) {
     if (!name) return '?';
     var parts = name.trim().split(/\s+/);
-    var a = parts[0]  parts[0][0] : '';
-    var b = parts[1]  parts[1][0] : '';
+    var a = parts[0] ? parts[0][0] : '';
+    var b = parts[1] ? parts[1][0] : '';
     return (a + b).toUpperCase() || '?';
   }
 
@@ -120,7 +120,7 @@
     var color = cfg.primaryColor || accentColor;
     var pos =
       (cfg.position || position) === 'bottom_left'
-         'left:16px;right:auto;'
+        ? 'left:16px;right:auto;'
         : 'right:16px;left:auto;';
     var index = 0;
 
@@ -128,7 +128,7 @@
     if (!container) document.body.appendChild(host);
     host.setAttribute('data-flikker-mounted', 'true');
 
-    var shadow = host.attachShadow  host.attachShadow({ mode: 'open' }) : host;
+    var shadow = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
     shadow.innerHTML =
       '<style>' +
       ':host{all:initial}' +
@@ -218,7 +218,7 @@
       document.body.appendChild(host);
     }
 
-    var shadow = host.attachShadow  host.attachShadow({ mode: 'open' }) : host;
+    var shadow = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
 
     var cardsHtml = reviews
       .map(function (r) {
@@ -242,7 +242,7 @@
           '</div>' +
           '</div>' +
           (r.content
-             '<p class="flk-c-text">' + esc(r.content) + '</p>'
+            ? '<p class="flk-c-text">' + esc(r.content) + '</p>'
             : '') +
           '<p class="flk-c-date">' +
           daysAgo(r.reviewedAt) +
@@ -303,13 +303,13 @@
 
     for (var d = 0; d < total; d += 1) {
       var dot = document.createElement('div');
-      dot.className = 'flk-c-dot' + (d === 0  ' on' : '');
+      dot.className = 'flk-c-dot' + (d === 0 ? ' on' : '');
       dotsEl.appendChild(dot);
     }
 
     function cardWidth() {
       var c = shadow.querySelector('.flk-c-card');
-      return c  c.offsetWidth + 14 : 294;
+      return c ? c.offsetWidth + 14 : 294;
     }
 
     function scrollTo(idx) {
@@ -320,7 +320,7 @@
       var idx = Math.round(viewport.scrollLeft / cardWidth());
       var dots = shadow.querySelectorAll('.flk-c-dot');
       for (var i = 0; i < dots.length; i += 1) {
-        dots[i].className = 'flk-c-dot' + (i === idx  ' on' : '');
+        dots[i].className = 'flk-c-dot' + (i === idx ? ' on' : '');
       }
     }
 
@@ -346,7 +346,7 @@
     setInterval(function () {
       if (isPaused) return;
       var idx = Math.round(viewport.scrollLeft / cardWidth());
-      scrollTo(idx >= total - 1  0 : idx + 1);
+      scrollTo(idx >= total - 1 ? 0 : idx + 1);
     }, 6000);
   }
 
@@ -369,7 +369,7 @@
       document.body.appendChild(host);
     }
 
-    var shadow = host.attachShadow  host.attachShadow({ mode: 'open' }) : host;
+    var shadow = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
 
     var cardsHtml = shown
       .map(function (r) {
@@ -391,7 +391,7 @@
           '</div>' +
           '</div>' +
           (r.content
-             '<p class="flk-g-text">' + esc(r.content) + '</p>'
+            ? '<p class="flk-g-text">' + esc(r.content) + '</p>'
             : '<p class="flk-g-empty">Sin comentario</p>') +
           '<p class="flk-g-date">' +
           daysAgo(r.reviewedAt) +
@@ -430,7 +430,7 @@
   // ── Fetch & dispatch ───────────────────────────────────────────────────────
   fetch(apiUrl, { credentials: 'omit', mode: 'cors' })
     .then(function (res) {
-      return res.ok  res.json() : null;
+      return res.ok ? res.json() : null;
     })
     .then(function (data) {
       if (!data || !data.reviews || data.reviews.length === 0) return;

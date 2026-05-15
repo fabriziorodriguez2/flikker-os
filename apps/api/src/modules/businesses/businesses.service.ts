@@ -54,10 +54,10 @@ export class BusinessesService {
   async create(dto: CreateBusinessDto, userId: string) {
     const payload = {
       ...dto,
-      slug: dto.slug  slugify(dto.name),
-      country: dto.country  'UY',
-      currency: dto.currency  'USD',
-      industry: dto.industry  dto.vertical,
+      slug: dto.slug ?? slugify(dto.name),
+      country: dto.country ?? 'UY',
+      currency: dto.currency ?? 'USD',
+      industry: dto.industry ?? dto.vertical,
     };
     const business = await this.repository.createWithOwner(payload, userId);
     if (!business) throw new ConflictException('Slug already taken');
@@ -188,7 +188,7 @@ export class BusinessesService {
       });
       const rating =
         reviews.length > 0
-           Number(
+          ? Number(
               (
                 reviews.reduce((total, review) => total + review.stars, 0) /
                 reviews.length

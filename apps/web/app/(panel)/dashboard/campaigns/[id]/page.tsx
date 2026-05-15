@@ -51,7 +51,7 @@ export default async function CampaignDetailPage({
           Volver a Campañas
         </Link>
         <div className="mt-4 rounded-[12px] border border-red-200 bg-red-50 p-4 text-sm text-[#C0392B]">
-          {error  "Campaña no encontrada"}
+          {error ?? "Campaña no encontrada"}
         </div>
       </div>
     );
