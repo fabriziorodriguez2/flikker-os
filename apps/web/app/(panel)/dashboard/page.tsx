@@ -46,6 +46,11 @@ interface MetricsOverview {
     from: string;
     to: string;
   };
+  messageQuota: {
+    used: number;
+    limit: number;
+    percentage: number;
+  };
   negativeFeedback: Array<{
     id: string;
     createdAt: string;
@@ -105,6 +110,58 @@ function shouldShowGoogleImportBanner(business: Business | null) {
   const createdAt = new Date(business.createdAt).getTime();
   if (Number.isNaN(createdAt)) return false;
   return Date.now() - createdAt < 24 * 60 * 60 * 1000;
+}
+
+function MessageQuotaBanner({
+  quota,
+}: {
+  quota: MetricsOverview["messageQuota"];
+}) {
+  if (!quota.limit || quota.percentage < 80) return null;
+
+  const isBlocked = quota.percentage >= 100;
+  const isCritical = quota.percentage >= 95;
+  const tone = isBlocked || isCritical ? "danger" : "warning";
+  const classes =
+    tone === "danger"
+      ? "border-[#C0392B]/25 bg-[#C0392B]/10 text-[#8F2A20]"
+      : "border-[#FFAB76]/35 bg-[#FFF4E5] text-[#8A520D]";
+  const dotClass = tone === "danger" ? "bg-[#C0392B]" : "bg-[#D4600A]";
+  const title = isBlocked
+    ? "Llegaste al límite mensual de mensajes"
+    : isCritical
+      ? "Estás por llegar al límite mensual de mensajes"
+      : "Estás cerca del límite mensual de mensajes";
+
+  return (
+    <div className={`rounded-[12px] border px-4 py-3 text-sm ${classes}`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex gap-3">
+          <span
+            aria-hidden="true"
+            className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${dotClass}`}
+          />
+          <div>
+            <p className="font-bold">{title}</p>
+            <p className="mt-1">
+              Usaste{" "}
+              <span className="font-semibold">
+                {quota.used.toLocaleString("es-UY")} de{" "}
+                {quota.limit.toLocaleString("es-UY")}
+              </span>{" "}
+              mensajes este mes ({quota.percentage}%).
+            </p>
+          </div>
+        </div>
+        <div className="h-2 w-full overflow-hidden rounded-full bg-white/70 sm:w-44">
+          <div
+            className={`h-full rounded-full ${dotClass}`}
+            style={{ width: `${Math.min(100, quota.percentage)}%` }}
+          />
+        </div>
+      </div>
+    </div>
+  );
 }
 
 function KpiCard({
@@ -208,6 +265,8 @@ export default async function DashboardPage({
           <span>Importando reseñas de Google... Esto puede tardar algunos minutos.</span>
         </div>
       ) : null}
+
+      <MessageQuotaBanner quota={metrics.messageQuota} />
 
       <section className="grid gap-4 md:grid-cols-3">
         <KpiCard

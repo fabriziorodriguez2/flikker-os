@@ -19,6 +19,9 @@ const mockPrisma = {
   feedbackResponse: {
     findMany: jest.fn(),
   },
+  business: {
+    findUnique: jest.fn(),
+  },
 };
 
 describe('MetricsService', () => {
@@ -75,6 +78,10 @@ describe('MetricsService', () => {
         customer: { name: 'Maria Garcia' },
       },
     ]);
+    mockPrisma.business.findUnique.mockResolvedValue({
+      messageCountCurrentMonth: 480,
+      messageQuotaMonthly: 600,
+    });
 
     const result = await service.getOverview(BUSINESS_ID);
 
@@ -120,6 +127,11 @@ describe('MetricsService', () => {
         acknowledgedByOwner: false,
       },
     ]);
+    expect(result.messageQuota).toEqual({
+      used: 480,
+      limit: 600,
+      percentage: 80,
+    });
 
     expect(mockPrisma.googleReview.count).toHaveBeenNthCalledWith(1, {
       where: {
@@ -150,6 +162,10 @@ describe('MetricsService', () => {
     mockPrisma.googleReview.findMany.mockResolvedValue([]);
     mockPrisma.campaignExecution.findMany.mockResolvedValue([]);
     mockPrisma.feedbackResponse.findMany.mockResolvedValue([]);
+    mockPrisma.business.findUnique.mockResolvedValue({
+      messageCountCurrentMonth: 0,
+      messageQuotaMonthly: 200,
+    });
 
     const result = await service.getOverview(BUSINESS_ID);
 
@@ -159,5 +175,10 @@ describe('MetricsService', () => {
       reactivatedCustomers: { current: 0, previous: 0, delta: 0 },
     });
     expect(result.negativeFeedback).toEqual([]);
+    expect(result.messageQuota).toEqual({
+      used: 0,
+      limit: 200,
+      percentage: 0,
+    });
   });
 });

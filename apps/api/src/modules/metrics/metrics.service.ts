@@ -64,6 +64,11 @@ export interface MetricsOverview {
     from: string;
     to: string;
   };
+  messageQuota: {
+    used: number;
+    limit: number;
+    percentage: number;
+  };
   negativeFeedback: NegativeFeedbackItem[];
 }
 
@@ -96,6 +101,7 @@ export class MetricsService {
       monthlyReviewCounts,
       monthlyActivityCounts,
       negativeFeedback,
+      businessQuota,
     ] = await Promise.all([
       this.countGoogleReviews(businessId, currentStart, currentEnd),
       this.countGoogleReviews(businessId, previousStart, previousEnd),
@@ -148,7 +154,17 @@ export class MetricsService {
           },
         },
       }),
+      this.prisma.business.findUnique({
+        where: { id: businessId },
+        select: {
+          messageCountCurrentMonth: true,
+          messageQuotaMonthly: true,
+        },
+      }),
     ]);
+
+    const quotaUsed = businessQuota?.messageCountCurrentMonth ?? 0;
+    const quotaLimit = businessQuota?.messageQuotaMonthly ?? 0;
 
     return {
       month: {
@@ -185,6 +201,12 @@ export class MetricsService {
         granularity: activityWindows.granularity,
         from: activityWindows.from.toISOString(),
         to: activityWindows.to.toISOString(),
+      },
+      messageQuota: {
+        used: quotaUsed,
+        limit: quotaLimit,
+        percentage:
+          quotaLimit > 0 ? Math.round((quotaUsed / quotaLimit) * 100) : 0,
       },
       negativeFeedback: negativeFeedback.map((item) => ({
         id: item.id,
