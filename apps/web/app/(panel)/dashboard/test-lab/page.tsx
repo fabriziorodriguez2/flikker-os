@@ -53,6 +53,7 @@ interface OverviewResponse {
 export default async function TestLabPage() {
   const session = await getSession();
   if (!session?.activeBusinessId) redirect("/dashboard");
+  if (!session.user.isPlatformAdmin) redirect("/dashboard");
 
   const { accessToken, businessId } = getEffectiveApiContext(session);
   if (!businessId) redirect("/dashboard");

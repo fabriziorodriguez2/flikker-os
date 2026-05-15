@@ -16,6 +16,12 @@ import { WidgetsService } from './widgets.service';
 export class WidgetsPublicController {
   constructor(private readonly widgetsService: WidgetsService) {}
 
+  @Get('demo-business')
+  @Header('Cache-Control', 'public, max-age=300, s-maxage=600')
+  getDemoBusiness() {
+    return this.widgetsService.getDemoBusinessForWidgetPreview();
+  }
+
   @Get('business/:businessId')
   @UseGuards(ThrottlerGuard)
   @Throttle({ default: { limit: 120, ttl: 60000 } })

@@ -156,6 +156,11 @@ export class PlatformController {
     return this.platformService.listAuditLogs();
   }
 
+  @Get('test-lab/demo')
+  getTestLabDemo(@Req() req: AuthenticatedRequest) {
+    return this.platformService.getOrCreateDemoBusiness(req.user.id);
+  }
+
   @Post('businesses/:businessId/impersonate')
   impersonate(
     @Req() req: AuthenticatedRequest,

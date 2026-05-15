@@ -11,7 +11,6 @@ interface SidebarProps {
   memberships: SessionMembership[];
   activeBusinessId: string | null;
   userName: string;
-  isPlatformAdmin?: boolean;
 }
 
 const SIDEBAR_STORAGE_KEY = "flikker-panel-sidebar-collapsed";

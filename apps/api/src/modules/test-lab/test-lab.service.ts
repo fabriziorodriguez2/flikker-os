@@ -149,6 +149,7 @@ export class TestLabService {
 
     return {
       success: true,
+      isTest: true,
       whatsappMessageId: result.whatsappMessageId,
       phone: normalizedPhone,
       message: renderResult.rendered,

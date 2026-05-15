@@ -11,7 +11,7 @@ const MAIN_NAV_ITEMS = [
   { href: "/dashboard/widgets", label: "Widget" },
 ];
 
-export default function MobileNav({ role }: { role: string | null }) {
+export default function MobileNav() {
   const pathname = usePathname();
   const items = MAIN_NAV_ITEMS;
 

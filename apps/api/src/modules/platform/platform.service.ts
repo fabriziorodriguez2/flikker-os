@@ -8,6 +8,18 @@ import { JwtService } from '@nestjs/jwt';
 import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import type { StringValue } from 'ms';
+import {
+  BusinessStatus,
+  CampaignChannel,
+  CampaignStatus,
+  CampaignTemplateKind,
+  DestinationType,
+  SubscriptionStatus,
+  WidgetMode,
+  WidgetPosition,
+  WidgetStatus,
+  WidgetType,
+} from '@prisma/client';
 import { PlatformRepository } from './platform.repository';
 import { AuditService } from '../../common/services/audit.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
@@ -15,6 +27,8 @@ import { CustomersService } from '../customers/customers.service';
 import { CampaignsService } from '../campaigns/campaigns.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.queue';
+import { PrismaService } from '../../prisma/prisma.service';
+import { DEMO_BUSINESS_NAME, DEMO_BUSINESS_SLUG } from '../../config/demo';
 
 const BCRYPT_ROUNDS = 12;
 const BUSINESS_VERTICALS = new Set([
@@ -48,6 +62,7 @@ export class PlatformService {
     private readonly campaignsService: CampaignsService,
     private readonly whatsAppBspService: WhatsAppBspService,
     private readonly googleReviewDetectionQueue: GoogleReviewDetectionQueue,
+    private readonly prisma: PrismaService,
   ) {}
 
   async listBusinesses() {
@@ -70,6 +85,66 @@ export class PlatformService {
       customerCount: b._count.customers,
       reviewCount: b._count.googleReviews,
     }));
+  }
+
+  async getOrCreateDemoBusiness(adminId: string) {
+    const business = await this.ensureDemoBusiness(adminId);
+    const [customerCount, reviewCount, campaigns, widget] = await Promise.all([
+      this.prisma.customer.count({
+        where: { businessId: business.id, isActive: true },
+      }),
+      this.prisma.googleReview.count({ where: { businessId: business.id } }),
+      this.prisma.campaign.findMany({
+        where: { businessId: business.id },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          status: true,
+          templateKind: true,
+          _count: { select: { executions: true } },
+        },
+        orderBy: { createdAt: 'asc' },
+      }),
+      this.prisma.widget.findFirst({
+        where: {
+          businessId: business.id,
+          status: WidgetStatus.ACTIVE,
+          enabled: true,
+        },
+        select: {
+          id: true,
+          mode: true,
+          status: true,
+          minStars: true,
+          maxReviewsShown: true,
+          primaryColor: true,
+          position: true,
+          enabled: true,
+        },
+        orderBy: { updatedAt: 'desc' },
+      }),
+    ]);
+
+    const baseUrl = (
+      process.env.APP_PUBLIC_URL ??
+      process.env.WEB_BASE_URL ??
+      'https://app.flikker.com'
+    ).replace(/\/$/, '');
+
+    return {
+      business,
+      customerCount,
+      reviewCount,
+      campaigns,
+      activeCampaigns: campaigns.filter(
+        (campaign) => campaign.status === 'ACTIVE',
+      ).length,
+      widget,
+      isDemo: true,
+      widgetLandingUrl: `${baseUrl}/demo/widget-preview`,
+      note: 'Negocio demo separado de clientes reales. Los envíos del Test Lab no crean Message ni CampaignExecution.',
+    };
   }
 
   async createBusiness(
@@ -478,6 +553,265 @@ export class PlatformService {
     return this.repository.findAuditLogs();
   }
 
+  private async ensureDemoBusiness(adminId: string) {
+    const appPublicUrl = (
+      process.env.APP_PUBLIC_URL ??
+      process.env.WEB_BASE_URL ??
+      'https://app.flikker.com'
+    ).replace(/\/$/, '');
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+    return this.prisma.$transaction(async (tx) => {
+      const plan = await tx.plan.upsert({
+        where: { slug: 'pro' },
+        update: {
+          name: 'Pro',
+          description: 'Plan demo para reuniones y pruebas internas.',
+          maxBranches: 10,
+          maxMembers: 15,
+          maxCampaigns: 20,
+          maxReviewsPerMonth: 600,
+          priceMonthly: 12900,
+          priceUsd: 129,
+          setupFeeUsd: 99,
+          messageQuotaMonthly: 600,
+          trialDays: 0,
+          displayOrder: 2,
+          isActive: true,
+        },
+        create: {
+          slug: 'pro',
+          name: 'Pro',
+          description: 'Plan demo para reuniones y pruebas internas.',
+          maxBranches: 10,
+          maxMembers: 15,
+          maxCampaigns: 20,
+          maxReviewsPerMonth: 600,
+          priceMonthly: 12900,
+          priceUsd: 129,
+          setupFeeUsd: 99,
+          messageQuotaMonthly: 600,
+          trialDays: 0,
+          displayOrder: 2,
+          isActive: true,
+        },
+      });
+
+      const business = await tx.business.upsert({
+        where: { slug: DEMO_BUSINESS_SLUG },
+        update: {
+          name: DEMO_BUSINESS_NAME,
+          status: BusinessStatus.ACTIVE,
+          isActive: true,
+          vertical: 'dental',
+          industry: 'Clínica dental',
+          timezone: 'America/Montevideo',
+          country: 'UY',
+          currency: 'USD',
+          logoUrl: `${appPublicUrl}/flikker-mark-white.svg`,
+          primaryColor: '#5C6BC0',
+          defaultReviewRedirectUrl: buildGoogleReviewUrl('demo-flikker'),
+          googleBusinessProfileUrl:
+            'https://www.google.com/maps/place/?q=place_id:demo-flikker',
+          whatsappUrl: 'https://wa.me/59899123456',
+          messageQuotaMonthly: 600,
+          messageCountCurrentMonth: 0,
+        },
+        create: {
+          name: DEMO_BUSINESS_NAME,
+          legalName: 'Flikker Demo',
+          slug: DEMO_BUSINESS_SLUG,
+          status: BusinessStatus.ACTIVE,
+          isActive: true,
+          vertical: 'dental',
+          industry: 'Clínica dental',
+          country: 'UY',
+          timezone: 'America/Montevideo',
+          currency: 'USD',
+          logoUrl: `${appPublicUrl}/flikker-mark-white.svg`,
+          primaryColor: '#5C6BC0',
+          defaultReviewRedirectUrl: buildGoogleReviewUrl('demo-flikker'),
+          googleBusinessProfileUrl:
+            'https://www.google.com/maps/place/?q=place_id:demo-flikker',
+          whatsappUrl: 'https://wa.me/59899123456',
+          messageQuotaMonthly: 600,
+          messageCountCurrentMonth: 0,
+        },
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          logoUrl: true,
+          status: true,
+          vertical: true,
+          timezone: true,
+          country: true,
+        },
+      });
+
+      await tx.subscription.upsert({
+        where: { businessId: business.id },
+        update: {
+          planId: plan.id,
+          status: SubscriptionStatus.ACTIVE,
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+        },
+        create: {
+          businessId: business.id,
+          planId: plan.id,
+          status: SubscriptionStatus.ACTIVE,
+          currentPeriodStart: now,
+          currentPeriodEnd: periodEnd,
+        },
+      });
+
+      for (const customer of DEMO_CUSTOMERS) {
+        const existing = await tx.customer.findFirst({
+          where: { businessId: business.id, phoneE164: customer.phoneE164 },
+          select: { id: true },
+        });
+
+        if (existing) {
+          await tx.customer.update({
+            where: { id: existing.id },
+            data: {
+              name: customer.name,
+              birthday: customer.birthday,
+              isActive: true,
+            },
+          });
+        } else {
+          await tx.customer.create({
+            data: {
+              businessId: business.id,
+              name: customer.name,
+              phoneE164: customer.phoneE164,
+              birthday: customer.birthday,
+              isActive: true,
+            },
+          });
+        }
+      }
+
+      for (const campaign of DEMO_CAMPAIGNS) {
+        await tx.campaign.upsert({
+          where: {
+            businessId_slug: {
+              businessId: business.id,
+              slug: campaign.slug,
+            },
+          },
+          update: {
+            name: campaign.name,
+            description: campaign.description,
+            channel: CampaignChannel.WHATSAPP,
+            templateKind: campaign.templateKind,
+            triggerOffsetDays: campaign.triggerOffsetDays,
+            messageBody: campaign.messageBody,
+            offerText: campaign.offerText,
+            status: CampaignStatus.ACTIVE,
+            destinationType: DestinationType.GOOGLE_REVIEW,
+            destinationUrl: buildGoogleReviewUrl('demo-flikker'),
+            enableLanding: true,
+          },
+          create: {
+            businessId: business.id,
+            createdByUserId: adminId,
+            name: campaign.name,
+            slug: campaign.slug,
+            description: campaign.description,
+            channel: CampaignChannel.WHATSAPP,
+            templateKind: campaign.templateKind,
+            triggerOffsetDays: campaign.triggerOffsetDays,
+            messageBody: campaign.messageBody,
+            offerText: campaign.offerText,
+            status: CampaignStatus.ACTIVE,
+            destinationType: DestinationType.GOOGLE_REVIEW,
+            destinationUrl: buildGoogleReviewUrl('demo-flikker'),
+            enableLanding: true,
+          },
+        });
+      }
+
+      for (const review of DEMO_REVIEWS) {
+        await tx.googleReview.upsert({
+          where: {
+            businessId_googleReviewId: {
+              businessId: business.id,
+              googleReviewId: review.googleReviewId,
+            },
+          },
+          update: {
+            reviewerName: review.reviewerName,
+            stars: review.stars,
+            text: review.text,
+            postedAt: review.postedAt,
+          },
+          create: {
+            businessId: business.id,
+            googleReviewId: review.googleReviewId,
+            reviewerName: review.reviewerName,
+            stars: review.stars,
+            text: review.text,
+            postedAt: review.postedAt,
+          },
+        });
+      }
+
+      for (const mode of [
+        WidgetMode.toast,
+        WidgetMode.carousel,
+        WidgetMode.grid,
+      ]) {
+        const existingWidget = await tx.widget.findFirst({
+          where: { businessId: business.id, mode },
+          select: { id: true },
+        });
+        const widgetData = {
+          name:
+            mode === WidgetMode.toast
+              ? 'Demo Toast'
+              : mode === WidgetMode.carousel
+                ? 'Demo Carrusel'
+                : 'Demo Grid',
+          status: WidgetStatus.ACTIVE,
+          type: WidgetType.REVIEW_LIST,
+          mode,
+          position: WidgetPosition.bottom_right,
+          title: 'Reseñas de pacientes',
+          maxItems: 6,
+          minStars: 4,
+          maxReviewsShown: 6,
+          primaryColor: '#5C6BC0',
+          rotationSeconds: 10,
+          enabled: true,
+          showAuthorName: true,
+          showDate: true,
+        };
+
+        if (existingWidget) {
+          await tx.widget.update({
+            where: { id: existingWidget.id },
+            data: widgetData,
+          });
+        } else {
+          await tx.widget.create({
+            data: {
+              businessId: business.id,
+              publicToken: randomBytes(16).toString('hex'),
+              ...widgetData,
+            },
+          });
+        }
+      }
+
+      return business;
+    });
+  }
+
   private async assertBusinessExists(businessId: string) {
     const business = await this.repository.findBusinessById(businessId);
     if (!business) throw new NotFoundException('Business not found');
@@ -525,4 +859,143 @@ function buildGoogleReviewUrl(placeId: string) {
 
 function generateTemporaryPassword() {
   return `Flk-${randomBytes(9).toString('base64url')}-1a`;
+}
+
+const DEMO_CUSTOMERS = [
+  {
+    name: 'Camila Fernández',
+    phoneE164: '+59899123111',
+    birthday: new Date('1991-04-12T12:00:00.000Z'),
+  },
+  {
+    name: 'Diego Pereira',
+    phoneE164: '+59898234222',
+    birthday: new Date('1988-08-22T12:00:00.000Z'),
+  },
+  {
+    name: 'Sofía Bentancur',
+    phoneE164: '+59899345333',
+    birthday: new Date('1995-11-03T12:00:00.000Z'),
+  },
+  {
+    name: 'Martín Suárez',
+    phoneE164: '+59898456444',
+    birthday: null,
+  },
+  {
+    name: 'Valentina Ríos',
+    phoneE164: '+59899567555',
+    birthday: new Date('1992-01-30T12:00:00.000Z'),
+  },
+  {
+    name: 'Federico Lamas',
+    phoneE164: '+59898678666',
+    birthday: null,
+  },
+  {
+    name: 'Agustina Vázquez',
+    phoneE164: '+59899789777',
+    birthday: new Date('1986-06-18T12:00:00.000Z'),
+  },
+  {
+    name: 'Nicolás Bidegain',
+    phoneE164: '+59898890888',
+    birthday: new Date('1990-09-09T12:00:00.000Z'),
+  },
+];
+
+const DEMO_CAMPAIGNS = [
+  {
+    name: 'Repeat: post-servicio',
+    slug: 'repeat-post-servicio-demo',
+    description: 'Mensaje automático luego de la atención.',
+    templateKind: CampaignTemplateKind.post_service,
+    triggerOffsetDays: 0,
+    messageBody:
+      'Hola {nombre}, gracias por venir a {clinica}. Nos ayuda mucho saber cómo fue tu experiencia: {link_resena} ❤️',
+    offerText: null,
+  },
+  {
+    name: 'Repeat: reactivación',
+    slug: 'repeat-reactivacion-demo',
+    description: 'Para pacientes que no vinieron en más de 6 meses.',
+    templateKind: CampaignTemplateKind.reactivation,
+    triggerOffsetDays: 180,
+    messageBody:
+      'Hola {nombre}, te extrañamos en {clinica}. Si querés volver esta semana, tenemos esta propuesta para vos: {oferta}',
+    offerText: '10% de descuento en limpieza dental',
+  },
+  {
+    name: 'Repeat: cumpleaños',
+    slug: 'repeat-cumpleanos-demo',
+    description: 'Saludo automático para pacientes con fecha de nacimiento.',
+    templateKind: CampaignTemplateKind.birthday,
+    triggerOffsetDays: 0,
+    messageBody:
+      '¡Feliz cumpleaños, {nombre}! De parte de {clinica}, te mandamos un abrazo grande y este beneficio: {oferta}',
+    offerText: 'consulta de control sin costo durante tu mes',
+  },
+];
+
+const DEMO_REVIEWS = [
+  {
+    googleReviewId: 'demo-review-01',
+    reviewerName: 'Aleli Rocha',
+    stars: 5,
+    text: 'Excelente atención y muy buena explicación del tratamiento.',
+    postedAt: daysAgoDate(9),
+  },
+  {
+    googleReviewId: 'demo-review-02',
+    reviewerName: 'Mariana P.',
+    stars: 5,
+    text: 'Me sentí muy cómoda. El equipo fue puntual y amable.',
+    postedAt: daysAgoDate(16),
+  },
+  {
+    googleReviewId: 'demo-review-03',
+    reviewerName: 'Joaquín R.',
+    stars: 4,
+    text: 'Muy buena experiencia, agenda simple y trato claro.',
+    postedAt: daysAgoDate(24),
+  },
+  {
+    googleReviewId: 'demo-review-04',
+    reviewerName: 'Lucía M.',
+    stars: 5,
+    text: 'La doctora fue muy cuidadosa. Recomiendo la clínica.',
+    postedAt: daysAgoDate(32),
+  },
+  {
+    googleReviewId: 'demo-review-05',
+    reviewerName: 'Martín Silva',
+    stars: 5,
+    text: 'Servicio impecable y el recordatorio por WhatsApp me ayudó mucho.',
+    postedAt: daysAgoDate(41),
+  },
+  {
+    googleReviewId: 'demo-review-06',
+    reviewerName: 'Camila Fernández',
+    stars: 4,
+    text: 'Muy conforme con la limpieza y la atención del equipo.',
+    postedAt: daysAgoDate(52),
+  },
+  {
+    googleReviewId: 'demo-review-07',
+    reviewerName: 'Federico L.',
+    stars: 5,
+    text: 'Rápidos, claros y con buena disponibilidad.',
+    postedAt: daysAgoDate(66),
+  },
+  {
+    googleReviewId: 'demo-review-08',
+    reviewerName: 'Sofía B.',
+    stars: 5,
+    text: 'Me explicaron todo antes de empezar. Muy recomendable.',
+    postedAt: daysAgoDate(78),
+  },
+];
+
+function daysAgoDate(days: number) {
+  return new Date(Date.now() - days * 86_400_000);
 }

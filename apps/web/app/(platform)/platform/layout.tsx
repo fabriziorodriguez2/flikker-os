@@ -1,6 +1,7 @@
 import { getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import SessionExpiryHandler from "@/components/auth/session-expiry-handler";
 import PlatformLogoutButton from "./platform-logout-button";
 
@@ -36,6 +37,12 @@ export default async function PlatformLayout({
           </div>
 
           <div className="flex items-center gap-3">
+            <Link
+              href="/platform/test-lab"
+              className="hidden h-9 items-center justify-center rounded-lg border border-[#DCE2F0]/20 px-4 text-sm font-semibold text-[#DCE2F0] transition-colors hover:bg-white/10 hover:text-white sm:inline-flex"
+            >
+              Test Lab
+            </Link>
             <span className="hidden text-sm font-semibold text-[#DCE2F0] sm:inline">
               {fullName || session.user.email}
             </span>

@@ -10,6 +10,7 @@ import { CreateWidgetDto } from './dto/create-widget.dto';
 import { CreateWidgetEventDto } from './dto/create-widget-event.dto';
 import { UpdateWidgetDto } from './dto/update-widget.dto';
 import { UpdateWidgetStatusDto } from './dto/update-widget-status.dto';
+import { DEMO_BUSINESS_SLUG } from '../../config/demo';
 
 const API_BASE_URL =
   process.env.API_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
@@ -197,6 +198,16 @@ export class WidgetsService {
         reviewedAt: review.postedAt,
       })),
     };
+  }
+
+  async getDemoBusinessForWidgetPreview() {
+    const business =
+      await this.widgetsRepository.findPublicBusinessBySlug(DEMO_BUSINESS_SLUG);
+    if (!business) {
+      throw new NotFoundException('Demo business not found');
+    }
+
+    return business;
   }
 
   trackPublicEvent(businessId: string, dto: CreateWidgetEventDto) {

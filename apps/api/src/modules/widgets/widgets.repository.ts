@@ -19,6 +19,23 @@ export class WidgetsRepository {
     });
   }
 
+  findPublicBusinessBySlug(slug: string) {
+    return this.prisma.business.findFirst({
+      where: {
+        slug,
+        isActive: true,
+        status: { not: 'ARCHIVED' },
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        logoUrl: true,
+        primaryColor: true,
+      },
+    });
+  }
+
   findOne(businessId: string, widgetId: string) {
     return this.prisma.widget.findFirst({
       where: { id: widgetId, businessId },

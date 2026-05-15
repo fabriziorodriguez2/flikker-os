@@ -529,9 +529,16 @@ export default function TestLabClient({
     <div className="mx-auto max-w-4xl space-y-8">
       {/* Header */}
       <div>
-        <h1 className="font-display text-[24px] font-bold text-[#1A202C]">
-          Panel de pruebas
-        </h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <h1 className="font-display text-[24px] font-bold text-[#1A202C]">
+            Panel de pruebas
+          </h1>
+          {business.slug === "clinica-demo-flikker" ? (
+            <span className="rounded-full bg-[#EEF0FB] px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#5C6BC0]">
+              Modo demo
+            </span>
+          ) : null}
+        </div>
         <p className="mt-1.5 text-sm text-[#8891A4]">
           Probá campañas, mensajes, landing y widget antes de mostrárselo a un
           cliente.
