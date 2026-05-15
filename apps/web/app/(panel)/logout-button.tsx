@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
+import { LogOut } from 'lucide-react';
 
 export default function LogoutButton() {
   const router = useRouter();
@@ -30,7 +31,7 @@ export default function LogoutButton() {
   }
 
   const modal = open ? (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[color:rgba(10,14,35,0.26)] px-4 backdrop-blur-[2px]">
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0D1B2A]/45 px-4 backdrop-blur-[3px]">
       <button
         type="button"
         aria-label="Cerrar confirmación"
@@ -38,25 +39,34 @@ export default function LogoutButton() {
         className="absolute inset-0"
       />
       <div
-        className="flikker-glass-tooltip relative z-10 w-full max-w-sm rounded-[24px] p-5"
+        className="relative z-10 w-full max-w-[420px] rounded-[12px] border border-[#E8EAF0] bg-white p-6 shadow-[0_24px_70px_rgba(13,27,42,0.22)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="logout-dialog-title"
       >
-        <p
-          id="logout-dialog-title"
-          className="text-base font-semibold text-[color:var(--foreground)]"
-        >
-          ¿Seguro que querés salir?
-        </p>
-        <p className="mt-2 text-sm leading-6 text-[color:var(--text-muted)]">
-          Vas a cerrar la sesión actual.
-        </p>
-        <div className="mt-5 flex justify-end gap-2">
+        <div className="flex items-start gap-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[10px] bg-[#F5F6FA] text-[#0D1B2A]">
+            <LogOut className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <div>
+            <p
+              id="logout-dialog-title"
+              className="text-base font-bold text-[#1A202C]"
+            >
+              ¿Seguro que querés salir?
+            </p>
+            <p className="mt-2 text-sm leading-6 text-[#8891A4]">
+              Vas a cerrar la sesión actual.
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
           <button
             type="button"
             onClick={() => setOpen(false)}
-            className="rounded-[12px] border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-xs font-semibold text-[color:var(--text-muted)]"
+            disabled={loading}
+            className="inline-flex h-10 items-center justify-center rounded-[8px] border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] transition-colors hover:bg-[#F5F6FA] disabled:opacity-60"
           >
             Cancelar
           </button>
@@ -64,7 +74,7 @@ export default function LogoutButton() {
             type="button"
             onClick={() => void handleLogout()}
             disabled={loading}
-            className="rounded-[12px] bg-[color:var(--danger-text)] px-3 py-2 text-xs font-semibold text-white disabled:opacity-60"
+            className="inline-flex h-10 items-center justify-center rounded-[8px] bg-[#0D1B2A] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#16263A] disabled:opacity-60"
           >
             {loading ? 'Saliendo...' : 'Salir'}
           </button>
@@ -82,7 +92,9 @@ export default function LogoutButton() {
       >
         Salir
       </button>
-      {typeof document !== 'undefined' && modal ? createPortal(modal, document.body) : null}
+      {typeof document !== 'undefined' && modal
+        ? createPortal(modal, document.body)
+        : null}
     </>
   );
 }
