@@ -24,16 +24,31 @@ function CampaignIcon({ kind }: { kind: string | null }) {
   return <Clock3 className={cls} />;
 }
 
+function titleFor(c: RepeatCampaign) {
+  if (c.templateKind === "post_service") return "Repeat: post-servicio";
+  return c.name;
+}
+
 function descriptionFor(c: RepeatCampaign) {
-  if (c.templateKind === "birthday") return "Se envía el día del cumpleaños del paciente.";
-  if (c.templateKind === "reactivation") return "Para pacientes que no vinieron en más de 6 meses.";
-  if (c.templateKind === "post_service") return "Mensaje automático luego de la atención.";
+  if (c.templateKind === "birthday") {
+    return "Se envía el día del cumpleaños del paciente.";
+  }
+  if (c.templateKind === "reactivation") {
+    return "Para pacientes que no vinieron en más de 6 meses.";
+  }
+  if (c.templateKind === "post_service") {
+    return "Mensaje automático luego de la atención.";
+  }
   return c.description ?? "Campaña automática.";
 }
 
 function metadataFor(c: RepeatCampaign) {
-  if (c.templateKind === "birthday") return "WhatsApp · 09:00 hora local · texto editable";
-  if (c.templateKind === "reactivation") return "WhatsApp · primer martes de cada mes · 10:00";
+  if (c.templateKind === "birthday") {
+    return "WhatsApp · 09:00 hora local · texto editable";
+  }
+  if (c.templateKind === "reactivation") {
+    return "WhatsApp · primer martes de cada mes · 10:00";
+  }
   return "WhatsApp · 30 minutos después de atendido · pacientes con consentimiento";
 }
 
@@ -77,7 +92,10 @@ export default function RepeatCampaignsSection({
         setCampaigns((prev) =>
           prev.map((c) => (c.id === id ? { ...c, status: campaign.status } : c)),
         );
-        setErrors((prev) => ({ ...prev, [id]: "No se pudo guardar el cambio." }));
+        setErrors((prev) => ({
+          ...prev,
+          [id]: "No se pudo guardar el cambio.",
+        }));
       }
     } catch {
       setCampaigns((prev) =>
@@ -97,7 +115,9 @@ export default function RepeatCampaignsSection({
     <section className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h2 className="text-base font-bold text-[#1A202C]">Campañas automáticas</h2>
+          <h2 className="text-base font-bold text-[#1A202C]">
+            Campañas automáticas
+          </h2>
           <p className="mt-1 text-sm text-[#8891A4]">
             Las 3 campañas Repeat vienen pre-armadas. Activá o pausá cuando quieras.
           </p>
@@ -111,22 +131,26 @@ export default function RepeatCampaignsSection({
         {campaigns.map((campaign) => (
           <article
             key={campaign.id}
-            className="flex flex-wrap items-center gap-4 rounded-[12px] border border-[#E8EAF0] bg-white p-4"
+            className="grid items-center gap-4 rounded-[12px] border border-[#E8EAF0] bg-white p-4 lg:grid-cols-[40px_minmax(0,1fr)_1px_156px_44px_88px]"
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-[#EEF0FB] text-[#5C6BC0]">
               <CampaignIcon kind={campaign.templateKind} />
             </div>
 
-            <div className="min-w-[240px] flex-1">
+            <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h3 className="text-sm font-bold text-[#1A202C]">{campaign.name}</h3>
+                <h3 className="text-sm font-bold text-[#1A202C]">
+                  {titleFor(campaign)}
+                </h3>
                 <span
                   className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusBadgeClass(campaign.status)}`}
                 >
                   {campaign.status === "ACTIVE" ? "activa" : "inactiva"}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-[#8891A4]">{descriptionFor(campaign)}</p>
+              <p className="mt-1 text-sm text-[#8891A4]">
+                {descriptionFor(campaign)}
+              </p>
               <p className="mt-1 text-[11px] font-medium text-[#8891A4]">
                 {metadataFor(campaign)}
               </p>
@@ -152,7 +176,6 @@ export default function RepeatCampaignsSection({
                 <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
                   Reseñas
                 </p>
-                {/* respondedTotal = CampaignExecutions with status=responded (inbound reply detected) */}
                 <p className="mt-1 text-lg font-bold text-[#639922]">
                   {campaign.respondedTotal}
                 </p>
@@ -165,17 +188,19 @@ export default function RepeatCampaignsSection({
               onToggle={() => void toggleCampaign(campaign.id)}
             />
 
-            {campaign.templateKind !== "post_service" ? (
-              <Link
-                href={`/dashboard/campaigns/${campaign.id}`}
-                className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#E8EAF0] px-3 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]"
-              >
-                <Edit2 className="h-4 w-4" />
-                Editar
-              </Link>
-            ) : (
-              <div className="h-9 w-[80px]" />
-            )}
+            <div className="flex justify-end">
+              {campaign.templateKind !== "post_service" ? (
+                <Link
+                  href={`/dashboard/campaigns/${campaign.id}`}
+                  className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#E8EAF0] px-3 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]"
+                >
+                  <Edit2 className="h-4 w-4" />
+                  Editar
+                </Link>
+              ) : (
+                <span className="h-9 w-[88px]" aria-hidden="true" />
+              )}
+            </div>
           </article>
         ))}
       </div>

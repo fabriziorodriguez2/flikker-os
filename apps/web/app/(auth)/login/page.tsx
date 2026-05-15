@@ -1,12 +1,21 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 
 export default function LoginPage() {
+  return (
+    <Suspense>
+      <LoginPageContent />
+    </Suspense>
+  );
+}
+
+function LoginPageContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -60,6 +69,12 @@ export default function LoginPage() {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {searchParams.get("reason") === "session_expired" ? (
+            <div className="rounded-lg border border-[#E8EAF0] bg-[#F5F6FA] px-4 py-3 text-sm text-[#5A6679]">
+              Tu sesión expiró. Iniciá sesión de nuevo.
+            </div>
+          ) : null}
+
           <div>
             <label
               htmlFor="email"

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Switch from "@/components/ui/switch";
 
 interface CampaignEditFormProps {
   campaign: {
@@ -179,19 +180,11 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
                   {active ? "Activa" : "Inactiva"}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => setActive((value) => !value)}
-                className={`relative h-6 w-11 rounded-full transition-colors ${
-                  active ? "bg-[#639922]" : "bg-[#D2D8E5]"
-                }`}
-              >
-                <span
-                  className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${
-                    active ? "translate-x-[22px]" : "translate-x-1"
-                  }`}
-                />
-              </button>
+              <Switch
+                checked={active}
+                onCheckedChange={() => setActive((value) => !value)}
+                label={active ? "Desactivar campaña" : "Activar campaña"}
+              />
             </div>
           </div>
 

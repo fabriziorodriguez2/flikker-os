@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, ChevronLeft, ChevronRight } from "lucide-react";
+import Switch from "@/components/ui/switch";
 import type { Widget } from "@/components/widgets/types";
 
 interface Business {
@@ -36,7 +37,10 @@ const POSITION_OPTIONS = [
 const STAR_OPTIONS = [1, 2, 3, 4, 5] as const;
 
 function daysAgo(value: string) {
-  const days = Math.max(0, Math.round((Date.now() - new Date(value).getTime()) / 86400000));
+  const days = Math.max(
+    0,
+    Math.round((Date.now() - new Date(value).getTime()) / 86400000),
+  );
   if (days === 0) return "hoy";
   if (days === 1) return "hace 1 día";
   if (days < 30) return `hace ${days} días`;
@@ -46,9 +50,48 @@ function daysAgo(value: string) {
   return `hace ${years} año${years > 1 ? "s" : ""}`;
 }
 
-function buildSnippet(businessId: string, mode: string, minStars: number, color: string, position: string) {
-  if (typeof window === "undefined") return "";
-  return `<script async\n  src="${window.location.origin}/widget.js"\n  data-business="${businessId}"\n  data-mode="${mode}"\n  data-min-stars="${minStars}"\n  data-color="${color}"\n  data-position="${position}">\n</script>`;
+function initial(name: string | null) {
+  if (!name) return "?";
+  const parts = name.trim().split(/\s+/);
+  return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
+}
+
+function StarRow({ rating }: { rating: number }) {
+  return (
+    <span className="text-xs text-amber-400">
+      {Array.from({ length: 5 }, (_, i) => (i < rating ? "★" : "☆")).join("")}
+    </span>
+  );
+}
+
+function Avatar({
+  name,
+  color,
+  size = "md",
+}: {
+  name: string | null;
+  color: string;
+  size?: "sm" | "md";
+}) {
+  const dim = size === "sm" ? "h-8 w-8 text-xs" : "h-10 w-10 text-sm";
+  return (
+    <div
+      className={`${dim} flex shrink-0 items-center justify-center rounded-full font-bold text-white`}
+      style={{ backgroundColor: color }}
+    >
+      {initial(name)}
+    </div>
+  );
+}
+
+function EmptyState({ minStars }: { minStars: number }) {
+  return (
+    <div className="flex min-h-[180px] items-center justify-center rounded-[12px] bg-[#F5F6FA] p-6 text-center">
+      <p className="text-sm text-[#8891A4]">
+        No hay reseñas con {minStars}★ o más todavía.
+      </p>
+    </div>
+  );
 }
 
 function ToastPreview({
@@ -64,12 +107,14 @@ function ToastPreview({
 }) {
   return (
     <div className="relative min-h-[220px] overflow-hidden rounded-[12px] bg-[#F5F6FA]">
-      <div
-        className={`absolute bottom-4 w-[min(300px,calc(100%-24px))] ${
-          position === "bottom_left" ? "left-3" : "right-3"
-        }`}
-      >
-        {review ? (
+      {!review ? (
+        <EmptyState minStars={minStars} />
+      ) : (
+        <div
+          className={`absolute bottom-4 w-[min(300px,calc(100%-24px))] ${
+            position === "bottom_left" ? "left-3" : "right-3"
+          }`}
+        >
           <article className="relative grid grid-cols-[40px_1fr] gap-2.5 rounded-[16px] border border-[rgba(93,104,135,0.18)] bg-[#e8eefb] py-4 pl-4 pr-10 shadow-[0_12px_32px_rgba(5,12,35,0.18)]">
             <button
               type="button"
@@ -79,29 +124,206 @@ function ToastPreview({
               ×
             </button>
             <div
-              className="flex h-[36px] w-[36px] items-center justify-center rounded-[9px] text-lg font-extrabold text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.22)]"
+              className="flex h-[36px] w-[36px] items-center justify-center rounded-[9px] text-lg font-extrabold text-white"
               style={{ backgroundColor: color }}
             >
               ★
             </div>
             <div className="min-w-0">
               <p className="text-[13px] font-extrabold leading-tight text-[#10183d]">
-                {review.authorDisplayName ?? "Alguien"} nos dejó {review.rating} estrellas
+                {review.authorDisplayName ?? "Alguien"} nos dejó{" "}
+                {review.rating} estrellas
               </p>
               <p className="mt-1.5 text-[12px] font-bold text-[#ff9f1c]">
-                {"★".repeat(review.rating)}{"☆".repeat(5 - review.rating)}
+                {"★".repeat(review.rating)}
+                {"☆".repeat(5 - review.rating)}
               </p>
               <p className="mt-1 truncate text-[11px] font-medium text-[#69718f]">
-                {daysAgo(review.reviewedAt)} · Con tecnología de Flikker
+                {daysAgo(review.reviewedAt)} · Powered by Flikker
               </p>
             </div>
           </article>
-        ) : (
-          <div className="rounded-[16px] border border-dashed border-[#E8EAF0] bg-white p-4 text-xs text-[#8891A4]">
-            No hay reseñas con {minStars}★ o más todavía.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CarouselPreview({
+  reviews,
+  color,
+  minStars,
+}: {
+  reviews: PreviewReview[];
+  color: string;
+  minStars: number;
+}) {
+  const [idx, setIdx] = useState(0);
+
+  if (!reviews.length) return <EmptyState minStars={minStars} />;
+
+  const total = reviews.length;
+  const review = reviews[idx];
+
+  return (
+    <div className="rounded-[12px] bg-[#F5F6FA] p-4">
+      <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-4 shadow-sm">
+        <div className="flex items-start gap-3">
+          <Avatar name={review.authorDisplayName} color={color} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-bold text-[#1A202C]">
+              {review.authorDisplayName ?? "Anónimo"}
+            </p>
+            <StarRow rating={review.rating ?? 5} />
           </div>
+        </div>
+        {review.content && (
+          <p className="mt-3 line-clamp-4 text-[13px] leading-relaxed text-[#4A5568]">
+            {review.content}
+          </p>
         )}
+        <p className="mt-2 text-[11px] text-[#A0AEC0]">
+          {daysAgo(review.reviewedAt)}
+        </p>
       </div>
+
+      {total > 1 && (
+        <div className="mt-3 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => setIdx((i) => Math.max(0, i - 1))}
+            disabled={idx === 0}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-[#E8EAF0] bg-white text-[#718096] disabled:opacity-30 hover:border-current"
+            style={{ color: idx === 0 ? undefined : color }}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
+
+          <div className="flex gap-1.5">
+            {reviews.map((_, i) => (
+              <div
+                key={i}
+                className="h-1.5 rounded-full transition-all duration-200"
+                style={{
+                  width: i === idx ? "16px" : "6px",
+                  backgroundColor: i === idx ? color : "#E2E8F0",
+                }}
+              />
+            ))}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setIdx((i) => Math.min(total - 1, i + 1))}
+            disabled={idx === total - 1}
+            className="flex h-8 w-8 items-center justify-center rounded-full border border-[#E8EAF0] bg-white text-[#718096] disabled:opacity-30 hover:border-current"
+            style={{ color: idx === total - 1 ? undefined : color }}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      <p className="mt-2 text-center text-[10px] text-[#CBD5E0]">
+        Con tecnología de Flikker
+      </p>
+    </div>
+  );
+}
+
+function GridPreview({
+  reviews,
+  color,
+  minStars,
+}: {
+  reviews: PreviewReview[];
+  color: string;
+  minStars: number;
+}) {
+  if (!reviews.length) return <EmptyState minStars={minStars} />;
+
+  const shown = reviews.slice(0, 6);
+
+  return (
+    <div className="rounded-[12px] bg-[#F5F6FA] p-4">
+      <div className="grid grid-cols-2 gap-2.5">
+        {shown.map((review, i) => (
+          <div
+            key={i}
+            className="flex flex-col gap-2 rounded-[10px] border border-[#E8EAF0] bg-white p-3"
+          >
+            <div className="flex items-center gap-2">
+              <Avatar name={review.authorDisplayName} color={color} size="sm" />
+              <p className="min-w-0 flex-1 truncate text-xs font-bold text-[#1A202C]">
+                {review.authorDisplayName ?? "Anónimo"}
+              </p>
+            </div>
+            <StarRow rating={review.rating ?? 5} />
+            {review.content && (
+              <p className="line-clamp-3 text-[11px] leading-relaxed text-[#4A5568]">
+                {review.content}
+              </p>
+            )}
+            <p className="mt-auto text-[10px] text-[#A0AEC0]">
+              {daysAgo(review.reviewedAt)}
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-2 text-right text-[10px] text-[#CBD5E0]">
+        Con tecnología de Flikker
+      </p>
+    </div>
+  );
+}
+
+function buildSnippet(
+  businessId: string,
+  mode: string,
+  minStars: number,
+  color: string,
+  position: string,
+) {
+  if (typeof window === "undefined") return "";
+  const base = window.location.origin;
+  const lines = [
+    `<script async`,
+    `  src="${base}/widget.js"`,
+    `  data-business="${businessId}"`,
+    `  data-mode="${mode}"`,
+    `  data-min-stars="${minStars}"`,
+    `  data-color="${color}"`,
+    ...(mode === "toast" ? [`  data-position="${position}"`] : []),
+    `></script>`,
+  ];
+  return lines.join("\n");
+}
+
+function SegmentedButtons<T extends string>({
+  options,
+  value,
+  onChange,
+}: {
+  options: readonly { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+}) {
+  return (
+    <div className="inline-flex overflow-hidden rounded-[8px] border border-[#E8EAF0] text-xs font-semibold">
+      {options.map((opt, i) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => onChange(opt.value)}
+          className={`px-3 py-2 transition-colors ${i > 0 ? "border-l border-[#E8EAF0]" : ""} ${
+            value === opt.value
+              ? "bg-[#5C6BC0] text-white"
+              : "bg-white text-[#8891A4] hover:bg-[#F5F6FA]"
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -130,7 +352,10 @@ export default function WidgetsPage() {
   const isActive = activeWidget?.status === "ACTIVE";
 
   const snippet = useMemo(
-    () => (business ? buildSnippet(business.id, mode, minStars, color, position) : ""),
+    () =>
+      business
+        ? buildSnippet(business.id, mode, minStars, color, position)
+        : "",
     [business, mode, minStars, color, position],
   );
 
@@ -163,7 +388,9 @@ export default function WidgetsPage() {
   const loadPreview = useCallback(async (stars: number) => {
     setPreviewLoading(true);
     try {
-      const res = await fetch(`/api/proxy/widgets/preview/reviews?minStars=${stars}`);
+      const res = await fetch(
+        `/api/proxy/widgets/preview/reviews?minStars=${stars}`,
+      );
       if (!res.ok) throw new Error("No se pudo cargar la vista previa");
       setPreview((await res.json()) as PreviewPayload);
     } finally {
@@ -185,7 +412,9 @@ export default function WidgetsPage() {
     setError(null);
     setSaved(false);
     try {
-      const path = activeWidget ? `/api/proxy/widgets/${activeWidget.id}` : "/api/proxy/widgets";
+      const path = activeWidget
+        ? `/api/proxy/widgets/${activeWidget.id}`
+        : "/api/proxy/widgets";
       const res = await fetch(path, {
         method: activeWidget ? "PATCH" : "POST",
         headers: { "Content-Type": "application/json" },
@@ -204,7 +433,9 @@ export default function WidgetsPage() {
         }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { message?: string };
+        const data = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
         throw new Error(data.message ?? "No se pudo guardar el widget");
       }
       setSaved(true);
@@ -227,7 +458,9 @@ export default function WidgetsPage() {
         body: JSON.stringify({ status: isActive ? "INACTIVE" : "ACTIVE" }),
       });
       if (!res.ok) {
-        const data = await res.json().catch(() => ({})) as { message?: string };
+        const data = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
         throw new Error(data.message ?? "No se pudo actualizar estado");
       }
       await loadPage();
@@ -243,35 +476,6 @@ export default function WidgetsPage() {
     await navigator.clipboard.writeText(snippet);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
-  }
-
-  function SegmentedButtons<T extends string>({
-    options,
-    value,
-    onChange,
-  }: {
-    options: readonly { value: T; label: string }[];
-    value: T;
-    onChange: (v: T) => void;
-  }) {
-    return (
-      <div className="inline-flex overflow-hidden rounded-[8px] border border-[#E8EAF0] text-xs font-semibold">
-        {options.map((opt, i) => (
-          <button
-            key={opt.value}
-            type="button"
-            onClick={() => onChange(opt.value)}
-            className={`px-3 py-2 transition-colors ${i > 0 ? "border-l border-[#E8EAF0]" : ""} ${
-              value === opt.value
-                ? "bg-[#5C6BC0] text-white"
-                : "bg-white text-[#8891A4] hover:bg-[#F5F6FA]"
-            }`}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
-    );
   }
 
   return (
@@ -292,31 +496,24 @@ export default function WidgetsPage() {
         <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
           {/* Config card */}
           <section className="rounded-[12px] border border-[#E8EAF0] bg-white">
-            {/* Toggle row */}
+            {/* Mostrar widget toggle */}
             <div className="flex items-center justify-between border-b border-[#E8EAF0] px-5 py-4">
               <div>
-                <p className="text-sm font-bold text-[#1A202C]">Mostrar widget</p>
+                <p className="text-sm font-bold text-[#1A202C]">
+                  Mostrar widget
+                </p>
                 <p className="mt-0.5 text-xs text-[#8891A4]">
                   {isActive
                     ? "El widget está visible en tu sitio."
                     : "El widget está oculto."}
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={() => void toggleStatus()}
+              <Switch
+                checked={isActive}
+                onCheckedChange={() => void toggleStatus()}
                 disabled={togglingStatus || !activeWidget}
-                aria-pressed={isActive}
-                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
-                  isActive ? "bg-[#639922]" : "bg-[#D2D8E5]"
-                }`}
-              >
-                <span
-                  className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
-                    isActive ? "translate-x-[22px]" : "translate-x-1"
-                  }`}
-                />
-              </button>
+                label={isActive ? "Desactivar widget" : "Activar widget"}
+              />
             </div>
 
             {/* Form */}
@@ -332,16 +529,20 @@ export default function WidgetsPage() {
                 />
               </div>
 
-              <div>
-                <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-[#8891A4]">
-                  Posición
-                </p>
-                <SegmentedButtons
-                  options={POSITION_OPTIONS}
-                  value={position as (typeof POSITION_OPTIONS)[number]["value"]}
-                  onChange={(v) => setPosition(v)}
-                />
-              </div>
+              {mode === "toast" && (
+                <div>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+                    Posición
+                  </p>
+                  <SegmentedButtons
+                    options={POSITION_OPTIONS}
+                    value={
+                      position as (typeof POSITION_OPTIONS)[number]["value"]
+                    }
+                    onChange={(v) => setPosition(v)}
+                  />
+                </div>
+              )}
 
               <div>
                 <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-[#8891A4]">
@@ -376,7 +577,9 @@ export default function WidgetsPage() {
                     onChange={(e) => setColor(e.target.value)}
                     className="h-10 w-10 cursor-pointer rounded-[8px] border border-[#E8EAF0] p-0.5"
                   />
-                  <span className="font-mono text-sm text-[#1A202C]">{color}</span>
+                  <span className="font-mono text-sm text-[#1A202C]">
+                    {color}
+                  </span>
                 </div>
               </div>
 
@@ -397,7 +600,9 @@ export default function WidgetsPage() {
             {/* Preview card */}
             <section className="rounded-[12px] border border-[#E8EAF0] bg-white">
               <div className="border-b border-[#E8EAF0] px-5 py-4">
-                <h2 className="text-sm font-bold text-[#1A202C]">Vista previa</h2>
+                <h2 className="text-sm font-bold text-[#1A202C]">
+                  Vista previa
+                </h2>
                 <p className="mt-0.5 text-xs text-[#8891A4]">
                   {previewLoading
                     ? "Cargando..."
@@ -407,6 +612,18 @@ export default function WidgetsPage() {
               <div className="p-4">
                 {previewLoading ? (
                   <div className="h-[220px] animate-pulse rounded-[12px] bg-[#F5F6FA]" />
+                ) : mode === "carousel" ? (
+                  <CarouselPreview
+                    reviews={preview?.reviews ?? []}
+                    color={color}
+                    minStars={minStars}
+                  />
+                ) : mode === "grid" ? (
+                  <GridPreview
+                    reviews={preview?.reviews ?? []}
+                    color={color}
+                    minStars={minStars}
+                  />
                 ) : (
                   <ToastPreview
                     review={preview?.reviews[0]}
@@ -422,7 +639,9 @@ export default function WidgetsPage() {
             <section className="rounded-[12px] border border-[#E8EAF0] bg-white">
               <div className="flex items-center justify-between border-b border-[#E8EAF0] px-5 py-4">
                 <div>
-                  <h2 className="text-sm font-bold text-[#1A202C]">Código de instalación</h2>
+                  <h2 className="text-sm font-bold text-[#1A202C]">
+                    Código de instalación
+                  </h2>
                   <p className="mt-0.5 text-xs text-[#8891A4]">
                     Pegá este script en el HTML de tu sitio.
                   </p>

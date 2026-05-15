@@ -5,6 +5,7 @@ import {
   Header,
   Param,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
@@ -22,8 +23,11 @@ export class WidgetsPublicController {
     'Cache-Control',
     'public, max-age=900, s-maxage=1800, stale-while-revalidate=3600',
   )
-  getEmbeddableWidget(@Param('businessId') businessId: string) {
-    return this.widgetsService.getEmbeddableWidgetByBusiness(businessId);
+  getEmbeddableWidget(
+    @Param('businessId') businessId: string,
+    @Query('mode') mode?: string,
+  ) {
+    return this.widgetsService.getEmbeddableWidgetByBusiness(businessId, mode);
   }
 
   @Post('business/:businessId/events')

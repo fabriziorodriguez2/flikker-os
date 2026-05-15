@@ -1,17 +1,22 @@
 const API_URL = process.env.API_URL ?? "http://localhost:3000";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ businessId: string }> },
 ) {
   const { businessId } = await params;
-  const upstream = await fetch(
+  const { searchParams } = new URL(request.url);
+
+  const upstreamUrl = new URL(
     `${API_URL}/public/widgets/business/${encodeURIComponent(businessId)}`,
-    {
-      headers: { Accept: "application/json" },
-      next: { revalidate: 900 },
-    },
   );
+  const mode = searchParams.get("mode");
+  if (mode) upstreamUrl.searchParams.set("mode", mode);
+
+  const upstream = await fetch(upstreamUrl.toString(), {
+    headers: { Accept: "application/json" },
+    next: { revalidate: 900 },
+  });
   const body = await upstream.text();
 
   return new Response(body, {

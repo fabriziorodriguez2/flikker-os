@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api";
+import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import Sidebar from "./sidebar";
@@ -57,7 +57,8 @@ export default async function PanelLayout({
         { businessId: effectiveApiContext.businessId },
       );
     }
-  } catch {
+  } catch (error) {
+    if (isUnauthorizedApiError(error)) redirect("/session-expired");
     currentBusiness = null;
   }
 

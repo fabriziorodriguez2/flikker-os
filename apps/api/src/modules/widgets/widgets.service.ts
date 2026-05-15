@@ -91,12 +91,10 @@ export class WidgetsService {
 
     if (dto.status === WidgetStatus.ACTIVE) {
       const availableReviews =
-        widget.mode === WidgetMode.toast
-          ? await this.widgetsRepository.countDetectedReviewsForWidget(
-              businessId,
-              widget.minStars,
-            )
-          : await this.widgetsRepository.countHighlightedReviews(businessId);
+        await this.widgetsRepository.countDetectedReviewsForWidget(
+          businessId,
+          widget.minStars,
+        );
 
       if (availableReviews === 0) {
         throw new BadRequestException(
@@ -126,7 +124,7 @@ export class WidgetsService {
 
   async getToastPreviewReviews(businessId: string, minStars: number) {
     const safeMinStars = Number.isFinite(minStars)
-      ? Math.min(5, Math.max(4, minStars))
+      ? Math.min(5, Math.max(1, minStars))
       : 4;
     const [aggregate, reviews] = await Promise.all([
       this.widgetsRepository.getDetectedReviewsAggregate(
@@ -155,9 +153,11 @@ export class WidgetsService {
     };
   }
 
-  async getEmbeddableWidgetByBusiness(businessId: string) {
-    const widget =
-      await this.widgetsRepository.findActiveToastByBusinessId(businessId);
+  async getEmbeddableWidgetByBusiness(businessId: string, mode?: string) {
+    const widget = await this.widgetsRepository.findActiveByMode(
+      businessId,
+      mode,
+    );
     if (!widget) throw new NotFoundException();
 
     const [aggregate, reviews] = await Promise.all([

@@ -29,8 +29,8 @@ export default function SessionExpiryHandler() {
     const redirectToLogin = () => {
       if (redirecting) return;
       redirecting = true;
-      router.replace('/session-expired');
-      window.location.replace('/session-expired');
+      router.replace('/login?reason=session_expired');
+      window.location.replace('/login?reason=session_expired');
     };
 
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
