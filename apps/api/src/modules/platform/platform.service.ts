@@ -193,6 +193,18 @@ export class PlatformService {
     };
   }
 
+  async archiveBusiness(adminId: string, businessId: string) {
+    const business = await this.assertBusinessExists(businessId);
+    const archived = await this.repository.archiveBusiness(businessId);
+
+    this.logPlatformWrite(adminId, businessId, 'PLATFORM_BUSINESS_ARCHIVED', {
+      businessName: business.name,
+      businessSlug: business.slug,
+    });
+
+    return archived;
+  }
+
   async getOnboarding(adminId: string, businessId: string) {
     const business = await this.repository.findOnboardingBusiness(businessId);
     if (!business) throw new NotFoundException('Business not found');

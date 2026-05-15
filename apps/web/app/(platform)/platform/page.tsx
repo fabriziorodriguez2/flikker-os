@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Building2, ChevronDown, ChevronLeft, ChevronRight, Search } from "lucide-react";
+import {
+  AlertTriangle,
+  Building2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Search,
+  Trash2,
+} from "lucide-react";
 
 interface PlatformBusiness {
   id: string;
@@ -28,6 +36,8 @@ export default function PlatformPage() {
   const [businesses, setBusinesses] = useState<PlatformBusiness[]>([]);
   const [loading, setLoading] = useState(true);
   const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PlatformBusiness | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [planFilter, setPlanFilter] = useState("todos");
@@ -112,6 +122,29 @@ export default function PlatformPage() {
     }
   }
 
+  async function deleteBusiness(business: PlatformBusiness) {
+    setDeletingId(business.id);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/proxy/platform/businesses/${business.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? "No se pudo borrar el negocio");
+      }
+
+      setPendingDelete(null);
+      await loadBusinesses();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No se pudo borrar el negocio");
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="rounded-xl border border-[#E8EAF0] bg-white p-5 text-sm text-[#8891A4]">
@@ -186,7 +219,7 @@ export default function PlatformPage() {
           {visibleBusinesses.length === 0 ? (
             <p className="p-6 text-sm text-[#8891A4]">No hay negocios para mostrar.</p>
           ) : (
-            <table className="w-full min-w-[980px] text-sm">
+            <table className="w-full min-w-[1080px] text-sm">
               <thead>
                 <tr className="border-b border-[#E8EAF0] bg-[#F5F6FA]/55 text-left">
                   <Th>Negocio</Th>
@@ -251,6 +284,15 @@ export default function PlatformPage() {
                             ? "Entrando..."
                             : "Operar como negocio"}
                         </button>
+                        <button
+                          type="button"
+                          onClick={() => setPendingDelete(business)}
+                          disabled={deletingId === business.id}
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-[#E8EAF0] bg-white text-[#C0392B] hover:bg-[#FBEDEC] disabled:opacity-60"
+                          aria-label={`Borrar ${business.name}`}
+                        >
+                          <Trash2 className="h-4 w-4" aria-hidden="true" />
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -288,6 +330,58 @@ export default function PlatformPage() {
           </div>
         </div>
       </section>
+
+      {pendingDelete ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-business-title"
+            className="w-full max-w-md rounded-xl border border-[#E8EAF0] bg-white p-6"
+          >
+            <div className="flex items-start gap-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#C0392B]/10 text-[#C0392B]">
+                <AlertTriangle className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h2
+                  id="delete-business-title"
+                  className="text-lg font-bold text-[#1A202C]"
+                >
+                  Borrar negocio
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[#8891A4]">
+                  ¿Querés borrar{" "}
+                  <span className="font-semibold text-[#1A202C]">
+                    {pendingDelete.name}
+                  </span>
+                  ? El negocio se va a archivar y dejará de aparecer en el panel
+                  admin.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingDelete(null)}
+                disabled={deletingId === pendingDelete.id}
+                className="inline-flex h-10 items-center justify-center rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => void deleteBusiness(pendingDelete)}
+                disabled={deletingId === pendingDelete.id}
+                className="inline-flex h-10 items-center justify-center rounded-lg bg-[#C0392B] px-4 text-sm font-semibold text-white hover:bg-[#a93226] disabled:opacity-60"
+              >
+                {deletingId === pendingDelete.id ? "Borrando..." : "Borrar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

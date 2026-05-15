@@ -35,6 +35,7 @@ export class PlatformRepository {
    */
   async findAllBusinesses() {
     return this.prisma.business.findMany({
+      where: { status: { not: BusinessStatus.ARCHIVED } },
       select: {
         id: true,
         name: true,
@@ -303,6 +304,25 @@ export class PlatformRepository {
         slug: true,
         status: true,
         isActive: true,
+      },
+    });
+  }
+
+  archiveBusiness(businessId: string) {
+    return this.prisma.business.update({
+      where: { id: businessId },
+      data: {
+        status: BusinessStatus.ARCHIVED,
+        isActive: false,
+        archivedAt: new Date(),
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        status: true,
+        isActive: true,
+        archivedAt: true,
       },
     });
   }

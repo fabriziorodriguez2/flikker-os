@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -44,6 +45,14 @@ export class PlatformController {
     },
   ) {
     return this.platformService.createBusiness(req.user.id, body);
+  }
+
+  @Delete('businesses/:businessId')
+  deleteBusiness(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+  ) {
+    return this.platformService.archiveBusiness(req.user.id, businessId);
   }
 
   @Get('businesses/:businessId/onboarding')
