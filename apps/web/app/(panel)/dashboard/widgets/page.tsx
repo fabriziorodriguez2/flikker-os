@@ -452,13 +452,23 @@ export default function WidgetsPage() {
 
   async function toggleStatus() {
     if (!activeWidget) return;
+    const widgetId = activeWidget.id;
+    const nextStatus = isActive ? "INACTIVE" : "ACTIVE";
+    const previousWidgets = widgets;
+
     setTogglingStatus(true);
     setError(null);
+    setWidgets((current) =>
+      current.map((widget) =>
+        widget.id === widgetId ? { ...widget, status: nextStatus } : widget,
+      ),
+    );
+
     try {
-      const res = await fetch(`/api/proxy/widgets/${activeWidget.id}/status`, {
+      const res = await fetch(`/api/proxy/widgets/${widgetId}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: isActive ? "INACTIVE" : "ACTIVE" }),
+        body: JSON.stringify({ status: nextStatus }),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as {
@@ -466,8 +476,14 @@ export default function WidgetsPage() {
         };
         throw new Error(data.message ?? "No se pudo actualizar estado");
       }
-      await loadPage();
+      const updatedWidget = (await res.json()) as Widget;
+      setWidgets((current) =>
+        current.map((widget) =>
+          widget.id === updatedWidget.id ? updatedWidget : widget,
+        ),
+      );
     } catch (e) {
+      setWidgets(previousWidgets);
       setError(e instanceof Error ? e.message : "Error al actualizar estado");
     } finally {
       setTogglingStatus(false);
