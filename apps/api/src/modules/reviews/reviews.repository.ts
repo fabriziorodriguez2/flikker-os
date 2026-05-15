@@ -41,13 +41,13 @@ export class ReviewsRepository {
     if (filters.isHighlighted !== undefined)
       where.isHighlighted = filters.isHighlighted;
     if (filters.responded !== undefined) {
-      where.respondedAt = filters.responded ? { not: null } : null;
+      where.respondedAt = filters.responded  { not: null } : null;
     }
 
     if (filters.ratingMin !== undefined || filters.ratingMax !== undefined) {
       where.rating = {
-        ...(filters.ratingMin !== undefined ? { gte: filters.ratingMin } : {}),
-        ...(filters.ratingMax !== undefined ? { lte: filters.ratingMax } : {}),
+        ...(filters.ratingMin !== undefined  { gte: filters.ratingMin } : {}),
+        ...(filters.ratingMax !== undefined  { lte: filters.ratingMax } : {}),
       };
     }
 
@@ -63,12 +63,12 @@ export class ReviewsRepository {
       ];
     }
 
-    const page = filters.page ?? 1;
-    const limit = Math.min(filters.limit ?? 25, 100);
+    const page = filters.page  1;
+    const limit = Math.min(filters.limit  25, 100);
     const skip = (page - 1) * limit;
 
-    const sortBy = filters.sortBy ?? 'reviewedAt';
-    const sortOrder = filters.sortOrder ?? 'desc';
+    const sortBy = filters.sortBy  'reviewedAt';
+    const sortOrder = filters.sortOrder  'desc';
 
     const [data, total] = await Promise.all([
       this.prisma.review.findMany({
@@ -90,8 +90,8 @@ export class ReviewsRepository {
   }
 
   async findGoogleReviews(businessId: string, filters: ReviewFilters) {
-    const page = filters.page ?? 1;
-    const limit = Math.min(filters.limit ?? 25, 100);
+    const page = filters.page  1;
+    const limit = Math.min(filters.limit  25, 100);
     const skip = (page - 1) * limit;
 
     if (
@@ -106,8 +106,8 @@ export class ReviewsRepository {
 
     if (filters.ratingMin !== undefined || filters.ratingMax !== undefined) {
       where.stars = {
-        ...(filters.ratingMin !== undefined ? { gte: filters.ratingMin } : {}),
-        ...(filters.ratingMax !== undefined ? { lte: filters.ratingMax } : {}),
+        ...(filters.ratingMin !== undefined  { gte: filters.ratingMin } : {}),
+        ...(filters.ratingMax !== undefined  { lte: filters.ratingMax } : {}),
       };
     }
 
@@ -127,8 +127,8 @@ export class ReviewsRepository {
       rating: 'stars',
       createdAt: 'createdAt',
     } as const;
-    const sortBy = sortMap[filters.sortBy ?? 'reviewedAt'];
-    const sortOrder = filters.sortOrder ?? 'desc';
+    const sortBy = sortMap[filters.sortBy  'reviewedAt'];
+    const sortOrder = filters.sortOrder  'desc';
 
     const [googleReviews, total] = await Promise.all([
       this.prisma.googleReview.findMany({
@@ -179,7 +179,7 @@ export class ReviewsRepository {
     return {
       total,
       thisMonth,
-      avgStars: Math.round((agg._avg.stars ?? 0) * 10) / 10,
+      avgStars: Math.round((agg._avg.stars  0) * 10) / 10,
     };
   }
 
@@ -272,20 +272,20 @@ export class ReviewsRepository {
           status,
           respondedAt:
             status === ReviewStatus.RESPONDED
-              ? new Date()
+               new Date()
               : status === ReviewStatus.REVIEWED || status === ReviewStatus.NEW
-                ? null
+                 null
                 : undefined,
           respondedByUserId:
             status === ReviewStatus.RESPONDED
-              ? changedByUserId
+               changedByUserId
               : status === ReviewStatus.REVIEWED || status === ReviewStatus.NEW
-                ? null
+                 null
                 : undefined,
           ...(status === ReviewStatus.ARCHIVED
-            ? { archivedAt: new Date() }
+             { archivedAt: new Date() }
             : {}),
-          ...(status !== ReviewStatus.ARCHIVED ? { archivedAt: null } : {}),
+          ...(status !== ReviewStatus.ARCHIVED  { archivedAt: null } : {}),
         },
       });
 
@@ -298,7 +298,7 @@ export class ReviewsRepository {
       await tx.reviewStatusHistory.create({
         data: {
           reviewId,
-          fromStatus: current?.status ?? null,
+          fromStatus: current?.status  null,
           toStatus: status,
           changedByUserId,
           reason,

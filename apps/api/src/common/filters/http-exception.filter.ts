@@ -19,12 +19,12 @@ export class HttpExceptionFilter implements ExceptionFilter {
 
     const status =
       exception instanceof HttpException
-        ? exception.getStatus()
+         exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
     const message =
       exception instanceof HttpException
-        ? this.resolveMessage(exception)
+         this.resolveMessage(exception)
         : 'Internal server error';
 
     const requestId = request.headers['x-request-id'] as string | undefined;
@@ -32,8 +32,8 @@ export class HttpExceptionFilter implements ExceptionFilter {
     if (status >= 500) {
       this.logger.error(
         `${request.method} ${request.url} → ${status}` +
-          (requestId ? ` rid=${requestId}` : ''),
-        exception instanceof Error ? exception.stack : String(exception),
+          (requestId  ` rid=${requestId}` : ''),
+        exception instanceof Error  exception.stack : String(exception),
       );
     }
 

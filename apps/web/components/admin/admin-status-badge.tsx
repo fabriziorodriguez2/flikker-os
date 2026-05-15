@@ -11,11 +11,11 @@ export default function AdminStatusBadge({
 }: AdminStatusBadgeProps) {
   const classes =
     tone === "active"
-      ? "bg-[color:var(--success-bg)] text-[color:var(--success-text)]"
+       "bg-[color:var(--success-bg)] text-[color:var(--success-text)]"
       : tone === "warning"
-        ? "bg-[color:rgba(250,171,75,0.16)] text-[color:var(--warning-text)]"
+         "bg-[color:rgba(250,171,75,0.16)] text-[color:var(--warning-text)]"
         : tone === "inactive"
-          ? "border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]"
+           "border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]"
           : "bg-[color:var(--surface-muted)] text-[color:var(--text-muted)]";
 
   return (

@@ -76,13 +76,13 @@ export default function SettingsClient() {
       const data: Business = await res.json();
       setBusiness(data);
       setBizName(data.name);
-      setBizIndustry(data.industry ?? '');
-      setBizDescription(data.description ?? '');
-      setBizWebsite(data.website ?? '');
-      setBizPhone(data.phone ?? '');
-      setBizEmail(data.email ?? '');
+      setBizIndustry(data.industry  '');
+      setBizDescription(data.description  '');
+      setBizWebsite(data.website  '');
+      setBizPhone(data.phone  '');
+      setBizEmail(data.email  '');
     } catch (e) {
-      setBizError(e instanceof Error ? e.message : 'Error');
+      setBizError(e instanceof Error  e.message : 'Error');
     } finally {
       setBizLoading(false);
     }
@@ -93,17 +93,17 @@ export default function SettingsClient() {
       const res = await fetch('/api/proxy/businesses/current/brand');
       if (!res.ok) throw new Error('Error al cargar perfil de marca');
       const data: BrandProfile = await res.json();
-      setLogoUrl(data.logoUrl ?? '');
-      setPrimaryColor(data.primaryColor ?? '');
-      setSecondaryColor(data.secondaryColor ?? '');
-      setToneOfVoice(data.toneOfVoice ?? '');
-      setWhatsappUrl(data.whatsappUrl ?? '');
-      setShortBio(data.shortBio ?? '');
-      setSignatureText(data.signatureText ?? '');
-      setGoogleBusinessProfileUrl(data.googleBusinessProfileUrl ?? '');
-      setDefaultReviewRedirectUrl(data.defaultReviewRedirectUrl ?? '');
+      setLogoUrl(data.logoUrl  '');
+      setPrimaryColor(data.primaryColor  '');
+      setSecondaryColor(data.secondaryColor  '');
+      setToneOfVoice(data.toneOfVoice  '');
+      setWhatsappUrl(data.whatsappUrl  '');
+      setShortBio(data.shortBio  '');
+      setSignatureText(data.signatureText  '');
+      setGoogleBusinessProfileUrl(data.googleBusinessProfileUrl  '');
+      setDefaultReviewRedirectUrl(data.defaultReviewRedirectUrl  '');
     } catch (e) {
-      setBrandError(e instanceof Error ? e.message : 'Error');
+      setBrandError(e instanceof Error  e.message : 'Error');
     } finally {
       setBrandLoading(false);
     }
@@ -122,11 +122,11 @@ export default function SettingsClient() {
 
     const body: Record<string, string> = {};
     if (bizName !== business?.name) body.name = bizName;
-    if (bizIndustry !== (business?.industry ?? '')) body.industry = bizIndustry;
-    if (bizDescription !== (business?.description ?? '')) body.description = bizDescription;
-    if (bizWebsite !== (business?.website ?? '')) body.website = bizWebsite;
-    if (bizPhone !== (business?.phone ?? '')) body.phone = bizPhone;
-    if (bizEmail !== (business?.email ?? '')) body.email = bizEmail;
+    if (bizIndustry !== (business?.industry  '')) body.industry = bizIndustry;
+    if (bizDescription !== (business?.description  '')) body.description = bizDescription;
+    if (bizWebsite !== (business?.website  '')) body.website = bizWebsite;
+    if (bizPhone !== (business?.phone  '')) body.phone = bizPhone;
+    if (bizEmail !== (business?.email  '')) body.email = bizEmail;
 
     if (Object.keys(body).length === 0) {
       setBizMessage('Sin cambios');
@@ -142,12 +142,12 @@ export default function SettingsClient() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message ?? 'Error al guardar');
+        throw new Error(data.message  'Error al guardar');
       }
       setBizMessage('Guardado');
       await fetchBusiness();
     } catch (e) {
-      setBizError(e instanceof Error ? e.message : 'Error');
+      setBizError(e instanceof Error  e.message : 'Error');
     } finally {
       setBizSaving(false);
     }
@@ -178,12 +178,12 @@ export default function SettingsClient() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message ?? 'Error al guardar marca');
+        throw new Error(data.message  'Error al guardar marca');
       }
       setBrandMessage('Marca actualizada');
       await fetchBrand();
     } catch (e) {
-      setBrandError(e instanceof Error ? e.message : 'Error');
+      setBrandError(e instanceof Error  e.message : 'Error');
     } finally {
       setBrandSaving(false);
     }
@@ -224,23 +224,23 @@ export default function SettingsClient() {
       <section className="grid gap-4 lg:grid-cols-4">
         <MetricCard
           label="Negocio"
-          value={business?.name ?? (bizLoading ? '...' : '-')}
+          value={business?.name  (bizLoading  '...' : '-')}
           tone="accent"
-          hint={business?.status === 'ACTIVE' ? 'Activo' : business?.status ?? 'Sin estado'}
+          hint={business?.status === 'ACTIVE'  'Activo' : business?.status  'Sin estado'}
         />
         <MetricCard
           label="Datos completos"
-          value={bizLoading ? '...' : `${businessFieldsFilled}/5`}
+          value={bizLoading  '...' : `${businessFieldsFilled}/5`}
           hint="Sitio, teléfono, email, industria y descripción"
         />
         <MetricCard
           label="Marca"
-          value={brandLoading ? '...' : `${brandFieldsFilled}/7`}
+          value={brandLoading  '...' : `${brandFieldsFilled}/7`}
           hint="Logo, colores y enlaces"
         />
         <MetricCard
           label="Slug"
-          value={business?.slug ?? (bizLoading ? '...' : '-')}
+          value={business?.slug  (bizLoading  '...' : '-')}
           hint="Identificador del negocio"
         />
       </section>
@@ -255,9 +255,9 @@ export default function SettingsClient() {
               footer={
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="text-sm text-[color:var(--text-muted)]">
-                    {bizError ? (
+                    {bizError  (
                       <span className="text-[color:var(--danger-text)]">{bizError}</span>
-                    ) : bizMessage ? (
+                    ) : bizMessage  (
                       <span className="text-[color:var(--success-text)]">{bizMessage}</span>
                     ) : (
                       'Estos datos se usan en el panel y en salidas públicas.'
@@ -266,13 +266,13 @@ export default function SettingsClient() {
 
                   {canMutate ? (
                     <button type="submit" disabled={bizSaving || bizLoading} className={actionButtonClass}>
-                      {bizSaving ? 'Guardando...' : 'Guardar negocio'}
+                      {bizSaving  'Guardando...' : 'Guardar negocio'}
                     </button>
                   ) : null}
                 </div>
               }
             >
-              {bizLoading ? (
+              {bizLoading  (
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="h-24 animate-pulse rounded-[22px] bg-[color:var(--surface-muted)]" />
                   <div className="h-24 animate-pulse rounded-[22px] bg-[color:var(--surface-muted)]" />
@@ -324,17 +324,17 @@ export default function SettingsClient() {
                   <div className="grid gap-4 md:grid-cols-3">
                     <div className="rounded-[22px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">Slug</p>
-                      <p className="mt-3 text-sm font-semibold text-[color:var(--foreground)]">{business?.slug ?? '-'}</p>
+                      <p className="mt-3 text-sm font-semibold text-[color:var(--foreground)]">{business?.slug  '-'}</p>
                     </div>
                     <div className="rounded-[22px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">País y moneda</p>
                       <p className="mt-3 text-sm font-semibold text-[color:var(--foreground)]">
-                        {business?.country ?? '-'} · {business?.currency ?? '-'}
+                        {business?.country  '-'} · {business?.currency  '-'}
                       </p>
                     </div>
                     <div className="rounded-[22px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">Zona horaria</p>
-                      <p className="mt-3 text-sm font-semibold text-[color:var(--foreground)]">{business?.timezone ?? '-'}</p>
+                      <p className="mt-3 text-sm font-semibold text-[color:var(--foreground)]">{business?.timezone  '-'}</p>
                     </div>
                   </div>
                 </div>
@@ -350,9 +350,9 @@ export default function SettingsClient() {
               footer={
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="text-sm text-[color:var(--text-muted)]">
-                    {brandError ? (
+                    {brandError  (
                       <span className="text-[color:var(--danger-text)]">{brandError}</span>
-                    ) : brandMessage ? (
+                    ) : brandMessage  (
                       <span className="text-[color:var(--success-text)]">{brandMessage}</span>
                     ) : (
                       'Estos datos se usan en widgets y superficies públicas.'
@@ -361,13 +361,13 @@ export default function SettingsClient() {
 
                   {canMutate ? (
                     <button type="submit" disabled={brandSaving || brandLoading} className={actionButtonClass}>
-                      {brandSaving ? 'Guardando...' : 'Guardar marca'}
+                      {brandSaving  'Guardando...' : 'Guardar marca'}
                     </button>
                   ) : null}
                 </div>
               }
             >
-              {brandLoading ? (
+              {brandLoading  (
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="h-24 animate-pulse rounded-[22px] bg-[color:var(--surface-muted)] sm:col-span-2" />
                   <div className="h-24 animate-pulse rounded-[22px] bg-[color:var(--surface-muted)]" />

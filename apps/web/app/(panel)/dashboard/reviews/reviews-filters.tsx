@@ -54,7 +54,7 @@ export default function ReviewsFilters() {
             onClick={() => push({ stars: opt.value })}
             className={`px-3 py-1.5 transition-colors ${i > 0 ? "border-l border-[#E8EAF0]" : ""} ${
               stars === opt.value
-                ? "bg-[#5C6BC0] text-white"
+                 "bg-[#5C6BC0] text-white"
                 : "bg-white text-[#8891A4] hover:bg-[#F5F6FA]"
             }`}
           >
@@ -72,7 +72,7 @@ export default function ReviewsFilters() {
             onClick={() => push({ period: opt.value })}
             className={`px-3 py-1.5 transition-colors ${i > 0 ? "border-l border-[#E8EAF0]" : ""} ${
               period === opt.value
-                ? "bg-[#5C6BC0] text-white"
+                 "bg-[#5C6BC0] text-white"
                 : "bg-white text-[#8891A4] hover:bg-[#F5F6FA]"
             }`}
           >

@@ -25,7 +25,7 @@ export class RepeatsQueue implements OnModuleInit, OnModuleDestroy {
       {},
       {
         jobId: RUN_REPEATS_DAILY_JOB,
-        repeat: { pattern: process.env.REPEATS_CRON ?? '0 9 * * *' },
+        repeat: { pattern: process.env.REPEATS_CRON  '0 9 * * *' },
         removeOnComplete: 30,
         removeOnFail: false,
       },

@@ -34,9 +34,9 @@ export default function CampaignCard({ campaign }: CampaignCardProps) {
           <div className="mt-2 flex flex-wrap gap-x-3 gap-y-2 text-xs uppercase tracking-[0.12em] text-[color:var(--text-soft)]">
             <span>{campaign.slug}</span>
             <span>{formatChannel(campaign.channel)}</span>
-            {campaign.templateKind ? <span>Repeat</span> : null}
-            {campaign.enableLanding ? <span>Landing activa</span> : null}
-            {FEATURES.MULTI_LOCAL && campaign.branch ? (
+            {campaign.templateKind  <span>Repeat</span> : null}
+            {campaign.enableLanding  <span>Landing activa</span> : null}
+            {FEATURES.MULTI_LOCAL && campaign.branch  (
               <span>{campaign.branch.name}</span>
             ) : null}
           </div>
@@ -53,15 +53,15 @@ export default function CampaignCard({ campaign }: CampaignCardProps) {
       <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         <div className="rounded-[22px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
-            {campaign.templateKind ? "Plantilla" : "Slug trazable"}
+            {campaign.templateKind  "Plantilla" : "Slug trazable"}
           </p>
           <p className="mt-3 break-all text-sm font-semibold text-[color:var(--foreground)]">
             {campaign.templateKind
-              ? formatChannel(campaign.templateKind)
+               formatChannel(campaign.templateKind)
               : `/r/${campaign.slug}`}
           </p>
         </div>
-        {FEATURES.QR_ADVANCED ? (
+        {FEATURES.QR_ADVANCED  (
           <div className="rounded-[22px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
               QRs activos

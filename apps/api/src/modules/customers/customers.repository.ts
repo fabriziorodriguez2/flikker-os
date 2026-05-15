@@ -33,7 +33,7 @@ export class CustomersRepository {
       businessId,
       isActive: true,
       ...(options.search
-        ? {
+         {
             OR: [
               {
                 name: {
@@ -148,7 +148,7 @@ export class CustomersRepository {
           data: customersWithServiceEvents
             .map((row) => ({
               businessId,
-              customerId: customerIdByPhone.get(row.phoneE164) ?? '',
+              customerId: customerIdByPhone.get(row.phoneE164)  '',
               serviceType: 'Servicio',
               eventAt: row.lastServiceAt!,
               createdVia: ServiceEventCreatedVia.csv_batch,

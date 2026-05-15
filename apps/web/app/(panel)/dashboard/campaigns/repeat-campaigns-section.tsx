@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import Link from "next/link";
@@ -31,30 +31,30 @@ function titleFor(c: RepeatCampaign) {
 
 function descriptionFor(c: RepeatCampaign) {
   if (c.templateKind === "birthday") {
-    return "Se envía el día del cumpleaños del paciente.";
+    return "Se envÃ­a el dÃ­a del cumpleaÃ±os del cliente.";
   }
   if (c.templateKind === "reactivation") {
-    return "Para pacientes que no vinieron en más de 6 meses.";
+    return "Para clientes que no vinieron en mÃ¡s de 6 meses.";
   }
   if (c.templateKind === "post_service") {
-    return "Mensaje automático luego de la atención.";
+    return "Mensaje automÃ¡tico luego de la atenciÃ³n.";
   }
-  return c.description ?? "Campaña automática.";
+  return c.description ?? "CampaÃ±a automÃ¡tica.";
 }
 
 function metadataFor(c: RepeatCampaign) {
   if (c.templateKind === "birthday") {
-    return "WhatsApp · 09:00 hora local · texto editable";
+    return "WhatsApp Â· 09:00 hora local Â· texto editable";
   }
   if (c.templateKind === "reactivation") {
-    return "WhatsApp · primer martes de cada mes · 10:00";
+    return "WhatsApp Â· primer martes de cada mes Â· 10:00";
   }
-  return "WhatsApp · 30 minutos después de atendido · pacientes con consentimiento";
+  return "WhatsApp Â· 30 minutos despuÃ©s de atendido Â· clientes con consentimiento";
 }
 
 function statusBadgeClass(status: string) {
   return status === "ACTIVE"
-    ? "bg-[#EEF7E8] text-[#639922]"
+     "bg-[#EEF7E8] text-[#639922]"
     : "bg-[#F1F4F9] text-[#8891A4]";
 }
 
@@ -76,7 +76,7 @@ export default function RepeatCampaignsSection({
     const nextStatus = campaign.status === "ACTIVE" ? "PAUSED" : "ACTIVE";
 
     setCampaigns((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, status: nextStatus } : c)),
+      prev.map((c) => (c.id === id  { ...c, status: nextStatus } : c)),
     );
     setSavingIds((prev) => new Set([...prev, id]));
     setErrors((prev) => ({ ...prev, [id]: "" }));
@@ -90,7 +90,7 @@ export default function RepeatCampaignsSection({
 
       if (!res.ok) {
         setCampaigns((prev) =>
-          prev.map((c) => (c.id === id ? { ...c, status: campaign.status } : c)),
+          prev.map((c) => (c.id === id  { ...c, status: campaign.status } : c)),
         );
         setErrors((prev) => ({
           ...prev,
@@ -99,9 +99,9 @@ export default function RepeatCampaignsSection({
       }
     } catch {
       setCampaigns((prev) =>
-        prev.map((c) => (c.id === id ? { ...c, status: campaign.status } : c)),
+        prev.map((c) => (c.id === id  { ...c, status: campaign.status } : c)),
       );
-      setErrors((prev) => ({ ...prev, [id]: "Error de red. Intentá de nuevo." }));
+      setErrors((prev) => ({ ...prev, [id]: "Error de red. IntentÃ¡ de nuevo." }));
     } finally {
       setSavingIds((prev) => {
         const next = new Set(prev);
@@ -116,14 +116,14 @@ export default function RepeatCampaignsSection({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-base font-bold text-[#1A202C]">
-            Campañas automáticas
+            CampaÃ±as automÃ¡ticas
           </h2>
           <p className="mt-1 text-sm text-[#8891A4]">
-            Las 3 campañas Repeat vienen pre-armadas. Activá o pausá cuando quieras.
+            Las 3 campaÃ±as Repeat vienen pre-armadas. ActivÃ¡ o pausÃ¡ cuando quieras.
           </p>
         </div>
         <span className="rounded-full bg-[#EEF7E8] px-3 py-1 text-xs font-semibold text-[#639922]">
-          {activeCount} {activeCount === 1 ? "activa" : "activas"}
+          {activeCount} {activeCount === 1  "activa" : "activas"}
         </span>
       </div>
 
@@ -154,7 +154,7 @@ export default function RepeatCampaignsSection({
               <p className="mt-1 text-[11px] font-medium text-[#8891A4]">
                 {metadataFor(campaign)}
               </p>
-              {errors[campaign.id] ? (
+              {errors[campaign.id]  (
                 <p className="mt-1 text-[11px] font-semibold text-[#C0392B]">
                   {errors[campaign.id]}
                 </p>
@@ -174,7 +174,7 @@ export default function RepeatCampaignsSection({
               </div>
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
-                  Reseñas
+                  ReseÃ±as
                 </p>
                 <p className="mt-1 text-lg font-bold text-[#639922]">
                   {campaign.respondedTotal}
@@ -207,3 +207,4 @@ export default function RepeatCampaignsSection({
     </section>
   );
 }
+

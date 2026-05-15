@@ -19,7 +19,7 @@ export default function SectionCard({
     <section
       className={`rounded-[16px] border p-5 md:p-6 ${
         tone === "tinted"
-          ? "border-[color:rgba(145,136,245,0.14)] bg-[color:rgba(145,136,245,0.04)]"
+           "border-[color:rgba(145,136,245,0.14)] bg-[color:rgba(145,136,245,0.04)]"
           : "flikker-card"
       }`}
     >
@@ -28,14 +28,14 @@ export default function SectionCard({
           <h2 className="text-xl font-semibold text-[color:var(--foreground)]">
             {title}
           </h2>
-          {description ? (
+          {description  (
             <p className="mt-1.5 text-sm leading-5 text-[color:var(--text-muted)]">
               {description}
             </p>
           ) : null}
         </div>
 
-        {action ? <div className="flex items-center gap-2">{action}</div> : null}
+        {action  <div className="flex items-center gap-2">{action}</div> : null}
       </div>
 
       <div className="mt-5">{children}</div>

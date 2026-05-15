@@ -18,7 +18,7 @@ export default function CampaignStatusToggle({
       checked={active}
       onCheckedChange={onToggle}
       disabled={saving}
-      label={active ? "Desactivar campaña" : "Activar campaña"}
+      label={active  "Desactivar campaña" : "Activar campaña"}
     />
   );
 }

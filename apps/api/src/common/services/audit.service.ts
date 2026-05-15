@@ -27,14 +27,14 @@ export class AuditService {
           actorUserId: params.userId,
           businessId: params.businessId,
           ...(params.metadata
-            ? { metadata: params.metadata as Prisma.InputJsonValue }
+             { metadata: params.metadata as Prisma.InputJsonValue }
             : {}),
         },
       });
     } catch (error) {
       this.logger.error(
         `Failed to write audit log for ${params.action}:${params.entityType}:${params.entityId}`,
-        error instanceof Error ? error.stack : String(error),
+        error instanceof Error  error.stack : String(error),
       );
     }
   }

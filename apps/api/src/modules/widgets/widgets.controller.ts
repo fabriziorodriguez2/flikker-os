@@ -37,7 +37,7 @@ export class WidgetsController {
   ) {
     return this.widgetsService.getToastPreviewReviews(
       req.currentBusinessId!,
-      Number.parseInt(minStars ?? '4', 10),
+      Number.parseInt(minStars  '4', 10),
     );
   }
 

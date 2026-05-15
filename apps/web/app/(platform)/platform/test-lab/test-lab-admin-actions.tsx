@@ -28,11 +28,11 @@ export default function TestLabAdminActions({
         const data = (await res.json().catch(() => ({}))) as {
           message?: string;
         };
-        throw new Error(data.message ?? "No se pudo abrir el Test Lab");
+        throw new Error(data.message  "No se pudo abrir el Test Lab");
       }
       window.location.href = "/dashboard/test-lab";
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Error inesperado");
+      setError(err instanceof Error  err.message : "Error inesperado");
       setLoading(false);
     }
   }
@@ -45,7 +45,7 @@ export default function TestLabAdminActions({
 
   return (
     <div className="space-y-3">
-      {error ? (
+      {error  (
         <div className="rounded-lg border border-[#C0392B]/20 bg-[#C0392B]/10 px-4 py-3 text-sm text-[#C0392B]">
           {error}
         </div>
@@ -59,7 +59,7 @@ export default function TestLabAdminActions({
           className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#5C6BC0] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4e5db0] disabled:opacity-60"
         >
           <FlaskConical className="h-4 w-4" aria-hidden="true" />
-          {loading ? "Abriendo..." : "Abrir Test Lab"}
+          {loading  "Abriendo..." : "Abrir Test Lab"}
         </button>
 
         <Link
@@ -77,7 +77,7 @@ export default function TestLabAdminActions({
           className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] transition-colors hover:bg-[#F5F6FA]"
         >
           <Copy className="h-4 w-4" aria-hidden="true" />
-          {copied ? "Copiado" : "Copiar link"}
+          {copied  "Copiado" : "Copiar link"}
         </button>
       </div>
     </div>

@@ -128,8 +128,8 @@ export class CampaignsService {
     }
 
     // Validate date range (consider existing values)
-    const effectiveStartsAt = dto.startsAt ?? campaign.startsAt?.toISOString();
-    const effectiveEndsAt = dto.endsAt ?? campaign.endsAt?.toISOString();
+    const effectiveStartsAt = dto.startsAt  campaign.startsAt?.toISOString();
+    const effectiveEndsAt = dto.endsAt  campaign.endsAt?.toISOString();
     if (effectiveStartsAt && effectiveEndsAt) {
       if (new Date(effectiveEndsAt) <= new Date(effectiveStartsAt)) {
         throw new BadRequestException('endsAt must be after startsAt');
@@ -193,13 +193,13 @@ export class CampaignsService {
       campaignId,
       {
         ...(dto.messageBody !== undefined
-          ? { messageBody: dto.messageBody.trim() }
+           { messageBody: dto.messageBody.trim() }
           : {}),
         ...(dto.triggerOffsetDays !== undefined
-          ? { triggerOffsetDays: dto.triggerOffsetDays }
+           { triggerOffsetDays: dto.triggerOffsetDays }
           : {}),
         ...(dto.offerText !== undefined
-          ? { offerText: dto.offerText.trim() || null }
+           { offerText: dto.offerText.trim() || null }
           : {}),
       },
     );

@@ -74,7 +74,7 @@ export class ResponsesRepository {
       await tx.reviewStatusHistory.create({
         data: {
           reviewId,
-          fromStatus: review?.status ?? null,
+          fromStatus: review?.status  null,
           toStatus: ReviewStatus.RESPONDED,
           changedByUserId: respondedByUserId,
           reason: 'Manual response saved',

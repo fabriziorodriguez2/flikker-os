@@ -24,7 +24,7 @@ export default function ColorSwatch({
           style={{
             backgroundColor: normalized || "transparent",
             backgroundImage: normalized
-              ? undefined
+               undefined
               : "linear-gradient(135deg, rgba(145,136,245,0.16), rgba(220,226,240,0.6))",
           }}
         />
@@ -33,7 +33,7 @@ export default function ColorSwatch({
             {normalized || fallbackLabel}
           </p>
           <p className="mt-1 text-xs text-[color:var(--text-muted)]">
-            {normalized ? "Aplicado al perfil del negocio" : "Todavía sin configurar"}
+            {normalized  "Aplicado al perfil del negocio" : "Todavía sin configurar"}
           </p>
         </div>
       </div>

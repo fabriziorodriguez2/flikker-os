@@ -39,8 +39,8 @@ export class CustomersService {
     businessId: string,
     query: { search?: string; page?: string; limit?: string },
   ) {
-    const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 20), 1), 100);
+    const page = Math.max(Number(query.page  1), 1);
+    const limit = Math.min(Math.max(Number(query.limit  20), 1), 100);
     const [total, data] = await this.repository.findMany(businessId, {
       search: query.search?.trim() || undefined,
       page,
@@ -77,7 +77,7 @@ export class CustomersService {
     if (dto.email !== undefined) data.email = dto.email.trim() || null;
     if (dto.birthday !== undefined) {
       data.birthday = dto.birthday.trim()
-        ? this.parseOptionalDate(dto.birthday)
+         this.parseOptionalDate(dto.birthday)
         : null;
     }
     if (dto.phone !== undefined) {
@@ -151,13 +151,13 @@ export class CustomersService {
       } catch (error) {
         failed.push({
           row: valid[i].rowNumber,
-          reason: error instanceof Error ? error.message : 'Teléfono inválido',
+          reason: error instanceof Error  error.message : 'Teléfono inválido',
         });
       }
     }
 
     const existingPhones = normalized.length
-      ? await this.repository.findManyByPhones(
+       await this.repository.findManyByPhones(
           businessId,
           normalized.map((row) => row.phoneE164),
         )
@@ -174,7 +174,7 @@ export class CustomersService {
     });
 
     const imported = toCreate.length
-      ? await this.repository.createMany(businessId, toCreate)
+       await this.repository.createMany(businessId, toCreate)
       : 0;
 
     return {
@@ -237,23 +237,23 @@ export class CustomersService {
       const values = this.splitCsvLine(line);
       const record = new Map<string, string>();
       headers.forEach((header, index) => {
-        record.set(header, values[index]?.trim() ?? '');
+        record.set(header, values[index]?.trim()  '');
       });
 
       return {
         rowNumber: index + 2,
-        name: record.get('nombre') ?? record.get('name') ?? '',
+        name: record.get('nombre')  record.get('name')  '',
         phone:
-          record.get('telefono') ??
-          record.get('teléfono') ??
-          record.get('phone') ??
+          record.get('telefono') ?
+          record.get('teléfono') ?
+          record.get('phone') ?
           '',
         email: record.get('email') || undefined,
         lastServiceAt:
-          record.get('fecha ultimo servicio') ??
-          record.get('fecha último servicio') ??
-          record.get('lastserviceat') ??
-          record.get('last_service_at') ??
+          record.get('fecha ultimo servicio') ?
+          record.get('fecha último servicio') ?
+          record.get('lastserviceat') ?
+          record.get('last_service_at') ?
           undefined,
       };
     });
@@ -284,7 +284,7 @@ export class CustomersService {
     return rows.map((row, index) => {
       const normalized = new Map<string, string>();
       Object.entries(row).forEach(([key, value]) => {
-        normalized.set(this.normalizeHeader(key), String(value ?? '').trim());
+        normalized.set(this.normalizeHeader(key), String(value  '').trim());
       });
 
       return {
@@ -320,7 +320,7 @@ export class CustomersService {
         phone: this.asOptionalString(parsed.phone),
         email: this.asOptionalString(parsed.email),
         lastServiceAt:
-          this.asOptionalString(parsed.lastServiceAt) ??
+          this.asOptionalString(parsed.lastServiceAt) ?
           this.asOptionalString(parsed.lastServiceDate),
       };
     } catch {
@@ -329,7 +329,7 @@ export class CustomersService {
   }
 
   private asOptionalString(value: unknown) {
-    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+    return typeof value === 'string' && value.trim()  value.trim() : undefined;
   }
 
   private getMappedValue(
@@ -338,7 +338,7 @@ export class CustomersService {
     fallbacks: string[],
   ) {
     if (mappedHeader) {
-      return row.get(this.normalizeHeader(mappedHeader)) ?? '';
+      return row.get(this.normalizeHeader(mappedHeader))  '';
     }
 
     for (const fallback of fallbacks) {
@@ -350,7 +350,7 @@ export class CustomersService {
   }
 
   private getFileExtension(filename: string) {
-    return filename.split('.').pop()?.toLowerCase() ?? '';
+    return filename.split('.').pop()?.toLowerCase()  '';
   }
 
   private normalizeHeader(header: string) {

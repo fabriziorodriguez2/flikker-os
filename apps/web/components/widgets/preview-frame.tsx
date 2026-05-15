@@ -21,7 +21,7 @@ export default function PreviewFrame({
           <h3 className="mt-2 text-2xl font-semibold text-[color:var(--foreground)]">
             {title}
           </h3>
-          {description ? (
+          {description  (
             <p className="mt-2 text-sm leading-6 text-[color:var(--text-muted)]">
               {description}
             </p>

@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getSession } from "@/lib/auth";
@@ -86,7 +86,7 @@ export default async function PlatformTestLabPage() {
             Test Lab
           </h1>
           <p className="mt-2 max-w-2xl text-sm text-[#8891A4]">
-            Herramienta interna para probar campañas, WhatsApp y widgets con un
+            Herramienta interna para probar campaÃ±as, WhatsApp y widgets con un
             negocio separado de clientes reales.
           </p>
         </div>
@@ -104,7 +104,7 @@ export default async function PlatformTestLabPage() {
               {demo.business.name}
             </h2>
             <p className="mt-1 text-sm text-[#8891A4]">
-              /{demo.business.slug} · {demo.business.id}
+              /{demo.business.slug} Â· {demo.business.id}
             </p>
           </div>
           <span className="inline-flex w-fit rounded-full bg-[#EEF7E8] px-3 py-1 text-xs font-semibold text-[#639922]">
@@ -113,9 +113,9 @@ export default async function PlatformTestLabPage() {
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Stat label="Pacientes demo" value={demo.customerCount} />
-          <Stat label="Reseñas demo" value={demo.reviewCount} />
-          <Stat label="Campañas activas" value={demo.activeCampaigns} />
+          <Stat label="Clientes demo" value={demo.customerCount} />
+          <Stat label="ReseÃ±as demo" value={demo.reviewCount} />
+          <Stat label="CampaÃ±as activas" value={demo.activeCampaigns} />
           <Stat label="Widget" value={demo.widget?.status ?? "sin widget"} />
           <Stat label="Zona horaria" value={demo.business.timezone} />
         </div>
@@ -132,7 +132,7 @@ export default async function PlatformTestLabPage() {
               Landing de prueba
             </h2>
             <p className="mt-1 text-sm text-[#8891A4]">
-              Abrila en reunión para mostrar el widget real con datos demo.
+              Abrila en reuniÃ³n para mostrar el widget real con datos demo.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -161,3 +161,4 @@ function Stat({ label, value }: { label: string; value: React.ReactNode }) {
     </article>
   );
 }
+

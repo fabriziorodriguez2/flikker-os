@@ -48,7 +48,7 @@ export class AuthService {
       passwordHash,
       businessName: dto.businessName.trim(),
       vertical: dto.vertical,
-      timezone: dto.timezone ?? 'America/Montevideo',
+      timezone: dto.timezone  'America/Montevideo',
     });
 
     const { accessToken, refreshToken, refreshTokenHash } = this.generateTokens(
@@ -61,8 +61,8 @@ export class AuthService {
     await this.repository.createSession({
       userId: user.id,
       refreshTokenHash,
-      userAgent: userAgent ?? null,
-      ip: ip ?? null,
+      userAgent: userAgent  null,
+      ip: ip  null,
       expiresAt,
     });
 
@@ -104,8 +104,8 @@ export class AuthService {
     await this.repository.createSession({
       userId: user.id,
       refreshTokenHash,
-      userAgent: userAgent ?? null,
-      ip: ip ?? null,
+      userAgent: userAgent  null,
+      ip: ip  null,
       expiresAt,
     });
 
@@ -214,7 +214,7 @@ export class AuthService {
     } catch (error) {
       this.logger.error(
         `Password reset email failed for ${user.email}: ${
-          error instanceof Error ? error.message : String(error)
+          error instanceof Error  error.message : String(error)
         }`,
       );
     }
@@ -270,12 +270,12 @@ export class AuthService {
 
     const accessToken = this.jwt.sign(payload, {
       secret,
-      expiresIn: (process.env.JWT_ACCESS_EXPIRES_IN ?? '15m') as StringValue,
+      expiresIn: (process.env.JWT_ACCESS_EXPIRES_IN  '15m') as StringValue,
     });
 
     const refreshToken = this.jwt.sign(payload, {
       secret,
-      expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN ?? '7d') as StringValue,
+      expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN  '7d') as StringValue,
     });
 
     const refreshTokenHash = this.hashToken(refreshToken);
@@ -289,9 +289,9 @@ export class AuthService {
 
 function getAppPublicUrl() {
   return (
-    process.env.APP_PUBLIC_URL ??
-    process.env.WEB_BASE_URL ??
-    process.env.WEB_PUBLIC_URL ??
+    process.env.APP_PUBLIC_URL ?
+    process.env.WEB_BASE_URL ?
+    process.env.WEB_PUBLIC_URL ?
     'https://app.flikker.com'
   ).replace(/\/$/, '');
 }

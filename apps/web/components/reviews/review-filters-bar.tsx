@@ -44,7 +44,7 @@ export default function ReviewFiltersBar({
           <select
             id="responded"
             name="responded"
-            defaultValue={filters.responded ?? ""}
+            defaultValue={filters.responded  ""}
             className={inputClass}
           >
             <option value="">Todas</option>
@@ -63,7 +63,7 @@ export default function ReviewFiltersBar({
           <select
             id="highlighted"
             name="highlighted"
-            defaultValue={filters.highlighted ?? ""}
+            defaultValue={filters.highlighted  ""}
             className={inputClass}
           >
             <option value="">Todas</option>
@@ -82,7 +82,7 @@ export default function ReviewFiltersBar({
           <select
             id="campaignId"
             name="campaignId"
-            defaultValue={filters.campaignId ?? ""}
+            defaultValue={filters.campaignId  ""}
             className={inputClass}
           >
             <option value="">Todas</option>
@@ -104,7 +104,7 @@ export default function ReviewFiltersBar({
           <select
             id="rating"
             name="rating"
-            defaultValue={filters.rating ?? ""}
+            defaultValue={filters.rating  ""}
             className={inputClass}
           >
             <option value="">Todos</option>

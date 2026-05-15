@@ -36,7 +36,7 @@ export default function PhoneInput({
 
   return (
     <label className={`block text-sm ${className}`}>
-      {label ? (
+      {label  (
         <span className="mb-2 block font-medium text-[color:var(--text-muted)]">
           {label}
         </span>
@@ -44,9 +44,9 @@ export default function PhoneInput({
       <div
         className={`flex items-center rounded-lg border bg-[color:var(--surface)] transition-colors ${
           touched && !valid
-            ? "border-[color:var(--danger-text)]"
+             "border-[color:var(--danger-text)]"
             : "border-[color:var(--border)] focus-within:border-[color:var(--brand-accent)]"
-        } ${disabled ? "opacity-60" : ""}`}
+        } ${disabled  "opacity-60" : ""}`}
       >
         <span className="shrink-0 border-r border-[color:var(--border)] px-3 text-sm font-medium text-[color:var(--text-muted)]">
           {URUGUAY_PHONE_PREFIX}
@@ -62,8 +62,8 @@ export default function PhoneInput({
           className="min-w-0 flex-1 bg-transparent px-3 py-3 text-sm text-[color:var(--foreground)] outline-none placeholder:text-[color:var(--text-soft)]"
         />
         <span className="flex w-10 shrink-0 justify-center">
-          {touched ? (
-            valid ? (
+          {touched  (
+            valid  (
               <Check
                 aria-label="Teléfono válido"
                 className="h-4 w-4 text-[color:var(--success-text)]"
@@ -77,7 +77,7 @@ export default function PhoneInput({
           ) : null}
         </span>
       </div>
-      {touched && !valid ? (
+      {touched && !valid  (
         <p className="mt-2 text-xs text-[color:var(--danger-text)]">
           Formato inválido
         </p>

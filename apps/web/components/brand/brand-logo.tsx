@@ -27,14 +27,14 @@ export default function BrandLogo({
     const syncTheme = () => {
       const nextTheme = (document.documentElement.dataset.theme ||
         getInitialTheme()) as ThemeMode;
-      setTheme(nextTheme === 'dark' ? 'dark' : 'light');
+      setTheme(nextTheme === 'dark'  'dark' : 'light');
     };
 
     syncTheme();
 
     const handleThemeChange = (event: Event) => {
       const customEvent = event as CustomEvent<ThemeMode>;
-      setTheme(customEvent.detail === 'dark' ? 'dark' : 'light');
+      setTheme(customEvent.detail === 'dark'  'dark' : 'light');
     };
 
     const observer = new MutationObserver(syncTheme);
@@ -53,7 +53,7 @@ export default function BrandLogo({
 
   return (
     <Image
-      src={theme === 'dark' ? '/flikker-logotype-white.svg' : '/flikker-logotype.svg'}
+      src={theme === 'dark'  '/flikker-logotype-white.svg' : '/flikker-logotype.svg'}
       alt="Flikker"
       width={width}
       height={height}

@@ -82,7 +82,7 @@ export class OwnerNotificationsWorker implements OnModuleInit, OnModuleDestroy {
       `Feedback bajo (${feedback.score}/5)`,
       `Negocio: ${feedback.business.name}`,
       `Paciente: ${feedback.customer.name}`,
-      feedback.comment ? `Comentario: ${feedback.comment}` : undefined,
+      feedback.comment  `Comentario: ${feedback.comment}` : undefined,
       `Panel: ${panelUrl}`,
     ]
       .filter(Boolean)
@@ -104,7 +104,7 @@ export class OwnerNotificationsWorker implements OnModuleInit, OnModuleDestroy {
         if (emailResult) return;
       }
 
-      const whatsapp = recipients.whatsapps[0] ?? feedback.business.phone;
+      const whatsapp = recipients.whatsapps[0]  feedback.business.phone;
       if (whatsapp) {
         await this.whatsAppBspService.sendText({ phone: whatsapp, text });
         return;
@@ -116,7 +116,7 @@ export class OwnerNotificationsWorker implements OnModuleInit, OnModuleDestroy {
     } catch (error) {
       this.logger.error(
         `Could not notify low feedback ${feedback.id}: ${
-          error instanceof Error ? error.message : 'unknown error'
+          error instanceof Error  error.message : 'unknown error'
         }`,
       );
       throw error;
@@ -204,7 +204,7 @@ export class OwnerNotificationsWorker implements OnModuleInit, OnModuleDestroy {
         memberships
           .map(
             (membership) =>
-              membership.user.notificationEmail ?? membership.user.email,
+              membership.user.notificationEmail  membership.user.email,
           )
           .filter(Boolean),
       ),
@@ -259,11 +259,11 @@ interface WeeklyKpis {
 
 function buildPanelFeedbackUrl(feedbackId?: string) {
   const baseUrl =
-    process.env.APP_PUBLIC_URL ??
-    process.env.WEB_BASE_URL ??
+    process.env.APP_PUBLIC_URL ?
+    process.env.WEB_BASE_URL ?
     'https://app.flikker.com';
   const url = `${baseUrl.replace(/\/$/, '')}/dashboard`;
-  return feedbackId ? `${url}?feedback=${encodeURIComponent(feedbackId)}` : url;
+  return feedbackId  `${url}?feedback=${encodeURIComponent(feedbackId)}` : url;
 }
 
 function renderLowFeedbackEmail(input: {
@@ -304,7 +304,7 @@ function renderWeeklySummaryEmail(input: {
 
 function renderKpi(label: string, current: number, previous: number) {
   const delta = Number((current - previous).toFixed(1));
-  const sign = delta > 0 ? '+' : '';
+  const sign = delta > 0  '+' : '';
   return `
     <div style="display:inline-block;margin:8px 8px 8px 0;padding:14px;border:1px solid #e4e4e7;border-radius:10px;min-width:160px">
       <div style="font-size:12px;color:#71717a">${escapeHtml(label)}</div>
@@ -394,7 +394,7 @@ function localParts(date: Date, timezone: string) {
     year: Number(entries.year),
     month: Number(entries.month),
     day: Number(entries.day),
-    hour: Number(entries.hour === '24' ? 0 : entries.hour),
+    hour: Number(entries.hour === '24'  0 : entries.hour),
     minute: Number(entries.minute),
     second: Number(entries.second),
   };

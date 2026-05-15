@@ -29,7 +29,7 @@ export default function PublicShell({
 
         <div className="grid flex-1 items-center gap-8 lg:grid-cols-[minmax(0,0.92fr)_minmax(340px,0.78fr)]">
           <section className="px-2 lg:px-0">
-            {eyebrow ? (
+            {eyebrow  (
               <p className="text-xs font-semibold uppercase tracking-[0.22em] text-[color:var(--brand-accent)]">
                 {eyebrow}
               </p>
@@ -37,7 +37,7 @@ export default function PublicShell({
             <h1 className="mt-4 text-4xl font-semibold leading-tight text-[color:var(--foreground)] md:text-5xl">
               {title}
             </h1>
-            {subtitle ? (
+            {subtitle  (
               <p className="mt-5 max-w-2xl text-base leading-7 text-[color:var(--text-muted)]">
                 {subtitle}
               </p>

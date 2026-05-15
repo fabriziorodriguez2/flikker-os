@@ -34,13 +34,13 @@ export default function BusinessLogo({
   return (
     <span
       className={`inline-flex shrink-0 items-center justify-center overflow-hidden rounded-lg border border-[#E8EAF0] bg-[#F5F6FA] ${sizeClass[size]} ${className}`}
-      aria-label={name ? `Logo de ${name}` : "Logo del negocio"}
+      aria-label={name  `Logo de ${name}` : "Logo del negocio"}
     >
-      {showImage ? (
+      {showImage  (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={logoUrl ?? undefined}
-          alt={name ? `Logo de ${name}` : "Logo del negocio"}
+          src={logoUrl  undefined}
+          alt={name  `Logo de ${name}` : "Logo del negocio"}
           className="h-full w-full object-contain"
           onError={() => setFailed(true)}
         />

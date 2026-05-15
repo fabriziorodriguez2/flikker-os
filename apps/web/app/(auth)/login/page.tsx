@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
@@ -42,14 +42,14 @@ function LoginPageContent() {
       };
 
       if (!response.ok) {
-        setError(data.message ?? "Email o contraseña incorrectos");
+        setError(data.message ?? "Email o contraseÃ±a incorrectos");
         return;
       }
 
       router.push(data.redirectTo ?? "/dashboard");
       router.refresh();
     } catch {
-      setError("No pudimos conectar con el servidor. Probá de nuevo.");
+      setError("No pudimos conectar con el servidor. ProbÃ¡ de nuevo.");
     } finally {
       setLoading(false);
     }
@@ -65,13 +65,13 @@ function LoginPageContent() {
             alt="Flikker"
             className="mx-auto h-auto w-[96px]"
           />
-          <p className="mt-4 text-sm text-[#8891A4]">Ingresá a tu negocio</p>
+          <p className="mt-4 text-sm text-[#8891A4]">IngresÃ¡ a tu negocio</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {searchParams.get("reason") === "session_expired" ? (
             <div className="rounded-lg border border-[#E8EAF0] bg-[#F5F6FA] px-4 py-3 text-sm text-[#5A6679]">
-              Tu sesión expiró. Iniciá sesión de nuevo.
+              Tu sesiÃ³n expirÃ³. IniciÃ¡ sesiÃ³n de nuevo.
             </div>
           ) : null}
 
@@ -90,7 +90,7 @@ function LoginPageContent() {
                 type="email"
                 autoComplete="email"
                 required
-                placeholder="tu@clinica.com.uy"
+                placeholder="tu@negocio.com.uy"
                 className="login-clean-input min-w-0 flex-1 bg-transparent px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4]"
               />
             </div>
@@ -101,7 +101,7 @@ function LoginPageContent() {
               htmlFor="password"
               className="mb-2 block text-sm font-medium text-[#1A202C]"
             >
-              Contraseña
+              ContraseÃ±a
             </label>
             <div className="flex h-12 items-center rounded-lg border border-[#E8EAF0] bg-white px-3">
               <Lock className="h-4 w-4 shrink-0 text-[#8891A4]" />
@@ -111,14 +111,14 @@ function LoginPageContent() {
                 type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
                 required
-                placeholder="••••••••"
+                placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                 className="login-clean-input min-w-0 flex-1 bg-transparent px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4]"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((current) => !current)}
                 aria-label={
-                  showPassword ? "Ocultar contraseña" : "Mostrar contraseña"
+                  showPassword ? "Ocultar contraseÃ±a" : "Mostrar contraseÃ±a"
                 }
                 className="flex h-8 w-8 items-center justify-center rounded-lg text-[#8891A4] hover:text-[#1A202C]"
               >
@@ -134,7 +134,7 @@ function LoginPageContent() {
                 href="/forgot-password"
                 className="text-[13px] font-medium text-[#5C6BC0] hover:underline"
               >
-                Olvidé mi contraseña
+                OlvidÃ© mi contraseÃ±a
               </Link>
             </div>
           </div>
@@ -167,3 +167,4 @@ function LoginPageContent() {
     </main>
   );
 }
+

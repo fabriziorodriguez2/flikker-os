@@ -28,7 +28,7 @@ export default function EmptyState({
       <p className="mt-2 max-w-md text-sm leading-6 text-[color:var(--text-muted)]">
         {description}
       </p>
-      {ctaLabel && onCta ? (
+      {ctaLabel && onCta  (
         <button
           type="button"
           onClick={onCta}

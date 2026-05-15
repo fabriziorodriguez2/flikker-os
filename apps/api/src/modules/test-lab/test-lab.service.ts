@@ -1,6 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '../../prisma/prisma.service';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { randomBytes } from 'crypto';
+import { MessageChannel, MessageStatus } from '@prisma/client';
+import { normalizeToE164 } from '../../common/utils/phone.util';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
 export class TestLabService {
@@ -63,9 +70,9 @@ export class TestLabService {
     if (!business) throw new NotFoundException('Business not found');
 
     const activeCampaigns = campaigns.filter(
-      (c) => c.status === 'ACTIVE',
+      (campaign) => campaign.status === 'ACTIVE',
     ).length;
-    const baseUrl = process.env.APP_PUBLIC_URL ?? 'https://app.flikker.com';
+    const baseUrl = process.env.APP_PUBLIC_URL  'https://app.flikker.com';
 
     return {
       business: {
@@ -102,14 +109,15 @@ export class TestLabService {
       select: { name: true },
     });
 
-    const customerName = input.customerName ?? 'Nombre de prueba';
-    const clinicName = input.clinicName ?? business?.name ?? 'Tu negocio';
-    const offerText = input.offerText ?? campaign.offerText ?? '';
+    const customerName = input.customerName  'Nombre de prueba';
+    const businessName = input.clinicName  business?.name  'Tu negocio';
+    const offerText = input.offerText  campaign.offerText  '';
 
-    const raw = campaign.messageBody ?? '';
+    const raw = campaign.messageBody  '';
     const rendered = raw
       .replaceAll('{nombre}', customerName)
-      .replaceAll('{clinica}', clinicName)
+      .replaceAll('{negocio}', businessName)
+      .replaceAll('{clinica}', businessName)
       .replaceAll('{oferta}', offerText)
       .replace(/\s+/g, ' ')
       .trim();
@@ -120,7 +128,7 @@ export class TestLabService {
       templateKind: campaign.templateKind,
       raw,
       rendered,
-      variables: { customerName, clinicName, offerText },
+      variables: { customerName, clinicName: businessName, offerText },
     };
   }
 
@@ -155,7 +163,69 @@ export class TestLabService {
       message: renderResult.rendered,
       campaignName: renderResult.campaignName,
       sentAt: new Date().toISOString(),
-      note: 'Envío de prueba — no queda registrado en historial ni afecta métricas.',
+      note: 'Envío de prueba - no queda registrado en historial ni afecta métricas.',
+    };
+  }
+
+  async generateReviewLink(
+    businessId: string,
+    input: { customerName?: string; phone?: string },
+  ) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true },
+    });
+    if (!business) throw new NotFoundException('Business not found');
+
+    const customerName = input.customerName?.trim();
+    if (!customerName) throw new BadRequestException('customerName is required');
+    if (!input.phone?.trim()) throw new BadRequestException('phone is required');
+
+    const phoneE164 = normalizeToE164(input.phone);
+    const trackingToken = randomBytes(8).toString('base64url');
+    const appPublicUrl =
+      process.env.APP_PUBLIC_URL ?
+      process.env.WEB_BASE_URL ?
+      'https://app.flikker.com';
+
+    const { customer, message } = await this.prisma.$transaction(async (tx) => {
+      const existing = await tx.customer.findFirst({
+        where: { businessId, phoneE164, isActive: true },
+        select: { id: true, name: true, phoneE164: true },
+      });
+
+      const customer =
+        existing ?
+        (await tx.customer.create({
+          data: {
+            businessId,
+            name: customerName,
+            phoneE164,
+          },
+          select: { id: true, name: true, phoneE164: true },
+        }));
+
+      const message = await tx.message.create({
+        data: {
+          businessId,
+          customerId: customer.id,
+          trackingToken,
+          channel: MessageChannel.whatsapp,
+          status: MessageStatus.queued,
+        },
+        select: { id: true, trackingToken: true },
+      });
+
+      return { customer, message };
+    });
+
+    return {
+      ok: true,
+      isTest: true,
+      customerId: customer.id,
+      messageId: message.id,
+      trackingUrl: `${appPublicUrl.replace(/\/$/, '')}/r/${trackingToken}`,
+      note: 'Link de prueba generado. No envía WhatsApp ni afecta métricas.',
     };
   }
 }

@@ -41,11 +41,11 @@ export async function createTestUser(
 ) {
   return prisma.user.create({
     data: {
-      id: overrides.id ?? randomUUID(),
-      email: overrides.email ?? `reviews-${suffix}@test.local`,
+      id: overrides.id  randomUUID(),
+      email: overrides.email  `reviews-${suffix}@test.local`,
       passwordHash: 'test-hash',
-      firstName: overrides.firstName ?? 'Reviews',
-      lastName: overrides.lastName ?? 'Tester',
+      firstName: overrides.firstName  'Reviews',
+      lastName: overrides.lastName  'Tester',
     },
   });
 }
@@ -62,10 +62,10 @@ export async function createTestBusiness(
 ) {
   return prisma.business.create({
     data: {
-      id: overrides.id ?? randomUUID(),
-      name: overrides.name ?? `Business ${suffix}`,
-      slug: overrides.slug ?? `reviews-${suffix}`,
-      status: overrides.status ?? BusinessStatus.ACTIVE,
+      id: overrides.id  randomUUID(),
+      name: overrides.name  `Business ${suffix}`,
+      slug: overrides.slug  `reviews-${suffix}`,
+      status: overrides.status  BusinessStatus.ACTIVE,
       country: 'UY',
       timezone: 'America/Montevideo',
       currency: 'UYU',
@@ -109,18 +109,18 @@ export async function createTestCampaign(
 ) {
   return prisma.campaign.create({
     data: {
-      id: overrides.id ?? randomUUID(),
+      id: overrides.id  randomUUID(),
       businessId,
       createdByUserId,
-      name: overrides.name ?? `Campaign ${suffix}`,
-      slug: overrides.slug ?? `campaign-${suffix}`,
-      channel: overrides.channel ?? CampaignChannel.QR_COUNTER,
-      status: overrides.status ?? CampaignStatus.ACTIVE,
+      name: overrides.name  `Campaign ${suffix}`,
+      slug: overrides.slug  `campaign-${suffix}`,
+      channel: overrides.channel  CampaignChannel.QR_COUNTER,
+      status: overrides.status  CampaignStatus.ACTIVE,
       destinationType:
-        overrides.destinationType ?? DestinationType.GOOGLE_REVIEW,
+        overrides.destinationType  DestinationType.GOOGLE_REVIEW,
       destinationUrl:
         overrides.destinationUrl === undefined
-          ? 'https://example.com/review'
+           'https://example.com/review'
           : overrides.destinationUrl,
     },
   });
@@ -148,44 +148,44 @@ export async function createTestReview(
 ) {
   const review = await prisma.review.create({
     data: {
-      id: overrides.id ?? randomUUID(),
+      id: overrides.id  randomUUID(),
       businessId,
       campaignId:
-        overrides.campaignId === undefined ? undefined : overrides.campaignId,
-      source: overrides.source ?? ReviewSource.MANUAL,
+        overrides.campaignId === undefined  undefined : overrides.campaignId,
+      source: overrides.source  ReviewSource.MANUAL,
       externalReviewId:
         overrides.externalReviewId === undefined
-          ? `ext-${suffix}`
+           `ext-${suffix}`
           : overrides.externalReviewId,
       authorDisplayName:
         overrides.authorDisplayName === undefined
-          ? `Author ${suffix}`
+           `Author ${suffix}`
           : overrides.authorDisplayName,
-      rating: overrides.rating ?? 5,
+      rating: overrides.rating  5,
       content:
         overrides.content === undefined
-          ? `Review content ${suffix}`
+           `Review content ${suffix}`
           : overrides.content,
-      reviewedAt: overrides.reviewedAt ?? new Date('2026-04-01T12:00:00.000Z'),
-      status: overrides.status ?? ReviewStatus.NEW,
-      isHighlighted: overrides.isHighlighted ?? false,
+      reviewedAt: overrides.reviewedAt  new Date('2026-04-01T12:00:00.000Z'),
+      status: overrides.status  ReviewStatus.NEW,
+      isHighlighted: overrides.isHighlighted  false,
       respondedAt:
-        overrides.respondedAt === undefined ? null : overrides.respondedAt,
+        overrides.respondedAt === undefined  null : overrides.respondedAt,
       respondedByUserId:
         overrides.respondedByUserId === undefined
-          ? null
+           null
           : overrides.respondedByUserId,
       createdByUserId:
         overrides.createdByUserId === undefined
-          ? null
+           null
           : overrides.createdByUserId,
       statusHistory: {
         create: {
           fromStatus: null,
-          toStatus: overrides.status ?? ReviewStatus.NEW,
+          toStatus: overrides.status  ReviewStatus.NEW,
           changedByUserId:
             overrides.createdByUserId === undefined
-              ? null
+               null
               : overrides.createdByUserId,
         },
       },

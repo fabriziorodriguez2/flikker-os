@@ -10,7 +10,7 @@ const processLogger = new Logger('Process');
 process.on('unhandledRejection', (reason: unknown) => {
   processLogger.error(
     'Unhandled Promise Rejection',
-    reason instanceof Error ? reason.stack : String(reason),
+    reason instanceof Error  reason.stack : String(reason),
   );
 });
 
@@ -32,8 +32,8 @@ async function bootstrap() {
 
   app.useGlobalFilters(new HttpExceptionFilter());
 
-  const port = process.env.PORT ?? 3000;
-  const env = process.env.NODE_ENV ?? 'development';
+  const port = process.env.PORT  3000;
+  const env = process.env.NODE_ENV  'development';
 
   await app.listen(port);
 

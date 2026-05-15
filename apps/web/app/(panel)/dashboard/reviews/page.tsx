@@ -79,14 +79,14 @@ function formatReviewDate(iso: string) {
 function StarRating({ value }: { value: number }) {
   return (
     <span className="text-sm text-amber-400">
-      {Array.from({ length: 5 }, (_, i) => (i < value ? "★" : "☆")).join("")}
+      {Array.from({ length: 5 }, (_, i) => (i < value  "★" : "☆")).join("")}
     </span>
   );
 }
 
 function ReviewerAvatar({ name }: { name: string | null }) {
   const initials = name
-    ? name
+     name
         .split(" ")
         .slice(0, 2)
         .map((w) => w[0])
@@ -107,7 +107,7 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
   const { accessToken, businessId } = getEffectiveApiContext(session);
   if (!businessId) redirect("/dashboard");
 
-  const resolved = searchParams ? await searchParams : {};
+  const resolved = searchParams  await searchParams : {};
   const stars = firstValue(resolved.stars);
   const period = firstValue(resolved.period);
   const search = firstValue(resolved.search);
@@ -153,7 +153,7 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
             Calificación Promedio
           </p>
           <p className="mt-2 text-3xl font-bold text-[#1A202C]">
-            {stats.avgStars > 0 ? (
+            {stats.avgStars > 0  (
               <>
                 {stats.avgStars.toFixed(1)}{" "}
                 <span className="text-xl text-amber-400">★</span>
@@ -181,7 +181,7 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
         {reviews.length === 0 ? (
           <div className="px-5 py-10 text-center text-sm text-[#8891A4]">
             {stars || period || search
-              ? "No hay reseñas para esos filtros."
+               "No hay reseñas para esos filtros."
               : "Todavía no hay reseñas de Google detectadas."}
           </div>
         ) : (
@@ -224,7 +224,7 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
                       {formatReviewDate(review.reviewedAt)}
                     </td>
                     <td className="px-4 py-3.5">
-                      {review.attributedMessageId ? (
+                      {review.attributedMessageId  (
                         <span className="rounded-full bg-[#EEF7E8] px-2.5 py-1 text-xs font-semibold text-[#639922]">
                           vía Flikker
                         </span>

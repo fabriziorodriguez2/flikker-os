@@ -41,8 +41,8 @@ export class ServiceEventsService {
   }
 
   async list(businessId: string, query: { page?: string; limit?: string }) {
-    const page = Math.max(Number(query.page ?? 1), 1);
-    const limit = Math.min(Math.max(Number(query.limit ?? 20), 1), 100);
+    const page = Math.max(Number(query.page  1), 1);
+    const limit = Math.min(Math.max(Number(query.limit  20), 1), 100);
     const [total, data] = await this.repository.findMany(businessId, {
       page,
       limit,
@@ -77,7 +77,7 @@ export class ServiceEventsService {
       } catch (error) {
         errors.push({
           row: row.rowNumber,
-          message: error instanceof Error ? error.message : 'Error',
+          message: error instanceof Error  error.message : 'Error',
         });
       }
     }
@@ -147,19 +147,19 @@ export class ServiceEventsService {
       const values = this.splitCsvLine(line);
       const record = new Map<string, string>();
       headers.forEach((header, valueIndex) => {
-        record.set(header, values[valueIndex]?.trim() ?? '');
+        record.set(header, values[valueIndex]?.trim()  '');
       });
 
       return {
         rowNumber: index + 2,
         customerId: record.get('customerid') || undefined,
         phone:
-          record.get('telefono') ??
-          record.get('teléfono') ??
-          record.get('phone') ??
+          record.get('telefono') ?
+          record.get('teléfono') ?
+          record.get('phone') ?
           record.get('tel'),
-        serviceType: record.get('servicetype') ?? record.get('servicio'),
-        eventAt: record.get('eventat') ?? record.get('fecha') ?? undefined,
+        serviceType: record.get('servicetype')  record.get('servicio'),
+        eventAt: record.get('eventat')  record.get('fecha')  undefined,
       };
     });
   }

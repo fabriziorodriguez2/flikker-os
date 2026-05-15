@@ -45,7 +45,7 @@ export default function ReviewResponseForm({
   const router = useRouter();
   const canMutate = useCanMutate();
   const [isPending, startTransition] = useTransition();
-  const [content, setContent] = useState(initialResponse?.content ?? "");
+  const [content, setContent] = useState(initialResponse?.content  "");
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -67,11 +67,11 @@ export default function ReviewResponseForm({
 
     try {
       const path = initialResponse
-        ? `/api/proxy/responses/${initialResponse.id}`
+         `/api/proxy/responses/${initialResponse.id}`
         : "/api/proxy/responses";
-      const method = initialResponse ? "PATCH" : "POST";
+      const method = initialResponse  "PATCH" : "POST";
       const body = initialResponse
-        ? { content: trimmed }
+         { content: trimmed }
         : { reviewId, content: trimmed };
 
       const res = await fetch(path, {
@@ -82,15 +82,15 @@ export default function ReviewResponseForm({
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.message ?? "No se pudo guardar la respuesta");
+        throw new Error(data.message  "No se pudo guardar la respuesta");
       }
 
-      setMessage(initialResponse ? "Respuesta actualizada" : "Respuesta guardada");
+      setMessage(initialResponse  "Respuesta actualizada" : "Respuesta guardada");
       startTransition(() => {
         router.refresh();
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al guardar respuesta");
+      setError(e instanceof Error  e.message : "Error al guardar respuesta");
     }
   }
 
@@ -106,7 +106,7 @@ export default function ReviewResponseForm({
           </h2>
           <p className="mt-2 text-sm leading-6 text-[color:var(--text-muted)]">
             {initialResponse
-              ? "Puedes editar la respuesta guardada."
+               "Puedes editar la respuesta guardada."
               : "Todavía no hay una respuesta guardada."}
           </p>
         </div>
@@ -114,17 +114,17 @@ export default function ReviewResponseForm({
         <span
           className={`rounded-full px-3 py-2 text-xs font-semibold uppercase tracking-[0.14em] ${
             initialRespondedAt
-              ? "bg-[color:var(--success-bg)] text-[color:var(--success-text)]"
+               "bg-[color:var(--success-bg)] text-[color:var(--success-text)]"
               : "border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]"
           }`}
         >
-          {initialRespondedAt ? "Respondida" : "Sin responder"}
+          {initialRespondedAt  "Respondida" : "Sin responder"}
         </span>
       </div>
 
       {(initialResponse || initialRespondedAt) && (
         <div className="mt-5 rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-5 py-5 text-sm">
-          {initialResponse ? (
+          {initialResponse  (
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                 Texto guardado
@@ -136,13 +136,13 @@ export default function ReviewResponseForm({
           ) : null}
 
           <div className="mt-4 flex flex-wrap gap-x-4 gap-y-2 text-xs text-[color:var(--text-muted)]">
-            <span>Fecha: {initialRespondedAt ? formatDate(initialRespondedAt) : "-"}</span>
-            <span>Usuario: {responderName ?? "-"}</span>
+            <span>Fecha: {initialRespondedAt  formatDate(initialRespondedAt) : "-"}</span>
+            <span>Usuario: {responderName  "-"}</span>
           </div>
         </div>
       )}
 
-      {initialLoadError ? (
+      {initialLoadError  (
         <div
           className="mt-5 rounded-[20px] border px-4 py-3 text-sm text-[color:var(--danger-text)]"
           style={{
@@ -160,7 +160,7 @@ export default function ReviewResponseForm({
             htmlFor="response-content"
             className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]"
           >
-            {initialResponse ? "Editar respuesta" : "Escribir respuesta"}
+            {initialResponse  "Editar respuesta" : "Escribir respuesta"}
           </label>
           <textarea
             id="response-content"
@@ -171,10 +171,10 @@ export default function ReviewResponseForm({
             placeholder="Escribe la respuesta que quieres registrar."
           />
 
-          {error ? (
+          {error  (
             <p className="mt-3 text-sm text-[color:var(--danger-text)]">{error}</p>
           ) : null}
-          {message ? (
+          {message  (
             <p className="mt-3 text-sm text-[color:var(--success-text)]">{message}</p>
           ) : null}
 
@@ -184,9 +184,9 @@ export default function ReviewResponseForm({
             className="mt-5 rounded-[16px] bg-[color:var(--brand-primary)] px-5 py-3 text-sm font-semibold text-white hover:bg-[color:var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60"
           >
             {isPending
-              ? "Guardando..."
+               "Guardando..."
               : initialResponse
-                ? "Actualizar respuesta"
+                 "Actualizar respuesta"
                 : "Guardar respuesta"}
           </button>
         </form>

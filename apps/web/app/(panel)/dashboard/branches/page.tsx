@@ -194,7 +194,7 @@ function BranchesContent() {
         </div>
       ) : null}
 
-      {showForm ? (
+      {showForm  (
         <SectionCard
           title="Nueva sucursal"
           description="Carga los datos básicos."
@@ -283,7 +283,7 @@ function BranchesContent() {
               </div>
             </div>
 
-            {formError ? (
+            {formError  (
               <p className="rounded-[20px] border px-4 py-3 text-sm text-[color:var(--danger-text)]">
                 {formError}
               </p>
@@ -294,7 +294,7 @@ function BranchesContent() {
               disabled={saving}
               className={actionButtonClass}
             >
-              {saving ? "Creando..." : "Crear sucursal"}
+              {saving  "Creando..." : "Crear sucursal"}
             </button>
           </form>
         </SectionCard>
@@ -304,7 +304,7 @@ function BranchesContent() {
         title="Sucursales registradas"
         description="Listado de sucursales y estado."
       >
-        {branches.length === 0 ? (
+        {branches.length === 0  (
           <div className="rounded-[24px] border border-dashed border-[color:var(--border-strong)] bg-[color:var(--surface-muted)] px-6 py-10 text-center">
             <h3 className="text-2xl font-semibold text-[color:var(--foreground)]">
               Todavía no hay sucursales
@@ -344,12 +344,12 @@ function BranchesContent() {
                       {branch.slug}
                     </div>
                     <div className="text-sm text-[color:var(--text-muted)]">
-                      {branch.city ?? "-"}
+                      {branch.city  "-"}
                     </div>
                     <div>
                       <AdminStatusBadge
-                        tone={branch.isActive ? "active" : "inactive"}
-                        label={branch.isActive ? "Activa" : "Inactiva"}
+                        tone={branch.isActive  "active" : "inactive"}
+                        label={branch.isActive  "Activa" : "Inactiva"}
                       />
                     </div>
                     <div className="text-right">
@@ -358,7 +358,7 @@ function BranchesContent() {
                           onClick={() => toggleActive(branch)}
                           className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-2 text-xs font-semibold text-[color:var(--text-muted)] transition-colors hover:border-[color:var(--brand-accent)] hover:text-[color:var(--foreground)]"
                         >
-                          {branch.isActive ? "Desactivar" : "Activar"}
+                          {branch.isActive  "Desactivar" : "Activar"}
                         </button>
                       ) : (
                         <span className="text-xs text-[color:var(--text-soft)]">
@@ -387,14 +387,14 @@ function BranchesContent() {
                       </p>
                     </div>
                     <AdminStatusBadge
-                      tone={branch.isActive ? "active" : "inactive"}
-                      label={branch.isActive ? "Activa" : "Inactiva"}
+                      tone={branch.isActive  "active" : "inactive"}
+                      label={branch.isActive  "Activa" : "Inactiva"}
                     />
                   </div>
 
                   <div className="mt-4 space-y-2 text-sm text-[color:var(--text-muted)]">
-                    <p>Ciudad: {branch.city ?? "-"}</p>
-                    <p>Dirección: {branch.address ?? "-"}</p>
+                    <p>Ciudad: {branch.city  "-"}</p>
+                    <p>Dirección: {branch.address  "-"}</p>
                     <p>Contacto: {branch.phone || branch.email || "-"}</p>
                   </div>
 
@@ -403,7 +403,7 @@ function BranchesContent() {
                       onClick={() => toggleActive(branch)}
                       className="mt-5 rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2 text-xs font-semibold text-[color:var(--text-muted)] transition-colors hover:border-[color:var(--brand-accent)] hover:text-[color:var(--foreground)]"
                     >
-                      {branch.isActive ? "Desactivar" : "Activar"}
+                      {branch.isActive  "Desactivar" : "Activar"}
                     </button>
                   ) : null}
                 </div>

@@ -22,7 +22,7 @@ export class WhatsAppBspService {
   ): Promise<SendReviewRequestResult> {
     return this.sendText({
       phone: input.phone,
-      text: `Hola ${input.customerName}, gracias por venir hoy. Tu opinión nos ayuda muchísimo a seguir mejorando. ¿Nos dejás una reseña? ${input.trackingUrl} 💜`,
+      text: `Hola ${input.customerName}, gracias por venir hoy. Tu opinión nos ayuda muchísimo a seguir mejorando. ¿Nos dejás una reseña ${input.trackingUrl} 💜`,
     });
   }
 
@@ -32,7 +32,7 @@ export class WhatsAppBspService {
       throw new Error('WHAPI_TOKEN is required to send WhatsApp messages');
     }
 
-    const baseUrl = process.env.WHAPI_BASE_URL ?? 'https://gate.whapi.cloud';
+    const baseUrl = process.env.WHAPI_BASE_URL  'https://gate.whapi.cloud';
     const response = await fetch(
       `${baseUrl.replace(/\/$/, '')}/messages/text`,
       {
@@ -57,7 +57,7 @@ export class WhatsAppBspService {
 
     return {
       whatsappMessageId:
-        extractMessageId(payload) ?? `whapi-${Date.now().toString()}`,
+        extractMessageId(payload)  `whapi-${Date.now().toString()}`,
     };
   }
 }
@@ -70,16 +70,16 @@ function extractMessageId(value: unknown): string | null {
   if (!isRecord(value)) return null;
 
   return (
-    stringValue(value.id) ??
-    stringValue(value.messageId) ??
-    stringValue(value.message_id) ??
-    (isRecord(value.message) ? stringValue(value.message.id) : null) ??
-    (isRecord(value.data) ? stringValue(value.data.id) : null)
+    stringValue(value.id) ?
+    stringValue(value.messageId) ?
+    stringValue(value.message_id) ?
+    (isRecord(value.message)  stringValue(value.message.id) : null) ?
+    (isRecord(value.data)  stringValue(value.data.id) : null)
   );
 }
 
 function stringValue(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
+  return typeof value === 'string' && value.trim()  value.trim() : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

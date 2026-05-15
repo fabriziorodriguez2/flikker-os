@@ -30,7 +30,7 @@ export default function LogoutButton() {
     router.refresh();
   }
 
-  const modal = open ? (
+  const modal = open  (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-[#0D1B2A]/45 px-4 backdrop-blur-[3px]">
       <button
         type="button"
@@ -93,7 +93,7 @@ export default function LogoutButton() {
         Salir
       </button>
       {typeof document !== 'undefined' && modal
-        ? createPortal(modal, document.body)
+         createPortal(modal, document.body)
         : null}
     </>
   );

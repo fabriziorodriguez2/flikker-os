@@ -7,7 +7,7 @@ export class BranchesRepository {
 
   findManyByBusiness(businessId: string, includeInactive = false) {
     return this.prisma.branch.findMany({
-      where: { businessId, ...(includeInactive ? {} : { isActive: true }) },
+      where: { businessId, ...(includeInactive  {} : { isActive: true }) },
       orderBy: { createdAt: 'asc' },
     });
   }

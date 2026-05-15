@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -112,15 +112,15 @@ export default function CustomersPage() {
         | { message?: string };
       if (!res.ok) {
         throw new Error(
-          "message" in data && data.message
-            ? data.message
-            : "Error al cargar pacientes",
+          "message" in data && data.message ?
+             data.message
+            : "Error al cargar clientes",
         );
       }
       setCustomers((data as CustomersResponse).data);
       setTotal((data as CustomersResponse).total);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al cargar pacientes");
+      setError(e instanceof Error ? e.message : "Error al cargar clientes");
     } finally {
       setLoading(false);
     }
@@ -160,9 +160,9 @@ export default function CustomersPage() {
     setError(null);
     try {
       const res = await fetch(
-        editing ? `/api/proxy/customers/${editing.id}` : "/api/proxy/customers",
+        editing  `/api/proxy/customers/${editing.id}` : "/api/proxy/customers",
         {
-          method: editing ? "PATCH" : "POST",
+          method: editing  "PATCH" : "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             name,
@@ -174,7 +174,7 @@ export default function CustomersPage() {
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message ?? "Error al guardar");
-      setMessage(editing ? "Paciente actualizado" : "Paciente creado");
+      setMessage(editing  "Cliente actualizado" : "Cliente creado");
       setShowForm(false);
       await fetchCustomers();
     } catch (e) {
@@ -194,7 +194,7 @@ export default function CustomersPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message ?? "Error al archivar");
-      setMessage("Paciente archivado");
+      setMessage("Cliente archivado");
       setPendingDelete(null);
       await fetchCustomers();
     } catch (e) {
@@ -235,7 +235,7 @@ export default function CustomersPage() {
     }
     const mapping = buildImportMapping(columnMapping);
     if (!mapping.name || !mapping.phone) {
-      setError("Mapeá al menos las columnas de nombre y teléfono");
+      setError("Mapeá al menos las columnas de nombre y telÃ©fono");
       return;
     }
     setSaving(true);
@@ -287,7 +287,7 @@ export default function CustomersPage() {
   function downloadTemplate() {
     const csvTemplate = [
       "nombre,telefono,fecha_ultimo_servicio",
-      "María García,091234567,2026-01-15",
+      "María GarcÃ­a,091234567,2026-01-15",
       "Claudia Ruiz,099887766,2026-01-16",
     ].join("\n");
     const blob = new Blob([`\uFEFF${csvTemplate}`], {
@@ -296,7 +296,7 @@ export default function CustomersPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "plantilla-pacientes-flikker.csv";
+    link.download = "plantilla-clientes-flikker.csv";
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -305,7 +305,7 @@ export default function CustomersPage() {
     <div className="mx-auto max-w-6xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-[22px] font-bold text-[#1A202C]">
-          Pacientes
+          Clientes
         </h1>
       </div>
 
@@ -313,11 +313,11 @@ export default function CustomersPage() {
         <div
           className={`rounded-[8px] border px-4 py-3 text-sm ${
             error
-              ? "border-red-200 bg-red-50 text-[#C0392B]"
+               "border-red-200 bg-red-50 text-[#C0392B]"
               : "border-green-200 bg-green-50 text-[#639922]"
           }`}
         >
-          {error ?? message}
+          {error  message}
         </div>
       ) : null}
 
@@ -328,7 +328,7 @@ export default function CustomersPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="h-10 w-full rounded-[8px] border border-[#E8EAF0] bg-white pl-10 pr-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]"
-            placeholder="Buscar por nombre o teléfono"
+            placeholder="Buscar por nombre o telÃ©fono"
           />
         </label>
         <div className="flex gap-2">
@@ -343,12 +343,12 @@ export default function CustomersPage() {
           ) : null}
           <button className={primaryButton} onClick={openNew}>
             <Plus className="h-4 w-4" />
-            Nuevo paciente
+            Nuevo cliente
           </button>
         </div>
       </div>
 
-      {showImport ? (
+      {showImport  (
         <form
           onSubmit={handleImport}
           className="rounded-[12px] border border-[#E8EAF0] bg-white p-4"
@@ -356,7 +356,7 @@ export default function CustomersPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-[#1A202C]">
-                Importar pacientes
+                Importar clientes
               </h2>
               <p className="mt-1 text-sm text-[#8891A4]">
                 Subí un CSV o XLSX y confirmá el mapeo antes de importar.
@@ -382,7 +382,7 @@ export default function CustomersPage() {
             }}
             className={`mt-4 block cursor-pointer rounded-[12px] border border-dashed px-5 py-6 text-center text-sm transition-colors ${
               dragActive
-                ? "border-[#5C6BC0] bg-[#EEF0FB]"
+                 "border-[#5C6BC0] bg-[#EEF0FB]"
                 : "border-[#E8EAF0] bg-[#F5F6FA]"
             }`}
           >
@@ -398,12 +398,12 @@ export default function CustomersPage() {
             <span className="font-semibold text-[#1A202C]">
               Arrastrá tu archivo acá o hacé clic para seleccionarlo
             </span>
-            {importFile ? (
+            {importFile  (
               <span className="mt-2 block text-[#5C6BC0]">{importFile.name}</span>
             ) : null}
           </label>
 
-          {importColumns.length > 0 ? (
+          {importColumns.length > 0  (
             <div className="mt-4 grid gap-4 lg:grid-cols-2">
               <div>
                 <h3 className="text-sm font-semibold text-[#1A202C]">
@@ -415,7 +415,7 @@ export default function CustomersPage() {
                       <span className="text-[#8891A4]">{column}</span>
                       <select
                         className={inputClass}
-                        value={columnMapping[column] ?? "ignore"}
+                        value={columnMapping[column]  "ignore"}
                         onChange={(event) =>
                           setColumnMapping((current) => ({
                             ...current,
@@ -460,7 +460,7 @@ export default function CustomersPage() {
             </div>
           ) : null}
 
-          {importResult ? (
+          {importResult  (
             <p className="mt-4 text-sm text-[#8891A4]">
               Importados: {importResult.imported}. Duplicados:{" "}
               {importResult.duplicates}. Fallidos: {importResult.failed.length}.
@@ -472,7 +472,7 @@ export default function CustomersPage() {
             disabled={!canMutate || saving || !importFile}
             className={`${primaryButton} mt-4`}
           >
-            {saving ? "Importando..." : "Confirmar importación"}
+            {saving  "Importando..." : "Confirmar importación"}
           </button>
         </form>
       ) : null}
@@ -491,13 +491,13 @@ export default function CustomersPage() {
             {loading ? (
               <tr>
                 <td colSpan={4} className="px-4 py-10 text-center text-[#8891A4]">
-                  Cargando pacientes...
+                  Cargando clientes...
                 </td>
               </tr>
             ) : customers.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-10 text-center text-[#8891A4]">
-                  No hay pacientes para mostrar.
+                  No hay clientes para mostrar.
                 </td>
               </tr>
             ) : (
@@ -521,13 +521,13 @@ export default function CustomersPage() {
                         className="inline-flex h-8 items-center gap-1 rounded-[8px] bg-[#639922] px-3 text-xs font-semibold text-white disabled:opacity-50"
                       >
                         <Check className="h-3.5 w-3.5" />
-                        Atendido hoy
+                        Registrar atención
                       </button>
                       <button
                         type="button"
                         onClick={() => openEdit(customer)}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA]"
-                        aria-label="Editar paciente"
+                        aria-label="Editar cliente"
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>
@@ -536,7 +536,7 @@ export default function CustomersPage() {
                         onClick={() => setPendingDelete(customer)}
                         disabled={!canMutate}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA] disabled:opacity-50"
-                        aria-label="Archivar paciente"
+                        aria-label="Archivar cliente"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -550,17 +550,17 @@ export default function CustomersPage() {
       </div>
 
       <p className="text-xs text-[#8891A4]">
-        Mostrando {customers.length} de {total} pacientes
+        Mostrando {customers.length} de {total} clientes
       </p>
 
-      {showForm ? (
+      {showForm  (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
           <form
             onSubmit={handleSave}
             className="w-full max-w-lg rounded-[12px] border border-[#E8EAF0] bg-white p-6"
           >
             <h2 className="text-lg font-bold text-[#1A202C]">
-              {editing ? "Editar paciente" : "Nuevo paciente"}
+              {editing  "Editar cliente" : "Nuevo cliente"}
             </h2>
             <p className="mt-1 text-sm text-[#8891A4]">
               La fecha de nacimiento es opcional y se usa para cumpleaños.
@@ -572,7 +572,7 @@ export default function CustomersPage() {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className={inputClass}
-                  placeholder="María García"
+                  placeholder="María GarcÃ­a"
                   required
                 />
               </label>
@@ -605,14 +605,14 @@ export default function CustomersPage() {
                 Cancelar
               </button>
               <button type="submit" disabled={saving || !canMutate} className={primaryButton}>
-                {saving ? "Guardando..." : "Guardar"}
+                {saving  "Guardando..." : "Guardar"}
               </button>
             </div>
           </form>
         </div>
       ) : null}
 
-      {pendingDelete ? (
+      {pendingDelete  (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
           <div
             role="dialog"
@@ -629,14 +629,14 @@ export default function CustomersPage() {
                   id="archive-customer-title"
                   className="text-lg font-bold text-[#1A202C]"
                 >
-                  Archivar paciente
+                  Archivar cliente
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#8891A4]">
                   ¿Querés archivar a{" "}
                   <span className="font-semibold text-[#1A202C]">
                     {pendingDelete.name}
                   </span>
-                  ? No va a aparecer en el listado principal.
+                   No va a aparecer en el listado principal.
                 </p>
               </div>
             </div>
@@ -656,7 +656,7 @@ export default function CustomersPage() {
                 onClick={() => void handleDelete(pendingDelete)}
                 disabled={saving || !canMutate}
               >
-                {saving ? "Archivando..." : "Archivar"}
+                {saving  "Archivando..." : "Archivar"}
               </button>
             </div>
           </div>
@@ -688,7 +688,7 @@ async function parseImportFile(file: File): Promise<{
             reject(new Error("No se pudo leer el CSV"));
             return;
           }
-          const columns = result.meta.fields?.filter(Boolean) ?? [];
+          const columns = result.meta.fields?.filter(Boolean)  [];
           resolve({ columns, rows: normalizePreviewRows(result.data, columns) });
         },
         error: () => reject(new Error("No se pudo leer el CSV")),
@@ -704,14 +704,14 @@ async function parseImportFile(file: File): Promise<{
     workbook.Sheets[firstSheet],
     { defval: "", raw: false },
   );
-  const columns = rows[0] ? Object.keys(rows[0]) : [];
+  const columns = rows[0]  Object.keys(rows[0]) : [];
   return { columns, rows: normalizePreviewRows(rows, columns) };
 }
 
 function normalizePreviewRows(rows: Array<Record<string, unknown>>, columns: string[]) {
   return rows.map((row) =>
     Object.fromEntries(
-      columns.map((column) => [column, String(row[column] ?? "").trim()]),
+      columns.map((column) => [column, String(row[column]  "").trim()]),
     ),
   );
 }
@@ -722,12 +722,12 @@ function inferColumnMapping(columns: string[]): Record<string, ImportField> {
       const normalized = normalizeColumn(column);
       let field: ImportField = "ignore";
       if (["nombre", "name"].includes(normalized)) field = "name";
-      if (["telefono", "teléfono", "phone"].includes(normalized)) field = "phone";
+      if (["telefono", "telÃ©fono", "phone"].includes(normalized)) field = "phone";
       if (normalized === "email") field = "email";
       if (
         [
           "fecha ultimo servicio",
-          "fecha último servicio",
+          "fecha Ãºltimo servicio",
           "fecha_ultimo_servicio",
           "last service at",
           "last_service_at",
@@ -751,3 +751,4 @@ function buildImportMapping(mapping: Record<string, ImportField>) {
 function normalizeColumn(column: string) {
   return column.trim().toLowerCase().replace(/\s+/g, " ");
 }
+

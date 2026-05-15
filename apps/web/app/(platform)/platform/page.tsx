@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
@@ -161,14 +161,14 @@ export default function PlatformPage() {
             Negocios en la plataforma
           </h1>
           <p className="mt-2 text-sm text-[#8891A4]">
-            Operá como cualquiera de ellos sin pedirles credenciales.
+            OperÃ¡ como cualquiera de ellos sin pedirles credenciales.
           </p>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-3">
           <MetricCard label="Negocios activos" value={stats.active} />
-          <MetricCard label="Reseñas detectadas" value={stats.reviews} />
-          <MetricCard label="Pacientes cargados" value={stats.messages} />
+          <MetricCard label="ReseÃ±as detectadas" value={stats.reviews} />
+          <MetricCard label="Clientes cargados" value={stats.messages} />
         </div>
       </section>
 
@@ -225,10 +225,10 @@ export default function PlatformPage() {
                   <Th>Negocio</Th>
                   <Th>Plan</Th>
                   <Th>Estado</Th>
-                  <Th>Último acceso</Th>
-                  <Th align="right">Reseñas</Th>
-                  <Th align="right">Pacientes</Th>
-                  <Th align="right">Acción</Th>
+                  <Th>Ãšltimo acceso</Th>
+                  <Th align="right">ReseÃ±as</Th>
+                  <Th align="right">Clientes</Th>
+                  <Th align="right">AcciÃ³n</Th>
                 </tr>
               </thead>
               <tbody>
@@ -281,7 +281,7 @@ export default function PlatformPage() {
                           className="inline-flex h-9 items-center justify-center rounded-lg bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4e5db0] disabled:opacity-60"
                         >
                           {impersonatingId === business.id
-                            ? "Entrando..."
+                             "Entrando..."
                             : "Operar como negocio"}
                         </button>
                         <button
@@ -304,7 +304,7 @@ export default function PlatformPage() {
 
         <div className="flex items-center justify-between border-t border-[#E8EAF0] px-4 py-4 text-sm text-[#8891A4]">
           <span>
-            Mostrando {visibleBusinesses.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}-
+            Mostrando {visibleBusinesses.length === 0  0 : (page - 1) * PAGE_SIZE + 1}-
             {Math.min(page * PAGE_SIZE, filteredBusinesses.length)} de{" "}
             {filteredBusinesses.length} negocios
           </span>
@@ -314,7 +314,7 @@ export default function PlatformPage() {
               onClick={() => setPage((current) => Math.max(1, current - 1))}
               disabled={page === 1}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E8EAF0] bg-white text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-45"
-              aria-label="Página anterior"
+              aria-label="PÃ¡gina anterior"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -323,7 +323,7 @@ export default function PlatformPage() {
               onClick={() => setPage((current) => Math.min(totalPages, current + 1))}
               disabled={page === totalPages}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-[#E8EAF0] bg-white text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-45"
-              aria-label="Página siguiente"
+              aria-label="PÃ¡gina siguiente"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
@@ -331,7 +331,7 @@ export default function PlatformPage() {
         </div>
       </section>
 
-      {pendingDelete ? (
+      {pendingDelete  (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
           <div
             role="dialog"
@@ -351,11 +351,11 @@ export default function PlatformPage() {
                   Borrar negocio
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#8891A4]">
-                  ¿Querés borrar{" "}
+                  Â¿QuerÃ©s borrar{" "}
                   <span className="font-semibold text-[#1A202C]">
                     {pendingDelete.name}
                   </span>
-                  ? El negocio se va a archivar y dejará de aparecer en el panel
+                   El negocio se va a archivar y dejarÃ¡ de aparecer en el panel
                   admin.
                 </p>
               </div>
@@ -376,7 +376,7 @@ export default function PlatformPage() {
                 disabled={deletingId === pendingDelete.id}
                 className="inline-flex h-10 items-center justify-center rounded-lg bg-[#C0392B] px-4 text-sm font-semibold text-white hover:bg-[#a93226] disabled:opacity-60"
               >
-                {deletingId === pendingDelete.id ? "Borrando..." : "Borrar"}
+                {deletingId === pendingDelete.id  "Borrando..." : "Borrar"}
               </button>
             </div>
           </div>
@@ -450,19 +450,19 @@ function StatusBadge({ status }: { status: string }) {
   const normalized = status.toLowerCase();
   const styles =
     normalized === "active"
-      ? "bg-[#639922]/10 text-[#639922]"
+       "bg-[#639922]/10 text-[#639922]"
       : normalized === "inactive"
-        ? "bg-[#C0392B]/10 text-[#C0392B]"
+         "bg-[#C0392B]/10 text-[#C0392B]"
         : normalized === "suspended"
-          ? "bg-[#FFAB76]/20 text-[#9D5D0E]"
+           "bg-[#FFAB76]/20 text-[#9D5D0E]"
           : "bg-[#EEF0FB] text-[#5C6BC0]";
   const label =
     normalized === "active"
-      ? "activo"
+       "activo"
       : normalized === "inactive"
-        ? "inactivo"
+         "inactivo"
         : normalized === "suspended"
-          ? "pausa"
+           "pausa"
           : "onboarding";
 
   return (
@@ -483,7 +483,7 @@ function Th({
   return (
     <th
       className={`px-4 py-3 text-xs font-bold uppercase tracking-wide text-[#8891A4] ${
-        align === "right" ? "text-right" : "text-left"
+        align === "right"  "text-right" : "text-left"
       }`}
     >
       {children}
@@ -503,3 +503,4 @@ function relativeDate(value: string) {
     month: "short",
   }).format(new Date(value));
 }
+

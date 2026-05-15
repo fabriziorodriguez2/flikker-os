@@ -1,4 +1,4 @@
-import { redirect } from "next/navigation";
+﻿import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import SectionCard from "@/components/ui/section-card";
@@ -124,14 +124,14 @@ function MessageQuotaBanner({
   const tone = isBlocked || isCritical ? "danger" : "warning";
   const classes =
     tone === "danger"
-      ? "border-[#C0392B]/25 bg-[#C0392B]/10 text-[#8F2A20]"
+       "border-[#C0392B]/25 bg-[#C0392B]/10 text-[#8F2A20]"
       : "border-[#FFAB76]/35 bg-[#FFF4E5] text-[#8A520D]";
   const dotClass = tone === "danger" ? "bg-[#C0392B]" : "bg-[#D4600A]";
   const title = isBlocked
-    ? "Llegaste al límite mensual de mensajes"
+     "Llegaste al lÃ­mite mensual de mensajes"
     : isCritical
-      ? "Estás por llegar al límite mensual de mensajes"
-      : "Estás cerca del límite mensual de mensajes";
+       "EstÃ¡s por llegar al lÃ­mite mensual de mensajes"
+      : "EstÃ¡s cerca del lÃ­mite mensual de mensajes";
 
   return (
     <div className={`rounded-[12px] border px-4 py-3 text-sm ${classes}`}>
@@ -183,7 +183,7 @@ function KpiCard({
 }) {
   const isPositive = metric.delta >= 0;
   const deltaClass = isPositive
-    ? "bg-[color:rgba(99,153,34,0.12)] text-[#639922]"
+     "bg-[color:rgba(99,153,34,0.12)] text-[#639922]"
     : "bg-[color:rgba(192,57,43,0.1)] text-[#C0392B]";
   const deltaText = `${formatKpiValue(Math.abs(metric.delta), decimals)}${percentageDelta ? "%" : ""}`;
 
@@ -197,11 +197,11 @@ function KpiCard({
       </p>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
         <span className={`rounded-full px-2.5 py-1 font-semibold ${deltaClass}`}>
-          {isPositive ? "↑" : "↓"} {deltaText}
+          {isPositive ? "â†‘" : "â†“"} {deltaText}
         </span>
         <span className="text-[#8891A4]">vs {prevMonth}</span>
       </div>
-      {note ? <p className="mt-2 text-xs text-[#8891A4]">{note}</p> : null}
+      {note  <p className="mt-2 text-xs text-[#8891A4]">{note}</p> : null}
     </article>
   );
 }
@@ -212,7 +212,7 @@ export default async function DashboardPage({
   const session = await getSession();
   if (!session?.activeBusinessId) redirect("/dashboard");
 
-  const resolvedSearchParams = searchParams ? await searchParams : {};
+  const resolvedSearchParams = searchParams  await searchParams : {};
   const { accessToken, businessId } = getEffectiveApiContext(session);
   if (!businessId) redirect("/dashboard");
 
@@ -238,7 +238,7 @@ export default async function DashboardPage({
           No pudimos cargar el dashboard del negocio activo.
         </p>
         <div className="mt-5 rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-[#C0392B]">
-          {error ?? "Error al cargar datos"}
+          {error  "Error al cargar datos"}
         </div>
       </div>
     );
@@ -252,7 +252,7 @@ export default async function DashboardPage({
       <div>
         <h1 className="font-display text-2xl font-bold text-[#1A202C]">Panel</h1>
         <p className="mt-1 text-sm text-[#8891A4]">
-          {business?.name ?? "Negocio"} · {formatMonthRange(metrics.month.currentStart)}
+          {business?.name ?? "Negocio"} Â· {formatMonthRange(metrics.month.currentStart)}
         </p>
       </div>
 
@@ -262,7 +262,7 @@ export default async function DashboardPage({
             aria-hidden="true"
             className="h-3 w-3 animate-spin rounded-full border-2 border-amber-300 border-t-amber-700"
           />
-          <span>Importando reseñas de Google... Esto puede tardar algunos minutos.</span>
+          <span>Importando reseÃ±as de Google... Esto puede tardar algunos minutos.</span>
         </div>
       ) : null}
 
@@ -270,22 +270,22 @@ export default async function DashboardPage({
 
       <section className="grid gap-4 md:grid-cols-3">
         <KpiCard
-          label="Reseñas este mes"
+          label="ReseÃ±as este mes"
           value={formatKpiValue(metrics.kpis.reviewsGenerated.current)}
           metric={metrics.kpis.reviewsGenerated}
           percentageDelta
           prevMonth={prevMonth}
-          note="Estimación: algunas pueden no estar atribuidas"
+          note="EstimaciÃ³n: algunas pueden no estar atribuidas"
         />
         <KpiCard
-          label="Calificación promedio"
+          label="CalificaciÃ³n promedio"
           value={formatKpiValue(metrics.kpis.averageRating.current, 1)}
           metric={metrics.kpis.averageRating}
           decimals={1}
           prevMonth={prevMonth}
         />
         <KpiCard
-          label="Pacientes reactivados"
+          label="Clientes reactivados"
           value={formatKpiValue(metrics.kpis.reactivatedCustomers.current)}
           metric={metrics.kpis.reactivatedCustomers}
           percentageDelta
@@ -294,8 +294,8 @@ export default async function DashboardPage({
       </section>
 
       <SectionCard
-        title="Actividad últimos 6 meses"
-        description="Comparativo mensual de mensajes, reseñas y reactivaciones."
+        title="Actividad Ãºltimos 6 meses"
+        description="Comparativo mensual de mensajes, reseÃ±as y reactivaciones."
         action={
           <div className="hidden items-center gap-4 sm:flex">
             {ACTIVITY_SERIES.map((s) => (
@@ -318,7 +318,7 @@ export default async function DashboardPage({
 
       <SectionCard
         title="Comentarios negativos recientes"
-        description="No se publicaron en Google. Respondé al paciente antes de que escale."
+        description="No se publicaron en Google. RespondÃ© al cliente antes de que escale."
         action={
           unread > 0 ? (
             <span className="rounded-full bg-[#FFAB76]/20 px-3 py-1.5 text-xs font-semibold text-[#D4600A]">
@@ -332,3 +332,4 @@ export default async function DashboardPage({
     </div>
   );
 }
+

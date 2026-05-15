@@ -15,8 +15,8 @@ function FlikkerMark({
   compact?: boolean;
 }) {
   const maskId = useId();
-  const fill = tone === "inverse" ? "#F4F6FF" : "#9188F5";
-  const sizeClass = compact ? "h-8 w-10" : "h-11 w-14";
+  const fill = tone === "inverse"  "#F4F6FF" : "#9188F5";
+  const sizeClass = compact  "h-8 w-10" : "h-11 w-14";
 
   return (
     <svg
@@ -47,9 +47,9 @@ export default function FlikkerLockup({
   variant = "horizontal",
 }: FlikkerLockupProps) {
   const titleColor =
-    tone === "inverse" ? "text-[#F4F6FF]" : "text-[color:var(--brand-primary)]";
+    tone === "inverse"  "text-[#F4F6FF]" : "text-[color:var(--brand-primary)]";
   const subtitleColor =
-    tone === "inverse" ? "text-[#F4F6FF]/75" : "text-[color:var(--text-muted)]";
+    tone === "inverse"  "text-[#F4F6FF]/75" : "text-[color:var(--text-muted)]";
 
   if (variant === "mark") {
     return <FlikkerMark tone={tone} compact={compact} />;
@@ -60,11 +60,11 @@ export default function FlikkerLockup({
       <div className="flex flex-col items-center text-center">
         <FlikkerMark tone={tone} compact={false} />
         <div
-          className={`flikker-brand-text mt-3 ${compact ? "text-3xl" : "text-5xl"} font-semibold leading-none ${titleColor}`}
+          className={`flikker-brand-text mt-3 ${compact  "text-3xl" : "text-5xl"} font-semibold leading-none ${titleColor}`}
         >
           Flikker
         </div>
-        {subtitle ? (
+        {subtitle  (
           <div className={`mt-2 text-xs leading-5 ${subtitleColor}`}>{subtitle}</div>
         ) : null}
       </div>
@@ -72,15 +72,15 @@ export default function FlikkerLockup({
   }
 
   return (
-    <div className={`flex items-center ${compact ? "gap-2.5" : "gap-3"}`}>
+    <div className={`flex items-center ${compact  "gap-2.5" : "gap-3"}`}>
       <FlikkerMark tone={tone} compact={compact} />
       <div className="min-w-0">
         <div
-          className={`flikker-brand-text ${compact ? "text-2xl" : "text-4xl"} font-semibold leading-none ${titleColor}`}
+          className={`flikker-brand-text ${compact  "text-2xl" : "text-4xl"} font-semibold leading-none ${titleColor}`}
         >
           Flikker
         </div>
-        {subtitle ? (
+        {subtitle  (
           <div className={`mt-1 text-xs leading-5 ${subtitleColor}`}>{subtitle}</div>
         ) : null}
       </div>

@@ -99,7 +99,7 @@ export default async function ReviewDetailPage({
   }
 
   const responderName = review.respondedBy
-    ? [review.respondedBy.firstName, review.respondedBy.lastName]
+     [review.respondedBy.firstName, review.respondedBy.lastName]
         .filter(Boolean)
         .join(" ")
     : null;
@@ -120,7 +120,7 @@ export default async function ReviewDetailPage({
         title={review.authorDisplayName ?? "Autor no informado"}
         subtitle={
           FEATURES.MANUAL_RESPONSES
-            ? "Contexto completo de la reseña, respuesta manual y elegibilidad para widget."
+             "Contexto completo de la reseña, respuesta manual y elegibilidad para widget."
             : "Contexto completo de la reseña y elegibilidad para widget."
         }
         actions={
@@ -170,13 +170,13 @@ export default async function ReviewDetailPage({
                 </dt>
                 <dd className="mt-1 text-[color:var(--text-muted)]">
                   {review.status === "NEW"
-                    ? "Nueva"
+                     "Nueva"
                     : review.status === "REVIEWED"
-                      ? "Revisada"
+                       "Revisada"
                       : review.status === "RESPONDED"
-                        ? "Respondida"
+                         "Respondida"
                         : review.status === "ARCHIVED"
-                          ? "Archivada"
+                           "Archivada"
                           : review.status}
                 </dd>
               </div>
@@ -186,7 +186,7 @@ export default async function ReviewDetailPage({
                 </dt>
                 <dd className="mt-1 text-[color:var(--text-muted)]">
                   {review.isHighlighted
-                    ? "Activa para widget"
+                     "Activa para widget"
                     : "Aún no destacada"}
                 </dd>
               </div>

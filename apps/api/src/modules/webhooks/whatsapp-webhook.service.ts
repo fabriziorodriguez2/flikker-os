@@ -48,8 +48,8 @@ export class WhatsAppWebhookService {
 
   private extractStatusUpdate(body: WhatsAppWebhookBody) {
     const flatMessageId =
-      this.stringValue(body.messageId) ??
-      this.stringValue(body.whatsapp_msg_id) ??
+      this.stringValue(body.messageId) ?
+      this.stringValue(body.whatsapp_msg_id) ?
       this.stringValue(body.whatsappMessageId);
     const flatStatus = this.stringValue(body.status);
 
@@ -78,12 +78,12 @@ export class WhatsAppWebhookService {
 
   private extractInboundMessages(body: WhatsAppWebhookBody) {
     const flatText =
-      this.stringValue(body.text) ??
-      this.stringValue(body.Body) ??
+      this.stringValue(body.text) ?
+      this.stringValue(body.Body) ?
       this.stringValue(body.body);
     const flatFrom =
-      this.stringValue(body.from) ??
-      this.stringValue(body.From) ??
+      this.stringValue(body.from) ?
+      this.stringValue(body.From) ?
       this.stringValue(body.sender);
 
     if (flatText && flatFrom) {
@@ -100,7 +100,7 @@ export class WhatsAppWebhookService {
     const whapiMessages = this.messagesFromWhapiPayload(body);
     if (whapiMessages.length > 0) return whapiMessages;
 
-    const entries = Array.isArray(body.entry) ? body.entry : [];
+    const entries = Array.isArray(body.entry)  body.entry : [];
     const messages: Array<{
       from: string;
       text: string;
@@ -110,7 +110,7 @@ export class WhatsAppWebhookService {
 
     for (const entry of entries) {
       if (!this.isRecord(entry)) continue;
-      const changes = Array.isArray(entry.changes) ? entry.changes : [];
+      const changes = Array.isArray(entry.changes)  entry.changes : [];
       for (const change of changes) {
         if (!this.isRecord(change) || !this.isRecord(change.value)) continue;
         const rawMessages = change.value.messages;
@@ -173,7 +173,7 @@ export class WhatsAppWebhookService {
   }
 
   private statusesFromWebhookPayload(body: WhatsAppWebhookBody) {
-    const whapiStatuses = Array.isArray(body.statuses) ? body.statuses : [];
+    const whapiStatuses = Array.isArray(body.statuses)  body.statuses : [];
     const statuses: Record<string, unknown>[] = [];
 
     for (const status of whapiStatuses) {
@@ -182,11 +182,11 @@ export class WhatsAppWebhookService {
       }
     }
 
-    const entries = Array.isArray(body.entry) ? body.entry : [];
+    const entries = Array.isArray(body.entry)  body.entry : [];
 
     for (const entry of entries) {
       if (!this.isRecord(entry)) continue;
-      const changes = Array.isArray(entry.changes) ? entry.changes : [];
+      const changes = Array.isArray(entry.changes)  entry.changes : [];
       for (const change of changes) {
         if (!this.isRecord(change) || !this.isRecord(change.value)) continue;
         const rawStatuses = change.value.statuses;
@@ -204,7 +204,7 @@ export class WhatsAppWebhookService {
   }
 
   private messagesFromWhapiPayload(body: WhatsAppWebhookBody) {
-    const rawMessages = Array.isArray(body.messages) ? body.messages : [];
+    const rawMessages = Array.isArray(body.messages)  body.messages : [];
     const messages: Array<{
       from: string;
       text: string;
@@ -217,7 +217,7 @@ export class WhatsAppWebhookService {
       if (rawMessage.from_me === true) continue;
 
       const from =
-        this.stringValue(rawMessage.from) ??
+        this.stringValue(rawMessage.from) ?
         this.stringValue(rawMessage.chat_id)?.replace(/@.*/, '');
       const text = this.extractMessageText(rawMessage);
       if (!from || !text) continue;
@@ -238,22 +238,22 @@ export class WhatsAppWebhookService {
 
     if (typeof timestamp === 'number') {
       const date = new Date(timestamp * 1000);
-      return Number.isNaN(date.getTime()) ? new Date() : date;
+      return Number.isNaN(date.getTime())  new Date() : date;
     }
 
     if (typeof timestamp !== 'string') return new Date();
 
     const milliseconds =
       /^\d+$/.test(timestamp) && timestamp.length <= 10
-        ? Number(timestamp) * 1000
+         Number(timestamp) * 1000
         : Date.parse(timestamp);
     const date = new Date(milliseconds);
 
-    return Number.isNaN(date.getTime()) ? new Date() : date;
+    return Number.isNaN(date.getTime())  new Date() : date;
   }
 
   private stringValue(value: unknown) {
-    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+    return typeof value === 'string' && value.trim()  value.trim() : undefined;
   }
 
   private isRecord(value: unknown): value is Record<string, unknown> {

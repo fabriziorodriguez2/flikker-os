@@ -27,9 +27,9 @@ export default function ValidatedInput({
   ...props
 }: ValidatedInputProps) {
   const [touched, setTouched] = useState(false);
-  const result = validate?.(value) ?? { valid: true };
+  const result = validate?.(value)  { valid: true };
   const shouldShow = showValidation && touched && value.trim().length > 0;
-  const invalidMessage = result.message ?? errorMessage;
+  const invalidMessage = result.message  errorMessage;
 
   return (
     <div className="grid gap-2">
@@ -45,11 +45,11 @@ export default function ValidatedInput({
             setTouched(true);
             onBlur?.(event);
           }}
-          className={`${className} ${showValidation ? "pr-10" : ""}`}
+          className={`${className} ${showValidation  "pr-10" : ""}`}
         />
-        {shouldShow ? (
+        {shouldShow  (
           <span className="pointer-events-none absolute right-3 top-1/2 flex h-4 w-4 -translate-y-1/2 items-center justify-center">
-            {result.valid ? (
+            {result.valid  (
               <span
                 aria-label="Valor válido"
                 className="text-sm font-bold leading-none text-[color:var(--success-text)]"
@@ -67,7 +67,7 @@ export default function ValidatedInput({
           </span>
         ) : null}
       </div>
-      {shouldShow && !result.valid ? (
+      {shouldShow && !result.valid  (
         <p className="text-xs text-[color:var(--danger-text)]">
           {invalidMessage}
         </p>

@@ -22,11 +22,11 @@ export default function KPICard({
       <p
         className={`mt-3 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${
           positive
-            ? "bg-[color:var(--success-bg)] text-[color:var(--success-text)]"
+             "bg-[color:var(--success-bg)] text-[color:var(--success-text)]"
             : "bg-[color:var(--danger-bg)] text-[color:var(--danger-text)]"
         }`}
       >
-        <span aria-hidden="true">{positive ? "↑" : "↓"}</span>
+        <span aria-hidden="true">{positive  "↑" : "↓"}</span>
         <span>{change}</span>
       </p>
     </article>

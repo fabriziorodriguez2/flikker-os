@@ -25,7 +25,7 @@ function formatResponder(review: ReviewSummary) {
     .filter(Boolean)
     .join(" ");
 
-  return fullName.length > 0 ? `Respondida por ${fullName}` : "Respondida";
+  return fullName.length > 0  `Respondida por ${fullName}` : "Respondida";
 }
 
 function formatReviewStatus(status: string) {
@@ -36,7 +36,7 @@ function formatReviewStatus(status: string) {
     ARCHIVED: "Archivada",
   };
 
-  return labels[status] ?? status;
+  return labels[status]  status;
 }
 
 export default function ReviewsTable({
@@ -44,7 +44,7 @@ export default function ReviewsTable({
   readOnly = false,
 }: ReviewsTableProps) {
   const desktopGrid = readOnly
-    ? "grid-cols-[minmax(0,1.5fr)_220px_180px]"
+     "grid-cols-[minmax(0,1.5fr)_220px_180px]"
     : "grid-cols-[minmax(0,1.5fr)_220px_180px_220px]";
 
   return (
@@ -56,7 +56,7 @@ export default function ReviewsTable({
           <div>Reseña</div>
           <div>Campaña</div>
           <div>Estado</div>
-          {!readOnly ? <div className="text-right">Acciones</div> : null}
+          {!readOnly  <div className="text-right">Acciones</div> : null}
         </div>
 
         <div className="divide-y divide-[color:var(--border)]">
@@ -80,7 +80,7 @@ export default function ReviewsTable({
 
                   <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[color:var(--text-muted)]">
                     <span>
-                      {review.authorDisplayName ?? "Autor no informado"}
+                      {review.authorDisplayName  "Autor no informado"}
                     </span>
                     <span>{formatDate(review.reviewedAt)}</span>
                   </div>
@@ -90,16 +90,16 @@ export default function ReviewsTable({
                   </p>
 
                   <div className="mt-4 flex flex-wrap items-center gap-2">
-                    {review.isHighlighted ? (
+                    {review.isHighlighted  (
                       <span className="rounded-full bg-[color:rgba(250,171,75,0.18)] px-3 py-1 text-xs font-semibold text-[color:var(--warning-text)]">
                         Destacada
                       </span>
                     ) : null}
-                    {FEATURES.MANUAL_RESPONSES && isResponded ? (
+                    {FEATURES.MANUAL_RESPONSES && isResponded  (
                       <span className="rounded-full bg-[color:var(--success-bg)] px-3 py-1 text-xs font-semibold text-[color:var(--success-text)]">
                         {formatResponder(review)}
                       </span>
-                    ) : FEATURES.MANUAL_RESPONSES ? (
+                    ) : FEATURES.MANUAL_RESPONSES  (
                       <span className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1 text-xs font-semibold text-[color:var(--text-muted)]">
                         Sin responder
                       </span>
@@ -108,12 +108,12 @@ export default function ReviewsTable({
                 </div>
 
                 <div className="text-sm text-[color:var(--text-muted)]">
-                  {review.campaign ? (
+                  {review.campaign  (
                     <div className="rounded-[20px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-4 py-4">
                       <div className="font-semibold text-[color:var(--foreground)]">
                         {review.campaign.name}
                       </div>
-                      {review.campaign.slug ? (
+                      {review.campaign.slug  (
                         <div className="mt-1 text-xs uppercase tracking-[0.12em] text-[color:var(--text-soft)]">
                           {review.campaign.slug}
                         </div>
@@ -130,14 +130,14 @@ export default function ReviewsTable({
                   <span className="inline-flex rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--text-muted)]">
                     {formatReviewStatus(review.status)}
                   </span>
-                  {FEATURES.MANUAL_RESPONSES && review.respondedAt ? (
+                  {FEATURES.MANUAL_RESPONSES && review.respondedAt  (
                     <div className="text-xs text-[color:var(--text-muted)]">
                       {formatDate(review.respondedAt)}
                     </div>
                   ) : null}
                 </div>
 
-                {!readOnly ? (
+                {!readOnly  (
                   <div className="flex flex-col items-end gap-3">
                     <ReviewRowActions
                       reviewId={review.id}
@@ -151,7 +151,7 @@ export default function ReviewsTable({
                       >
                         Ver detalle
                       </Link>
-                      {FEATURES.MANUAL_RESPONSES && !isResponded ? (
+                      {FEATURES.MANUAL_RESPONSES && !isResponded  (
                         <Link
                           href={`/dashboard/reviews/${review.id}`}
                           className="text-[color:var(--text-muted)] hover:text-[color:var(--foreground)]"
@@ -183,7 +183,7 @@ export default function ReviewsTable({
                     {renderStars(review.rating)}
                   </div>
                   <div className="mt-2 text-base font-semibold text-[color:var(--foreground)]">
-                    {review.authorDisplayName ?? "Autor no informado"}
+                    {review.authorDisplayName  "Autor no informado"}
                   </div>
                   <div className="mt-1 text-xs text-[color:var(--text-muted)]">
                     {formatDate(review.reviewedAt)}
@@ -200,30 +200,30 @@ export default function ReviewsTable({
               </p>
 
               <div className="mt-4 flex flex-wrap items-center gap-2">
-                {review.campaign ? (
+                {review.campaign  (
                   <span className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-3 py-1 text-xs font-semibold text-[color:var(--text-muted)]">
                     {review.campaign.name}
                   </span>
                 ) : null}
-                {review.isHighlighted ? (
+                {review.isHighlighted  (
                   <span className="rounded-full bg-[color:rgba(250,171,75,0.18)] px-3 py-1 text-xs font-semibold text-[color:var(--warning-text)]">
                     Destacada
                   </span>
                 ) : null}
-                {FEATURES.MANUAL_RESPONSES ? (
+                {FEATURES.MANUAL_RESPONSES  (
                   <span
                     className={`rounded-full px-3 py-1 text-xs font-semibold ${
                       isResponded
-                        ? "bg-[color:var(--success-bg)] text-[color:var(--success-text)]"
+                         "bg-[color:var(--success-bg)] text-[color:var(--success-text)]"
                         : "border border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-muted)]"
                     }`}
                   >
-                    {isResponded ? formatResponder(review) : "Sin responder"}
+                    {isResponded  formatResponder(review) : "Sin responder"}
                   </span>
                 ) : null}
               </div>
 
-              {!readOnly ? (
+              {!readOnly  (
                 <div className="mt-5 space-y-3">
                   <ReviewRowActions
                     reviewId={review.id}
@@ -237,7 +237,7 @@ export default function ReviewsTable({
                     >
                       Ver detalle
                     </Link>
-                    {FEATURES.MANUAL_RESPONSES && !isResponded ? (
+                    {FEATURES.MANUAL_RESPONSES && !isResponded  (
                       <Link
                         href={`/dashboard/reviews/${review.id}`}
                         className="text-[color:var(--text-muted)]"

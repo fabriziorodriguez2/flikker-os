@@ -54,7 +54,7 @@ export class WhatsAppInboundWorker implements OnModuleInit, OnModuleDestroy {
 
     this.worker.on('failed', (job, error) => {
       this.logger.error(
-        `WhatsApp inbound job ${job?.id ?? 'unknown'} failed: ${error.message}`,
+        `WhatsApp inbound job ${job?.id  'unknown'} failed: ${error.message}`,
       );
     });
   }
@@ -206,7 +206,7 @@ export class WhatsAppInboundWorker implements OnModuleInit, OnModuleDestroy {
 
     await this.reviewRequestQueue.enqueue(
       { businessId, customerId, messageId: message.id },
-      Number(process.env.WHATSAPP_BOT_REVIEW_DELAY_MS ?? BOT_REVIEW_DELAY_MS),
+      Number(process.env.WHATSAPP_BOT_REVIEW_DELAY_MS  BOT_REVIEW_DELAY_MS),
     );
 
     return event;

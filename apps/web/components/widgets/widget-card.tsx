@@ -86,9 +86,9 @@ export default function WidgetCard({
               className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2 text-sm font-semibold text-[color:var(--text-muted)] hover:border-[color:var(--brand-accent)] hover:text-[color:var(--foreground)] disabled:opacity-60"
             >
               {statusLoading
-                ? 'Guardando...'
+                 'Guardando...'
                 : widget.status === 'ACTIVE'
-                  ? 'Desactivar'
+                   'Desactivar'
                   : 'Activar'}
             </button>
           ) : null}
@@ -97,7 +97,7 @@ export default function WidgetCard({
             disabled={embedLoading}
             className="rounded-full border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-2 text-sm font-semibold text-[color:var(--text-muted)] hover:border-[color:var(--brand-accent)] hover:text-[color:var(--foreground)] disabled:opacity-60"
           >
-            {embedLoading ? 'Generando...' : 'Copiar URL'}
+            {embedLoading  'Generando...' : 'Copiar URL'}
           </button>
           <button
             onClick={() => void onCopyEmbed(widget)}
@@ -135,19 +135,19 @@ export default function WidgetCard({
               <div>
                 <dt className="font-semibold text-[color:var(--foreground)]">Nombre visible</dt>
                 <dd className="mt-1 text-[color:var(--text-muted)]">
-                  {widget.showAuthorName ? 'Sí' : 'No'}
+                  {widget.showAuthorName  'Sí' : 'No'}
                 </dd>
               </div>
               <div>
                 <dt className="font-semibold text-[color:var(--foreground)]">Fecha visible</dt>
                 <dd className="mt-1 text-[color:var(--text-muted)]">
-                  {widget.showDate ? 'Sí' : 'No'}
+                  {widget.showDate  'Sí' : 'No'}
                 </dd>
               </div>
             </dl>
           </div>
 
-          {embedInfo ? (
+          {embedInfo  (
             <div className="rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                 URL pública

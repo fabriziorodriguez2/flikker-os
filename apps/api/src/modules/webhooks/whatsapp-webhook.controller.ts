@@ -13,7 +13,7 @@ export class WhatsAppWebhookController {
     void this.webhookService.handleWebhook(body).catch((error: unknown) => {
       this.logger.error(
         'WhatsApp webhook async handling failed',
-        error instanceof Error ? error.stack : String(error),
+        error instanceof Error  error.stack : String(error),
       );
     });
     return { ok: true };

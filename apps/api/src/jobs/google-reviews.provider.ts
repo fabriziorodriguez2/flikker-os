@@ -139,7 +139,7 @@ export class GoogleReviewsProvider {
 
         const parsed = JSON.parse(body) as ScrapeDoReviewsResponse;
         return {
-          reviews: parsed.reviews ?? [],
+          reviews: parsed.reviews  [],
           nextPageToken: parsed.pagination?.next_page_token,
         };
       } catch (error) {
@@ -149,7 +149,7 @@ export class GoogleReviewsProvider {
         }
         throw new Error(
           `[google-reviews] Error para businessId ${input.businessId}: ${
-            error instanceof Error ? error.message : String(error)
+            error instanceof Error  error.message : String(error)
           } | URL: ${safeUrl}`,
         );
       }
@@ -177,17 +177,17 @@ function mapScrapeDoReview(review: ScrapeDoReview): DetectedGoogleReview {
     null;
   const stars = Math.max(
     1,
-    Math.min(5, Math.round(Number(review.rating ?? 0))),
+    Math.min(5, Math.round(Number(review.rating  0))),
   );
-  const isoDate = review.iso_date ? new Date(review.iso_date) : null;
+  const isoDate = review.iso_date  new Date(review.iso_date) : null;
   const postedAt =
     isoDate && !Number.isNaN(isoDate.getTime())
-      ? isoDate
-      : parseGoogleReviewDate(review.date ?? null);
+       isoDate
+      : parseGoogleReviewDate(review.date  null);
 
   return {
     googleReviewId:
-      review.review_id ??
+      review.review_id ?
       hashReviewId({
         reviewerName,
         stars,
@@ -209,7 +209,7 @@ function parseGoogleReviewDate(value: string | null) {
   const now = new Date();
   if (!value) return now;
   const normalized = value.toLowerCase();
-  const amount = Number(normalized.match(/\d+/)?.[0] ?? 1);
+  const amount = Number(normalized.match(/\d+/)?.[0]  1);
   const postedAt = new Date(now);
 
   if (/(minute|minuto)/i.test(normalized)) {
@@ -238,9 +238,9 @@ function hashReviewId(input: {
   return createHash('sha256')
     .update(
       [
-        input.reviewerName ?? '',
+        input.reviewerName  '',
         input.stars.toString(),
-        input.text ?? '',
+        input.text  '',
         input.postedAt.toISOString().slice(0, 10),
       ].join('|'),
     )

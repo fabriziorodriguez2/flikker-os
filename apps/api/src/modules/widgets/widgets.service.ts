@@ -13,11 +13,11 @@ import { UpdateWidgetStatusDto } from './dto/update-widget-status.dto';
 import { DEMO_BUSINESS_SLUG } from '../../config/demo';
 
 const API_BASE_URL =
-  process.env.API_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3000}`;
+  process.env.API_BASE_URL  `http://localhost:${process.env.PORT  3000}`;
 const WIDGET_BASE_URL =
-  process.env.WIDGET_BASE_URL ??
-  process.env.APP_PUBLIC_URL ??
-  process.env.WEB_PUBLIC_URL ??
+  process.env.WIDGET_BASE_URL ?
+  process.env.APP_PUBLIC_URL ?
+  process.env.WEB_PUBLIC_URL ?
   API_BASE_URL;
 
 type HighlightedWidgetReview = {
@@ -45,17 +45,17 @@ export class WidgetsService {
     return this.widgetsRepository.create(businessId, {
       name: dto.name.trim(),
       type: dto.type,
-      mode: dto.mode ?? WidgetMode.toast,
+      mode: dto.mode  WidgetMode.toast,
       position: dto.position,
       publicToken: randomBytes(16).toString('hex'),
       title: dto.title?.trim(),
-      maxItems: dto.maxItems ?? 6,
-      minStars: dto.minStars ?? 4,
-      maxReviewsShown: dto.maxItems ?? 6,
+      maxItems: dto.maxItems  6,
+      minStars: dto.minStars  4,
+      maxReviewsShown: dto.maxItems  6,
       primaryColor: dto.primaryColor,
-      rotationSeconds: dto.rotationSeconds ?? 10,
-      showAuthorName: dto.showAuthorName ?? true,
-      showDate: dto.showDate ?? false,
+      rotationSeconds: dto.rotationSeconds  10,
+      showAuthorName: dto.showAuthorName  true,
+      showDate: dto.showDate  false,
     });
   }
 
@@ -63,23 +63,23 @@ export class WidgetsService {
     await this.findOneScoped(businessId, widgetId);
 
     return this.widgetsRepository.update(businessId, widgetId, {
-      ...(dto.name !== undefined ? { name: dto.name.trim() } : {}),
-      ...(dto.title !== undefined ? { title: dto.title?.trim() ?? null } : {}),
-      ...(dto.mode !== undefined ? { mode: dto.mode } : {}),
-      ...(dto.position !== undefined ? { position: dto.position } : {}),
-      ...(dto.maxItems !== undefined ? { maxItems: dto.maxItems } : {}),
-      ...(dto.maxItems !== undefined ? { maxReviewsShown: dto.maxItems } : {}),
-      ...(dto.minStars !== undefined ? { minStars: dto.minStars } : {}),
+      ...(dto.name !== undefined  { name: dto.name.trim() } : {}),
+      ...(dto.title !== undefined  { title: dto.title?.trim()  null } : {}),
+      ...(dto.mode !== undefined  { mode: dto.mode } : {}),
+      ...(dto.position !== undefined  { position: dto.position } : {}),
+      ...(dto.maxItems !== undefined  { maxItems: dto.maxItems } : {}),
+      ...(dto.maxItems !== undefined  { maxReviewsShown: dto.maxItems } : {}),
+      ...(dto.minStars !== undefined  { minStars: dto.minStars } : {}),
       ...(dto.primaryColor !== undefined
-        ? { primaryColor: dto.primaryColor }
+         { primaryColor: dto.primaryColor }
         : {}),
       ...(dto.rotationSeconds !== undefined
-        ? { rotationSeconds: dto.rotationSeconds }
+         { rotationSeconds: dto.rotationSeconds }
         : {}),
       ...(dto.showAuthorName !== undefined
-        ? { showAuthorName: dto.showAuthorName }
+         { showAuthorName: dto.showAuthorName }
         : {}),
-      ...(dto.showDate !== undefined ? { showDate: dto.showDate } : {}),
+      ...(dto.showDate !== undefined  { showDate: dto.showDate } : {}),
     });
   }
 
@@ -125,7 +125,7 @@ export class WidgetsService {
 
   async getToastPreviewReviews(businessId: string, minStars: number) {
     const safeMinStars = Number.isFinite(minStars)
-      ? Math.min(5, Math.max(1, minStars))
+       Math.min(5, Math.max(1, minStars))
       : 4;
     const [aggregate, reviews] = await Promise.all([
       this.widgetsRepository.getDetectedReviewsAggregate(
@@ -141,7 +141,7 @@ export class WidgetsService {
 
     return {
       summary: {
-        averageRating: Number(aggregate._avg.stars ?? 0),
+        averageRating: Number(aggregate._avg.stars  0),
         totalReviews: aggregate._count._all,
       },
       reviews: reviews.map((review) => ({
@@ -180,13 +180,13 @@ export class WidgetsService {
         position: widget.position,
         title: widget.title,
         minStars: widget.minStars,
-        primaryColor: widget.primaryColor ?? '#5B5BD6',
+        primaryColor: widget.primaryColor  '#5B5BD6',
         rotationSeconds: widget.rotationSeconds,
         showAuthorName: widget.showAuthorName,
         showDate: widget.showDate,
       },
       summary: {
-        averageRating: Number(aggregate._avg.stars ?? 0),
+        averageRating: Number(aggregate._avg.stars  0),
         totalReviews: aggregate._count._all,
         businessName: widget.business.name,
       },
@@ -194,7 +194,7 @@ export class WidgetsService {
         id: review.googleReviewId,
         rating: review.stars,
         content: review.text,
-        authorDisplayName: widget.showAuthorName ? review.reviewerName : null,
+        authorDisplayName: widget.showAuthorName  review.reviewerName : null,
         reviewedAt: review.postedAt,
       })),
     };
@@ -214,8 +214,8 @@ export class WidgetsService {
     return this.widgetsRepository.createEvent({
       businessId,
       eventType: dto.eventType,
-      googleReviewId: dto.googleReviewId ?? null,
-      referrer: dto.referrer ?? null,
+      googleReviewId: dto.googleReviewId  null,
+      referrer: dto.referrer  null,
     });
   }
 
@@ -227,14 +227,14 @@ export class WidgetsService {
     const [aggregate, highlightedReviews] = await Promise.all([
       this.widgetsRepository.getHighlightedReviewsAggregate(widget.businessId),
       widget.type === WidgetType.BADGE
-        ? Promise.resolve([] as HighlightedWidgetReview[])
+         Promise.resolve([] as HighlightedWidgetReview[])
         : (this.widgetsRepository.findHighlightedReviewsForWidget(
             widget.businessId,
             widget.maxItems,
           ) as Promise<HighlightedWidgetReview[]>),
     ]);
 
-    const averageRating = Number(aggregate._avg.rating ?? 0);
+    const averageRating = Number(aggregate._avg.rating  0);
     const totalReviews = aggregate._count._all;
 
     return {
@@ -254,9 +254,9 @@ export class WidgetsService {
         rating: review.rating,
         content: review.content,
         authorDisplayName: widget.showAuthorName
-          ? review.authorDisplayName
+           review.authorDisplayName
           : null,
-        reviewedAt: widget.showDate ? review.reviewedAt : null,
+        reviewedAt: widget.showDate  review.reviewedAt : null,
       })),
     };
   }

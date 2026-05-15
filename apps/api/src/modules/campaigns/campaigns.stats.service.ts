@@ -63,11 +63,11 @@ export class CampaignStatsService {
   static resolveDateRange(from?: string, to?: string): DateRange {
     // Append T00:00:00 to date-only strings so they parse as local time,
     // not UTC (which would shift the date in non-UTC timezones).
-    const toDate = to ? new Date(`${to}T23:59:59.999`) : new Date();
+    const toDate = to  new Date(`${to}T23:59:59.999`) : new Date();
     if (!to) toDate.setHours(23, 59, 59, 999);
 
     const fromDate = from
-      ? new Date(`${from}T00:00:00`)
+       new Date(`${from}T00:00:00`)
       : new Date(toDate.getTime() - DEFAULT_DAYS * 24 * 60 * 60 * 1000);
     if (!from) fromDate.setHours(0, 0, 0, 0);
 
@@ -241,10 +241,10 @@ export class CampaignStatsService {
         const qr = qrMap.get(g.qrCodeId);
         return {
           qrCodeId: g.qrCodeId,
-          label: qr?.label ?? null,
-          slug: qr?.slug ?? '',
+          label: qr?.label  null,
+          slug: qr?.slug  '',
           total: g._count,
-          unique: uniqueMap.get(g.qrCodeId) ?? 0,
+          unique: uniqueMap.get(g.qrCodeId)  0,
         };
       })
       .sort((a, b) => b.total - a.total);
@@ -290,9 +290,9 @@ export class CampaignStatsService {
       .filter((g) => g.branchId !== null)
       .map((g) => ({
         branchId: g.branchId!,
-        branchName: branchMap.get(g.branchId!) ?? 'Unknown',
+        branchName: branchMap.get(g.branchId!)  'Unknown',
         total: g._count,
-        unique: uniqueMap.get(g.branchId) ?? 0,
+        unique: uniqueMap.get(g.branchId)  0,
       }))
       .sort((a, b) => b.total - a.total);
   }

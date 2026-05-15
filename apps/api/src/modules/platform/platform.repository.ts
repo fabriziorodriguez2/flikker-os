@@ -247,7 +247,7 @@ export class PlatformRepository {
         },
       });
       const customer = existingCustomer
-        ? await tx.customer.update({
+         await tx.customer.update({
             where: { id: existingCustomer.id },
             data: { name: input.customerName },
           })

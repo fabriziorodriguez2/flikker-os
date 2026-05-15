@@ -29,7 +29,7 @@ export class GoogleReviewDetectionQueue
       {
         jobId: DETECT_GOOGLE_REVIEWS_DAILY_JOB,
         repeat: {
-          pattern: process.env.GOOGLE_REVIEW_DETECTION_CRON ?? '0 3 * * *',
+          pattern: process.env.GOOGLE_REVIEW_DETECTION_CRON  '0 3 * * *',
         },
         removeOnComplete: 30,
         removeOnFail: false,
