@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 const MAIN_NAV_ITEMS = [
   { href: "/dashboard", label: "Panel" },
-  { href: "/dashboard/customers", label: "Pacientes" },
+  { href: "/dashboard/customers", label: "Clientes" },
   { href: "/dashboard/campaigns", label: "Campañas" },
   { href: "/dashboard/reviews", label: "Reseñas" },
   { href: "/dashboard/widgets", label: "Widget" },

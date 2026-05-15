@@ -168,7 +168,7 @@ export default function PlatformPage() {
         <div className="grid gap-3 sm:grid-cols-3">
           <MetricCard label="Negocios activos" value={stats.active} />
           <MetricCard label="Reseñas detectadas" value={stats.reviews} />
-          <MetricCard label="Pacientes cargados" value={stats.messages} />
+          <MetricCard label="Clientes cargados" value={stats.messages} />
         </div>
       </section>
 
@@ -227,7 +227,7 @@ export default function PlatformPage() {
                   <Th>Estado</Th>
                   <Th>Último acceso</Th>
                   <Th align="right">Reseñas</Th>
-                  <Th align="right">Pacientes</Th>
+                  <Th align="right">Clientes</Th>
                   <Th align="right">Acción</Th>
                 </tr>
               </thead>

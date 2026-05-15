@@ -129,7 +129,7 @@ export default async function CampaignsPage() {
             <table className="flk-table w-full min-w-[680px] text-left text-sm">
               <thead className="bg-[#F5F6FA] text-[12px] uppercase tracking-[0.08em] text-[#8891A4]">
                 <tr>
-                  <th className="px-5 py-3 font-semibold">Paciente</th>
+                  <th className="px-5 py-3 font-semibold">Cliente</th>
                   <th className="px-5 py-3 font-semibold">Campaña</th>
                   <th className="px-5 py-3 font-semibold">Estado</th>
                   <th className="px-5 py-3 text-right font-semibold">Fecha</th>

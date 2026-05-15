@@ -502,7 +502,7 @@ function BusinessStep({
             onChange={(event) => setName(event.target.value)}
             required
             className={inputClassName}
-            placeholder="Clínica Sonrisa Pocitos"
+            placeholder="Mi Negocio Pocitos"
           />
         </Field>
 
@@ -546,7 +546,7 @@ function BusinessStep({
           onChange={setPhone}
         />
         <p className="-mt-2 text-xs text-[#8891A4]">
-          Usamos este número solo para soporte. No se muestra a tus pacientes.
+          Usamos este número solo para soporte. No se muestra a tus clientes.
         </p>
 
         <div className="rounded-lg border border-[#E8EAF0] bg-white p-4">
@@ -813,7 +813,7 @@ function WhatsAppStep({
   return (
     <WizardCard badge="Paso 3 de 4" title="Conectá tu WhatsApp">
       <p className="mt-3 text-sm text-[#8891A4]">
-        Pon tu número para recibir el mensaje que recibirán tus pacientes.
+        Pon tu número para recibir el mensaje que recibirán tus clientes.
       </p>
 
       <div className="mt-6">

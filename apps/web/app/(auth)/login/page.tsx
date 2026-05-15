@@ -90,7 +90,7 @@ function LoginPageContent() {
                 type="email"
                 autoComplete="email"
                 required
-                placeholder="tu@clinica.com.uy"
+                placeholder="tu@negocio.com"
                 className="login-clean-input min-w-0 flex-1 bg-transparent px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4]"
               />
             </div>

@@ -3,7 +3,7 @@ export const ACTIVITY_SERIES = [
   { key: "reviewsGenerated", label: "Reseñas generadas", color: "#639922" },
   {
     key: "reactivatedCustomers",
-    label: "Pacientes reactivados",
+    label: "Clientes reactivados",
     color: "#FFAB76",
   },
 ] as const;

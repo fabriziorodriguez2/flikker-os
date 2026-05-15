@@ -113,7 +113,7 @@ export default async function PlatformTestLabPage() {
         </div>
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Stat label="Pacientes demo" value={demo.customerCount} />
+          <Stat label="Clientes demo" value={demo.customerCount} />
           <Stat label="Reseñas demo" value={demo.reviewCount} />
           <Stat label="Campañas activas" value={demo.activeCampaigns} />
           <Stat label="Widget" value={demo.widget?.status ?? "sin widget"} />

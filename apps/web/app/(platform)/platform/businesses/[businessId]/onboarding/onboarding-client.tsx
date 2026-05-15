@@ -199,7 +199,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
         },
       );
       setNotice(
-        `Importacion lista: ${result.created} pacientes creados, ${result.errors.length} errores.`,
+        `Importacion lista: ${result.created} clientes creados, ${result.errors.length} errores.`,
       );
       await load();
     });
@@ -335,7 +335,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
             Onboarding: {data.business.name}
           </h1>
           <p className="text-sm text-zinc-500">
-            Estado {data.business.status} · {data.customerCount} pacientes
+            Estado {data.business.status} · {data.customerCount} clientes
             activos
           </p>
         </div>
@@ -522,7 +522,7 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
 
       <section className="rounded-lg border border-zinc-200 bg-white p-4">
         <h2 className="text-base font-semibold text-zinc-900">
-          Importacion de pacientes
+          Importacion de clientes
         </h2>
         <p className="mt-1 text-sm text-zinc-500">
           Formato: nombre, telefono, email, fecha ultimo servicio.

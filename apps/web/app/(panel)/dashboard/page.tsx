@@ -285,7 +285,7 @@ export default async function DashboardPage({
           prevMonth={prevMonth}
         />
         <KpiCard
-          label="Pacientes reactivados"
+          label="Clientes reactivados"
           value={formatKpiValue(metrics.kpis.reactivatedCustomers.current)}
           metric={metrics.kpis.reactivatedCustomers}
           percentageDelta
@@ -318,7 +318,7 @@ export default async function DashboardPage({
 
       <SectionCard
         title="Comentarios negativos recientes"
-        description="No se publicaron en Google. Respondé al paciente antes de que escale."
+        description="No se publicaron en Google. Respondé al cliente antes de que escale."
         action={
           unread > 0 ? (
             <span className="rounded-full bg-[#FFAB76]/20 px-3 py-1.5 text-xs font-semibold text-[#D4600A]">

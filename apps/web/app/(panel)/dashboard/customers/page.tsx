@@ -114,13 +114,13 @@ export default function CustomersPage() {
         throw new Error(
           "message" in data && data.message
             ? data.message
-            : "Error al cargar pacientes",
+            : "Error al cargar clientes",
         );
       }
       setCustomers((data as CustomersResponse).data);
       setTotal((data as CustomersResponse).total);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al cargar pacientes");
+      setError(e instanceof Error ? e.message : "Error al cargar clientes");
     } finally {
       setLoading(false);
     }
@@ -174,7 +174,7 @@ export default function CustomersPage() {
       );
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message ?? "Error al guardar");
-      setMessage(editing ? "Paciente actualizado" : "Paciente creado");
+      setMessage(editing ? "Cliente actualizado" : "Cliente creado");
       setShowForm(false);
       await fetchCustomers();
     } catch (e) {
@@ -194,7 +194,7 @@ export default function CustomersPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message ?? "Error al archivar");
-      setMessage("Paciente archivado");
+      setMessage("Cliente archivado");
       setPendingDelete(null);
       await fetchCustomers();
     } catch (e) {
@@ -296,7 +296,7 @@ export default function CustomersPage() {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = "plantilla-pacientes-flikker.csv";
+    link.download = "plantilla-clientes-flikker.csv";
     link.click();
     URL.revokeObjectURL(url);
   }
@@ -305,7 +305,7 @@ export default function CustomersPage() {
     <div className="mx-auto max-w-6xl space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="font-display text-[22px] font-bold text-[#1A202C]">
-          Pacientes
+          Clientes
         </h1>
       </div>
 
@@ -343,7 +343,7 @@ export default function CustomersPage() {
           ) : null}
           <button className={primaryButton} onClick={openNew}>
             <Plus className="h-4 w-4" />
-            Nuevo paciente
+            Nuevo cliente
           </button>
         </div>
       </div>
@@ -356,7 +356,7 @@ export default function CustomersPage() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h2 className="text-base font-semibold text-[#1A202C]">
-                Importar pacientes
+                Importar clientes
               </h2>
               <p className="mt-1 text-sm text-[#8891A4]">
                 Subí un CSV o XLSX y confirmá el mapeo antes de importar.
@@ -491,13 +491,13 @@ export default function CustomersPage() {
             {loading ? (
               <tr>
                 <td colSpan={4} className="px-4 py-10 text-center text-[#8891A4]">
-                  Cargando pacientes...
+                  Cargando clientes...
                 </td>
               </tr>
             ) : customers.length === 0 ? (
               <tr>
                 <td colSpan={4} className="px-4 py-10 text-center text-[#8891A4]">
-                  No hay pacientes para mostrar.
+                  No hay clientes para mostrar.
                 </td>
               </tr>
             ) : (
@@ -527,7 +527,7 @@ export default function CustomersPage() {
                         type="button"
                         onClick={() => openEdit(customer)}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA]"
-                        aria-label="Editar paciente"
+                        aria-label="Editar cliente"
                       >
                         <Edit2 className="h-4 w-4" />
                       </button>
@@ -536,7 +536,7 @@ export default function CustomersPage() {
                         onClick={() => setPendingDelete(customer)}
                         disabled={!canMutate}
                         className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA] disabled:opacity-50"
-                        aria-label="Archivar paciente"
+                        aria-label="Archivar cliente"
                       >
                         <Trash2 className="h-4 w-4" />
                       </button>
@@ -550,7 +550,7 @@ export default function CustomersPage() {
       </div>
 
       <p className="text-xs text-[#8891A4]">
-        Mostrando {customers.length} de {total} pacientes
+        Mostrando {customers.length} de {total} clientes
       </p>
 
       {showForm ? (
@@ -560,7 +560,7 @@ export default function CustomersPage() {
             className="w-full max-w-lg rounded-[12px] border border-[#E8EAF0] bg-white p-6"
           >
             <h2 className="text-lg font-bold text-[#1A202C]">
-              {editing ? "Editar paciente" : "Nuevo paciente"}
+              {editing ? "Editar cliente" : "Nuevo cliente"}
             </h2>
             <p className="mt-1 text-sm text-[#8891A4]">
               La fecha de nacimiento es opcional y se usa para cumpleaños.
@@ -629,7 +629,7 @@ export default function CustomersPage() {
                   id="archive-customer-title"
                   className="text-lg font-bold text-[#1A202C]"
                 >
-                  Archivar paciente
+                  Archivar cliente
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#8891A4]">
                   ¿Querés archivar a{" "}

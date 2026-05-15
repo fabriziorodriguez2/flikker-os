@@ -70,7 +70,7 @@ const WidgetIcon = () => (
 
 const MAIN_NAV_ITEMS = [
   { href: "/dashboard", label: "Panel", icon: <HomeIcon /> },
-  { href: "/dashboard/customers", label: "Pacientes", icon: <CustomersIcon /> },
+  { href: "/dashboard/customers", label: "Clientes", icon: <CustomersIcon /> },
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon /> },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
   { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon /> },

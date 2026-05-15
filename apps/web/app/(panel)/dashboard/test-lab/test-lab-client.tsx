@@ -237,7 +237,7 @@ function CampaignTester({
           <div className="grid gap-3 sm:grid-cols-2">
             <label className="flex flex-col gap-1">
               <span className="text-xs font-medium text-[#475467]">
-                {"{nombre}"} — nombre del paciente
+                {"{nombre}"} — nombre del cliente
               </span>
               <input
                 value={customerName}
@@ -457,7 +457,7 @@ function ReviewRequestTester({ business }: { business: Business }) {
             />
           </div>
           <p className="mt-1 text-sm text-[#8891A4]">
-            Enviá el pedido de reseña como lo recibiría un paciente. Usa el
+            Enviá el pedido de reseña como lo recibiría un cliente. Usa el
             flujo real del onboarding y genera una landing con tracking.
           </p>
         </div>

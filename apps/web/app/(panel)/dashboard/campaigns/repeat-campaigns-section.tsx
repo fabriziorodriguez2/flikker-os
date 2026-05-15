@@ -31,10 +31,10 @@ function titleFor(c: RepeatCampaign) {
 
 function descriptionFor(c: RepeatCampaign) {
   if (c.templateKind === "birthday") {
-    return "Se envía el día del cumpleaños del paciente.";
+    return "Se envía el día del cumpleaños del cliente.";
   }
   if (c.templateKind === "reactivation") {
-    return "Para pacientes que no vinieron en más de 6 meses.";
+    return "Para clientes que no vinieron en más de 6 meses.";
   }
   if (c.templateKind === "post_service") {
     return "Mensaje automático luego de la atención.";
@@ -49,7 +49,7 @@ function metadataFor(c: RepeatCampaign) {
   if (c.templateKind === "reactivation") {
     return "WhatsApp · primer martes de cada mes · 10:00";
   }
-  return "WhatsApp · 30 minutos después de atendido · pacientes con consentimiento";
+  return "WhatsApp · 30 minutos después de atendido · clientes con consentimiento";
 }
 
 function statusBadgeClass(status: string) {

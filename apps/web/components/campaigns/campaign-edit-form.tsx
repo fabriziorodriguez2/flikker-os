@@ -22,7 +22,7 @@ function isBirthdayCampaign(kind: string | null) {
 }
 
 function conditionText(kind: string | null, offset: string) {
-  if (kind === "birthday") return "Cumpleaños del paciente";
+  if (kind === "birthday") return "Cumpleaños del cliente";
   if (kind === "reactivation") return "Sin atención registrada en 6 meses";
   return `Después de la atención (${offset || "0"} días de offset)`;
 }
@@ -164,7 +164,7 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
 
           {isBirthdayCampaign(campaign.templateKind) ? (
             <div className="rounded-[8px] border border-[#E8EAF0] bg-[#F5F6FA] px-4 py-3 text-sm text-[#8891A4]">
-              Solo se enviará a pacientes con fecha de nacimiento cargada.
+              Solo se enviará a clientes con fecha de nacimiento cargada.
             </div>
           ) : null}
         </div>

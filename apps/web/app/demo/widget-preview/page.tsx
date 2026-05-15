@@ -99,7 +99,7 @@ export default async function DemoWidgetPreviewPage({
         <section className="grid gap-5 lg:grid-cols-[1.1fr_0.9fr]">
           <article className="rounded-xl border border-[#E8EAF0] bg-white p-6">
             <p className="text-sm font-semibold text-[#5C6BC0]">
-              Clínica demo
+              Negocio demo
             </p>
             <h2 className="mt-3 font-display text-3xl font-bold leading-tight">
               Atención clara, seguimiento simple y reseñas visibles.
