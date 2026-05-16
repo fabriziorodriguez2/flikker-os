@@ -33,16 +33,7 @@ export default function RootLayout({
       <head>
         <script
           dangerouslySetInnerHTML={{
-            __html: `
-              (function() {
-                try {
-                  var theme = localStorage.getItem('flikker-theme');
-                  if (theme === 'light' || theme === 'dark') {
-                    document.documentElement.dataset.theme = theme;
-                  }
-                } catch (e) {}
-              })();
-            `,
+            __html: `document.documentElement.dataset.theme = 'light';`,
           }}
         />
       </head>

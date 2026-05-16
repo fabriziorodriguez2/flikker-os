@@ -56,6 +56,7 @@ export async function POST(request: Request) {
         { status: 401 },
       );
     }
+    console.error("[api/auth/login]", err);
     return Response.json(
       { message: "Error al iniciar sesión" },
       { status: 500 },
