@@ -161,6 +161,14 @@ export class PlatformController {
     return this.platformService.getOrCreateDemoBusiness(req.user.id);
   }
 
+  @Post('businesses/:businessId/sync-reviews')
+  triggerReviewSync(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+  ) {
+    return this.platformService.triggerReviewSync(req.user.id, businessId);
+  }
+
   @Post('businesses/:businessId/impersonate')
   impersonate(
     @Req() req: AuthenticatedRequest,

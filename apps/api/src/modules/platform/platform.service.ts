@@ -549,6 +549,26 @@ export class PlatformService {
     return updated;
   }
 
+  async triggerReviewSync(adminId: string, businessId: string) {
+    const business = await this.assertBusinessExists(businessId);
+
+    void this.googleReviewDetectionQueue
+      .enqueueInitialScrape(businessId)
+      .catch((error) => {
+        this.logger.warn(
+          `Could not enqueue review sync for business ${businessId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+
+    this.logPlatformWrite(adminId, businessId, 'PLATFORM_REVIEW_SYNC_TRIGGERED', {
+      businessName: business.name,
+    });
+
+    return { ok: true, businessId };
+  }
+
   listAuditLogs() {
     return this.repository.findAuditLogs();
   }
