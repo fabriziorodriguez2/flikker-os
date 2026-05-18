@@ -14,7 +14,7 @@ export interface RepeatCampaign {
   triggerOffsetDays: number | null;
   description: string | null;
   monthlySent: number;
-  respondedTotal: number;
+  respondedTotal: number; // kept for API compat, not displayed
 }
 
 function CampaignIcon({ kind }: { kind: string | null }) {
@@ -131,7 +131,7 @@ export default function RepeatCampaignsSection({
         {campaigns.map((campaign) => (
           <article
             key={campaign.id}
-            className="grid items-center gap-4 rounded-[12px] border border-[#E8EAF0] bg-white p-4 lg:grid-cols-[40px_minmax(0,1fr)_1px_156px_44px_88px]"
+            className="grid items-center gap-4 rounded-[12px] border border-[#E8EAF0] bg-white p-4 lg:grid-cols-[40px_minmax(0,1fr)_1px_80px_44px_88px]"
           >
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[8px] bg-[#EEF0FB] text-[#5C6BC0]">
               <CampaignIcon kind={campaign.templateKind} />
@@ -163,23 +163,13 @@ export default function RepeatCampaignsSection({
 
             <div className="hidden h-12 w-px bg-[#E8EAF0] lg:block" />
 
-            <div className="grid grid-cols-2 gap-5 text-center">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
-                  Enviados mes
-                </p>
-                <p className="mt-1 text-lg font-bold text-[#1A202C]">
-                  {campaign.monthlySent}
-                </p>
-              </div>
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
-                  Reseñas
-                </p>
-                <p className="mt-1 text-lg font-bold text-[#639922]">
-                  {campaign.respondedTotal}
-                </p>
-              </div>
+            <div className="text-center">
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+                Enviados mes
+              </p>
+              <p className="mt-1 text-lg font-bold text-[#1A202C]">
+                {campaign.monthlySent}
+              </p>
             </div>
 
             <CampaignStatusToggle
