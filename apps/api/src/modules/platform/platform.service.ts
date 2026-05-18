@@ -553,7 +553,7 @@ export class PlatformService {
     const business = await this.assertBusinessExists(businessId);
 
     void this.googleReviewDetectionQueue
-      .enqueueInitialScrape(businessId)
+      .enqueueManualScrape(businessId)
       .catch((error) => {
         this.logger.warn(
           `Could not enqueue review sync for business ${businessId}: ${

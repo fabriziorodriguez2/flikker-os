@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
@@ -42,13 +43,6 @@ interface CreateForm {
   timezone: string;
 }
 
-interface CreateResult {
-  businessName: string;
-  email: string;
-  loginUrl: string;
-  temporaryPassword: string | null;
-}
-
 const EMPTY_CREATE_FORM: CreateForm = {
   name: "",
   ownerEmail: "",
@@ -61,6 +55,7 @@ const EMPTY_CREATE_FORM: CreateForm = {
 const PAGE_SIZE = 8;
 
 export default function PlatformPage() {
+  const router = useRouter();
   const [businesses, setBusinesses] = useState<PlatformBusiness[]>([]);
   const [loading, setLoading] = useState(true);
   const [impersonatingId, setImpersonatingId] = useState<string | null>(null);
@@ -74,10 +69,10 @@ export default function PlatformPage() {
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
-  const [createResult, setCreateResult] = useState<CreateResult | null>(null);
   const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE_FORM);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncedId, setSyncedId] = useState<string | null>(null);
+
 
   useEffect(() => {
     async function boot() {
@@ -193,11 +188,8 @@ export default function PlatformPage() {
         const data = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(data.message ?? "No se pudo crear el negocio");
       }
-      const data = (await res.json()) as { credentials: CreateResult };
-      setCreateResult(data.credentials);
-      setShowCreateForm(false);
-      setCreateForm(EMPTY_CREATE_FORM);
-      await loadBusinesses();
+      const data = (await res.json()) as { business: { id: string } };
+      router.push(`/platform/businesses/${data.business.id}/onboarding`);
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : "Error al crear negocio");
     } finally {
@@ -626,64 +618,6 @@ export default function PlatformPage() {
         </div>
       ) : null}
 
-      {createResult ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
-          <div
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="create-result-title"
-            className="w-full max-w-md rounded-xl border border-[#E8EAF0] bg-white p-6"
-          >
-            <h2 id="create-result-title" className="text-lg font-bold text-[#1A202C]">
-              Negocio creado
-            </h2>
-            <p className="mt-2 text-sm text-[#8891A4]">
-              <span className="font-semibold text-[#1A202C]">{createResult.businessName}</span>{" "}
-              fue creado correctamente.
-            </p>
-
-            <div className="mt-4 space-y-2 rounded-lg bg-[#F5F6FA] p-4 text-sm">
-              <p>
-                <span className="font-semibold text-[#1A202C]">Email:</span>{" "}
-                <span className="text-[#5C6BC0]">{createResult.email}</span>
-              </p>
-              {createResult.temporaryPassword ? (
-                <p>
-                  <span className="font-semibold text-[#1A202C]">Contraseña temporal:</span>{" "}
-                  <code className="rounded bg-white px-2 py-0.5 font-mono text-[#5C6BC0]">
-                    {createResult.temporaryPassword}
-                  </code>
-                </p>
-              ) : (
-                <p className="text-[#8891A4]">
-                  El usuario ya existía — usará su contraseña actual.
-                </p>
-              )}
-              <p>
-                <span className="font-semibold text-[#1A202C]">Link:</span>{" "}
-                <a
-                  href={createResult.loginUrl}
-                  className="text-[#5C6BC0] underline"
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  {createResult.loginUrl}
-                </a>
-              </p>
-            </div>
-
-            <div className="mt-6 flex justify-end">
-              <button
-                type="button"
-                onClick={() => setCreateResult(null)}
-                className="inline-flex h-10 items-center justify-center rounded-lg bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4e5db0]"
-              >
-                Cerrar
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }

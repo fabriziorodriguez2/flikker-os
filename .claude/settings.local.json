@@ -23,7 +23,8 @@
       "Bash(xargs grep *)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\" -Directory)",
       "Bash(Select-Object Name)",
-      "Bash(Get-ChildItem -Path . -Depth 1 -Directory)"
+      "Bash(Get-ChildItem -Path . -Depth 1 -Directory)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\\\\apps\\\\api\\\\src\\\\jobs\\\\\" -Force)"
     ]
   }
 }

@@ -37,6 +37,15 @@ export class GoogleReviewDetectionQueue
     );
   }
 
+  async enqueueManualScrape(businessId: string) {
+    if (!this.queue) return null;
+    return this.queue.add(
+      INITIAL_GOOGLE_REVIEW_SCRAPE_JOB,
+      { businessId },
+      { attempts: 1, removeOnComplete: 30, removeOnFail: false },
+    );
+  }
+
   async enqueueDailyRun() {
     if (!this.queue) return null;
     return this.queue.add(DETECT_GOOGLE_REVIEWS_DAILY_JOB, {}, { attempts: 1 });
