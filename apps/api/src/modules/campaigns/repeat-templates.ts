@@ -13,7 +13,7 @@ export const REPEAT_TEMPLATES = [
     templateKind: CampaignTemplateKind.post_service,
     triggerOffsetDays: 30,
     messageBody:
-      'Hola {nombre}, soy {clinica}. Ya pasaron unos dias desde tu ultima visita. {oferta}',
+      'Hola {nombre}👋, ¿cómo andás?\nTe escribo porque nos ayudaría muchísimo que nos dejes una reseña sobre tu experiencia en {clinica}.\nTe dejo el link acá 👉 {link_resena}\n¡Gracias por apoyar a {clinica}!💜',
     offerText: '',
   },
   {

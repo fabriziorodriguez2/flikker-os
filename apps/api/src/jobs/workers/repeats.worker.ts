@@ -75,6 +75,13 @@ export class RepeatsWorker implements OnModuleInit, OnModuleDestroy {
     }
 
     try {
+      const appPublicUrl = (
+        process.env.APP_PUBLIC_URL ??
+        process.env.WEB_BASE_URL ??
+        'https://flikker.site'
+      ).replace(/\/$/, '');
+      const reviewLink = `${appPublicUrl}/r/${execution.message.trackingToken}`;
+
       const result = await this.whatsAppBspService.sendText({
         phone: execution.customer.phoneE164,
         text: this.renderMessage({
@@ -82,6 +89,7 @@ export class RepeatsWorker implements OnModuleInit, OnModuleDestroy {
           customerName: execution.customer.name,
           clinicName: execution.business.name,
           offer: execution.campaign.offerText ?? '',
+          reviewLink,
         }),
       });
 
@@ -125,12 +133,14 @@ export class RepeatsWorker implements OnModuleInit, OnModuleDestroy {
     customerName: string;
     clinicName: string;
     offer: string;
+    reviewLink: string;
   }) {
     return input.body
       .replaceAll('{nombre}', input.customerName)
       .replaceAll('{clinica}', input.clinicName)
       .replaceAll('{oferta}', input.offer)
-      .replace(/\s+/g, ' ')
+      .replaceAll('{link_resena}', input.reviewLink)
+      .replace(/[^\S\n]+/g, ' ')
       .trim();
   }
 }
