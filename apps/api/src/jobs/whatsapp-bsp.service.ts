@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 export interface SendReviewRequestInput {
   phone: string;
   customerName: string;
+  clinicName: string;
   trackingUrl: string;
 }
 
@@ -22,7 +23,7 @@ export class WhatsAppBspService {
   ): Promise<SendReviewRequestResult> {
     return this.sendText({
       phone: input.phone,
-      text: `Hola ${input.customerName}, gracias por venir hoy. Tu opinión nos ayuda muchísimo a seguir mejorando. ¿Nos dejás una reseña? ${input.trackingUrl} 💜`,
+      text: `Hola ${input.customerName}👋, ¿cómo andás?\nTe escribo porque nos ayudaría muchísimo que nos dejes una reseña sobre tu experiencia en ${input.clinicName}.\nTe dejo el link acá 👉 ${input.trackingUrl}\n¡Gracias por apoyar a ${input.clinicName}!💜`,
     });
   }
 

@@ -508,6 +508,7 @@ export class PlatformService {
       const result = await this.whatsAppBspService.sendReviewRequest({
         phone: phoneE164,
         customerName: customer.name,
+        clinicName: business.name,
         trackingUrl,
       });
       await this.repository.markMessageSent(

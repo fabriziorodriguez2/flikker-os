@@ -98,6 +98,7 @@ export class ReviewRequestWorker implements OnModuleInit, OnModuleDestroy {
       const result = await this.whatsAppBspService.sendReviewRequest({
         phone: message.customer.phoneE164,
         customerName: message.customer.name,
+        clinicName: message.business.name,
         trackingUrl: this.buildTrackingUrl(message.trackingToken),
       });
 
