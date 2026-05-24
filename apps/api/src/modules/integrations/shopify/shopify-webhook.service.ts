@@ -129,6 +129,7 @@ export class ShopifyWebhookService {
         status: 'ACTIVE',
       },
       orderBy: { createdAt: 'asc' },
+      select: { id: true, reviewRequestDelayHours: true },
     });
 
     const serviceEvent = await this.prisma.serviceEvent.create({
@@ -154,7 +155,8 @@ export class ShopifyWebhookService {
       },
     });
 
-    const delayMs = integration.delayHours * 60 * 60 * 1000;
+    const delayHours = campaign?.reviewRequestDelayHours ?? integration.delayHours;
+    const delayMs = delayHours * 60 * 60 * 1000;
     await this.reviewRequestQueue.enqueue(
       { messageId: message.id, customerId: customer.id, businessId: integration.businessId },
       delayMs,

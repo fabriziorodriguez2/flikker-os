@@ -20,6 +20,12 @@ export class UpdateRepeatCampaignDto {
   triggerOffsetDays?: number;
 
   @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(2160)
+  reviewRequestDelayHours?: number;
+
+  @IsOptional()
   @IsString()
   @MaxLength(280)
   offerText?: string;

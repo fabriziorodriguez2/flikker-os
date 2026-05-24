@@ -198,6 +198,9 @@ export class CampaignsService {
         ...(dto.triggerOffsetDays !== undefined
           ? { triggerOffsetDays: dto.triggerOffsetDays }
           : {}),
+        ...(dto.reviewRequestDelayHours !== undefined
+          ? { reviewRequestDelayHours: dto.reviewRequestDelayHours }
+          : {}),
         ...(dto.offerText !== undefined
           ? { offerText: dto.offerText.trim() || null }
           : {}),

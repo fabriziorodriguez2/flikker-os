@@ -434,7 +434,8 @@ model Campaign {
   description       String?
   channel           CampaignChannel
   templateKind      CampaignTemplateKind? @map("template_kind")
-  triggerOffsetDays Int?                  @map("trigger_offset_days")
+  triggerOffsetDays          Int?                  @map("trigger_offset_days")
+  reviewRequestDelayHours    Int?                  @default(24) @map("review_request_delay_hours")
   messageBody       String?               @map("message_body")
   offerText         String?               @map("offer_text")
   status            CampaignStatus        @default(DRAFT)

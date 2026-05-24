@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Clock3, Edit2, Gift, UserRound } from "lucide-react";
+import { Check, Clock3, Edit2, Gift, UserRound } from "lucide-react";
 import CampaignStatusToggle from "@/components/campaigns/campaign-status-toggle";
 
 export interface RepeatCampaign {
@@ -12,6 +12,7 @@ export interface RepeatCampaign {
   status: string;
   templateKind: string | null;
   triggerOffsetDays: number | null;
+  reviewRequestDelayHours: number | null;
   description: string | null;
   monthlySent: number;
   respondedTotal: number; // kept for API compat, not displayed
@@ -49,7 +50,87 @@ function metadataFor(c: RepeatCampaign) {
   if (c.templateKind === "reactivation") {
     return "WhatsApp · primer martes de cada mes · 10:00";
   }
-  return "WhatsApp · 30 minutos después de atendido · clientes con consentimiento";
+  return "WhatsApp · clientes con consentimiento";
+}
+
+function formatDelay(hours: number | null): string {
+  const h = hours ?? 24;
+  if (h < 24) return `${h} ${h === 1 ? "hora" : "horas"} después del pedido`;
+  const days = Math.round(h / 24);
+  return `${days} ${days === 1 ? "día" : "días"} después del pedido`;
+}
+
+function DelayEditor({
+  campaignId,
+  initialHours,
+  onSaved,
+}: {
+  campaignId: string;
+  initialHours: number | null;
+  onSaved: (hours: number) => void;
+}) {
+  const h = initialHours ?? 24;
+  const startUnit = h % 24 === 0 ? "days" : "hours";
+  const startValue = startUnit === "days" ? Math.round(h / 24) : h;
+
+  const [value, setValue] = useState(String(startValue));
+  const [unit, setUnit] = useState<"hours" | "days">(startUnit);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSave() {
+    const n = Number(value);
+    if (!n || n < 1) return;
+    const hours = unit === "days" ? n * 24 : n;
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/proxy/campaigns/${campaignId}/repeats`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reviewRequestDelayHours: hours }),
+      });
+      if (!res.ok) throw new Error("Error al guardar");
+      setSaved(true);
+      onSaved(hours);
+      setTimeout(() => setSaved(false), 2000);
+    } catch {
+      setError("No se pudo guardar");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      <input
+        type="number"
+        min={1}
+        max={unit === "days" ? 90 : 2160}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        className="w-16 rounded-lg border border-[#E8EAF0] px-2 py-1 text-sm text-[#1A202C] focus:border-[#5C6BC0] focus:outline-none"
+      />
+      <select
+        value={unit}
+        onChange={(e) => setUnit(e.target.value as "hours" | "days")}
+        className="rounded-lg border border-[#E8EAF0] px-2 py-1 text-sm text-[#1A202C] focus:border-[#5C6BC0] focus:outline-none"
+      >
+        <option value="hours">horas</option>
+        <option value="days">días</option>
+      </select>
+      <button
+        type="button"
+        disabled={saving || !value || Number(value) < 1}
+        onClick={() => void handleSave()}
+        className="flex items-center gap-1 rounded-lg bg-[#5C6BC0] px-3 py-1 text-xs font-semibold text-white transition-colors hover:bg-[#4a58a8] disabled:opacity-50"
+      >
+        {saved ? <Check className="h-3.5 w-3.5" /> : saving ? "…" : "Guardar"}
+      </button>
+      {error && <span className="text-xs text-[#C0392B]">{error}</span>}
+    </div>
+  );
 }
 
 function statusBadgeClass(status: string) {
@@ -151,9 +232,25 @@ export default function RepeatCampaignsSection({
               <p className="mt-1 text-sm text-[#8891A4]">
                 {descriptionFor(campaign)}
               </p>
-              <p className="mt-1 text-[11px] font-medium text-[#8891A4]">
-                {metadataFor(campaign)}
-              </p>
+              {campaign.templateKind === "post_service" ? (
+                <DelayEditor
+                  campaignId={campaign.id}
+                  initialHours={campaign.reviewRequestDelayHours}
+                  onSaved={(hours) =>
+                    setCampaigns((prev) =>
+                      prev.map((c) =>
+                        c.id === campaign.id
+                          ? { ...c, reviewRequestDelayHours: hours }
+                          : c,
+                      ),
+                    )
+                  }
+                />
+              ) : (
+                <p className="mt-1 text-[11px] font-medium text-[#8891A4]">
+                  {metadataFor(campaign)}
+                </p>
+              )}
               {errors[campaign.id] ? (
                 <p className="mt-1 text-[11px] font-semibold text-[#C0392B]">
                   {errors[campaign.id]}

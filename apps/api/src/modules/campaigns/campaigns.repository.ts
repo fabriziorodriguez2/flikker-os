@@ -200,6 +200,7 @@ export class CampaignsRepository {
     data: {
       messageBody?: string;
       triggerOffsetDays?: number;
+      reviewRequestDelayHours?: number;
       offerText?: string | null;
     },
   ) {
