@@ -19,7 +19,14 @@ async function bootstrap() {
     logger: ['error', 'warn', 'log', 'debug'],
   });
 
-  app.use(json({ limit: '3mb' }));
+  app.use(
+    json({
+      limit: '3mb',
+      verify: (req: Record<string, unknown>, _res, buf) => {
+        req['rawBody'] = buf;
+      },
+    }),
+  );
   app.use(urlencoded({ extended: true, limit: '3mb' }));
 
   app.useGlobalPipes(

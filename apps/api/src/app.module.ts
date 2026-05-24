@@ -21,6 +21,7 @@ import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { JobsModule } from './jobs/jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { TestLabModule } from './modules/test-lab/test-lab.module';
+import { ShopifyIntegrationModule } from './modules/integrations/shopify/shopify-integration.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -46,6 +47,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     WebhooksModule,
     JobsModule,
     TestLabModule,
+    ShopifyIntegrationModule,
   ],
   controllers: [AppController],
 })

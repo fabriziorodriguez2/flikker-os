@@ -146,6 +146,13 @@ enum WidgetEventType {
   close
 }
 
+enum ShopifyOrderStatus {
+  pending
+  scheduled
+  skipped
+  failed
+}
+
 // ---------------------------------------------------------------------------
 // User
 // ---------------------------------------------------------------------------
@@ -256,6 +263,8 @@ model Business {
   impersonationLogs  ImpersonationLog[]
   widgetEvents       WidgetEvent[]
   reviewTags         ReviewTag[]
+  shopifyIntegration ShopifyIntegration?
+  shopifyOrders      ShopifyOrder[]
 }
 
 // ---------------------------------------------------------------------------
@@ -855,4 +864,50 @@ model WidgetEvent {
 
   @@index([businessId])
   @@index([businessId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// ShopifyIntegration (one per business — stores Shopify webhook credentials)
+// ---------------------------------------------------------------------------
+
+model ShopifyIntegration {
+  id            String   @id @default(uuid())
+  businessId    String   @unique
+  shopDomain    String   @unique @map("shop_domain")
+  webhookSecret String   @map("webhook_secret")
+  delayHours    Int      @default(24) @map("delay_hours")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  business      Business       @relation(fields: [businessId], references: [id])
+  shopifyOrders ShopifyOrder[]
+
+  @@index([shopDomain])
+}
+
+// ---------------------------------------------------------------------------
+// ShopifyOrder (idempotency record per Shopify order processed)
+// ---------------------------------------------------------------------------
+
+model ShopifyOrder {
+  id             String             @id @default(uuid())
+  businessId     String
+  integrationId  String
+  shopifyOrderId String             @map("shopify_order_id")
+  customerName   String?            @map("customer_name")
+  customerPhone  String?            @map("customer_phone")
+  customerEmail  String?            @map("customer_email")
+  status         ShopifyOrderStatus @default(pending)
+  scheduledAt    DateTime?          @map("scheduled_at")
+  processedAt    DateTime?          @map("processed_at")
+  skipReason     String?            @map("skip_reason")
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  business    Business           @relation(fields: [businessId], references: [id])
+  integration ShopifyIntegration @relation(fields: [integrationId], references: [id])
+
+  @@unique([integrationId, shopifyOrderId])
+  @@index([businessId])
+  @@index([integrationId])
 }

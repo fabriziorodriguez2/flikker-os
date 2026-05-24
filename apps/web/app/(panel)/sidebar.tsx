@@ -68,12 +68,20 @@ const WidgetIcon = () => (
   </Icon>
 );
 
+const IntegrationsIcon = () => (
+  <Icon>
+    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+  </Icon>
+);
+
 const MAIN_NAV_ITEMS = [
   { href: "/dashboard", label: "Panel", icon: <HomeIcon /> },
   { href: "/dashboard/customers", label: "Clientes", icon: <CustomersIcon /> },
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon /> },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
   { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon /> },
+  { href: "/dashboard/integrations", label: "Integraciones", icon: <IntegrationsIcon /> },
 ];
 
 function isItemActive(pathname: string, href: string) {
@@ -94,9 +102,11 @@ export default function Sidebar(props: SidebarProps) {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
   });
-  const activeBusiness = props.memberships.find(
+  const activeMembership = props.memberships.find(
     (membership) => membership.businessId === props.activeBusinessId,
   );
+  const activeBusiness = activeMembership;
+  const isAdmin = activeMembership?.role === 'OWNER' || activeMembership?.role === 'ADMIN';
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(collapsed));
   }, [collapsed]);
@@ -141,7 +151,9 @@ export default function Sidebar(props: SidebarProps) {
       </div>
 
       <nav className={`mt-8 flex flex-col gap-2 ${collapsed ? "px-4" : "px-5"}`}>
-        {MAIN_NAV_ITEMS.map((item) => {
+        {MAIN_NAV_ITEMS.filter((item) =>
+          item.href === "/dashboard/integrations" ? isAdmin : true,
+        ).map((item) => {
           const active = isItemActive(pathname, item.href);
           return (
             <Link
