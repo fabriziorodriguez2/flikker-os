@@ -58,11 +58,13 @@ function formatDate(iso: string) {
 
 function ShopifyLogo({ size = 36 }: { size?: number }) {
   return (
-    <svg viewBox="0 0 50 56" style={{ width: size, height: size }} fill="none">
-      <path d="M42.5 10.8c0 0-.2-.1-.5-.1s-7.1-.5-7.1-.5S30.3 5.6 29.8 5.1c-.5-.5-1.5-.3-1.9-.2 0 0-.7.2-1.7.5C25.3 3.2 23.5 2 21.5 2c-3.9 0-5.8 4.9-6.4 7.3-2.1.7-3.6 1.1-3.8 1.2-1.2.4-1.2.4-1.3 1.5L8 46.9 36.6 52 50 48.8 42.5 10.8z" fill="#96BF48"/>
-      <path d="M34 10.2s-6.1-.4-6.4-.4c-.1 0-4.1-4.2-4.1-4.2L21 52l14.6-3.2L42.5 10.8c-.1 0-8.5-.6-8.5-.6z" fill="#5E8E3E"/>
-      <path d="M25.5 19.8l-1.8 5.5s-1.6-.9-3.5-.9c-2.8 0-3 1.8-3 2.2 0 2.4 6.3 3.3 6.3 9 0 4.4-2.8 7.3-6.6 7.3-4.5 0-6.8-2.8-6.8-2.8l1.2-4s2.4 2 4.4 2c1.3 0 1.8-1 1.8-1.8 0-3.1-5.2-3.2-5.2-8.5 0-4.4 3.1-8.6 9.5-8.6 2.4 0 3.7.7 3.7.7v-.1z" fill="white"/>
-    </svg>
+    <img
+      src="/icons8-shopify.svg"
+      alt="Shopify"
+      width={size}
+      height={size}
+      style={{ width: size, height: size }}
+    />
   );
 }
 
@@ -91,7 +93,7 @@ const INTEGRATIONS: IntegrationDef[] = [
   {
     id: "shopify",
     name: "Shopify",
-    tagline: "Pedidos → reseñas automáticas",
+    tagline: "Pedís reseñas cuando llega una orden",
     available: true,
     logo: <ShopifyLogo />,
   },
@@ -202,7 +204,7 @@ function ShopifyConfigPanel({
         <ShopifyLogo size={40} />
         <div>
           <p className="text-lg font-semibold text-[#1A202C]">Shopify</p>
-          <p className="text-sm text-[#8891A4]">Pedidos → reseñas automáticas por WhatsApp</p>
+          <p className="text-sm text-[#8891A4]">Pedís reseñas por WhatsApp cuando llega una orden</p>
         </div>
         {shopifyData?.isActive && (
           <span className="ml-auto flex items-center gap-1.5 rounded-full bg-green-100 px-3 py-0.5 text-xs font-semibold text-green-700">
