@@ -1,19 +1,12 @@
-import { IsString, IsInt, IsNotEmpty, Min, Max, IsOptional } from 'class-validator';
-import { Type } from 'class-transformer';
+import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
 
 export class UpsertShopifyIntegrationDto {
   @IsString()
   @IsNotEmpty()
   shopDomain!: string;
 
+  @IsOptional()
   @IsString()
   @IsNotEmpty()
-  webhookSecret!: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(168)
-  delayHours?: number;
+  webhookSecret?: string;
 }

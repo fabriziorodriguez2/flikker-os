@@ -28,15 +28,14 @@ export class ShopifyConfigService {
       where: { businessId },
       update: {
         shopDomain,
-        webhookSecret: dto.webhookSecret,
-        ...(dto.delayHours !== undefined ? { delayHours: dto.delayHours } : {}),
+        ...(dto.webhookSecret ? { webhookSecret: dto.webhookSecret } : {}),
         isActive: true,
       },
       create: {
         businessId,
         shopDomain,
-        webhookSecret: dto.webhookSecret,
-        delayHours: dto.delayHours ?? 24,
+        webhookSecret: dto.webhookSecret ?? '',
+        delayHours: 24,
       },
       select: {
         id: true,
