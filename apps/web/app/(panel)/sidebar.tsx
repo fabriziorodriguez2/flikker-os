@@ -102,11 +102,9 @@ export default function Sidebar(props: SidebarProps) {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
   });
-  const activeMembership = props.memberships.find(
+  const activeBusiness = props.memberships.find(
     (membership) => membership.businessId === props.activeBusinessId,
   );
-  const activeBusiness = activeMembership;
-  const isAdmin = activeMembership?.role === 'OWNER' || activeMembership?.role === 'ADMIN';
   useEffect(() => {
     window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(collapsed));
   }, [collapsed]);
@@ -151,9 +149,7 @@ export default function Sidebar(props: SidebarProps) {
       </div>
 
       <nav className={`mt-8 flex flex-col gap-2 ${collapsed ? "px-4" : "px-5"}`}>
-        {MAIN_NAV_ITEMS.filter((item) =>
-          item.href === "/dashboard/integrations" ? isAdmin : true,
-        ).map((item) => {
+        {MAIN_NAV_ITEMS.map((item) => {
           const active = isItemActive(pathname, item.href);
           return (
             <Link
