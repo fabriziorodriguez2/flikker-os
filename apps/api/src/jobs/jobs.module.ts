@@ -40,6 +40,7 @@ import { RepeatsProcessor } from './repeats.processor';
     GoogleReviewDetectionQueue,
     GoogleReviewsProvider,
     WhatsAppBspService,
+    EmailService,
   ],
 })
 export class JobsModule {}

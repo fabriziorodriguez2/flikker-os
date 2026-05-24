@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Controller,
   Get,
   Post,
@@ -57,5 +58,19 @@ export class TestLabController {
     @Body() dto: TestSendDto,
   ) {
     return this.testLabService.sendTest(req.currentBusinessId!, id, dto);
+  }
+
+  @Post('weekly-summary-preview')
+  sendWeeklySummaryPreview(
+    @Req() req: AuthenticatedRequest,
+    @Body() body: { email?: string },
+  ) {
+    if (!body.email?.trim()) {
+      throw new BadRequestException('email is required');
+    }
+    return this.testLabService.sendWeeklySummaryPreview(
+      req.currentBusinessId!,
+      body.email.trim(),
+    );
   }
 }

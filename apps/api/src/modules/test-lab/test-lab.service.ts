@@ -1,12 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { EmailService } from '../../jobs/email.service';
+import { renderWeeklySummaryEmail } from '../../jobs/workers/owner-notifications.worker';
 
 @Injectable()
 export class TestLabService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsAppBspService: WhatsAppBspService,
+    private readonly emailService: EmailService,
   ) {}
 
   async getOverview(businessId: string) {
@@ -157,5 +160,56 @@ export class TestLabService {
       sentAt: new Date().toISOString(),
       note: 'Envío de prueba — no queda registrado en historial ni afecta métricas.',
     };
+  }
+
+  async sendWeeklySummaryPreview(businessId: string, email: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true, name: true },
+    });
+    if (!business) throw new NotFoundException('Business not found');
+
+    const now = new Date();
+    const weekStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const prevWeekStart = new Date(now.getTime() - 14 * 24 * 60 * 60 * 1000);
+
+    const [current, previous] = await Promise.all([
+      this.calcWeeklyKpis(businessId, weekStart, now),
+      this.calcWeeklyKpis(businessId, prevWeekStart, weekStart),
+    ]);
+
+    const panelUrl = `${(process.env.APP_PUBLIC_URL ?? 'https://flikker.site').replace(/\/$/, '')}/dashboard`;
+
+    await this.emailService.send({
+      to: [email],
+      subject: `Resumen semanal de ${business.name} (prueba)`,
+      html: renderWeeklySummaryEmail({ businessName: business.name, current, previous, panelUrl }),
+    });
+
+    return { ok: true, sentTo: email };
+  }
+
+  private async calcWeeklyKpis(businessId: string, from: Date, to: Date) {
+    const [reviewsGenerated, ratingSample, reactivated] = await Promise.all([
+      this.prisma.googleReview.count({
+        where: { businessId, postedAt: { gte: from, lt: to } },
+      }),
+      this.prisma.googleReview.findMany({
+        where: { businessId, postedAt: { gte: from, lt: to } },
+        select: { stars: true },
+      }),
+      this.prisma.campaignExecution.count({
+        where: { businessId, status: 'responded', respondedAt: { gte: from, lt: to } },
+      }),
+    ]);
+
+    const averageRating =
+      ratingSample.length > 0
+        ? Number(
+            (ratingSample.reduce((sum, r) => sum + r.stars, 0) / ratingSample.length).toFixed(1),
+          )
+        : 0;
+
+    return { reviewsGenerated, averageRating, reactivatedCustomers: reactivated };
   }
 }

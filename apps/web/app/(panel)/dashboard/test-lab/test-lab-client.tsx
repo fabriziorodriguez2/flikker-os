@@ -585,6 +585,67 @@ function WidgetSection({
   );
 }
 
+// ── Weekly summary tester ─────────────────────────────────────────────────
+
+function WeeklySummaryTester() {
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [sentTo, setSentTo] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  async function send() {
+    if (!email.trim()) return;
+    setLoading(true);
+    setError(null);
+    setSentTo(null);
+    try {
+      const res = await fetch("/api/proxy/test-lab/weekly-summary-preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      const data = (await res.json()) as { ok?: boolean; message?: string };
+      if (!res.ok) throw new Error(data.message ?? "Error al enviar");
+      setSentTo(email.trim());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error inesperado");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="flex gap-2">
+        <input
+          type="email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") void send(); }}
+          placeholder="tu@email.com"
+          className="h-10 flex-1 rounded-lg border border-[#E8EAF0] px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]"
+        />
+        <button
+          type="button"
+          onClick={() => void send()}
+          disabled={loading || !email.trim()}
+          className="h-10 rounded-lg bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4e5db0] disabled:opacity-60"
+        >
+          {loading ? "Enviando..." : "Enviar preview"}
+        </button>
+      </div>
+      {sentTo ? (
+        <p className="mt-2 text-sm font-medium text-[#639922]">
+          ✓ Email enviado a {sentTo}
+        </p>
+      ) : null}
+      {error ? (
+        <p className="mt-2 text-sm text-[#C0392B]">{error}</p>
+      ) : null}
+    </div>
+  );
+}
+
 // ── Small stat tile ───────────────────────────────────────────────────────
 
 function Stat({
@@ -773,7 +834,16 @@ export default function TestLabClient({
         <LandingSection business={business} />
       </section>
 
-      {/* D. Widget */}
+      {/* D. Resumen semanal */}
+      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 md:p-6">
+        <h2 className="text-base font-bold text-[#1A202C]">Probar resumen semanal</h2>
+        <p className="mt-1 mb-4 text-sm text-[#8891A4]">
+          Enviá el resumen de los últimos 7 días a un email para revisar el diseño y los datos.
+        </p>
+        <WeeklySummaryTester />
+      </section>
+
+      {/* E. Widget */}
       <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 md:p-6">
         <h2 className="text-base font-bold text-[#1A202C]">Probar widget</h2>
         <p className="mt-1 mb-4 text-sm text-[#8891A4]">

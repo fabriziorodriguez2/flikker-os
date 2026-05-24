@@ -285,33 +285,74 @@ function renderLowFeedbackEmail(input: {
   `;
 }
 
-function renderWeeklySummaryEmail(input: {
+export function renderWeeklySummaryEmail(input: {
   businessName: string;
   current: WeeklyKpis;
   previous: WeeklyKpis;
   panelUrl: string;
 }) {
-  return `
-    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#18181b">
-      <h1 style="font-size:22px">Resumen semanal de ${escapeHtml(input.businessName)}</h1>
-      ${renderKpi('Reseñas detectadas', input.current.reviewsGenerated, input.previous.reviewsGenerated)}
-      ${renderKpi('Calificación promedio', input.current.averageRating, input.previous.averageRating)}
-      ${renderKpi('Clientes reactivados', input.current.reactivatedCustomers, input.previous.reactivatedCustomers)}
-      <p style="margin-top:20px"><a href="${input.panelUrl}" style="display:inline-block;background:#18181b;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">Ver dashboard</a></p>
-    </div>
-  `;
+  const name = escapeHtml(input.businessName);
+  return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Resumen semanal — Flikker</title>
+</head>
+<body style="margin:0;padding:0;background:#F5F6FA;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F5F6FA;">
+    <tr><td align="center" style="padding:40px 16px;">
+      <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+        <tr>
+          <td style="background:#5C6BC0;border-radius:16px 16px 0 0;padding:28px 32px;text-align:center;">
+            <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:rgba(255,255,255,0.6);text-transform:uppercase;margin-bottom:8px;">&#9889; Flikker</div>
+            <div style="font-size:24px;font-weight:700;color:#ffffff;line-height:1.3;">Resumen semanal</div>
+            <div style="font-size:14px;color:rgba(255,255,255,0.8);margin-top:6px;">${name}</div>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#ffffff;padding:28px 28px 16px;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                ${renderKpiCell('Reseñas', input.current.reviewsGenerated, input.previous.reviewsGenerated, false)}
+                ${renderKpiCell('Calificación', input.current.averageRating, input.previous.averageRating, false)}
+                ${renderKpiCell('Reactivados', input.current.reactivatedCustomers, input.previous.reactivatedCustomers, true)}
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#ffffff;padding:16px 28px 32px;text-align:center;">
+            <a href="${input.panelUrl}" style="display:inline-block;background:#5C6BC0;color:#ffffff;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;font-family:Arial,Helvetica,sans-serif;">Ver dashboard &rarr;</a>
+          </td>
+        </tr>
+        <tr>
+          <td style="background:#EEF0F6;border-top:1px solid #E8EAF0;border-radius:0 0 16px 16px;padding:16px 28px;text-align:center;">
+            <span style="font-size:12px;color:#8891A4;font-family:Arial,Helvetica,sans-serif;">Powered by <strong style="color:#5C6BC0;">Flikker</strong></span>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 }
 
-function renderKpi(label: string, current: number, previous: number) {
+function renderKpiCell(label: string, current: number, previous: number, isLast: boolean) {
   const delta = Number((current - previous).toFixed(1));
   const sign = delta > 0 ? '+' : '';
-  return `
-    <div style="display:inline-block;margin:8px 8px 8px 0;padding:14px;border:1px solid #e4e4e7;border-radius:10px;min-width:160px">
-      <div style="font-size:12px;color:#71717a">${escapeHtml(label)}</div>
-      <div style="font-size:28px;font-weight:700">${current}</div>
-      <div style="font-size:12px;color:#52525b">${sign}${delta} vs semana anterior (${previous})</div>
-    </div>
-  `;
+  const deltaColor = delta > 0 ? '#639922' : delta < 0 ? '#C0392B' : '#8891A4';
+  const displayValue = Number.isInteger(current) ? String(current) : current.toFixed(1);
+  const prevDisplay = Number.isInteger(previous) ? String(previous) : previous.toFixed(1);
+  return `<td width="33%" style="padding-right:${isLast ? '0' : '10px'};vertical-align:top;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+      <tr><td style="background:#F5F6FA;border:1px solid #E8EAF0;border-radius:12px;padding:16px 14px;">
+        <div style="font-size:10px;font-weight:700;color:#8891A4;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">${escapeHtml(label)}</div>
+        <div style="font-size:32px;font-weight:700;color:#1A202C;line-height:1;margin-bottom:8px;">${displayValue}</div>
+        <div style="font-size:12px;color:${deltaColor};">${sign}${delta} vs ant. (${prevDisplay})</div>
+      </td></tr>
+    </table>
+  </td>`;
 }
 
 function buildWeekWindows(currentStart: Date) {
