@@ -24,9 +24,10 @@ export async function GET(
     headers: {
       "Content-Type":
         upstream.headers.get("Content-Type") ?? "application/json",
-      "Cache-Control":
-        upstream.headers.get("Cache-Control") ??
-        "public, max-age=900, s-maxage=1800, stale-while-revalidate=3600",
+      "Cache-Control": upstream.ok
+        ? upstream.headers.get("Cache-Control") ??
+          "public, max-age=900, s-maxage=1800, stale-while-revalidate=3600"
+        : "no-store",
       "Access-Control-Allow-Origin": "*",
     },
   });

@@ -107,23 +107,27 @@
       if (!reviews || reviews.length === 0) return;
 
       var color = accentColor;
-      var pos =
-        (cfg.position || position) === 'bottom_left'
-          ? 'left:16px;right:auto;'
-          : 'right:16px;left:auto;';
+      var isLeft = (cfg.position || position) === 'bottom_left';
       var index = 0;
 
       var host = containerEl || document.createElement('div');
-      if (!containerEl) document.body.appendChild(host);
+      if (!containerEl) {
+        // Apply position:fixed on the host in the main DOM (not inside shadow)
+        // and append to <html> to avoid body transform containing-block issues
+        host.style.cssText =
+          'position:fixed!important;bottom:16px!important;' +
+          (isLeft ? 'left:16px!important;right:auto!important;' : 'right:16px!important;left:auto!important;') +
+          'z-index:2147483647!important;width:min(320px,calc(100vw - 32px))!important;' +
+          'display:block!important;box-sizing:border-box!important;pointer-events:auto!important;';
+        document.documentElement.appendChild(host);
+      }
       host.setAttribute('data-flikker-mounted', 'true');
 
       var shadow = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
       shadow.innerHTML =
         '<style>' +
-        ':host{all:initial}' +
-        '.fw{position:fixed;bottom:16px;' +
-        pos +
-        'z-index:2147483000;width:min(320px,calc(100vw - 32px));font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#11183a;animation:fi .24s cubic-bezier(.2,.8,.2,1)}' +
+        ':host{display:block}' +
+        '.fw{display:block;width:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#11183a;animation:fi .24s cubic-bezier(.2,.8,.2,1)}' +
         '.card{box-sizing:border-box;position:relative;display:grid;grid-template-columns:40px 1fr;gap:10px;width:100%;min-height:108px;border:1px solid rgba(93,104,135,.18);border-radius:18px;background:#e8eefb;box-shadow:0 18px 42px rgba(5,12,35,.22);padding:20px 42px 16px 18px;cursor:pointer}' +
         '.badge{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:' +
         color +
@@ -135,13 +139,33 @@
         '.x{position:absolute;top:9px;right:9px;display:flex;align-items:center;justify-content:center;width:23px;height:23px;border:0;border-radius:999px;background:rgba(255,255,255,.62);color:#6d7691;font:400 17px/1 Arial,sans-serif;cursor:pointer}' +
         '.x:hover{background:#fff;color:#11183a}' +
         '@keyframes fi{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}' +
-        '@media(max-width:480px){.fw{bottom:12px;left:12px!important;right:12px!important;width:auto}.card{border-radius:17px}}' +
         '</style>' +
         '<div class="fw"><div class="card" role="button" tabindex="0">' +
         '<button class="x" aria-label="Cerrar">&times;</button>' +
         '<div class="badge">&#9733;</div>' +
         '<div class="content"><p class="name"></p><div class="stars"></div><div class="meta"></div></div>' +
         '</div></div>';
+
+      // Adjust host position on small screens
+      if (!containerEl) {
+        var mq = window.matchMedia('(max-width:480px)');
+        function applyMobile(e) {
+          if (e.matches) {
+            host.style.left = '12px';
+            host.style.right = '12px';
+            host.style.bottom = '12px';
+            host.style.width = 'auto';
+          } else {
+            host.style.left = isLeft ? '16px' : 'auto';
+            host.style.right = isLeft ? 'auto' : '16px';
+            host.style.bottom = '16px';
+            host.style.width = 'min(320px,calc(100vw - 32px))';
+          }
+        }
+        applyMobile(mq);
+        if (mq.addEventListener) mq.addEventListener('change', applyMobile);
+        else if (mq.addListener) mq.addListener(applyMobile);
+      }
 
       var root = shadow.querySelector('.fw');
       var card = shadow.querySelector('.card');
@@ -164,7 +188,7 @@
       closeBtn.addEventListener('click', function (e) {
         e.stopPropagation();
         postEvent('close', card.getAttribute('data-review-id'));
-        root.remove();
+        host.remove();
       });
       card.addEventListener('click', function () {
         postEvent('click', card.getAttribute('data-review-id'));
