@@ -9,7 +9,6 @@ const MAIN_NAV_ITEMS = [
   { href: "/dashboard/campaigns", label: "Campañas" },
   { href: "/dashboard/reviews", label: "Reseñas" },
   { href: "/dashboard/widgets", label: "Widget" },
-  { href: "/dashboard/integrations", label: "Integraciones" },
 ];
 
 export default function MobileNav() {

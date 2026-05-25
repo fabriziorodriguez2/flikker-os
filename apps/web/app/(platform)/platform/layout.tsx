@@ -38,6 +38,12 @@ export default async function PlatformLayout({
 
           <div className="flex items-center gap-3">
             <Link
+              href="/platform/integrations"
+              className="hidden h-9 items-center justify-center rounded-lg border border-[#DCE2F0]/20 px-4 text-sm font-semibold text-[#DCE2F0] transition-colors hover:bg-white/10 hover:text-white sm:inline-flex"
+            >
+              Integraciones
+            </Link>
+            <Link
               href="/platform/test-lab"
               className="hidden h-9 items-center justify-center rounded-lg border border-[#DCE2F0]/20 px-4 text-sm font-semibold text-[#DCE2F0] transition-colors hover:bg-white/10 hover:text-white sm:inline-flex"
             >

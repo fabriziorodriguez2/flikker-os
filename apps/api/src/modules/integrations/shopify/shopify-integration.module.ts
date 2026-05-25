@@ -11,5 +11,6 @@ import { ShopifyConfigController } from './shopify-config.controller';
   imports: [PrismaModule, JobsModule],
   controllers: [ShopifyWebhookController, ShopifyConfigController],
   providers: [ShopifyHmacService, ShopifyWebhookService, ShopifyConfigService],
+  exports: [ShopifyConfigService],
 })
 export class ShopifyIntegrationModule {}

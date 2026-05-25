@@ -68,12 +68,6 @@ const WidgetIcon = () => (
   </Icon>
 );
 
-const IntegrationsIcon = () => (
-  <Icon>
-    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-  </Icon>
-);
 
 const MAIN_NAV_ITEMS = [
   { href: "/dashboard", label: "Panel", icon: <HomeIcon /> },
@@ -81,7 +75,6 @@ const MAIN_NAV_ITEMS = [
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon /> },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
   { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon /> },
-  { href: "/dashboard/integrations", label: "Integraciones", icon: <IntegrationsIcon /> },
 ];
 
 function isItemActive(pathname: string, href: string) {

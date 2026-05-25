@@ -13,11 +13,15 @@ import { JwtGuard } from '../auth/guards/jwt.guard';
 import { PlatformAdminGuard } from '../../common/guards/platform-admin.guard';
 import type { AuthenticatedRequest } from '../../common/types/request.types';
 import { PlatformService } from './platform.service';
+import { ShopifyConfigService } from '../integrations/shopify/shopify-config.service';
 
 @Controller('platform')
 @UseGuards(JwtGuard, PlatformAdminGuard)
 export class PlatformController {
-  constructor(private readonly platformService: PlatformService) {}
+  constructor(
+    private readonly platformService: PlatformService,
+    private readonly shopifyConfigService: ShopifyConfigService,
+  ) {}
 
   /**
    * Lists all businesses with stats — platform admins only.
@@ -180,5 +184,30 @@ export class PlatformController {
   @Post('exit-impersonation')
   exitImpersonation() {
     return { ok: true };
+  }
+
+  // ── Platform-scoped Shopify integration management ─────────────────────────
+
+  @Get('businesses/:businessId/integrations/shopify')
+  getShopifyIntegration(@Param('businessId') businessId: string) {
+    return this.shopifyConfigService.getIntegration(businessId);
+  }
+
+  @Post('businesses/:businessId/integrations/shopify')
+  upsertShopifyIntegration(
+    @Param('businessId') businessId: string,
+    @Body() body: { shopDomain: string; webhookSecret?: string },
+  ) {
+    return this.shopifyConfigService.upsertIntegration(businessId, body);
+  }
+
+  @Delete('businesses/:businessId/integrations/shopify')
+  deleteShopifyIntegration(@Param('businessId') businessId: string) {
+    return this.shopifyConfigService.deleteIntegration(businessId);
+  }
+
+  @Get('businesses/:businessId/integrations/shopify/orders')
+  getShopifyOrders(@Param('businessId') businessId: string) {
+    return this.shopifyConfigService.getRecentOrders(businessId);
   }
 }

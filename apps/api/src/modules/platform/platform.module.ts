@@ -7,6 +7,7 @@ import { AuditService } from '../../common/services/audit.service';
 import { CustomersModule } from '../customers/customers.module';
 import { CampaignsModule } from '../campaigns/campaigns.module';
 import { JobsModule } from '../../jobs/jobs.module';
+import { ShopifyIntegrationModule } from '../integrations/shopify/shopify-integration.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { JobsModule } from '../../jobs/jobs.module';
     CustomersModule,
     CampaignsModule,
     JobsModule,
+    ShopifyIntegrationModule,
   ],
   controllers: [PlatformController],
   providers: [PlatformService, PlatformRepository, AuditService],
