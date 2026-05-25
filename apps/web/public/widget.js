@@ -33,11 +33,6 @@
   if (!businessId) return;
 
   var storageKey = 'flikker_widget_closed_' + businessId;
-  if (mode === 'toast') {
-    try {
-      if (sessionStorage.getItem(storageKey) === '1') return;
-    } catch {}
-  }
 
   var scriptOrigin =
     script && script.src ? new URL(script.src).origin : window.location.origin;
@@ -120,7 +115,7 @@
     var reviews = data.reviews;
     if (!reviews || reviews.length === 0) return;
 
-    var color = cfg.primaryColor || accentColor;
+    var color = accentColor;
     var pos =
       (cfg.position || position) === 'bottom_left'
         ? 'left:16px;right:auto;'
@@ -181,9 +176,6 @@
 
     closeBtn.addEventListener('click', function (e) {
       e.stopPropagation();
-      try {
-        sessionStorage.setItem(storageKey, '1');
-      } catch {}
       postEvent('close', card.getAttribute('data-review-id'));
       root.remove();
     });
