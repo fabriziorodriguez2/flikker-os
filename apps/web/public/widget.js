@@ -52,19 +52,11 @@
       googleReviewId: reviewId || undefined,
       referrer: location.href,
     });
-    try {
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(
-          eventsUrl,
-          new Blob([payload], { type: 'application/json' }),
-        );
-        return;
-      }
-    } catch {}
     fetch(eventsUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: payload,
+      credentials: 'omit',
       keepalive: true,
     }).catch(function () {});
   }
