@@ -172,7 +172,7 @@
 
       var dismissed = false;
       var displayMs = Math.max(5000, Math.min(12000, (cfg.rotationSeconds || 8) * 1000));
-      var pauseMs = 2500;
+      var pauseMs = 80000;
 
       function loadReview() {
         var review = reviews[index % reviews.length];
