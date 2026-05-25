@@ -274,7 +274,7 @@
       '.flk-c-dots{display:flex;gap:6px;align-items:center}' +
       '.flk-c-dot{width:6px;height:6px;border-radius:50%;background:#e2e8f0;transition:all .2s}' +
       '.flk-c-dot.on{background:' + color + ';width:18px;border-radius:3px}' +
-      '.flk-c-brand{text-align:center;margin-top:48px;font:400 7px/1 inherit;color:#718096;letter-spacing:.06em;opacity:.4}' +
+      '.flk-c-brand{text-align:center;margin-top:48px;font:400 8px/1 inherit;color:#718096;letter-spacing:.06em;opacity:.25;transform:scale(.85);transform-origin:center}' +
       '</style>' +
       '<div class="flk-c-wrap">' +
       '<div class="flk-c-inner">' +
