@@ -260,7 +260,8 @@
     shadow.innerHTML =
       '<style>' +
       ':host{all:initial;display:block}' +
-      '.flk-c-wrap{box-sizing:border-box;width:100%;max-width:640px;margin:0 auto;padding:32px 20px;background:' + bgColor + ';font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;color:#1a202c}' +
+      '.flk-c-wrap{box-sizing:border-box;width:100%;background:' + bgColor + ';padding:32px 0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;color:#1a202c}' +
+      '.flk-c-inner{max-width:640px;margin:0 auto;padding:0 20px}' +
       '.flk-c-viewport{overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scrollbar-width:none}' +
       '.flk-c-viewport::-webkit-scrollbar{display:none}' +
       '.flk-c-track{display:flex;gap:0}' +
@@ -274,21 +275,14 @@
       '.flk-c-date{margin:auto 0 0;font:500 12px/1 inherit;color:#a0aec0}' +
       '.flk-c-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:20px}' +
       '.flk-c-btn{width:40px;height:40px;border:1.5px solid #e2e8f0;border-radius:50%;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#718096;transition:border-color .15s,color .15s,box-shadow .15s;padding:0;line-height:1}' +
-      '.flk-c-btn:hover{border-color:' +
-      color +
-      ';color:' +
-      color +
-      ';box-shadow:0 0 0 3px ' +
-      color +
-      '22}' +
+      '.flk-c-btn:hover{border-color:' + color + ';color:' + color + ';box-shadow:0 0 0 3px ' + color + '22}' +
       '.flk-c-dots{display:flex;gap:6px;align-items:center}' +
       '.flk-c-dot{width:6px;height:6px;border-radius:50%;background:#e2e8f0;transition:all .2s}' +
-      '.flk-c-dot.on{background:' +
-      color +
-      ';width:18px;border-radius:3px}' +
-      '.flk-c-brand{text-align:center;margin-top:8px;font:400 9px/1 inherit;color:#cbd5e0;letter-spacing:.04em;opacity:.7}' +
+      '.flk-c-dot.on{background:' + color + ';width:18px;border-radius:3px}' +
+      '.flk-c-brand{text-align:center;margin-top:8px;font:400 8px/1 inherit;color:#a0aec0;letter-spacing:.04em;opacity:.5}' +
       '</style>' +
       '<div class="flk-c-wrap">' +
+      '<div class="flk-c-inner">' +
       '<div class="flk-c-viewport" id="flkV">' +
       '<div class="flk-c-track" id="flkT">' +
       cardsHtml +
@@ -299,6 +293,7 @@
       '<button class="flk-c-btn" id="flkN" aria-label="Siguiente">' + ICON_NEXT + '</button>' +
       '</div>' +
       '<p class="flk-c-brand">' + FLK_BRAND + '</p>' +
+      '</div>' +
       '</div>';
 
     var viewport = shadow.getElementById('flkV');
@@ -361,7 +356,7 @@
     var reviews = data.reviews;
     if (!reviews || reviews.length === 0) return;
 
-    var color = cfg.primaryColor || accentColor;
+    var color = accentColor;
     var maxItems = cfg.maxItems || cfg.maxReviewsShown || 6;
     var shown = reviews.slice(0, maxItems);
 
@@ -409,7 +404,8 @@
     shadow.innerHTML =
       '<style>' +
       ':host{all:initial;display:block}' +
-      '.flk-g{box-sizing:border-box;width:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;color:#1a202c}' +
+      '.flk-g-wrap{box-sizing:border-box;width:100%;background:' + bgColor + ';padding:32px 0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;color:#1a202c}' +
+      '.flk-g-inner{max-width:960px;margin:0 auto;padding:0 20px}' +
       '.flk-g-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:14px}' +
       '.flk-g-card{box-sizing:border-box;background:#fff;border:1px solid #e8eaf0;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:8px;box-shadow:0 2px 8px rgba(0,0,0,.06)}' +
       '.flk-g-top{display:flex;align-items:center;gap:10px}' +
@@ -420,13 +416,15 @@
       '.flk-g-text{margin:0;font:400 13px/1.55 inherit;color:#4a5568;overflow:hidden;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical}' +
       '.flk-g-empty{margin:0;font:400 12px/1 inherit;color:#a0aec0;font-style:italic}' +
       '.flk-g-date{margin:auto 0 0;padding-top:4px;font:500 11px/1 inherit;color:#a0aec0}' +
-      '.flk-g-brand{text-align:right;margin-top:10px;font:400 10px/1 inherit;color:#cbd5e0;letter-spacing:.05em}' +
+      '.flk-g-brand{text-align:right;margin-top:10px;font:400 8px/1 inherit;color:#a0aec0;letter-spacing:.04em;opacity:.5}' +
       '</style>' +
-      '<div class="flk-g">' +
+      '<div class="flk-g-wrap">' +
+      '<div class="flk-g-inner">' +
       '<div class="flk-g-grid">' +
       cardsHtml +
       '</div>' +
       '<p class="flk-g-brand">' + FLK_BRAND + '</p>' +
+      '</div>' +
       '</div>';
 
     postEvent('impression');
