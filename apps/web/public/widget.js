@@ -435,6 +435,10 @@
     })
     .then(function (data) {
       if (!data || !data.reviews || data.reviews.length === 0) return;
+      data.reviews = data.reviews.filter(function (r) {
+        return r.content && r.content.trim().length > 0;
+      });
+      if (!data.reviews.length) return;
       if (mode === 'toast') renderToast(data);
       else if (mode === 'carousel') renderCarousel(data);
       else if (mode === 'grid') renderGrid(data);
