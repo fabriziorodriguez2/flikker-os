@@ -25,6 +25,7 @@
   var businessId = source.getAttribute('data-business');
   var mode = source.getAttribute('data-mode') || 'toast';
   var accentColor = source.getAttribute('data-color') || '#5C6BC0';
+  var bgColor = source.getAttribute('data-bg') || 'transparent';
   var position = source.getAttribute('data-position') || 'bottom_right';
 
   if (!businessId) return;
@@ -259,7 +260,7 @@
     shadow.innerHTML =
       '<style>' +
       ':host{all:initial;display:block}' +
-      '.flk-c-wrap{box-sizing:border-box;width:100%;padding:40px 24px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;color:#1a202c}' +
+      '.flk-c-wrap{box-sizing:border-box;width:100%;max-width:640px;margin:0 auto;padding:32px 20px;background:' + bgColor + ';font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;color:#1a202c}' +
       '.flk-c-viewport{overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scrollbar-width:none}' +
       '.flk-c-viewport::-webkit-scrollbar{display:none}' +
       '.flk-c-track{display:flex;gap:0}' +
@@ -285,7 +286,7 @@
       '.flk-c-dot.on{background:' +
       color +
       ';width:18px;border-radius:3px}' +
-      '.flk-c-brand{text-align:center;margin-top:14px;font:400 10px/1 inherit;color:#cbd5e0;letter-spacing:.05em}' +
+      '.flk-c-brand{text-align:center;margin-top:8px;font:400 9px/1 inherit;color:#cbd5e0;letter-spacing:.04em;opacity:.7}' +
       '</style>' +
       '<div class="flk-c-wrap">' +
       '<div class="flk-c-viewport" id="flkV">' +
