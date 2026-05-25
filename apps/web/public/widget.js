@@ -201,12 +201,16 @@
   }
 
   // ── Carousel ───────────────────────────────────────────────────────────────
+  var ICON_PREV = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>';
+  var ICON_NEXT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
+
   function renderCarousel(data) {
     var cfg = data.widget || {};
     var reviews = data.reviews;
     if (!reviews || reviews.length === 0) return;
 
-    var color = cfg.primaryColor || accentColor;
+    // data-color attribute always wins over DB primaryColor
+    var color = accentColor;
     var isPaused = false;
 
     var host = container || document.createElement('div');
@@ -255,32 +259,33 @@
     shadow.innerHTML =
       '<style>' +
       ':host{all:initial;display:block}' +
-      '.flk-c-wrap{box-sizing:border-box;width:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;color:#1a202c}' +
+      '.flk-c-wrap{box-sizing:border-box;width:100%;padding:40px 24px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;color:#1a202c}' +
       '.flk-c-viewport{overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scrollbar-width:none}' +
       '.flk-c-viewport::-webkit-scrollbar{display:none}' +
-      '.flk-c-track{display:flex;gap:14px;width:max-content}' +
-      '.flk-c-card{scroll-snap-align:start;box-sizing:border-box;width:280px;background:#fff;border:1px solid #e8eaf0;border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:10px;box-shadow:0 2px 8px rgba(0,0,0,.06);cursor:default}' +
-      '.flk-c-top{display:flex;align-items:center;gap:10px}' +
-      '.flk-c-av{width:38px;height:38px;border-radius:50%;color:#fff;font:700 14px/38px Arial,sans-serif;text-align:center;flex-shrink:0}' +
+      '.flk-c-track{display:flex;gap:0}' +
+      '.flk-c-card{scroll-snap-align:start;box-sizing:border-box;flex:0 0 100%;min-width:100%;background:#fff;border:1px solid #e8eaf0;border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:12px;box-shadow:0 2px 12px rgba(0,0,0,.07);cursor:default}' +
+      '.flk-c-top{display:flex;align-items:center;gap:12px}' +
+      '.flk-c-av{width:42px;height:42px;border-radius:50%;color:#fff;font:700 15px/42px Arial,sans-serif;text-align:center;flex-shrink:0}' +
       '.flk-c-info{min-width:0;flex:1}' +
-      '.flk-c-name{margin:0;font:700 13px/1.2 inherit;color:#1a202c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
-      '.flk-c-stars{margin-top:3px;color:#ff9f1c;font:600 13px/1 Arial,sans-serif;letter-spacing:.8px}' +
-      '.flk-c-text{margin:0;font:400 13px/1.55 inherit;color:#4a5568;overflow:hidden;display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical}' +
-      '.flk-c-date{margin:auto 0 0;font:500 11px/1 inherit;color:#a0aec0}' +
-      '.flk-c-nav{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:14px}' +
-      '.flk-c-btn{width:34px;height:34px;border:1px solid #e8eaf0;border-radius:50%;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;font:500 16px/1 Arial,sans-serif;color:#718096;transition:border-color .15s,color .15s;padding:0}' +
+      '.flk-c-name{margin:0;font:700 14px/1.2 inherit;color:#1a202c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+      '.flk-c-stars{margin-top:4px;color:#ff9f1c;font:600 14px/1 Arial,sans-serif;letter-spacing:.8px}' +
+      '.flk-c-text{margin:0;font:400 14px/1.6 inherit;color:#4a5568;overflow:hidden;display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical}' +
+      '.flk-c-date{margin:auto 0 0;font:500 12px/1 inherit;color:#a0aec0}' +
+      '.flk-c-nav{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:20px}' +
+      '.flk-c-btn{width:40px;height:40px;border:1.5px solid #e2e8f0;border-radius:50%;background:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;color:#718096;transition:border-color .15s,color .15s,box-shadow .15s;padding:0;line-height:1}' +
       '.flk-c-btn:hover{border-color:' +
       color +
       ';color:' +
       color +
-      '}' +
-      '.flk-c-dots{display:flex;gap:5px;align-items:center}' +
+      ';box-shadow:0 0 0 3px ' +
+      color +
+      '22}' +
+      '.flk-c-dots{display:flex;gap:6px;align-items:center}' +
       '.flk-c-dot{width:6px;height:6px;border-radius:50%;background:#e2e8f0;transition:all .2s}' +
       '.flk-c-dot.on{background:' +
       color +
-      ';width:16px;border-radius:3px}' +
-      '.flk-c-brand{text-align:center;margin-top:10px;font:400 10px/1 inherit;color:#cbd5e0;letter-spacing:.05em}' +
-      '@media(max-width:540px){.flk-c-card{width:calc(100vw - 48px)}}' +
+      ';width:18px;border-radius:3px}' +
+      '.flk-c-brand{text-align:center;margin-top:14px;font:400 10px/1 inherit;color:#cbd5e0;letter-spacing:.05em}' +
       '</style>' +
       '<div class="flk-c-wrap">' +
       '<div class="flk-c-viewport" id="flkV">' +
@@ -288,9 +293,9 @@
       cardsHtml +
       '</div></div>' +
       '<div class="flk-c-nav">' +
-      '<button class="flk-c-btn" id="flkP" aria-label="Anterior">&#8592;</button>' +
+      '<button class="flk-c-btn" id="flkP" aria-label="Anterior">' + ICON_PREV + '</button>' +
       '<div class="flk-c-dots" id="flkD"></div>' +
-      '<button class="flk-c-btn" id="flkN" aria-label="Siguiente">&#8594;</button>' +
+      '<button class="flk-c-btn" id="flkN" aria-label="Siguiente">' + ICON_NEXT + '</button>' +
       '</div>' +
       '<p class="flk-c-brand">' + FLK_BRAND + '</p>' +
       '</div>';
@@ -308,8 +313,7 @@
     }
 
     function cardWidth() {
-      var c = shadow.querySelector('.flk-c-card');
-      return c ? c.offsetWidth + 14 : 294;
+      return viewport.offsetWidth || 300;
     }
 
     function scrollTo(idx) {
