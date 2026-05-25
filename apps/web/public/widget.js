@@ -2,7 +2,9 @@
   'use strict';
 
   // ── Bootstrap ──────────────────────────────────────────────────────────────
-  var script = document.currentScript;
+  var script =
+    document.currentScript ||
+    document.querySelector('script[data-business]');
   var container =
     (script &&
     script.previousElementSibling &&
