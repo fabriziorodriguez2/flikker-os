@@ -256,7 +256,7 @@
       ':host{all:initial;display:block}' +
       '.flk-c-wrap{box-sizing:border-box;width:100%;background:' + bgColor + ';padding:40px 0 32px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,sans-serif;color:#1a202c}' +
       '.flk-c-inner{max-width:640px;margin:0 auto;padding:0 20px}' +
-      '.flk-c-title{margin:0 0 20px;text-align:center;font:700 20px/1.2 inherit;letter-spacing:-.01em;color:' + titleColor + '}' +
+      '.flk-c-title{margin:0 0 24px;text-align:center;font:700 28px/1.2 inherit;letter-spacing:-.02em;color:' + titleColor + '}' +
       '.flk-c-viewport{overflow-x:auto;scroll-snap-type:x mandatory;scroll-behavior:smooth;-webkit-overflow-scrolling:touch;scrollbar-width:none}' +
       '.flk-c-viewport::-webkit-scrollbar{display:none}' +
       '.flk-c-track{display:flex;gap:0}' +
@@ -274,7 +274,7 @@
       '.flk-c-dots{display:flex;gap:6px;align-items:center}' +
       '.flk-c-dot{width:6px;height:6px;border-radius:50%;background:#e2e8f0;transition:all .2s}' +
       '.flk-c-dot.on{background:' + color + ';width:18px;border-radius:3px}' +
-      '.flk-c-brand{text-align:center;margin-top:20px;font:400 7px/1 inherit;color:#718096;letter-spacing:.06em;opacity:.4}' +
+      '.flk-c-brand{text-align:center;margin-top:48px;font:400 7px/1 inherit;color:#718096;letter-spacing:.06em;opacity:.4}' +
       '</style>' +
       '<div class="flk-c-wrap">' +
       '<div class="flk-c-inner">' +
