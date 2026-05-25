@@ -1,9 +1,6 @@
 (function () {
   'use strict';
 
-  if (window.__flkInit) return;
-  window.__flkInit = true;
-
   // ── Shared constants ───────────────────────────────────────────────────────
   var FLK_MARK =
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 516.34 402.58"' +
@@ -450,16 +447,20 @@
   // ── Bootstrap ──────────────────────────────────────────────────────────────
   var cs = document.currentScript;
   if (cs && cs.getAttribute('data-business')) {
-    var prevEl = cs.previousElementSibling;
-    var cEl =
-      (prevEl && prevEl.getAttribute('data-flikker-widget') !== null ? prevEl : null) ||
-      document.querySelector('[data-flikker-widget]');
-    initWidget(cs, cEl);
+    if (!cs.getAttribute('data-flikker-init')) {
+      cs.setAttribute('data-flikker-init', '1');
+      var prevEl = cs.previousElementSibling;
+      var cEl =
+        (prevEl && prevEl.getAttribute('data-flikker-widget') !== null ? prevEl : null) ||
+        document.querySelector('[data-flikker-widget]');
+      initWidget(cs, cEl);
+    }
   } else {
-    // async: currentScript is null — find and init every widget script on the page
-    var allScripts = document.querySelectorAll('script[data-business]');
+    // async: currentScript is null — find and init every uninitialised widget script on the page
+    var allScripts = document.querySelectorAll('script[data-business]:not([data-flikker-init])');
     for (var i = 0; i < allScripts.length; i++) {
       var s = allScripts[i];
+      s.setAttribute('data-flikker-init', '1');
       var prev = s.previousElementSibling;
       var c =
         prev && prev.getAttribute('data-flikker-widget') !== null ? prev : null;
