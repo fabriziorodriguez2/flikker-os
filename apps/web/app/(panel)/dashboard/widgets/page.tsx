@@ -155,10 +155,12 @@ function ToastPreview({
 function CarouselPreview({
   reviews,
   color,
+  bgColor,
   minStars,
 }: {
   reviews: PreviewReview[];
   color: string;
+  bgColor: string;
   minStars: number;
 }) {
   const [idx, setIdx] = useState(0);
@@ -169,7 +171,7 @@ function CarouselPreview({
   const review = reviews[idx];
 
   return (
-    <div className="rounded-[12px] bg-[#F5F6FA] p-4">
+    <div className="rounded-[12px] p-4" style={{ background: bgColor === "transparent" ? "#F5F6FA" : bgColor }}>
       <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-4 shadow-sm">
         <div className="flex items-start gap-3">
           <Avatar name={review.authorDisplayName} color={color} />
@@ -237,10 +239,12 @@ function CarouselPreview({
 function GridPreview({
   reviews,
   color,
+  bgColor,
   minStars,
 }: {
   reviews: PreviewReview[];
   color: string;
+  bgColor: string;
   minStars: number;
 }) {
   if (!reviews.length) return <EmptyState minStars={minStars} />;
@@ -248,7 +252,7 @@ function GridPreview({
   const shown = reviews.slice(0, 6);
 
   return (
-    <div className="rounded-[12px] bg-[#F5F6FA] p-4">
+    <div className="rounded-[12px] p-4" style={{ background: bgColor === "transparent" ? "#F5F6FA" : bgColor }}>
       <div className="grid grid-cols-2 gap-2.5">
         {shown.map((review, i) => (
           <div
@@ -286,9 +290,11 @@ function buildSnippet(
   minStars: number,
   color: string,
   position: string,
+  bgColor: string,
 ) {
   if (typeof window === "undefined") return "";
   const base = window.location.origin;
+  const hasBg = (mode === "carousel" || mode === "grid") && bgColor !== "transparent";
   const lines = [
     `<script async`,
     `  src="${base}/widget.js"`,
@@ -297,6 +303,7 @@ function buildSnippet(
     `  data-min-stars="${minStars}"`,
     `  data-color="${color}"`,
     ...(mode === "toast" ? [`  data-position="${position}"`] : []),
+    ...(hasBg ? [`  data-bg="${bgColor}"`] : []),
     `></script>`,
   ];
   return lines.join("\n");
@@ -339,6 +346,7 @@ export default function WidgetsPage() {
   const [position, setPosition] = useState<string>("bottom_right");
   const [minStars, setMinStars] = useState(4);
   const [color, setColor] = useState("#5C6BC0");
+  const [bgColor, setBgColor] = useState("transparent");
   const [loading, setLoading] = useState(true);
   const [previewLoading, setPreviewLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -357,9 +365,9 @@ export default function WidgetsPage() {
   const snippet = useMemo(
     () =>
       business
-        ? buildSnippet(business.id, mode, minStars, color, position)
+        ? buildSnippet(business.id, mode, minStars, color, position, bgColor)
         : "",
-    [business, mode, minStars, color, position],
+    [business, mode, minStars, color, position, bgColor],
   );
 
   const loadPage = useCallback(async () => {
@@ -602,6 +610,37 @@ export default function WidgetsPage() {
                 </div>
               </div>
 
+              {(mode === "carousel" || mode === "grid") && (
+                <div>
+                  <p className="mb-2 text-xs font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+                    Color de fondo
+                  </p>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={bgColor === "transparent" ? "#ffffff" : bgColor}
+                      onChange={(e) => setBgColor(e.target.value)}
+                      className="h-10 w-10 cursor-pointer rounded-[8px] border border-[#E8EAF0] p-0.5"
+                    />
+                    <span className="font-mono text-sm text-[#1A202C]">
+                      {bgColor}
+                    </span>
+                    {bgColor !== "transparent" && (
+                      <button
+                        type="button"
+                        onClick={() => setBgColor("transparent")}
+                        className="text-xs text-[#8891A4] underline-offset-2 hover:text-[#1A202C] hover:underline"
+                      >
+                        Transparente
+                      </button>
+                    )}
+                  </div>
+                  <p className="mt-1.5 text-xs text-[#8891A4]">
+                    Usalo si el fondo de tu página no es blanco.
+                  </p>
+                </div>
+              )}
+
               <div className="pt-1">
                 <button
                   type="submit"
@@ -635,12 +674,14 @@ export default function WidgetsPage() {
                   <CarouselPreview
                     reviews={preview?.reviews ?? []}
                     color={color}
+                    bgColor={bgColor}
                     minStars={minStars}
                   />
                 ) : mode === "grid" ? (
                   <GridPreview
                     reviews={preview?.reviews ?? []}
                     color={color}
+                    bgColor={bgColor}
                     minStars={minStars}
                   />
                 ) : (
