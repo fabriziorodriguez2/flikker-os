@@ -124,18 +124,17 @@
       shadow.innerHTML =
         '<style>' +
         ':host{display:block}' +
-        '.fw{display:block;width:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#11183a;animation:fi .24s cubic-bezier(.2,.8,.2,1)}' +
-        '.card{box-sizing:border-box;position:relative;display:grid;grid-template-columns:40px 1fr;gap:10px;width:100%;min-height:108px;border:1px solid rgba(93,104,135,.18);border-radius:18px;background:#e8eefb;box-shadow:0 18px 42px rgba(5,12,35,.22);padding:20px 42px 16px 18px;cursor:pointer}' +
+        '.fw{display:block;width:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#11183a}' +
+        '.card{box-sizing:border-box;position:relative;display:grid;grid-template-columns:40px 1fr;gap:10px;width:100%;border:1px solid rgba(93,104,135,.18);border-radius:18px;background:#e8eefb;box-shadow:0 18px 42px rgba(5,12,35,.22);padding:14px 42px 14px 16px;cursor:pointer}' +
         '.badge{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:' +
         color +
         ';color:#fff;font:800 20px/1 Arial,sans-serif;box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}' +
         '.content{min-width:0}' +
-        '.name{margin:0;color:#10183d;font:800 13.5px/1.18 inherit;letter-spacing:.01em}' +
-        '.stars{margin-top:7px;color:#ff9f1c;font:700 13px/1 Arial,sans-serif;letter-spacing:1.2px;white-space:nowrap}' +
-        '.meta{margin-top:6px;color:#69718f;font:500 11.5px/1.2 inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
+        '.name{margin:0;color:#10183d;font:800 15px/1.2 inherit;letter-spacing:.01em}' +
+        '.stars{margin-top:6px;color:#ff9f1c;font:700 14px/1 Arial,sans-serif;letter-spacing:1.2px;white-space:nowrap}' +
+        '.meta{margin-top:5px;color:#69718f;font:500 12px/1.3 inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
         '.x{position:absolute;top:9px;right:9px;display:flex;align-items:center;justify-content:center;width:23px;height:23px;border:0;border-radius:999px;background:rgba(255,255,255,.62);color:#6d7691;font:400 17px/1 Arial,sans-serif;cursor:pointer}' +
         '.x:hover{background:#fff;color:#11183a}' +
-        '@keyframes fi{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}' +
         '</style>' +
         '<div class="fw"><div class="card" role="button" tabindex="0">' +
         '<button class="x" aria-label="Cerrar">&times;</button>' +
@@ -148,10 +147,10 @@
         var mq = window.matchMedia('(max-width:480px)');
         function applyMobile(e) {
           if (e.matches) {
-            host.style.left = '12px';
-            host.style.right = '12px';
+            host.style.left = isLeft ? '12px' : 'auto';
+            host.style.right = isLeft ? 'auto' : '12px';
             host.style.bottom = '12px';
-            host.style.width = 'auto';
+            host.style.width = 'min(280px,calc(100vw - 24px))';
           } else {
             host.style.left = isLeft ? '16px' : 'auto';
             host.style.right = isLeft ? 'auto' : '16px';
@@ -171,7 +170,11 @@
       var starsEl = shadow.querySelector('.stars');
       var metaEl = shadow.querySelector('.meta');
 
-      function showReview() {
+      var dismissed = false;
+      var displayMs = Math.max(5000, Math.min(12000, (cfg.rotationSeconds || 8) * 1000));
+      var pauseMs = 2500;
+
+      function loadReview() {
         var review = reviews[index % reviews.length];
         var rating = review.rating || 5;
         nameEl.textContent =
@@ -179,11 +182,39 @@
         starsEl.innerHTML = starsHtml(rating);
         metaEl.innerHTML = daysAgo(review.reviewedAt) + ' • ' + FLK_BRAND;
         card.setAttribute('data-review-id', review.id || '');
-        index += 1;
+      }
+
+      function cycle() {
+        if (dismissed) return;
+        loadReview();
+        postEvent('impression', card.getAttribute('data-review-id'));
+        root.style.display = 'block';
+        root.style.opacity = '0';
+        root.style.transform = 'translateY(10px)';
+        root.style.transition = 'opacity .25s ease,transform .25s ease';
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () {
+            root.style.opacity = '1';
+            root.style.transform = 'translateY(0)';
+            setTimeout(function () {
+              if (dismissed) return;
+              root.style.opacity = '0';
+              root.style.transform = 'translateY(6px)';
+              setTimeout(function () {
+                if (dismissed) return;
+                root.style.display = 'none';
+                root.style.transition = '';
+                index = (index + 1) % reviews.length;
+                setTimeout(cycle, pauseMs);
+              }, 260);
+            }, displayMs);
+          });
+        });
       }
 
       closeBtn.addEventListener('click', function (e) {
         e.stopPropagation();
+        dismissed = true;
         postEvent('close', card.getAttribute('data-review-id'));
         host.remove();
       });
@@ -195,12 +226,8 @@
           postEvent('click', card.getAttribute('data-review-id'));
       });
 
-      showReview();
-      postEvent('impression', card.getAttribute('data-review-id'));
-      setInterval(
-        showReview,
-        Math.min(120, Math.max(10, cfg.rotationSeconds || 10)) * 1000,
-      );
+      root.style.display = 'none';
+      cycle();
     }
 
     // ── Carousel ─────────────────────────────────────────────────────────────

@@ -356,7 +356,7 @@ export default function WidgetsPage() {
   const [saved, setSaved] = useState(false);
 
   const activeWidget = useMemo(
-    () => widgets.find((w) => w.mode === mode) ?? widgets[0] ?? null,
+    () => widgets.find((w) => w.mode === mode) ?? null,
     [widgets, mode],
   );
 
@@ -423,24 +423,27 @@ export default function WidgetsPage() {
     setError(null);
     setSaved(false);
     try {
-      const path = activeWidget
-        ? `/api/proxy/widgets/${activeWidget.id}`
-        : "/api/proxy/widgets";
+      const isNew = !activeWidget;
+      const path = isNew
+        ? "/api/proxy/widgets"
+        : `/api/proxy/widgets/${activeWidget!.id}`;
+      const type = mode === "grid" ? "REVIEW_GRID" : "REVIEW_LIST";
+      const sharedFields = {
+        name: "Widget principal",
+        position,
+        minStars,
+        primaryColor: color,
+        maxItems: 6,
+        rotationSeconds: 10,
+        showAuthorName: true,
+        showDate: true,
+        title: "",
+      };
+      const body = isNew ? { ...sharedFields, type, mode } : sharedFields;
       const res = await fetch(path, {
-        method: activeWidget ? "PATCH" : "POST",
+        method: isNew ? "POST" : "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: "Widget principal",
-          mode,
-          position,
-          minStars,
-          primaryColor: color,
-          maxItems: 6,
-          rotationSeconds: 10,
-          showAuthorName: true,
-          showDate: true,
-          title: "",
-        }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as {
@@ -448,8 +451,14 @@ export default function WidgetsPage() {
         };
         throw new Error(data.message ?? "No se pudo guardar el widget");
       }
+      const savedWidget = (await res.json()) as Widget;
+      setWidgets((current) => {
+        const exists = current.find((w) => w.id === savedWidget.id);
+        return exists
+          ? current.map((w) => (w.id === savedWidget.id ? savedWidget : w))
+          : [...current, savedWidget];
+      });
       setSaved(true);
-      await loadPage();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar widget");
     } finally {
