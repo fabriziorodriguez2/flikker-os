@@ -170,7 +170,7 @@
       var starsEl = shadow.querySelector('.stars');
       var metaEl = shadow.querySelector('.meta');
 
-      var dismissed = false;
+      var cycleGen = 0;
       var displayMs = Math.max(5000, Math.min(12000, (cfg.rotationSeconds || 8) * 1000));
       var pauseMs = 80000;
 
@@ -184,8 +184,8 @@
         card.setAttribute('data-review-id', review.id || '');
       }
 
-      function cycle() {
-        if (dismissed) return;
+      function cycle(g) {
+        if (g !== cycleGen) return;
         loadReview();
         postEvent('impression', card.getAttribute('data-review-id'));
         root.style.display = 'block';
@@ -194,18 +194,19 @@
         root.style.transition = 'opacity .25s ease,transform .25s ease';
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
+            if (g !== cycleGen) return;
             root.style.opacity = '1';
             root.style.transform = 'translateY(0)';
             setTimeout(function () {
-              if (dismissed) return;
+              if (g !== cycleGen) return;
               root.style.opacity = '0';
               root.style.transform = 'translateY(6px)';
               setTimeout(function () {
-                if (dismissed) return;
+                if (g !== cycleGen) return;
                 root.style.display = 'none';
                 root.style.transition = '';
                 index = (index + 1) % reviews.length;
-                setTimeout(cycle, pauseMs);
+                setTimeout(function () { cycle(g); }, pauseMs);
               }, 260);
             }, displayMs);
           });
@@ -214,9 +215,13 @@
 
       closeBtn.addEventListener('click', function (e) {
         e.stopPropagation();
-        dismissed = true;
         postEvent('close', card.getAttribute('data-review-id'));
-        host.remove();
+        cycleGen++;
+        root.style.transition = '';
+        root.style.display = 'none';
+        index = (index + 1) % reviews.length;
+        var g = cycleGen;
+        setTimeout(function () { cycle(g); }, pauseMs);
       });
       card.addEventListener('click', function () {
         postEvent('click', card.getAttribute('data-review-id'));
@@ -227,7 +232,7 @@
       });
 
       root.style.display = 'none';
-      cycle();
+      cycle(cycleGen);
     }
 
     // ── Carousel ─────────────────────────────────────────────────────────────
