@@ -55,6 +55,7 @@ interface MetricsOverview {
     id: string;
     createdAt: string;
     customerName: string;
+    customerPhone: string | null;
     score: number;
     comment: string | null;
     acknowledgedByOwner: boolean;

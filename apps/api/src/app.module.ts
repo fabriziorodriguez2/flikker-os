@@ -22,6 +22,7 @@ import { JobsModule } from './jobs/jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { TestLabModule } from './modules/test-lab/test-lab.module';
 import { ShopifyIntegrationModule } from './modules/integrations/shopify/shopify-integration.module';
+import { GoogleCalendarModule } from './modules/integrations/google-calendar/google-calendar.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -48,6 +49,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     JobsModule,
     TestLabModule,
     ShopifyIntegrationModule,
+    GoogleCalendarModule,
   ],
   controllers: [AppController],
 })

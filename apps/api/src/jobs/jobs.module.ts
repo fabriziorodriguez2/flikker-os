@@ -6,6 +6,8 @@ import { GoogleReviewsProvider } from './google-reviews.provider';
 import { RepeatsQueue } from './repeats.queue';
 import { ReviewRequestQueue } from './review-request.queue';
 import { WhatsAppInboundQueue } from './whatsapp-inbound.queue';
+import { GoogleCalendarSyncQueue } from './google-calendar-sync.queue';
+import { GoogleCalendarSendCheckQueue } from './google-calendar-send-check.queue';
 import { GoogleReviewDetectionWorker } from './workers/google-review-detection.worker';
 import { WhatsAppInboundWorker } from './workers/whatsapp-inbound.worker';
 import { OwnerNotificationsWorker } from './workers/owner-notifications.worker';
@@ -23,6 +25,8 @@ import { RepeatsProcessor } from './repeats.processor';
     GoogleReviewDetectionQueue,
     OwnerNotificationsQueue,
     WhatsAppInboundQueue,
+    GoogleCalendarSyncQueue,
+    GoogleCalendarSendCheckQueue,
     GoogleReviewsProvider,
     OwnerNotificationsWorker,
     GoogleReviewDetectionWorker,
@@ -38,6 +42,8 @@ import { RepeatsProcessor } from './repeats.processor';
     WhatsAppInboundQueue,
     OwnerNotificationsQueue,
     GoogleReviewDetectionQueue,
+    GoogleCalendarSyncQueue,
+    GoogleCalendarSendCheckQueue,
     GoogleReviewsProvider,
     WhatsAppBspService,
     EmailService,

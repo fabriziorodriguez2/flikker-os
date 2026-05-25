@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import ReviewsFilters from "./reviews-filters";
+import ExpandableText from "./expandable-text";
 
 interface GoogleReview {
   id: string;
@@ -213,12 +214,12 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
                     <td className="px-4 py-3.5">
                       <StarRating value={review.rating} />
                     </td>
-                    <td className="px-4 py-3.5 max-w-[260px]">
-                      <p className="truncate text-[#1A202C]">
-                        {review.content?.trim() || (
-                          <span className="text-[#8891A4]">Sin comentario</span>
-                        )}
-                      </p>
+                    <td className="px-4 py-3.5 max-w-[320px]">
+                      {review.content?.trim() ? (
+                        <ExpandableText text={review.content.trim()} />
+                      ) : (
+                        <span className="text-[#8891A4]">Sin comentario</span>
+                      )}
                     </td>
                     <td className="px-4 py-3.5 text-[#8891A4]">
                       {formatReviewDate(review.reviewedAt)}

@@ -6,6 +6,7 @@ export interface NegativeFeedbackItem {
   id: string;
   createdAt: string;
   customerName: string;
+  customerPhone: string | null;
   score: number;
   comment: string | null;
   acknowledgedByOwner: boolean;
@@ -81,6 +82,16 @@ export default function NegativeFeedbackList({
                 <p className="font-semibold text-[#1A202C]">{item.customerName}</p>
                 <Stars score={item.score} />
                 <p className="text-xs text-[#8891A4]">{formatRelativeDate(item.createdAt)}</p>
+                {item.customerPhone && (
+                  <a
+                    href={`https://wa.me/${item.customerPhone.replace(/\D/g, '')}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs font-medium text-[#5C6BC0] hover:underline"
+                  >
+                    {item.customerPhone}
+                  </a>
+                )}
               </div>
             </div>
             <p className="mt-3 text-sm leading-6 text-[#1A202C]">

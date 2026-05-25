@@ -40,6 +40,7 @@ interface NegativeFeedbackItem {
   id: string;
   createdAt: string;
   customerName: string;
+  customerPhone: string | null;
   score: number;
   comment: string | null;
   acknowledgedByOwner: boolean;
@@ -150,6 +151,7 @@ export class MetricsService {
           customer: {
             select: {
               name: true,
+              phoneE164: true,
             },
           },
         },
@@ -212,6 +214,7 @@ export class MetricsService {
         id: item.id,
         createdAt: item.createdAt.toISOString(),
         customerName: item.customer.name,
+        customerPhone: item.customer.phoneE164 ?? null,
         score: item.score,
         comment: item.comment,
         acknowledgedByOwner: item.acknowledgedByOwner,

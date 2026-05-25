@@ -115,6 +115,21 @@ enum ServiceEventCreatedVia {
   whatsapp_bot
   csv_batch
   api
+  google_calendar
+}
+
+enum CalendarIntegrationStatus {
+  pending_calendars
+  active
+  error
+  revoked
+}
+
+enum CalendarEventStatus {
+  pending
+  send_check_queued
+  sent
+  skipped
 }
 
 enum MessageChannel {
@@ -263,8 +278,10 @@ model Business {
   impersonationLogs  ImpersonationLog[]
   widgetEvents       WidgetEvent[]
   reviewTags         ReviewTag[]
-  shopifyIntegration ShopifyIntegration?
-  shopifyOrders      ShopifyOrder[]
+  shopifyIntegration        ShopifyIntegration?
+  shopifyOrders             ShopifyOrder[]
+  googleCalendarIntegration GoogleCalendarIntegration?
+  calendarEvents            CalendarEvent[]
 }
 
 // ---------------------------------------------------------------------------
@@ -911,4 +928,59 @@ model ShopifyOrder {
   @@unique([integrationId, shopifyOrderId])
   @@index([businessId])
   @@index([integrationId])
+}
+
+// ---------------------------------------------------------------------------
+// GoogleCalendarIntegration (one per business)
+// ---------------------------------------------------------------------------
+
+model GoogleCalendarIntegration {
+  id                    String                    @id @default(uuid())
+  businessId            String                    @unique
+  status                CalendarIntegrationStatus @default(pending_calendars)
+  encryptedRefreshToken String?                   @map("encrypted_refresh_token")
+  selectedCalendarIds   String[]                  @default([]) @map("selected_calendar_ids")
+  ignoredTitleWords     String[]                  @default([]) @map("ignored_title_words")
+  autoSendEnabled       Boolean                   @default(false) @map("auto_send_enabled")
+  sendDelayHours        Int                       @default(2) @map("send_delay_hours")
+  lastSyncAt            DateTime?                 @map("last_sync_at")
+  createdAt             DateTime                  @default(now()) @map("created_at")
+  updatedAt             DateTime                  @updatedAt @map("updated_at")
+
+  business       Business        @relation(fields: [businessId], references: [id])
+  calendarEvents CalendarEvent[]
+
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// CalendarEvent (appointment discovered via Google Calendar sync)
+// ---------------------------------------------------------------------------
+
+model CalendarEvent {
+  id             String              @id @default(uuid())
+  businessId     String
+  integrationId  String
+  googleEventId  String              @map("google_event_id")
+  calendarId     String              @map("calendar_id")
+  title          String
+  startAt        DateTime            @map("start_at")
+  endAt          DateTime?           @map("end_at")
+  customerName   String?             @map("customer_name")
+  customerPhone  String?             @map("customer_phone")
+  status         CalendarEventStatus @default(pending)
+  serviceEventId String?             @map("service_event_id")
+  skipReason     String?             @map("skip_reason")
+  processedAt    DateTime?           @map("processed_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+
+  business    Business                  @relation(fields: [businessId], references: [id])
+  integration GoogleCalendarIntegration @relation(fields: [integrationId], references: [id])
+
+  @@unique([integrationId, googleEventId])
+  @@index([businessId])
+  @@index([integrationId])
+  @@index([businessId, status])
+  @@index([businessId, startAt])
 }
