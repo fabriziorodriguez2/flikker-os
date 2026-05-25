@@ -15,7 +15,7 @@ export async function GET(
 
   const upstream = await fetch(upstreamUrl.toString(), {
     headers: { Accept: "application/json" },
-    next: { revalidate: 900 },
+    cache: "no-store",
   });
   const body = await upstream.text();
 
