@@ -477,9 +477,7 @@
     if (!cs.getAttribute('data-flikker-init')) {
       cs.setAttribute('data-flikker-init', '1');
       var prevEl = cs.previousElementSibling;
-      var cEl =
-        (prevEl && prevEl.getAttribute('data-flikker-widget') !== null ? prevEl : null) ||
-        document.querySelector('[data-flikker-widget]');
+      var cEl = prevEl && prevEl.getAttribute('data-flikker-widget') !== null ? prevEl : null;
       initWidget(cs, cEl);
     }
   } else {
