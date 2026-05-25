@@ -431,7 +431,6 @@ export default function WidgetsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: "Widget principal",
-          type: "REVIEW_LIST",
           mode,
           position,
           minStars,
