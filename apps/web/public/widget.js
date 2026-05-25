@@ -13,6 +13,14 @@
   var ICON_PREV = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>';
   var ICON_NEXT = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>';
 
+  // Star SVG path (24×24 viewBox, standard 5-pointed star)
+  var STAR_PATH = 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z';
+  // Big star for the toast badge — color driven by CSS var(--star)
+  var STAR_BIG =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"' +
+    ' style="width:100%;height:100%;fill:var(--star,#FACC15);display:block" aria-hidden="true">' +
+    '<path d="' + STAR_PATH + '"/></svg>';
+
   // ── Shared helpers ─────────────────────────────────────────────────────────
   function daysAgo(value) {
     var posted = new Date(value).getTime();
@@ -29,11 +37,28 @@
     return 'hace ' + years + ' años';
   }
 
+  // Legacy text-star helper (used by carousel & grid)
   function starsHtml(count) {
     var out = '';
     for (var i = 0; i < 5; i += 1) {
       out += i < count ? '&#9733;' : '&#9734;';
     }
+    return out;
+  }
+
+  // SVG star helper — color driven by CSS var(--star) when filled
+  function svgStar(filled) {
+    var fill = filled ? 'var(--star,#FACC15)' : '#d1d5db';
+    return (
+      '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="13" height="13"' +
+      ' style="display:inline-block;vertical-align:-.1em;fill:' + fill + '" aria-hidden="true">' +
+      '<path d="' + STAR_PATH + '"/></svg>'
+    );
+  }
+
+  function svgStarsHtml(count) {
+    var out = '';
+    for (var i = 0; i < 5; i += 1) out += svgStar(i < count);
     return out;
   }
 
@@ -62,12 +87,13 @@
     var businessId = attrSource.getAttribute('data-business');
     if (!businessId) return;
 
-    var mode = attrSource.getAttribute('data-mode') || 'toast';
-    var accentColor = attrSource.getAttribute('data-color') || '#5C6BC0';
-    var bgColor = attrSource.getAttribute('data-bg') || 'transparent';
-    var widgetTitle = attrSource.getAttribute('data-title') || 'Testimonios';
+    var mode       = attrSource.getAttribute('data-mode')       || 'toast';
+    var accentColor = attrSource.getAttribute('data-color')     || '#5C6BC0';
+    var starColor  = attrSource.getAttribute('data-star-color') || '#FACC15';
+    var bgColor    = attrSource.getAttribute('data-bg')         || 'transparent';
+    var widgetTitle = attrSource.getAttribute('data-title')     || 'Testimonios';
     var titleColor = bgColor !== 'transparent' ? '#ffffff' : '#1a202c';
-    var position = attrSource.getAttribute('data-position') || 'bottom_right';
+    var position   = attrSource.getAttribute('data-position')   || 'bottom_right';
 
     var scriptOrigin =
       scriptEl && scriptEl.src
@@ -82,16 +108,15 @@
     var eventsUrl = scriptOrigin + '/api/widget/events';
 
     function postEvent(eventType, reviewId) {
-      var payload = JSON.stringify({
-        businessId: businessId,
-        eventType: eventType,
-        googleReviewId: reviewId || undefined,
-        referrer: location.href,
-      });
       fetch(eventsUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: payload,
+        body: JSON.stringify({
+          businessId: businessId,
+          eventType: eventType,
+          googleReviewId: reviewId || undefined,
+          referrer: location.href,
+        }),
         credentials: 'omit',
         keepalive: true,
       }).catch(function () {});
@@ -99,18 +124,17 @@
 
     // ── Toast ────────────────────────────────────────────────────────────────
     function renderToast(data) {
-      var cfg = data.widget || {};
+      var cfg     = data.widget || {};
       var reviews = data.reviews;
       if (!reviews || reviews.length === 0) return;
 
-      var color = accentColor;
-      var isLeft = (cfg.position || position) === 'bottom_left';
-      var index = 0;
+      var isLeft  = (cfg.position || position) === 'bottom_left';
+      var index   = 0;
+      var panelOpen = false;
 
+      // ── Host element (position:fixed in <html> to avoid containing-block traps)
       var host = containerEl || document.createElement('div');
       if (!containerEl) {
-        // Apply position:fixed on the host in the main DOM (not inside shadow)
-        // and append to <html> to avoid body transform containing-block issues
         host.style.cssText =
           'position:fixed!important;bottom:16px!important;' +
           (isLeft ? 'left:16px!important;right:auto!important;' : 'right:16px!important;left:auto!important;') +
@@ -120,42 +144,20 @@
       }
       host.setAttribute('data-flikker-mounted', 'true');
 
-      var shadow = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
-      shadow.innerHTML =
-        '<style>' +
-        ':host{display:block}' +
-        '.fw{display:block;width:100%;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#11183a}' +
-        '.card{box-sizing:border-box;position:relative;display:grid;grid-template-columns:40px 1fr;gap:10px;width:100%;border:1px solid rgba(93,104,135,.18);border-radius:18px;background:#e8eefb;box-shadow:0 18px 42px rgba(5,12,35,.22);padding:14px 42px 14px 16px;cursor:pointer}' +
-        '.badge{display:flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:10px;background:' +
-        color +
-        ';color:#fff;font:800 20px/1 Arial,sans-serif;box-shadow:inset 0 1px 0 rgba(255,255,255,.22)}' +
-        '.content{min-width:0}' +
-        '.name{margin:0;color:#10183d;font:800 15px/1.2 inherit;letter-spacing:.01em}' +
-        '.stars{margin-top:6px;color:#ff9f1c;font:700 14px/1 Arial,sans-serif;letter-spacing:1.2px;white-space:nowrap}' +
-        '.meta{margin-top:5px;color:#69718f;font:500 12px/1.3 inherit;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}' +
-        '.x{position:absolute;top:9px;right:9px;display:flex;align-items:center;justify-content:center;width:23px;height:23px;border:0;border-radius:999px;background:rgba(255,255,255,.62);color:#6d7691;font:400 17px/1 Arial,sans-serif;cursor:pointer}' +
-        '.x:hover{background:#fff;color:#11183a}' +
-        '</style>' +
-        '<div class="fw"><div class="card" role="button" tabindex="0">' +
-        '<button class="x" aria-label="Cerrar">&times;</button>' +
-        '<div class="badge">&#9733;</div>' +
-        '<div class="content"><p class="name"></p><div class="stars"></div><div class="meta"></div></div>' +
-        '</div></div>';
-
-      // Adjust host position on small screens
+      // Responsive host sizing
       if (!containerEl) {
         var mq = window.matchMedia('(max-width:480px)');
         function applyMobile(e) {
           if (e.matches) {
-            host.style.left = isLeft ? '12px' : 'auto';
-            host.style.right = isLeft ? 'auto' : '12px';
+            host.style.left   = isLeft ? '12px' : 'auto';
+            host.style.right  = isLeft ? 'auto' : '12px';
             host.style.bottom = '12px';
-            host.style.width = 'min(280px,calc(100vw - 24px))';
+            host.style.width  = 'min(300px,calc(100vw - 24px))';
           } else {
-            host.style.left = isLeft ? '16px' : 'auto';
-            host.style.right = isLeft ? 'auto' : '16px';
+            host.style.left   = isLeft ? '16px' : 'auto';
+            host.style.right  = isLeft ? 'auto' : '16px';
             host.style.bottom = '16px';
-            host.style.width = 'min(320px,calc(100vw - 32px))';
+            host.style.width  = 'min(320px,calc(100vw - 32px))';
           }
         }
         applyMobile(mq);
@@ -163,48 +165,210 @@
         else if (mq.addListener) mq.addListener(applyMobile);
       }
 
-      var root = shadow.querySelector('.fw');
-      var card = shadow.querySelector('.card');
-      var closeBtn = shadow.querySelector('.x');
-      var nameEl = shadow.querySelector('.name');
-      var starsEl = shadow.querySelector('.stars');
-      var metaEl = shadow.querySelector('.meta');
+      var shadow = host.attachShadow ? host.attachShadow({ mode: 'open' }) : host;
+
+      // ── Build panel review items HTML
+      var panelItemsHtml = reviews.map(function (r) {
+        var name = esc(r.authorDisplayName || 'Anónimo');
+        var text = esc(r.content || '');
+        return (
+          '<div class="ri">' +
+          '<div class="av" style="background:' + accentColor + '" aria-hidden="true">' + esc(initial(r.authorDisplayName)) + '</div>' +
+          '<div class="rib">' +
+          '<div class="ritop"><span class="riname">' + name + '</span><span class="ridate">' + daysAgo(r.reviewedAt) + '</span></div>' +
+          '<div class="ristars">' + svgStarsHtml(r.rating || 5) + '</div>' +
+          (text ? '<p class="ritext">“' + text + '”</p>' : '') +
+          '</div>' +
+          '</div>'
+        );
+      }).join('');
+
+      // ── Shadow DOM: panel (above) + card (below) in a flex-column wrapper
+      shadow.innerHTML =
+        '<style>' +
+        ':host{display:block;box-sizing:border-box}' +
+        // Wrapper — CSS vars for theming, flex column so panel stacks above card
+        '.fw{--star:' + starColor + ';--accent:' + accentColor + ';' +
+        'display:flex;flex-direction:column;gap:8px;width:100%;box-sizing:border-box;' +
+        'font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#11183a}' +
+
+        // ── Panel
+        '.panel{box-sizing:border-box;width:100%;background:#fff;' +
+        'border:1px solid rgba(0,0,0,.1);border-radius:18px;' +
+        'box-shadow:0 12px 40px rgba(0,0,0,.18);' +
+        'display:none;flex-direction:column;overflow:hidden;max-height:72vh;' +
+        'opacity:0;transform:translateY(8px);transition:opacity .2s ease,transform .2s ease}' +
+        '.panel.open{opacity:1;transform:translateY(0)}' +
+
+        // Panel header
+        '.phd{display:flex;align-items:center;justify-content:space-between;' +
+        'padding:14px 16px 12px;border-bottom:1px solid #f0f1f5;flex-shrink:0}' +
+        '.pttl{font:600 13px/1 inherit;color:#1a202c;letter-spacing:.01em}' +
+        '.px{border:0;padding:0;background:none;cursor:pointer;color:#8891A4;' +
+        'font:400 22px/1 Arial,sans-serif;display:flex;align-items:center;justify-content:center;' +
+        'width:28px;height:28px;border-radius:50%;flex-shrink:0}' +
+        '.px:hover{background:#f5f6fa;color:#1a202c}' +
+        '.px:focus-visible{outline:2px solid var(--accent);outline-offset:1px}' +
+
+        // Panel body (scrollable)
+        '.pbody{overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch}' +
+
+        // Review items inside panel
+        '.ri{display:flex;align-items:flex-start;gap:10px;padding:13px 16px;border-bottom:1px solid #f5f6fa}' +
+        '.ri:last-child{border-bottom:0}' +
+        '.av{flex-shrink:0;width:34px;height:34px;border-radius:50%;color:#fff;' +
+        'font:700 13px/34px Arial,sans-serif;text-align:center}' +
+        '.rib{min-width:0;flex:1}' +
+        '.ritop{display:flex;align-items:center;justify-content:space-between;gap:8px}' +
+        '.riname{font:600 13px/1.2 inherit;color:#1a202c;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}' +
+        '.ridate{font:400 11px/1 inherit;color:#a0aec0;white-space:nowrap;flex-shrink:0}' +
+        '.ristars{margin-top:3px;display:flex;gap:1px;align-items:center}' +
+        '.ritext{margin:5px 0 0;font:400 12.5px/1.55 inherit;color:#4a5568;word-break:break-word}' +
+
+        // Panel brand footer
+        '.pbrand{padding:9px 16px;font:400 9px/1 inherit;color:#a0aec0;letter-spacing:.04em;' +
+        'text-align:center;flex-shrink:0;border-top:1px solid #f5f6fa}' +
+
+        // ── Toast card
+        '.card{box-sizing:border-box;position:relative;display:flex;align-items:center;gap:12px;' +
+        'width:100%;border:1px solid rgba(0,0,0,.09);border-radius:18px;' +
+        'background:#fff;box-shadow:0 8px 28px rgba(0,0,0,.16);' +
+        'padding:14px 44px 14px 16px;cursor:pointer;' +
+        'transition:box-shadow .15s,transform .1s}' +
+        '.card:hover{box-shadow:0 10px 36px rgba(0,0,0,.22);transform:translateY(-1px)}' +
+        '.card:focus-visible{outline:2px solid var(--accent);outline-offset:2px}' +
+
+        // Big star badge
+        '.si{flex-shrink:0;width:40px;height:40px;display:flex;align-items:center;justify-content:center}' +
+
+        // Card text
+        '.ct{min-width:0;flex:1}' +
+        '.nline{margin:0;font:600 13.5px/1.3 inherit;color:#1a202c}' +
+        '.hi{color:var(--accent)}' +
+        '.cstars{margin-top:5px;display:flex;gap:1px;align-items:center}' +
+        '.cmeta{margin-top:5px;font:400 11.5px/1.2 inherit;color:#8891A4}' +
+
+        // Card close button (X)
+        '.x{position:absolute;top:8px;right:8px;display:flex;align-items:center;justify-content:center;' +
+        'width:24px;height:24px;border:0;border-radius:50%;background:rgba(0,0,0,.06);' +
+        'color:#6d7691;font:400 18px/1 Arial,sans-serif;cursor:pointer;padding:0;flex-shrink:0}' +
+        '.x:hover{background:rgba(0,0,0,.13);color:#11183a}' +
+        '.x:focus-visible{outline:2px solid var(--accent);outline-offset:1px}' +
+        '</style>' +
+
+        '<div class="fw" id="flkW">' +
+
+        // Panel (above card, hidden initially)
+        '<div class="panel" id="flkP" role="dialog" aria-modal="false"' +
+        ' aria-label="Reseñas recientes" aria-hidden="true">' +
+        '<div class="phd">' +
+        '<span class="pttl">Reseñas recientes</span>' +
+        '<button class="px" id="flkPX" aria-label="Cerrar panel">&times;</button>' +
+        '</div>' +
+        '<div class="pbody">' + panelItemsHtml + '</div>' +
+        '<div class="pbrand">' + FLK_BRAND + '</div>' +
+        '</div>' +
+
+        // Toast card
+        '<div class="card" id="flkC" role="button" tabindex="0"' +
+        ' aria-expanded="false" aria-haspopup="dialog" aria-label="Ver reseñas">' +
+        '<button class="x" id="flkX" aria-label="Cerrar">&times;</button>' +
+        '<div class="si">' + STAR_BIG + '</div>' +
+        '<div class="ct">' +
+        '<p class="nline"><span class="hi" id="flkN"></span><span id="flkTxt"></span></p>' +
+        '<div class="cstars" id="flkS"></div>' +
+        '<div class="cmeta" id="flkM"></div>' +
+        '</div>' +
+        '</div>' +
+
+        '</div>';
+
+      var fw       = shadow.getElementById('flkW');
+      var card     = shadow.getElementById('flkC');
+      var panel    = shadow.getElementById('flkP');
+      var closeX   = shadow.getElementById('flkX');   // close toast
+      var panelX   = shadow.getElementById('flkPX');  // close panel
+      var nameEl   = shadow.getElementById('flkN');
+      var txtEl    = shadow.getElementById('flkTxt');
+      var starsEl  = shadow.getElementById('flkS');
+      var metaEl   = shadow.getElementById('flkM');
 
       var cycleGen = 0;
       var displayMs = Math.max(5000, Math.min(12000, (cfg.rotationSeconds || 8) * 1000));
-      var pauseMs = 80000;
+      var pauseMs   = 80000;
 
+      // ── Load current review into the compact card ────────────────────────
       function loadReview() {
-        var review = reviews[index % reviews.length];
-        var rating = review.rating || 5;
-        nameEl.textContent =
-          (review.authorDisplayName || 'Alguien') + ' nos dejó ' + rating + ' estrellas';
-        starsEl.innerHTML = starsHtml(rating);
-        metaEl.innerHTML = daysAgo(review.reviewedAt) + ' • ' + FLK_BRAND;
-        card.setAttribute('data-review-id', review.id || '');
+        var r      = reviews[index % reviews.length];
+        var rating = r.rating || 5;
+        nameEl.textContent = r.authorDisplayName || 'Alguien';
+        txtEl.textContent  = ' nos dejó ' + rating + (rating === 1 ? ' estrella' : ' estrellas');
+        starsEl.innerHTML  = svgStarsHtml(rating);
+        metaEl.textContent = daysAgo(r.reviewedAt);
+        card.setAttribute('data-review-id', r.id || '');
       }
 
+      // ── Panel open / close ───────────────────────────────────────────────
+      function onDocClick(e) {
+        // Close if the click landed outside the shadow host
+        var path = e.composedPath ? e.composedPath() : [];
+        if (path.indexOf(host) === -1) doClosePanel();
+      }
+      function onEscape(e) {
+        if (e.key === 'Escape') doClosePanel();
+      }
+
+      function doOpenPanel() {
+        panelOpen = true;
+        cycleGen++; // stop rotation while panel is visible
+        panel.style.display = 'flex';
+        panel.setAttribute('aria-hidden', 'false');
+        card.setAttribute('aria-expanded', 'true');
+        requestAnimationFrame(function () {
+          requestAnimationFrame(function () { panel.classList.add('open'); });
+        });
+        document.addEventListener('click', onDocClick, true);
+        document.addEventListener('keydown', onEscape);
+        panelX.focus();
+      }
+
+      function doClosePanel() {
+        panelOpen = false;
+        panel.classList.remove('open');
+        card.setAttribute('aria-expanded', 'false');
+        document.removeEventListener('click', onDocClick, true);
+        document.removeEventListener('keydown', onEscape);
+        setTimeout(function () {
+          panel.style.display = 'none';
+          panel.setAttribute('aria-hidden', 'true');
+          // Resume toast rotation after panel closes
+          var g = cycleGen;
+          cycle(g);
+        }, 210);
+      }
+
+      // ── Toast rotation cycle ─────────────────────────────────────────────
       function cycle(g) {
         if (g !== cycleGen) return;
         loadReview();
         postEvent('impression', card.getAttribute('data-review-id'));
-        root.style.display = 'block';
-        root.style.opacity = '0';
-        root.style.transform = 'translateY(10px)';
-        root.style.transition = 'opacity .25s ease,transform .25s ease';
+        fw.style.display   = 'flex';
+        fw.style.opacity   = '0';
+        fw.style.transform = 'translateY(10px)';
+        fw.style.transition = 'opacity .25s ease,transform .25s ease';
         requestAnimationFrame(function () {
           requestAnimationFrame(function () {
             if (g !== cycleGen) return;
-            root.style.opacity = '1';
-            root.style.transform = 'translateY(0)';
+            fw.style.opacity   = '1';
+            fw.style.transform = 'translateY(0)';
             setTimeout(function () {
               if (g !== cycleGen) return;
-              root.style.opacity = '0';
-              root.style.transform = 'translateY(6px)';
+              fw.style.opacity   = '0';
+              fw.style.transform = 'translateY(6px)';
               setTimeout(function () {
                 if (g !== cycleGen) return;
-                root.style.display = 'none';
-                root.style.transition = '';
+                fw.style.display    = 'none';
+                fw.style.transition = '';
                 index = (index + 1) % reviews.length;
                 setTimeout(function () { cycle(g); }, pauseMs);
               }, 260);
@@ -213,25 +377,52 @@
         });
       }
 
-      closeBtn.addEventListener('click', function (e) {
+      // ── Event listeners ──────────────────────────────────────────────────
+
+      // Close toast (X button)
+      closeX.addEventListener('click', function (e) {
         e.stopPropagation();
+        if (panelOpen) {
+          doClosePanel();
+          return;
+        }
         postEvent('close', card.getAttribute('data-review-id'));
         cycleGen++;
-        root.style.transition = '';
-        root.style.display = 'none';
+        fw.style.transition = '';
+        fw.style.display    = 'none';
         index = (index + 1) % reviews.length;
         var g = cycleGen;
         setTimeout(function () { cycle(g); }, pauseMs);
       });
-      card.addEventListener('click', function () {
-        postEvent('click', card.getAttribute('data-review-id'));
+
+      // Open panel on card click/keyboard
+      card.addEventListener('click', function (e) {
+        if (e.target === closeX || closeX.contains(e.target)) return;
+        if (!panelOpen) {
+          postEvent('click', card.getAttribute('data-review-id'));
+          doOpenPanel();
+        }
       });
       card.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter' || e.key === ' ')
-          postEvent('click', card.getAttribute('data-review-id'));
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          if (!panelOpen) {
+            postEvent('click', card.getAttribute('data-review-id'));
+            doOpenPanel();
+          }
+        }
       });
 
-      root.style.display = 'none';
+      // Close panel button
+      panelX.addEventListener('click', function (e) {
+        e.stopPropagation();
+        doClosePanel();
+      });
+
+      // Clicks inside the panel body don't bubble to the doc-click handler
+      panel.addEventListener('click', function (e) { e.stopPropagation(); });
+
+      fw.style.display = 'none';
       cycle(cycleGen);
     }
 
@@ -327,10 +518,10 @@
         '</div>';
 
       var viewport = shadow.getElementById('flkV');
-      var prevBtn = shadow.getElementById('flkP');
-      var nextBtn = shadow.getElementById('flkN');
-      var dotsEl = shadow.getElementById('flkD');
-      var total = reviews.length;
+      var prevBtn  = shadow.getElementById('flkP');
+      var nextBtn  = shadow.getElementById('flkN');
+      var dotsEl   = shadow.getElementById('flkD');
+      var total    = reviews.length;
 
       for (var d = 0; d < total; d += 1) {
         var dot = document.createElement('div');
@@ -338,16 +529,12 @@
         dotsEl.appendChild(dot);
       }
 
-      function cardWidth() {
-        return viewport.offsetWidth || 300;
-      }
+      function cardWidth() { return viewport.offsetWidth || 300; }
 
-      function scrollTo(idx) {
-        viewport.scrollLeft = idx * cardWidth();
-      }
+      function scrollTo(idx) { viewport.scrollLeft = idx * cardWidth(); }
 
       function updateDots() {
-        var idx = Math.round(viewport.scrollLeft / cardWidth());
+        var idx  = Math.round(viewport.scrollLeft / cardWidth());
         var dots = shadow.querySelectorAll('.flk-c-dot');
         for (var i = 0; i < dots.length; i += 1) {
           dots[i].className = 'flk-c-dot' + (i === idx ? ' on' : '');
@@ -356,13 +543,11 @@
 
       prevBtn.addEventListener('click', function () {
         isPaused = true;
-        var idx = Math.round(viewport.scrollLeft / cardWidth());
-        scrollTo(Math.max(0, idx - 1));
+        scrollTo(Math.max(0, Math.round(viewport.scrollLeft / cardWidth()) - 1));
       });
       nextBtn.addEventListener('click', function () {
         isPaused = true;
-        var idx = Math.round(viewport.scrollLeft / cardWidth());
-        scrollTo(Math.min(total - 1, idx + 1));
+        scrollTo(Math.min(total - 1, Math.round(viewport.scrollLeft / cardWidth()) + 1));
       });
       viewport.addEventListener('scroll', updateDots);
       viewport.addEventListener('mouseenter', function () { isPaused = true; });
@@ -378,13 +563,13 @@
 
     // ── Grid ─────────────────────────────────────────────────────────────────
     function renderGrid(data) {
-      var cfg = data.widget || {};
+      var cfg     = data.widget || {};
       var reviews = data.reviews;
       if (!reviews || reviews.length === 0) return;
 
-      var color = accentColor;
+      var color    = accentColor;
       var maxItems = cfg.maxItems || cfg.maxReviewsShown || 6;
-      var shown = reviews.slice(0, maxItems);
+      var shown    = reviews.slice(0, maxItems);
 
       var host = containerEl || document.createElement('div');
       host.setAttribute('data-flikker-grid', '1');
@@ -402,26 +587,14 @@
           return (
             '<article class="flk-g-card">' +
             '<div class="flk-g-top">' +
-            '<div class="flk-g-av" style="background:' +
-            color +
-            '">' +
-            esc(initial(r.authorDisplayName)) +
-            '</div>' +
+            '<div class="flk-g-av" style="background:' + color + '">' + esc(initial(r.authorDisplayName)) + '</div>' +
             '<div class="flk-g-meta">' +
-            '<p class="flk-g-name">' +
-            esc(r.authorDisplayName || 'Anónimo') +
-            '</p>' +
-            '<div class="flk-g-stars">' +
-            starsHtml(r.rating || 5) +
+            '<p class="flk-g-name">' + esc(r.authorDisplayName || 'Anónimo') + '</p>' +
+            '<div class="flk-g-stars">' + starsHtml(r.rating || 5) + '</div>' +
             '</div>' +
             '</div>' +
-            '</div>' +
-            (r.content
-              ? '<p class="flk-g-text">' + esc(r.content) + '</p>'
-              : '<p class="flk-g-empty">Sin comentario</p>') +
-            '<p class="flk-g-date">' +
-            daysAgo(r.reviewedAt) +
-            '</p>' +
+            (r.content ? '<p class="flk-g-text">' + esc(r.content) + '</p>' : '<p class="flk-g-empty">Sin comentario</p>') +
+            '<p class="flk-g-date">' + daysAgo(r.reviewedAt) + '</p>' +
             '</article>'
           );
         })
@@ -448,9 +621,7 @@
         '<div class="flk-g-wrap">' +
         '<div class="flk-g-inner">' +
         (widgetTitle ? '<p class="flk-g-title">' + esc(widgetTitle) + '</p>' : '') +
-        '<div class="flk-g-grid">' +
-        cardsHtml +
-        '</div>' +
+        '<div class="flk-g-grid">' + cardsHtml + '</div>' +
         '<p class="flk-g-brand">' + FLK_BRAND + '</p>' +
         '</div>' +
         '</div>';
@@ -460,18 +631,19 @@
 
     // ── Fetch & dispatch ──────────────────────────────────────────────────────
     fetch(apiUrl, { credentials: 'omit', mode: 'cors' })
-      .then(function (res) {
-        return res.ok ? res.json() : null;
-      })
+      .then(function (res) { return res.ok ? res.json() : null; })
       .then(function (data) {
         if (!data || !data.reviews || data.reviews.length === 0) return;
-        data.reviews = data.reviews.filter(function (r) {
-          return r.content && r.content.trim().length > 0;
-        });
+        // For the toast keep only reviews that have text (panel & compact need content)
+        if (mode === 'toast') {
+          data.reviews = data.reviews.filter(function (r) {
+            return r.content && r.content.trim().length > 0;
+          });
+        }
         if (!data.reviews.length) return;
-        if (mode === 'toast') renderToast(data);
+        if (mode === 'toast')    renderToast(data);
         else if (mode === 'carousel') renderCarousel(data);
-        else if (mode === 'grid') renderGrid(data);
+        else if (mode === 'grid')     renderGrid(data);
       })
       .catch(function () {});
   }
@@ -486,14 +658,12 @@
       initWidget(cs, cEl);
     }
   } else {
-    // async: currentScript is null — find and init every uninitialised widget script on the page
     var allScripts = document.querySelectorAll('script[data-business]:not([data-flikker-init])');
     for (var i = 0; i < allScripts.length; i++) {
       var s = allScripts[i];
       s.setAttribute('data-flikker-init', '1');
       var prev = s.previousElementSibling;
-      var c =
-        prev && prev.getAttribute('data-flikker-widget') !== null ? prev : null;
+      var c = prev && prev.getAttribute('data-flikker-widget') !== null ? prev : null;
       initWidget(s, c);
     }
   }
