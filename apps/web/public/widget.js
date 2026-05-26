@@ -20,6 +20,11 @@
     '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"' +
     ' style="width:100%;height:100%;fill:var(--star,#FACC15);display:block" aria-hidden="true">' +
     '<path d="' + STAR_PATH + '"/></svg>';
+  // Checkmark tick for card brand badge
+  var TICK_ICON =
+    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="11" height="11"' +
+    ' style="display:inline-block;vertical-align:-.15em;fill:none;stroke:var(--accent,#5C6BC0);stroke-width:3;stroke-linecap:round;stroke-linejoin:round" aria-hidden="true">' +
+    '<path d="M20 6L9 17l-5-5"/></svg>';
 
   // ── Shared helpers ─────────────────────────────────────────────────────────
   function daysAgo(value) {
@@ -128,9 +133,24 @@
       var reviews = data.reviews;
       if (!reviews || reviews.length === 0) return;
 
+      // Singleton: if a toast for this business is already in the DOM, skip re-init
+      if (!containerEl && document.querySelector('[data-flk-tid="' + businessId + '"]')) return;
+
       var isLeft  = (cfg.position || position) === 'bottom_left';
       var index   = 0;
       var panelOpen = false;
+
+      // Restore countdown state from sessionStorage so page navigation doesn't reset the cycle
+      var SS_KEY = 'flk_' + businessId;
+      var initDelay = 0;
+      try {
+        var ss = JSON.parse(sessionStorage.getItem(SS_KEY) || 'null');
+        if (ss && typeof ss.i === 'number' && typeof ss.t === 'number') {
+          var rem = ss.t - Date.now();
+          index = ((ss.i % reviews.length) + reviews.length) % reviews.length;
+          if (rem > 0) initDelay = Math.min(rem, 92000);
+        }
+      } catch (e) {}
 
       // ── Host element (position:fixed in <html> to avoid containing-block traps)
       var host = containerEl || document.createElement('div');
@@ -140,6 +160,7 @@
           (isLeft ? 'left:16px!important;right:auto!important;' : 'right:16px!important;left:auto!important;') +
           'z-index:2147483647!important;width:min(320px,calc(100vw - 32px))!important;' +
           'display:block!important;box-sizing:border-box!important;pointer-events:auto!important;';
+        host.setAttribute('data-flk-tid', businessId);
         document.documentElement.appendChild(host);
       }
       host.setAttribute('data-flikker-mounted', 'true');
@@ -254,6 +275,9 @@
         'color:#6d7691;font:400 18px/1 Arial,sans-serif;cursor:pointer;padding:0;flex-shrink:0}' +
         '.x:hover{background:rgba(0,0,0,.13);color:#11183a}' +
         '.x:focus-visible{outline:2px solid var(--accent);outline-offset:1px}' +
+
+        // Card brand footer
+        '.cbrand{margin-top:5px;display:flex;align-items:center;gap:3px;font:400 10.5px/1 inherit;color:#a0aec0;letter-spacing:.01em}' +
         '</style>' +
 
         '<div class="fw" id="flkW">' +
@@ -278,6 +302,7 @@
         '<p class="nline"><span class="hi" id="flkN"></span><span id="flkTxt"></span></p>' +
         '<div class="cstars" id="flkS"></div>' +
         '<div class="cmeta" id="flkM"></div>' +
+        '<div class="cbrand">' + TICK_ICON + '<span>by Flikker</span></div>' +
         '</div>' +
         '</div>' +
 
@@ -296,6 +321,16 @@
       var cycleGen = 0;
       var displayMs = Math.max(5000, Math.min(12000, (cfg.rotationSeconds || 8) * 1000));
       var pauseMs   = 80000;
+
+      // Persist state so navigation between pages doesn't reset the countdown
+      function saveState() {
+        try {
+          sessionStorage.setItem(SS_KEY, JSON.stringify({
+            i: index % reviews.length,
+            t: Date.now() + displayMs + 360 + pauseMs,
+          }));
+        } catch (e) {}
+      }
 
       // ── Load current review into the compact card ────────────────────────
       function loadReview() {
@@ -351,6 +386,7 @@
       function cycle(g) {
         if (g !== cycleGen) return;
         loadReview();
+        saveState();
         postEvent('impression', card.getAttribute('data-review-id'));
         fw.style.display   = 'flex';
         fw.style.opacity   = '0';
@@ -423,7 +459,12 @@
       panel.addEventListener('click', function (e) { e.stopPropagation(); });
 
       fw.style.display = 'none';
-      cycle(cycleGen);
+      if (initDelay > 0) {
+        var g0 = cycleGen;
+        setTimeout(function () { cycle(g0); }, initDelay);
+      } else {
+        cycle(cycleGen);
+      }
     }
 
     // ── Carousel ─────────────────────────────────────────────────────────────

@@ -57,6 +57,23 @@ function initial(name: string | null) {
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
 
+const STAR_PATH =
+  "M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z";
+
+function SvgStar({ filled, color }: { filled: boolean; color: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      width="13"
+      height="13"
+      style={{ display: "inline-block", fill: filled ? color : "#d1d5db" }}
+      aria-hidden="true"
+    >
+      <path d={STAR_PATH} />
+    </svg>
+  );
+}
+
 function StarRow({ rating }: { rating: number }) {
   return (
     <span className="text-xs text-amber-400">
@@ -106,6 +123,7 @@ function ToastPreview({
   position: string;
   minStars: number;
 }) {
+  const starColor = "#FACC15";
   return (
     <div className="relative min-h-[220px] overflow-hidden rounded-[12px] bg-[#F5F6FA]">
       {!review ? (
@@ -116,33 +134,59 @@ function ToastPreview({
             position === "bottom_left" ? "left-3" : "right-3"
           }`}
         >
-          <article className="relative grid grid-cols-[40px_1fr] gap-2.5 rounded-[16px] border border-[rgba(93,104,135,0.18)] bg-[#e8eefb] py-4 pl-4 pr-10 shadow-[0_12px_32px_rgba(5,12,35,0.18)]">
+          <article className="relative flex items-center gap-3 rounded-[18px] border border-[rgba(0,0,0,0.09)] bg-white py-3.5 pl-4 pr-11 shadow-[0_8px_28px_rgba(0,0,0,0.16)]">
+            {/* Close X */}
             <button
               type="button"
               aria-label="Cerrar"
-              className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-white/60 text-[14px] leading-none text-[#6d7691]"
+              className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full bg-black/[0.06] text-[18px] leading-none text-[#6d7691]"
             >
               ×
             </button>
-            <div
-              className="flex h-[36px] w-[36px] items-center justify-center rounded-[9px] text-lg font-extrabold text-white"
-              style={{ backgroundColor: color }}
-            >
-              ★
+            {/* Big star badge */}
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center">
+              <svg
+                viewBox="0 0 24 24"
+                className="h-full w-full"
+                style={{ fill: starColor }}
+                aria-hidden="true"
+              >
+                <path d={STAR_PATH} />
+              </svg>
             </div>
-            <div className="min-w-0">
-              <p className="text-[13px] font-extrabold leading-tight text-[#10183d]">
-                {review.authorDisplayName ?? "Alguien"} nos dejó{" "}
-                {review.rating} estrellas
+            {/* Text content */}
+            <div className="min-w-0 flex-1">
+              <p className="text-[13.5px] font-semibold leading-tight text-[#1a202c]">
+                <span style={{ color }}>{review.authorDisplayName ?? "Alguien"}</span>
+                {" nos dejó "}{review.rating}
+                {review.rating === 1 ? " estrella" : " estrellas"}
               </p>
-              <p className="mt-1.5 text-[12px] font-bold text-[#ff9f1c]">
-                {"★".repeat(review.rating)}
-                {"☆".repeat(5 - review.rating)}
+              <div className="mt-1.5 flex gap-[1px]">
+                {Array.from({ length: 5 }, (_, i) => (
+                  <SvgStar key={i} filled={i < review.rating} color={starColor} />
+                ))}
+              </div>
+              <p className="mt-1.5 text-[11.5px] text-[#8891A4]">
+                {daysAgo(review.reviewedAt)}
               </p>
-              <div className="mt-1 flex items-center gap-1 text-[11px] font-medium text-[#69718f]">
-                <span className="truncate">{daysAgo(review.reviewedAt)}</span>
-                <span>·</span>
-                <PoweredByFlikker className="shrink-0" />
+              {/* Tick + by Flikker */}
+              <div className="mt-1 flex items-center gap-1 text-[10.5px] text-[#a0aec0]">
+                <svg
+                  viewBox="0 0 24 24"
+                  width="10"
+                  height="10"
+                  style={{
+                    fill: "none",
+                    stroke: color,
+                    strokeWidth: 3,
+                    strokeLinecap: "round",
+                    strokeLinejoin: "round",
+                  }}
+                  aria-hidden="true"
+                >
+                  <path d="M20 6L9 17l-5-5" />
+                </svg>
+                <span>by Flikker</span>
               </div>
             </div>
           </article>
