@@ -35,7 +35,9 @@
       "Bash(Select-Object FullName, PSIsContainer)",
       "Bash(Sort-Object FullName)",
       "Bash(cd \"/c/Users/fabri/OneDrive/Desktop/flikker system/flikker-os/apps/web/app/\\(panel\\)/dashboard\" && find . -type f -o -type d | sort)",
-      "Read(//c/c/Users/fabri/OneDrive/Desktop/flikker system/flikker-os/apps/web/app/\\(panel\\)/**)"
+      "Read(//c/c/Users/fabri/OneDrive/Desktop/flikker system/flikker-os/apps/web/app/\\(panel\\)/**)",
+      "Bash(find . -name \"middleware*\" -o -name \"*.middleware*\")",
+      "Bash(ls -la middleware*)"
     ]
   }
 }
