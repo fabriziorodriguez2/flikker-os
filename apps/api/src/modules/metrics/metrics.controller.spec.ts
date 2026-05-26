@@ -52,10 +52,10 @@ describe('MetricsController', () => {
   it('returns overview for the current business', async () => {
     mockService.getOverview.mockResolvedValue({ ok: true });
 
-    const result = await controller.overview(fakeReq());
+    const result = await controller.overview(fakeReq(), {});
 
     expect(result).toEqual({ ok: true });
-    expect(mockService.getOverview).toHaveBeenCalledWith(BUSINESS_ID);
+    expect(mockService.getOverview).toHaveBeenCalledWith(BUSINESS_ID, {});
   });
 
   it('acknowledges negative feedback for the current business', async () => {

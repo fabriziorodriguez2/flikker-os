@@ -30,7 +30,12 @@
       "Bash(New-Item -ItemType Directory -Force \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\\\\apps\\\\api\\\\prisma\\\\migrations\\\\20260524120000_add_shopify_integration\")",
       "Bash(Out-Null)",
       "Bash(Write-Output \"created\")",
-      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\\\\apps\\\\api\\\\src\" -Directory)"
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\\\\apps\\\\api\\\\src\" -Directory)",
+      "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\\\\apps\\\\web\\\\app\\\\\\(panel\\)\\\\dashboard\" -Recurse -Force)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)",
+      "Bash(cd \"/c/Users/fabri/OneDrive/Desktop/flikker system/flikker-os/apps/web/app/\\(panel\\)/dashboard\" && find . -type f -o -type d | sort)",
+      "Read(//c/c/Users/fabri/OneDrive/Desktop/flikker system/flikker-os/apps/web/app/\\(panel\\)/**)"
     ]
   }
 }

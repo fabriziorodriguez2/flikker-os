@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CampaignExecutionStatus } from '@prisma/client';
+import { CampaignExecutionStatus, MessageStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 interface KpiMetric {
@@ -73,8 +73,61 @@ export interface MetricsOverview {
   negativeFeedback: NegativeFeedbackItem[];
 }
 
+// ── Conversion interfaces ──────────────────────────────────────────────────
+
+export interface FunnelStep {
+  key: string;
+  label: string;
+  count: number;
+}
+
+export interface ConversionSummary {
+  range: string;
+  from: string | null;
+  to: string;
+  attributionWindowDays: number;
+  sentMessages: number;
+  attributedReviews: number;
+  conversionRate: number | null;
+  insufficientData: boolean;
+  clickedMessages: number;
+  clickRate: number | null;
+  positiveFeedback: number;
+  positiveFeedbackRate: number | null;
+  medianTimeToReviewHours: number | null;
+  messagesNotSent: { queued: number; failed: number };
+  benchmark: null;
+}
+
+export interface ConversionFunnel {
+  attributionWindowDays: number;
+  steps: FunnelStep[];
+  topDropOffStep: { step: string; ratio: number } | null;
+}
+
+export interface ConversionTimeSeries {
+  granularity: string;
+  attributionWindowDays: number;
+  series: Array<{
+    label: string;
+    start: string;
+    sent: number;
+    attributed: number;
+    rate: number | null;
+  }>;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 const GOOGLE_REVIEW_LIMIT = 100;
 const NEGATIVE_FEEDBACK_LIMIT = 10;
+const CONVERSION_MIN_SAMPLE = 30;
+
+const SENT_STATUSES: MessageStatus[] = [
+  MessageStatus.sent,
+  MessageStatus.delivered,
+  MessageStatus.read,
+];
 
 @Injectable()
 export class MetricsService {
@@ -221,6 +274,211 @@ export class MetricsService {
       })),
     };
   }
+
+  // ── Conversion metrics ─────────────────────────────────────────────────────
+
+  async getConversionSummary(
+    businessId: string,
+    range: string = 'last_30_days',
+    attributionWindowDays: number = 7,
+  ): Promise<ConversionSummary> {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - attributionWindowDays * 86_400_000);
+    const from = buildRangeFrom(range, now);
+    const baseWhere = this.sentMessageWhere(businessId, from, cutoff);
+    const notSentBase = {
+      businessId,
+      createdAt: { lt: cutoff, ...(from ? { gte: from } : {}) },
+    };
+
+    const [
+      sentMessages,
+      attributedReviews,
+      clickedMessages,
+      positiveFeedback,
+      queuedMessages,
+      failedMessages,
+      medianTimeToReviewHours,
+    ] = await Promise.all([
+      this.prisma.message.count({ where: baseWhere }),
+      this.prisma.message.count({
+        where: { ...baseWhere, attributedGoogleReviews: { some: {} } },
+      }),
+      this.prisma.message.count({
+        where: { ...baseWhere, clickedAt: { not: null } },
+      }),
+      this.prisma.message.count({
+        where: { ...baseWhere, feedbackResponses: { some: { score: { gte: 4 } } } },
+      }),
+      this.prisma.message.count({
+        where: { ...notSentBase, status: MessageStatus.queued },
+      }),
+      this.prisma.message.count({
+        where: { ...notSentBase, status: MessageStatus.failed },
+      }),
+      this.getMedianTimeToReviewHours(businessId, from, cutoff),
+    ]);
+
+    const insufficientData = sentMessages < CONVERSION_MIN_SAMPLE;
+
+    return {
+      range: normalizeRange(range),
+      from: from?.toISOString() ?? null,
+      to: cutoff.toISOString(),
+      attributionWindowDays,
+      sentMessages,
+      attributedReviews,
+      conversionRate: insufficientData ? null : roundRate(attributedReviews, sentMessages),
+      insufficientData,
+      clickedMessages,
+      clickRate: roundRate(clickedMessages, sentMessages),
+      positiveFeedback,
+      positiveFeedbackRate: roundRate(positiveFeedback, sentMessages),
+      medianTimeToReviewHours,
+      messagesNotSent: { queued: queuedMessages, failed: failedMessages },
+      benchmark: null,
+    };
+  }
+
+  async getConversionFunnel(
+    businessId: string,
+    attributionWindowDays: number = 7,
+  ): Promise<ConversionFunnel> {
+    const cutoff = new Date(Date.now() - attributionWindowDays * 86_400_000);
+    const baseWhere = this.sentMessageWhere(businessId, null, cutoff);
+
+    const [sent, clicked, positiveFeedback, negativeFeedback, reviewDetected] =
+      await Promise.all([
+        this.prisma.message.count({ where: baseWhere }),
+        this.prisma.message.count({
+          where: { ...baseWhere, clickedAt: { not: null } },
+        }),
+        this.prisma.message.count({
+          where: { ...baseWhere, feedbackResponses: { some: { score: { gte: 4 } } } },
+        }),
+        this.prisma.message.count({
+          where: { ...baseWhere, feedbackResponses: { some: { score: { lt: 4 } } } },
+        }),
+        this.prisma.message.count({
+          where: { ...baseWhere, attributedGoogleReviews: { some: {} } },
+        }),
+      ]);
+
+    const steps: FunnelStep[] = [
+      { key: 'sent', label: 'Mensajes enviados', count: sent },
+      { key: 'clicked', label: 'Abrieron el link', count: clicked },
+      { key: 'positive_feedback', label: 'Dieron 4-5 estrellas', count: positiveFeedback },
+      {
+        key: 'negative_feedback_filtered',
+        label: 'Filtrados antes de Google (feedback negativo)',
+        count: negativeFeedback,
+      },
+      { key: 'review_detected', label: 'Dejaron reseña en Google', count: reviewDetected },
+    ];
+
+    return {
+      attributionWindowDays,
+      steps,
+      topDropOffStep: computeTopDropOffStep(sent, clicked, positiveFeedback, reviewDetected),
+    };
+  }
+
+  async getConversionTimeSeries(
+    businessId: string,
+    granularity: string = 'month',
+    attributionWindowDays: number = 7,
+  ): Promise<ConversionTimeSeries> {
+    const now = new Date();
+    const cutoff = new Date(now.getTime() - attributionWindowDays * 86_400_000);
+    const gran = granularity === 'week' ? 'week' : 'month';
+
+    const windowFrom =
+      gran === 'month' ? addMonths(startOfMonth(now), -5) : addWeeks(startOfWeek(now), -7);
+    const windowTo = gran === 'month' ? addMonths(startOfMonth(now), 1) : addWeeks(startOfWeek(now), 1);
+    const windows = buildWindows(windowFrom, windowTo, gran);
+
+    const series = await Promise.all(
+      windows.map(async ({ start, end, label }) => {
+        // Skip windows entirely within the attribution window — no data yet
+        if (start >= cutoff) {
+          return { label, start: start.toISOString(), sent: 0, attributed: 0, rate: null };
+        }
+        const effectiveEnd = end > cutoff ? cutoff : end;
+        const baseWhere = this.sentMessageWhere(businessId, start, effectiveEnd);
+
+        const [sent, attributed] = await Promise.all([
+          this.prisma.message.count({ where: baseWhere }),
+          this.prisma.message.count({
+            where: { ...baseWhere, attributedGoogleReviews: { some: {} } },
+          }),
+        ]);
+
+        return {
+          label,
+          start: start.toISOString(),
+          sent,
+          attributed,
+          rate: sent < CONVERSION_MIN_SAMPLE ? null : roundRate(attributed, sent),
+        };
+      }),
+    );
+
+    return { granularity: gran, attributionWindowDays, series };
+  }
+
+  // ── Private helpers ────────────────────────────────────────────────────────
+
+  private sentMessageWhere(businessId: string, from: Date | null, cutoff: Date) {
+    return {
+      businessId,
+      status: { in: SENT_STATUSES },
+      sentAt: {
+        lt: cutoff,
+        ...(from ? { gte: from } : {}),
+      },
+    };
+  }
+
+  private async getMedianTimeToReviewHours(
+    businessId: string,
+    from: Date | null,
+    cutoff: Date,
+  ): Promise<number | null> {
+    const reviews = await this.prisma.googleReview.findMany({
+      where: {
+        businessId,
+        attributedMessageId: { not: null },
+        attributedMessage: {
+          sentAt: {
+            lt: cutoff,
+            ...(from ? { gte: from } : {}),
+          },
+        },
+      },
+      select: {
+        postedAt: true,
+        attributedMessage: { select: { sentAt: true } },
+      },
+    });
+
+    const deltas = reviews
+      .filter((r) => r.attributedMessage?.sentAt != null)
+      .map((r) => (r.postedAt.getTime() - r.attributedMessage!.sentAt!.getTime()) / 3_600_000)
+      .filter((h) => h >= 0)
+      .sort((a, b) => a - b);
+
+    if (!deltas.length) return null;
+
+    const mid = Math.floor(deltas.length / 2);
+    const median =
+      deltas.length % 2 === 0
+        ? (deltas[mid - 1]! + deltas[mid]!) / 2
+        : deltas[mid]!;
+
+    return Math.round(median * 10) / 10;
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
 
   async acknowledgeNegativeFeedback(businessId: string, feedbackId: string) {
     const feedback = await this.prisma.feedbackResponse.findFirst({
@@ -541,4 +799,50 @@ function buildWindows(
   }
 
   return windows;
+}
+
+// ── Conversion helpers ─────────────────────────────────────────────────────
+
+function buildRangeFrom(range: string, now: Date): Date | null {
+  if (range === 'last_30_days') return new Date(now.getTime() - 30 * 86_400_000);
+  if (range === 'last_90_days') return new Date(now.getTime() - 90 * 86_400_000);
+  return null; // all_time
+}
+
+function normalizeRange(range: string): string {
+  return range === 'last_30_days' || range === 'last_90_days' || range === 'all_time'
+    ? range
+    : 'last_30_days';
+}
+
+/**
+ * Returns rate as a percentage with 1 decimal place, or null if denominator is 0.
+ */
+function roundRate(numerator: number, denominator: number): number | null {
+  if (denominator === 0) return null;
+  return Math.round((numerator / denominator) * 1000) / 10;
+}
+
+/**
+ * Returns the funnel transition with the lowest N→N+1 ratio (worst drop-off).
+ * negative_feedback_filtered is a branch, not a sequential step, so it is
+ * excluded from the drop-off calculation.
+ */
+function computeTopDropOffStep(
+  sent: number,
+  clicked: number,
+  positiveFeedback: number,
+  reviewDetected: number,
+): { step: string; ratio: number } | null {
+  const transitions = [
+    { step: 'sent_to_clicked', a: sent, b: clicked },
+    { step: 'clicked_to_positive', a: clicked, b: positiveFeedback },
+    { step: 'positive_to_review', a: positiveFeedback, b: reviewDetected },
+  ]
+    .filter(({ a }) => a > 0)
+    .map(({ step, a, b }) => ({ step, ratio: Math.round((b / a) * 100) / 100 }));
+
+  if (!transitions.length) return null;
+
+  return transitions.reduce((min, t) => (t.ratio < min.ratio ? t : min), transitions[0]!);
 }

@@ -58,7 +58,7 @@ export default async function PanelLayout({
       );
     }
   } catch (error) {
-    if (isUnauthorizedApiError(error)) redirect("/session-expired");
+    if (isUnauthorizedApiError(error)) redirect("/login?reason=session_expired");
     currentBusiness = null;
   }
 

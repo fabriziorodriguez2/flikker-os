@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
 
 function isApiRequest(input: RequestInfo | URL) {
   const rawUrl =
@@ -20,8 +19,6 @@ function isApiRequest(input: RequestInfo | URL) {
 }
 
 export default function SessionExpiryHandler() {
-  const router = useRouter();
-
   useEffect(() => {
     const originalFetch = window.fetch.bind(window);
     let redirecting = false;
@@ -29,7 +26,6 @@ export default function SessionExpiryHandler() {
     const redirectToLogin = () => {
       if (redirecting) return;
       redirecting = true;
-      router.replace('/login?reason=session_expired');
       window.location.replace('/login?reason=session_expired');
     };
 
@@ -46,7 +42,7 @@ export default function SessionExpiryHandler() {
     return () => {
       window.fetch = originalFetch;
     };
-  }, [router]);
+  }, []);
 
   return null;
 }

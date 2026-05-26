@@ -470,8 +470,10 @@
     // ── Carousel ─────────────────────────────────────────────────────────────
     function renderCarousel(data) {
       var cfg = data.widget || {};
-      var reviews = data.reviews;
-      if (!reviews || reviews.length === 0) return;
+      var reviews = (data.reviews || []).filter(function (r) {
+        return r.content && r.content.trim().length > 0;
+      });
+      if (!reviews.length) return;
 
       var color = accentColor;
       var isPaused = false;

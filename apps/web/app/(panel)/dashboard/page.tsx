@@ -6,6 +6,7 @@ import ActivityEvolutionChart from "./activity-evolution-chart";
 import ActivityFilters, { type ActivityGranularity } from "./activity-filters";
 import { ACTIVITY_SERIES } from "./activity-series";
 import NegativeFeedbackList from "./negative-feedback-list";
+import ConversionSection from "./conversion-section";
 
 interface Business {
   name: string;
@@ -316,6 +317,8 @@ export default async function DashboardPage({
           <ActivityEvolutionChart data={metrics.activityByMonth} />
         </div>
       </SectionCard>
+
+      <ConversionSection rawRange={firstValue(resolvedSearchParams.cvRange)} />
 
       <SectionCard
         title="Comentarios negativos recientes"
