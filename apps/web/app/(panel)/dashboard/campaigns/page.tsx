@@ -88,7 +88,7 @@ export default async function CampaignsPage() {
       apiFetch<ActivityItem[]>("/campaigns/activity", accessToken, { businessId }),
     ]);
   } catch (e) {
-    if (isUnauthorizedApiError(e)) redirect("/login?reason=session_expired");
+    if (isUnauthorizedApiError(e)) redirect("/session-expired");
     error = e instanceof Error ? e.message : "Error al cargar campañas";
   }
 

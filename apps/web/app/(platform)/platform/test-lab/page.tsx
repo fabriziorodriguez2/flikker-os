@@ -62,7 +62,7 @@ export default async function PlatformTestLabPage() {
       { cache: "no-store" },
     );
   } catch (err) {
-    if (isUnauthorizedApiError(err)) redirect("/login?reason=session_expired");
+    if (isUnauthorizedApiError(err)) redirect("/session-expired");
     error =
       err instanceof Error ? err.message : "No pudimos preparar el negocio demo";
   }

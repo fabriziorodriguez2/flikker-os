@@ -48,7 +48,7 @@ export default async function ReviewDetailPage({
     );
   } catch (e) {
     if (isUnauthorizedApiError(e)) {
-      redirect("/login?reason=session_expired");
+      redirect("/session-expired");
     }
     if (e instanceof ApiError && e.status === 404) {
       notFound();
@@ -89,7 +89,7 @@ export default async function ReviewDetailPage({
       );
     } catch (e) {
       if (isUnauthorizedApiError(e)) {
-        redirect("/login?reason=session_expired");
+        redirect("/session-expired");
       }
       if (!(e instanceof ApiError && e.status === 404)) {
         responseError =

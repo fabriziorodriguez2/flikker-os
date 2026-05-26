@@ -26,12 +26,15 @@ export default function SessionExpiryHandler() {
     const redirectToLogin = () => {
       if (redirecting) return;
       redirecting = true;
-      // 0.0.0.0 is an invalid browser destination (Docker dev binding). Normalize to localhost.
+      // Route through /session-expired so the server clears the cookie before
+      // redirecting to /login. Without this, middleware that checks cookie presence
+      // bounces the user back to /dashboard even with an expired JWT.
+      // Normalize 0.0.0.0 → localhost (Docker dev binding is not a valid browser dest).
       const host =
         window.location.hostname === '0.0.0.0'
           ? `localhost${window.location.port ? `:${window.location.port}` : ''}`
           : window.location.host;
-      window.location.replace(`${window.location.protocol}//${host}/login?reason=session_expired`);
+      window.location.replace(`${window.location.protocol}//${host}/session-expired`);
     };
 
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
