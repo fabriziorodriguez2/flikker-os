@@ -6,20 +6,19 @@ export function proxy(request: NextRequest) {
   const session = request.cookies.get(SESSION_COOKIE)?.value;
   const { pathname } = request.nextUrl;
 
-  const isAuthRoute = pathname.startsWith('/login');
-  const isPanelRoute = pathname.startsWith('/dashboard');
+  const isDashboard = pathname.startsWith('/dashboard');
 
-  if (isPanelRoute && !session) {
+  // Only protect dashboard routes from unauthenticated access.
+  // We intentionally do NOT redirect authenticated users away from /login —
+  // that check causes an infinite redirect loop when the JWT is expired but
+  // the session cookie is still present.
+  if (isDashboard && !session) {
     return NextResponse.redirect(new URL('/login', request.url));
-  }
-
-  if (isAuthRoute && session) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ['/login', '/dashboard/:path*'],
+  matcher: ['/dashboard/:path*'],
 };
