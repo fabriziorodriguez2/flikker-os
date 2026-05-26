@@ -123,7 +123,7 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
       apiFetch<ReviewsResponse>(buildReviewsPath(stars, period, search), accessToken, { businessId }),
     ]);
   } catch (e) {
-    if (isUnauthorizedApiError(e)) redirect("/session-expired");
+    if (isUnauthorizedApiError(e)) redirect("/login?reason=session_expired");
     error = e instanceof Error ? e.message : "Error al cargar reseñas";
   }
 

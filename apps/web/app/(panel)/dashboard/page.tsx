@@ -228,7 +228,7 @@ export default async function DashboardPage({
       apiFetch<MetricsOverview>(buildMetricsPath(resolvedSearchParams), accessToken, { businessId }),
     ]);
   } catch (e) {
-    if (isUnauthorizedApiError(e)) redirect("/session-expired");
+    if (isUnauthorizedApiError(e)) redirect("/login?reason=session_expired");
     error = e instanceof Error ? e.message : "Error al cargar datos";
   }
 

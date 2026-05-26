@@ -26,7 +26,12 @@ export default function SessionExpiryHandler() {
     const redirectToLogin = () => {
       if (redirecting) return;
       redirecting = true;
-      window.location.replace('/login?reason=session_expired');
+      // 0.0.0.0 is an invalid browser destination (Docker dev binding). Normalize to localhost.
+      const host =
+        window.location.hostname === '0.0.0.0'
+          ? `localhost${window.location.port ? `:${window.location.port}` : ''}`
+          : window.location.host;
+      window.location.replace(`${window.location.protocol}//${host}/login?reason=session_expired`);
     };
 
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
