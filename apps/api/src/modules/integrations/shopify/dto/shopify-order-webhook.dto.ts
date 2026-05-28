@@ -5,7 +5,7 @@ export interface ShopifyCustomerDto {
   phone?: string;
 }
 
-export interface ShopifyBillingAddressDto {
+export interface ShopifyAddressDto {
   phone?: string;
 }
 
@@ -14,5 +14,6 @@ export interface ShopifyOrderWebhookDto {
   email?: string;
   phone?: string;
   customer?: ShopifyCustomerDto;
-  billing_address?: ShopifyBillingAddressDto;
+  billing_address?: ShopifyAddressDto;
+  shipping_address?: ShopifyAddressDto;
 }

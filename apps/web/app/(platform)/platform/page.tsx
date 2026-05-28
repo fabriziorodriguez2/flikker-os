@@ -72,6 +72,12 @@ export default function PlatformPage() {
   const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE_FORM);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncedId, setSyncedId] = useState<string | null>(null);
+  const [createdCredentials, setCreatedCredentials] = useState<{
+    businessId: string;
+    email: string;
+    temporaryPassword: string | null;
+    businessName: string;
+  } | null>(null);
 
 
   useEffect(() => {
@@ -188,8 +194,23 @@ export default function PlatformPage() {
         const data = (await res.json().catch(() => ({}))) as { message?: string };
         throw new Error(data.message ?? "No se pudo crear el negocio");
       }
-      const data = (await res.json()) as { business: { id: string } };
-      router.push(`/platform/businesses/${data.business.id}/onboarding`);
+      const data = (await res.json()) as {
+        business: { id: string };
+        credentials: {
+          email: string;
+          temporaryPassword: string | null;
+          businessName: string;
+        };
+      };
+      setShowCreateForm(false);
+      setCreateForm(EMPTY_CREATE_FORM);
+      setCreatedCredentials({
+        businessId: data.business.id,
+        email: data.credentials.email,
+        temporaryPassword: data.credentials.temporaryPassword,
+        businessName: data.credentials.businessName,
+      });
+      await loadBusinesses();
     } catch (e) {
       setCreateError(e instanceof Error ? e.message : "Error al crear negocio");
     } finally {
@@ -618,6 +639,110 @@ export default function PlatformPage() {
         </div>
       ) : null}
 
+      {createdCredentials ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="credentials-title"
+            className="w-full max-w-md rounded-xl border border-[#E8EAF0] bg-white p-6"
+          >
+            <div className="flex items-start gap-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#639922]/10 text-[#639922]">
+                <Check className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <h2 id="credentials-title" className="text-lg font-bold text-[#1A202C]">
+                  Negocio creado
+                </h2>
+                <p className="mt-1 text-sm text-[#8891A4]">
+                  Guardá estas credenciales antes de continuar. La contraseña no se vuelve a mostrar.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              <CredentialRow label="Negocio" value={createdCredentials.businessName} />
+              <CredentialRow label="Email" value={createdCredentials.email} copyable />
+              {createdCredentials.temporaryPassword ? (
+                <CredentialRow
+                  label="Contraseña temporal"
+                  value={createdCredentials.temporaryPassword}
+                  copyable
+                  highlight
+                />
+              ) : (
+                <p className="rounded-lg border border-[#E8EAF0] bg-[#F5F6FA] px-4 py-3 text-sm text-[#8891A4]">
+                  El usuario ya existía — se reutilizó su contraseña actual.
+                </p>
+              )}
+            </div>
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setCreatedCredentials(null)}
+                className="inline-flex h-10 items-center justify-center rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]"
+              >
+                Cerrar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const id = createdCredentials.businessId;
+                  setCreatedCredentials(null);
+                  router.push(`/platform/businesses/${id}/onboarding`);
+                }}
+                className="inline-flex h-10 items-center justify-center rounded-lg bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4e5db0]"
+              >
+                Ir al onboarding
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+    </div>
+  );
+}
+
+function CredentialRow({
+  label,
+  value,
+  copyable = false,
+  highlight = false,
+}: {
+  label: string;
+  value: string;
+  copyable?: boolean;
+  highlight?: boolean;
+}) {
+  const [copied, setCopied] = useState(false);
+
+  function copy() {
+    void navigator.clipboard.writeText(value).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  return (
+    <div className={`flex items-center justify-between gap-3 rounded-lg border px-4 py-3 ${highlight ? "border-[#5C6BC0]/25 bg-[#EEF0FB]" : "border-[#E8EAF0] bg-[#F9F9FB]"}`}>
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">{label}</p>
+        <p className={`mt-0.5 font-mono text-sm font-semibold break-all ${highlight ? "text-[#3949AB]" : "text-[#1A202C]"}`}>
+          {value}
+        </p>
+      </div>
+      {copyable && (
+        <button
+          type="button"
+          onClick={copy}
+          className="shrink-0 rounded-md border border-[#E8EAF0] bg-white px-3 py-1.5 text-xs font-semibold text-[#5C6BC0] hover:bg-[#F5F6FA]"
+        >
+          {copied ? "Copiado" : "Copiar"}
+        </button>
+      )}
     </div>
   );
 }

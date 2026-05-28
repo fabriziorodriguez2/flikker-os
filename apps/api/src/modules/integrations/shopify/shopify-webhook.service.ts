@@ -39,6 +39,7 @@ export class ShopifyWebhookService {
       order.customer?.phone ||
       order.phone ||
       order.billing_address?.phone ||
+      order.shipping_address?.phone ||
       '';
 
     const customerName = [
