@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PoweredByFlikker from "@/components/ui/powered-by-flikker";
 import type { QrInfo } from "./page";
 
 async function captureContact(
@@ -63,23 +64,20 @@ function CaptureForm({
   }
 
   return (
-    <div
-      className="flex min-h-screen flex-col"
-      style={{ backgroundColor: brand }}
-    >
+    <div className="flex min-h-screen flex-col bg-[#f8fafc]">
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
         {info.logoUrl && (
           <img
             src={info.logoUrl}
             alt={info.businessName}
-            className="mb-6 h-16 w-16 rounded-2xl object-contain shadow"
+            className="mb-5 h-16 w-16 rounded-2xl object-contain shadow"
           />
         )}
 
-        <h1 className="text-center text-2xl font-bold leading-tight text-white">
+        <h1 className="text-center text-2xl font-bold leading-tight text-[#101828]">
           {title}
         </h1>
-        <p className="mt-3 text-center text-sm text-white/75">{subtitle}</p>
+        <p className="mt-3 text-center text-sm text-[#475467]">{subtitle}</p>
 
         <form
           onSubmit={(e) => void handleSubmit(e)}
@@ -91,11 +89,11 @@ function CaptureForm({
             onChange={(e) => setName(e.target.value)}
             placeholder="Tu nombre"
             required
-            className="w-full rounded-2xl border-2 border-white/30 bg-white/10 px-4 py-4 text-sm text-white placeholder:text-white/50 focus:border-white/60 focus:outline-none"
+            className="w-full rounded-2xl border border-[#d0d5dd] bg-white px-4 py-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0]"
           />
 
-          <div className="flex overflow-hidden rounded-2xl border-2 border-white/30 bg-white/10 focus-within:border-white/60">
-            <span className="flex items-center bg-white/10 px-4 text-sm font-medium text-white/80">
+          <div className="flex overflow-hidden rounded-2xl border border-[#d0d5dd] bg-white focus-within:border-[#5C6BC0] focus-within:ring-1 focus-within:ring-[#5C6BC0]">
+            <span className="flex items-center border-r border-[#d0d5dd] bg-[#f3f4f6] px-4 text-sm font-medium text-[#475467]">
               +598
             </span>
             <input
@@ -103,15 +101,15 @@ function CaptureForm({
               inputMode="numeric"
               value={phone}
               onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-              placeholder="09X XXX XXX"
+              placeholder="091624988"
               maxLength={9}
               required
-              className="w-full bg-transparent py-4 pl-3 pr-4 text-sm text-white placeholder:text-white/50 focus:outline-none"
+              className="w-full bg-transparent py-4 pl-3 pr-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:outline-none"
             />
           </div>
 
           {error && (
-            <p className="rounded-xl bg-white/20 px-3 py-2 text-center text-xs text-white">
+            <p className="rounded-xl bg-red-50 px-3 py-2 text-center text-xs text-red-600">
               {error}
             </p>
           )}
@@ -119,20 +117,28 @@ function CaptureForm({
           <button
             type="submit"
             disabled={saving || !name.trim() || phone.length < 8}
-            className="w-full rounded-2xl bg-white py-4 text-sm font-bold transition-opacity disabled:opacity-60"
-            style={{ color: brand }}
+            className="w-full rounded-2xl py-4 text-sm font-bold text-white transition-opacity disabled:opacity-60"
+            style={{ backgroundColor: brand }}
           >
             {saving ? "Registrando…" : btnLabel}
           </button>
         </form>
       </div>
 
-      <p className="pb-5 text-center text-xs text-white/40">Powered by Flikker</p>
+      <p className="pb-5 text-center text-xs text-[#9ca3af]">
+        <PoweredByFlikker />
+      </p>
     </div>
   );
 }
 
-function ConfirmationScreen({ info }: { info: QrInfo }) {
+function ConfirmationScreen({
+  info,
+  businessId,
+}: {
+  info: QrInfo;
+  businessId: string;
+}) {
   const brand = info.primaryColor ?? "#5C6BC0";
   const [showReviewBtn, setShowReviewBtn] = useState(false);
 
@@ -142,47 +148,50 @@ function ConfirmationScreen({ info }: { info: QrInfo }) {
   }, []);
 
   return (
-    <div
-      className="flex min-h-screen flex-col items-center justify-center px-6 py-12"
-      style={{ backgroundColor: brand }}
-    >
-      <div className="w-full max-w-sm text-center">
-        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-white/20 text-4xl">
-          🎉
-        </div>
-        <h2 className="text-2xl font-bold text-white">¡Listo!</h2>
-        <p className="mt-1 text-base text-white/90">Ya quedaste registrado.</p>
+    <div className="flex min-h-screen flex-col bg-[#f8fafc]">
+      <div className="flex flex-1 flex-col items-center justify-center px-6 py-12">
+        <div className="w-full max-w-sm text-center">
+          <div
+            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full text-4xl"
+            style={{ backgroundColor: `${brand}22` }}
+          >
+            🎉
+          </div>
+          <h2 className="text-2xl font-bold text-[#101828]">¡Listo!</h2>
+          <p className="mt-1 text-base text-[#475467]">Ya quedaste registrado.</p>
 
-        <p className="mt-6 text-sm text-white/75">
-          Una última cosa — si alguna vez fuiste a{" "}
-          <span className="font-semibold text-white">{info.businessName}</span>,
-          tu opinión vale mucho para ellos.
-        </p>
+          <p className="mt-6 text-sm text-[#475467]">
+            Si visitaste{" "}
+            <span className="font-semibold text-[#101828]">{info.businessName}</span>,
+            contanos cómo te fue — una reseña ayuda mucho.
+          </p>
 
-        <div
-          className={`mt-8 transition-all duration-700 ${
-            showReviewBtn ? "translate-y-0 opacity-100" : "translate-y-4 opacity-0"
-          }`}
-        >
-          {info.googleBusinessProfileUrl ? (
-            <a
-              href={info.googleBusinessProfileUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="block w-full rounded-2xl bg-white py-4 text-sm font-bold transition-opacity hover:opacity-90"
-              style={{ color: brand }}
-            >
-              Dejar una reseña en Google →
-            </a>
-          ) : (
-            <p className="text-sm text-white/60">
-              ¡Gracias por registrarte! Hasta pronto.
-            </p>
-          )}
+          <div
+            className={`mt-8 transition-all duration-700 ${
+              showReviewBtn
+                ? "translate-y-0 opacity-100"
+                : "translate-y-4 opacity-0"
+            }`}
+          >
+            {info.googleBusinessProfileUrl ? (
+              <a
+                href={`/qr/${encodeURIComponent(businessId)}/review`}
+                className="block w-full rounded-2xl bg-[#111827] py-4 text-sm font-bold text-white transition-opacity hover:opacity-90"
+              >
+                ¿Cómo fue tu experiencia? →
+              </a>
+            ) : (
+              <p className="text-sm text-[#475467]">
+                ¡Gracias por registrarte! Hasta pronto.
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
-      <p className="mt-auto pt-10 text-xs text-white/40">Powered by Flikker</p>
+      <p className="pb-5 text-center text-xs text-[#9ca3af]">
+        <PoweredByFlikker />
+      </p>
     </div>
   );
 }
@@ -196,7 +205,8 @@ export default function QrLandingClient({
 }) {
   const [confirmed, setConfirmed] = useState(false);
 
-  if (confirmed) return <ConfirmationScreen info={info} />;
+  if (confirmed)
+    return <ConfirmationScreen info={info} businessId={businessId} />;
 
   return (
     <CaptureForm
