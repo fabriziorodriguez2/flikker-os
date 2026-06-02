@@ -141,12 +141,7 @@ function ConfirmationScreen({
   businessId: string;
 }) {
   const brand = info.primaryColor ?? "#5C6BC0";
-  const [showReviewBtn, setShowReviewBtn] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setShowReviewBtn(true), 3000);
-    return () => clearTimeout(t);
-  }, []);
+  const showReviewBtn = true;
 
   return (
     <div className="flex min-h-screen flex-col bg-[#f8fafc]">
