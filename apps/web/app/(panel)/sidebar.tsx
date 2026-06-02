@@ -68,6 +68,19 @@ const WidgetIcon = () => (
   </Icon>
 );
 
+const QrIcon = () => (
+  <Icon>
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <path d="M14 14h2v2h-2z" />
+    <path d="M18 14h3" />
+    <path d="M14 18h2" />
+    <path d="M18 18h3" />
+    <path d="M14 21v-2" />
+    <path d="M21 18v3" />
+  </Icon>
+);
 
 const MAIN_NAV_ITEMS = [
   { href: "/dashboard", label: "Panel", icon: <HomeIcon /> },
@@ -75,6 +88,7 @@ const MAIN_NAV_ITEMS = [
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon /> },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
   { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon /> },
+  { href: "/dashboard/qr", label: "QR", icon: <QrIcon /> },
 ];
 
 function isItemActive(pathname: string, href: string) {

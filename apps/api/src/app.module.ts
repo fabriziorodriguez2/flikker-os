@@ -23,6 +23,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { TestLabModule } from './modules/test-lab/test-lab.module';
 import { ShopifyIntegrationModule } from './modules/integrations/shopify/shopify-integration.module';
 import { GoogleCalendarModule } from './modules/integrations/google-calendar/google-calendar.module';
+import { PublicModule } from './modules/public/public.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -50,6 +51,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     TestLabModule,
     ShopifyIntegrationModule,
     GoogleCalendarModule,
+    PublicModule,
   ],
   controllers: [AppController],
 })
