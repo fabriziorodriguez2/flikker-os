@@ -3,7 +3,10 @@ import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import ReviewsFilters from "./reviews-filters";
+import ReviewsPaginator from "./reviews-paginator";
 import ExpandableText from "./expandable-text";
+
+const PAGE_SIZE = 10;
 
 interface GoogleReview {
   id: string;
@@ -52,7 +55,7 @@ function periodToFrom(period: string): string | null {
 }
 
 function buildReviewsPath(stars: string, period: string, search: string) {
-  const q = new URLSearchParams({ limit: "50", sortBy: "reviewedAt" });
+  const q = new URLSearchParams({ limit: "100", sortBy: "reviewedAt" });
   if (stars) {
     q.set("ratingMin", stars);
     q.set("ratingMax", stars);
@@ -112,6 +115,7 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
   const stars = firstValue(resolved.stars);
   const period = firstValue(resolved.period);
   const search = firstValue(resolved.search);
+  const pageNum = Math.max(1, parseInt(firstValue(resolved.page) || "1", 10));
 
   let stats: GoogleStats = { total: 0, thisMonth: 0, avgStars: 0 };
   let reviews: GoogleReview[] = [];
@@ -120,7 +124,11 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
   try {
     [stats, { data: reviews }] = await Promise.all([
       apiFetch<GoogleStats>("/reviews/google/stats", accessToken, { businessId }),
-      apiFetch<ReviewsResponse>(buildReviewsPath(stars, period, search), accessToken, { businessId }),
+      apiFetch<ReviewsResponse>(
+        buildReviewsPath(stars, period, search),
+        accessToken,
+        { businessId },
+      ),
     ]);
   } catch (e) {
     if (isUnauthorizedApiError(e)) redirect("/session-expired");
@@ -178,68 +186,89 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
       </Suspense>
 
       {/* Table */}
-      <section className="overflow-hidden rounded-[12px] border border-[#E8EAF0] bg-white">
-        {reviews.length === 0 ? (
-          <div className="px-5 py-10 text-center text-sm text-[#8891A4]">
-            {stars || period || search
-              ? "No hay reseñas para esos filtros."
-              : "Todavía no hay reseñas de Google detectadas."}
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px] text-left text-sm">
-              <thead className="bg-[#F5F6FA] text-[11px] uppercase tracking-[0.08em] text-[#8891A4]">
-                <tr>
-                  <th className="px-4 py-3 font-semibold">Reseñador</th>
-                  <th className="px-4 py-3 font-semibold">Estrellas</th>
-                  <th className="px-4 py-3 font-semibold">Comentario</th>
-                  <th className="px-4 py-3 font-semibold">Fecha</th>
-                  <th className="px-4 py-3 font-semibold">Atribuida</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reviews.map((review) => (
-                  <tr
-                    key={review.id}
-                    className="border-t border-[#E8EAF0] hover:bg-[#FAFBFC]"
-                  >
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2.5">
-                        <ReviewerAvatar name={review.authorDisplayName} />
-                        <span className="font-semibold text-[#1A202C]">
-                          {review.authorDisplayName ?? "Anónimo"}
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3.5">
-                      <StarRating value={review.rating} />
-                    </td>
-                    <td className="px-4 py-3.5 max-w-[320px]">
-                      {review.content?.trim() ? (
-                        <ExpandableText text={review.content.trim()} />
-                      ) : (
-                        <span className="text-[#8891A4]">Sin comentario</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3.5 text-[#8891A4]">
-                      {formatReviewDate(review.reviewedAt)}
-                    </td>
-                    <td className="px-4 py-3.5">
-                      {review.attributedMessageId ? (
-                        <span className="rounded-full bg-[#EEF7E8] px-2.5 py-1 text-xs font-semibold text-[#639922]">
-                          vía Flikker
-                        </span>
-                      ) : (
-                        <span className="text-[#8891A4]">—</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
+      {(() => {
+        const totalPages = Math.max(1, Math.ceil(reviews.length / PAGE_SIZE));
+        const safePage = Math.min(pageNum, totalPages);
+        const pagedReviews = reviews.slice(
+          (safePage - 1) * PAGE_SIZE,
+          safePage * PAGE_SIZE,
+        );
+
+        return (
+          <section className="overflow-hidden rounded-[12px] border border-[#E8EAF0] bg-white">
+            {reviews.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-[#8891A4]">
+                {stars || period || search
+                  ? "No hay reseñas para esos filtros."
+                  : "Todavía no hay reseñas de Google detectadas."}
+              </div>
+            ) : (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[640px] text-left text-sm">
+                    <thead className="bg-[#F5F6FA] text-[11px] uppercase tracking-[0.08em] text-[#8891A4]">
+                      <tr>
+                        <th className="px-4 py-3 font-semibold">Reseñador</th>
+                        <th className="px-4 py-3 font-semibold">Estrellas</th>
+                        <th className="px-4 py-3 font-semibold">Comentario</th>
+                        <th className="px-4 py-3 font-semibold">Fecha</th>
+                        <th className="px-4 py-3 font-semibold">Atribuida</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pagedReviews.map((review) => (
+                        <tr
+                          key={review.id}
+                          className="border-t border-[#E8EAF0] hover:bg-[#FAFBFC]"
+                        >
+                          <td className="px-4 py-3.5">
+                            <div className="flex items-center gap-2.5">
+                              <ReviewerAvatar name={review.authorDisplayName} />
+                              <span className="font-semibold text-[#1A202C]">
+                                {review.authorDisplayName ?? "Anónimo"}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3.5">
+                            <StarRating value={review.rating} />
+                          </td>
+                          <td className="max-w-[320px] px-4 py-3.5">
+                            {review.content?.trim() ? (
+                              <ExpandableText text={review.content.trim()} />
+                            ) : (
+                              <span className="text-[#8891A4]">Sin comentario</span>
+                            )}
+                          </td>
+                          <td className="px-4 py-3.5 text-[#8891A4]">
+                            {formatReviewDate(review.reviewedAt)}
+                          </td>
+                          <td className="px-4 py-3.5">
+                            {review.attributedMessageId ? (
+                              <span className="rounded-full bg-[#EEF7E8] px-2.5 py-1 text-xs font-semibold text-[#639922]">
+                                vía Flikker
+                              </span>
+                            ) : (
+                              <span className="text-[#8891A4]">—</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="border-t border-[#E8EAF0]">
+                  <Suspense>
+                    <ReviewsPaginator
+                      currentPage={safePage}
+                      totalPages={totalPages}
+                    />
+                  </Suspense>
+                </div>
+              </>
+            )}
+          </section>
+        );
+      })()}
     </div>
   );
 }

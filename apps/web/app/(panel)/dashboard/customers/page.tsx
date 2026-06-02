@@ -186,6 +186,7 @@ export default function CustomersPage() {
   const canMutate = useCanMutate();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
+  const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
@@ -207,10 +208,10 @@ export default function CustomersPage() {
   const [dragActive, setDragActive] = useState(false);
 
   const query = useMemo(() => {
-    const params = new URLSearchParams({ page: "1", limit: "25" });
+    const params = new URLSearchParams({ page: String(page), limit: "10" });
     if (search.trim()) params.set("search", search.trim());
     return params.toString();
-  }, [search]);
+  }, [page, search]);
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -430,7 +431,10 @@ export default function CustomersPage() {
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8891A4]" />
           <input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => {
+              setSearch(e.target.value);
+              setPage(1);
+            }}
             className="h-10 w-full rounded-[8px] border border-[#E8EAF0] bg-white pl-10 pr-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]"
             placeholder="Buscar por nombre o teléfono"
           />
@@ -653,9 +657,41 @@ export default function CustomersPage() {
         </table>
       </div>
 
-      <p className="text-xs text-[#8891A4]">
-        Mostrando {customers.length} de {total} clientes
-      </p>
+      {(() => {
+        const totalPages = Math.max(1, Math.ceil(total / 10));
+        return (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-[#8891A4]">
+              {total > 0
+                ? `${(page - 1) * 10 + 1}–${Math.min(page * 10, total)} de ${total} clientes`
+                : "0 clientes"}
+            </p>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={page <= 1}
+                  className="inline-flex h-8 items-center rounded-[8px] border border-[#E8EAF0] px-3 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-40"
+                >
+                  ← Anterior
+                </button>
+                <span className="text-sm text-[#8891A4]">
+                  {page} / {totalPages}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={page >= totalPages}
+                  className="inline-flex h-8 items-center rounded-[8px] border border-[#E8EAF0] px-3 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-40"
+                >
+                  Siguiente →
+                </button>
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {showForm ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
