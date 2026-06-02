@@ -72,6 +72,17 @@ function toDateInput(value: string | null | undefined) {
   return new Date(value).toISOString().slice(0, 10);
 }
 
+const STAR_RAYS = [
+  { tx: 0,   ty: -78 },
+  { tx: 55,  ty: -55 },
+  { tx: 78,  ty: 0   },
+  { tx: 55,  ty: 55  },
+  { tx: 0,   ty: 78  },
+  { tx: -55, ty: 55  },
+  { tx: -78, ty: 0   },
+  { tx: -55, ty: -55 },
+];
+
 function CelebrationModal({ name, onDone }: { name: string; onDone: () => void }) {
   const [visible, setVisible] = useState(false);
   const onDoneRef = useRef(onDone);
@@ -79,8 +90,8 @@ function CelebrationModal({ name, onDone }: { name: string; onDone: () => void }
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => setVisible(true));
-    const exitTimer = setTimeout(() => setVisible(false), 1300);
-    const doneTimer = setTimeout(() => onDoneRef.current(), 1600);
+    const exitTimer = setTimeout(() => setVisible(false), 1800);
+    const doneTimer = setTimeout(() => onDoneRef.current(), 2100);
     return () => {
       cancelAnimationFrame(raf);
       clearTimeout(exitTimer);
@@ -89,25 +100,85 @@ function CelebrationModal({ name, onDone }: { name: string; onDone: () => void }
   }, []);
 
   return (
-    <div
-      className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300 ${
-        visible ? "opacity-100" : "opacity-0"
-      }`}
-    >
+    <>
+      <style>{`
+        @keyframes flk-star-out {
+          0%   { transform: translate(0,0) scale(0); opacity: 0; }
+          25%  { opacity: 1; }
+          100% { transform: translate(var(--tx), var(--ty)) scale(1.1); opacity: 0; }
+        }
+        @keyframes flk-check-pop {
+          0%   { transform: scale(0.4); opacity: 0; }
+          55%  { transform: scale(1.18); }
+          75%  { transform: scale(0.93); }
+          100% { transform: scale(1);   opacity: 1; }
+        }
+        @keyframes flk-text-up {
+          0%   { transform: translateY(8px); opacity: 0; }
+          100% { transform: translateY(0);   opacity: 1; }
+        }
+      `}</style>
       <div
-        className={`flex flex-col items-center gap-5 rounded-2xl bg-white px-12 py-9 shadow-2xl transition-all duration-300 ${
-          visible ? "scale-100 opacity-100" : "scale-90 opacity-0"
+        className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300 ${
+          visible ? "opacity-100" : "opacity-0"
         }`}
       >
-        <div className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#639922]/12">
-          <Check strokeWidth={3} className="h-9 w-9 text-[#639922]" />
-        </div>
-        <div className="text-center">
-          <p className="text-[18px] font-bold text-[#1A202C]">{name}</p>
-          <p className="mt-1 text-sm text-[#8891A4]">Pedido de reseña programado ✓</p>
+        <div
+          className={`relative flex flex-col items-center gap-5 rounded-2xl bg-white px-14 py-10 shadow-2xl transition-all duration-300 ${
+            visible ? "scale-100 opacity-100" : "scale-90 opacity-0"
+          }`}
+        >
+          {/* star burst */}
+          <div className="pointer-events-none absolute inset-0 flex items-start justify-center" style={{ top: 40 }}>
+            {STAR_RAYS.map((ray, i) => (
+              <span
+                key={i}
+                style={
+                  {
+                    position: "absolute",
+                    "--tx": `${ray.tx}px`,
+                    "--ty": `${ray.ty}px`,
+                    animation: visible
+                      ? `flk-star-out 0.65s cubic-bezier(0.22,1,0.36,1) ${i * 0.04}s forwards`
+                      : "none",
+                    fontSize: i % 2 === 0 ? 18 : 13,
+                    lineHeight: 1,
+                  } as React.CSSProperties
+                }
+              >
+                {i % 2 === 0 ? "★" : "✦"}
+              </span>
+            ))}
+          </div>
+
+          {/* checkmark */}
+          <div
+            style={{
+              animation: visible ? "flk-check-pop 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards" : "none",
+              opacity: 0,
+            }}
+            className="flex h-[76px] w-[76px] items-center justify-center rounded-full bg-[#639922]/10"
+          >
+            <Check strokeWidth={3} className="h-9 w-9 text-[#639922]" />
+          </div>
+
+          {/* text */}
+          <div
+            className="text-center"
+            style={{
+              animation: visible ? "flk-text-up 0.4s ease-out 0.25s both" : "none",
+              opacity: 0,
+            }}
+          >
+            <p className="text-[18px] font-bold text-[#1A202C]">{name}</p>
+            <p className="mt-1 text-sm text-[#8891A4]">Pedido de reseña en camino</p>
+            <p className="mt-3 text-[13px] font-semibold text-[#639922]">
+              ¡Así se construye reputación!
+            </p>
+          </div>
         </div>
       </div>
-    </div>
+    </>
   );
 }
 
