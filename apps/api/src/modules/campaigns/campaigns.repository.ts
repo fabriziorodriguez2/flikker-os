@@ -15,8 +15,8 @@ export class CampaignsRepository {
 
   async findManyByBusiness(businessId: string, status?: CampaignStatus) {
     const monthStart = new Date();
-    monthStart.setDate(1);
-    monthStart.setHours(0, 0, 0, 0);
+    monthStart.setUTCDate(1);
+    monthStart.setUTCHours(0, 0, 0, 0);
 
     const [campaigns, monthlySentGroups, respondedGroups, qrScanCount] =
       await Promise.all([

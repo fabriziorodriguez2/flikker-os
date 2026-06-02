@@ -55,7 +55,7 @@ function CaptureForm({
     e.preventDefault();
     setError(null);
     setSaving(true);
-    const result = await captureContact(businessId, name.trim(), `+598${phone}`);
+    const result = await captureContact(businessId, name.trim(), phone);
     if (result.ok) {
       onSuccess();
     } else {
