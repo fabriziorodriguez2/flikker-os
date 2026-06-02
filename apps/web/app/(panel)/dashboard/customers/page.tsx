@@ -126,7 +126,6 @@ export default function CustomersPage() {
   const [showImport, setShowImport] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [lastServiceAt, setLastServiceAt] = useState("");
   const [birthday, setBirthday] = useState("");
   const [saving, setSaving] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
@@ -174,7 +173,6 @@ export default function CustomersPage() {
     setEditing(null);
     setName("");
     setPhone("");
-    setLastServiceAt("");
     setBirthday("");
     setShowForm(true);
   }
@@ -183,7 +181,6 @@ export default function CustomersPage() {
     setEditing(customer);
     setName(customer.name);
     setPhone(customer.phoneE164);
-    setLastServiceAt("");
     setBirthday(toDateInput(customer.birthday));
     setShowForm(true);
   }
@@ -207,7 +204,6 @@ export default function CustomersPage() {
           body: JSON.stringify({
             name,
             phone,
-            lastServiceAt: lastServiceAt || undefined,
             birthday: birthday || undefined,
           }),
         },
@@ -599,9 +595,6 @@ export default function CustomersPage() {
             <h2 className="text-lg font-bold text-[#1A202C]">
               {editing ? "Editar cliente" : "Nuevo cliente"}
             </h2>
-            <p className="mt-1 text-sm text-[#8891A4]">
-              La fecha de nacimiento es opcional y se usa para cumpleaños.
-            </p>
             <div className="mt-5 grid gap-4">
               <label className="grid gap-2 text-sm font-semibold text-[#1A202C]">
                 Nombre
@@ -614,24 +607,18 @@ export default function CustomersPage() {
                 />
               </label>
               <PhoneInput label="Teléfono" value={phone} onChange={setPhone} required />
-              <label className="grid gap-2 text-sm font-semibold text-[#1A202C]">
-                Fecha de alta / atención
-                <input
-                  type="date"
-                  value={lastServiceAt}
-                  onChange={(e) => setLastServiceAt(e.target.value)}
-                  className={inputClass}
-                />
-              </label>
-              <label className="grid gap-2 text-sm font-semibold text-[#1A202C]">
-                Fecha de nacimiento opcional
-                <input
-                  type="date"
-                  value={birthday}
-                  onChange={(e) => setBirthday(e.target.value)}
-                  className={inputClass}
-                />
-              </label>
+              <div className="grid gap-2">
+                <label className="text-sm font-semibold text-[#1A202C]">
+                  Fecha de nacimiento
+                  <input
+                    type="date"
+                    value={birthday}
+                    onChange={(e) => setBirthday(e.target.value)}
+                    className={`${inputClass} mt-2`}
+                  />
+                </label>
+                <p className="text-xs text-[#B0B8C9]">Opcional · se usa para la campaña de cumpleaños</p>
+              </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">
               <button
