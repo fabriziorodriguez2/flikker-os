@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ArrowRight } from "lucide-react";
 import PoweredByFlikker from "@/components/ui/powered-by-flikker";
 import type { QrInfo } from "./page";
 
@@ -163,7 +164,7 @@ function ConfirmationScreen({
           <p className="mt-6 text-sm text-[#475467]">
             Si visitaste{" "}
             <span className="font-semibold text-[#101828]">{info.businessName}</span>,
-            contanos cómo te fue — una reseña ayuda mucho.
+            contanos cómo te fue. Una reseña ayuda mucho.
           </p>
 
           <div
@@ -176,9 +177,10 @@ function ConfirmationScreen({
             {info.googleBusinessProfileUrl ? (
               <a
                 href={`/qr/${encodeURIComponent(businessId)}/review`}
-                className="block w-full rounded-2xl bg-[#111827] py-4 text-sm font-bold text-white transition-opacity hover:opacity-90"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-[#111827] py-4 text-sm font-bold text-white transition-opacity hover:opacity-90"
               >
-                ¿Cómo fue tu experiencia? →
+                ¿Cómo fue tu experiencia?
+                <ArrowRight className="h-4 w-4" />
               </a>
             ) : (
               <p className="text-sm text-[#475467]">
@@ -186,12 +188,12 @@ function ConfirmationScreen({
               </p>
             )}
           </div>
+
+          <footer className="mt-8 flex items-center justify-center text-xs text-[#9ca3af]">
+            <PoweredByFlikker />
+          </footer>
         </div>
       </div>
-
-      <p className="pb-5 text-center text-xs text-[#9ca3af]">
-        <PoweredByFlikker />
-      </p>
     </div>
   );
 }
