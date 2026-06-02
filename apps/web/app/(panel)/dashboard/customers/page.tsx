@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Check,
@@ -72,6 +72,45 @@ function toDateInput(value: string | null | undefined) {
   return new Date(value).toISOString().slice(0, 10);
 }
 
+function CelebrationModal({ name, onDone }: { name: string; onDone: () => void }) {
+  const [visible, setVisible] = useState(false);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setVisible(true));
+    const exitTimer = setTimeout(() => setVisible(false), 1300);
+    const doneTimer = setTimeout(() => onDoneRef.current(), 1600);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(exitTimer);
+      clearTimeout(doneTimer);
+    };
+  }, []);
+
+  return (
+    <div
+      className={`fixed inset-0 z-50 flex items-center justify-center transition-opacity duration-300 ${
+        visible ? "opacity-100" : "opacity-0"
+      }`}
+    >
+      <div
+        className={`flex flex-col items-center gap-5 rounded-2xl bg-white px-12 py-9 shadow-2xl transition-all duration-300 ${
+          visible ? "scale-100 opacity-100" : "scale-90 opacity-0"
+        }`}
+      >
+        <div className="flex h-[72px] w-[72px] items-center justify-center rounded-full bg-[#639922]/12">
+          <Check strokeWidth={3} className="h-9 w-9 text-[#639922]" />
+        </div>
+        <div className="text-center">
+          <p className="text-[18px] font-bold text-[#1A202C]">{name}</p>
+          <p className="mt-1 text-sm text-[#8891A4]">Pedido de reseña programado ✓</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function CustomersPage() {
   const canMutate = useCanMutate();
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -80,6 +119,7 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [celebrationName, setCelebrationName] = useState<string | null>(null);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Customer | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -205,7 +245,6 @@ export default function CustomersPage() {
   }
 
   async function handleAttendedToday(customer: Customer) {
-    setMessage(null);
     setError(null);
     try {
       const res = await fetch("/api/proxy/service-events", {
@@ -219,9 +258,7 @@ export default function CustomersPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message ?? "Error al registrar atención");
-      setMessage(
-        `${customer.name} recibirá el pedido de reseña en los próximos 30 minutos.`,
-      );
+      setCelebrationName(customer.name);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al registrar atención");
     }
@@ -610,6 +647,13 @@ export default function CustomersPage() {
             </div>
           </form>
         </div>
+      ) : null}
+
+      {celebrationName ? (
+        <CelebrationModal
+          name={celebrationName}
+          onDone={() => setCelebrationName(null)}
+        />
       ) : null}
 
       {pendingDelete ? (
