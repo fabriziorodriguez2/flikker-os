@@ -3,6 +3,7 @@ import {
   CampaignStatus,
   CampaignChannel,
   CampaignExecutionStatus,
+  CampaignTemplateKind,
   DestinationType,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -17,37 +18,45 @@ export class CampaignsRepository {
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
 
-    const [campaigns, monthlySentGroups, respondedGroups] = await Promise.all([
-      this.prisma.campaign.findMany({
-        where: { businessId, ...(status ? { status } : {}) },
-        include: {
-          branch: { select: { id: true, name: true, slug: true } },
-          _count: {
-            select: { qrCodes: true, scanEvents: true, executions: true },
+    const [campaigns, monthlySentGroups, respondedGroups, qrScanCount] =
+      await Promise.all([
+        this.prisma.campaign.findMany({
+          where: { businessId, ...(status ? { status } : {}) },
+          include: {
+            branch: { select: { id: true, name: true, slug: true } },
+            _count: {
+              select: { qrCodes: true, scanEvents: true, executions: true },
+            },
           },
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.prisma.campaignExecution.groupBy({
-        by: ['campaignId'],
-        where: {
-          businessId,
-          executedAt: { gte: monthStart },
-          status: {
-            in: [
-              CampaignExecutionStatus.sent,
-              CampaignExecutionStatus.responded,
-            ],
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.prisma.campaignExecution.groupBy({
+          by: ['campaignId'],
+          where: {
+            businessId,
+            executedAt: { gte: monthStart },
+            status: {
+              in: [
+                CampaignExecutionStatus.sent,
+                CampaignExecutionStatus.responded,
+              ],
+            },
           },
-        },
-        _count: { id: true },
-      }),
-      this.prisma.campaignExecution.groupBy({
-        by: ['campaignId'],
-        where: { businessId, status: CampaignExecutionStatus.responded },
-        _count: { id: true },
-      }),
-    ]);
+          _count: { id: true },
+        }),
+        this.prisma.campaignExecution.groupBy({
+          by: ['campaignId'],
+          where: { businessId, status: CampaignExecutionStatus.responded },
+          _count: { id: true },
+        }),
+        this.prisma.scanEvent.count({
+          where: {
+            businessId,
+            scannedAt: { gte: monthStart },
+            campaign: { templateKind: CampaignTemplateKind.qr_capture },
+          },
+        }),
+      ]);
 
     const monthlySentMap = new Map(
       monthlySentGroups.map((g) => [g.campaignId, g._count.id]),
@@ -60,6 +69,10 @@ export class CampaignsRepository {
       ...c,
       monthlySent: monthlySentMap.get(c.id) ?? 0,
       respondedTotal: respondedMap.get(c.id) ?? 0,
+      scanCount:
+        c.templateKind === CampaignTemplateKind.qr_capture
+          ? qrScanCount
+          : undefined,
     }));
   }
 

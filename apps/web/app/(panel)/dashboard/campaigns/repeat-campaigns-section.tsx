@@ -16,6 +16,7 @@ export interface RepeatCampaign {
   description: string | null;
   monthlySent: number;
   respondedTotal: number; // kept for API compat, not displayed
+  scanCount?: number;
 }
 
 function CampaignIcon({ kind }: { kind: string | null }) {
@@ -267,14 +268,31 @@ export default function RepeatCampaignsSection({
 
             <div className="hidden h-12 w-px bg-[#E8EAF0] lg:block" />
 
-            <div className="text-center">
-              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
-                Enviados mes
-              </p>
-              <p className="mt-1 text-lg font-bold text-[#1A202C]">
-                {campaign.monthlySent}
-              </p>
-            </div>
+            {campaign.templateKind === "qr_capture" ? (
+              <div className="text-center">
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+                  Escaneos mes
+                </p>
+                {campaign.scanCount ? (
+                  <p className="mt-1 text-lg font-bold text-[#1A202C]">
+                    {campaign.scanCount}
+                  </p>
+                ) : (
+                  <p className="mt-1 text-[10px] font-medium leading-tight text-[#B0B8C9]">
+                    Aún sin escaneos. ¿Pusiste el QR?
+                  </p>
+                )}
+              </div>
+            ) : (
+              <div className="text-center">
+                <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+                  Enviados mes
+                </p>
+                <p className="mt-1 text-lg font-bold text-[#1A202C]">
+                  {campaign.monthlySent}
+                </p>
+              </div>
+            )}
 
             <CampaignStatusToggle
               active={campaign.status === "ACTIVE"}
