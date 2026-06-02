@@ -66,6 +66,7 @@ enum CampaignTemplateKind {
   post_service
   reactivation
   birthday
+  qr_capture
 }
 
 enum CampaignExecutionStatus {

@@ -35,6 +35,15 @@ export const REPEAT_TEMPLATES = [
     messageBody: 'Feliz cumple, {nombre}! Te saluda {clinica}. {oferta}',
     offerText: '',
   },
+  {
+    slug: 'qr-captacion',
+    name: 'QR Captación',
+    description: 'Captación de contactos vía QR. Activo = el landing funciona y se registran scans.',
+    templateKind: CampaignTemplateKind.qr_capture,
+    triggerOffsetDays: 0,
+    messageBody: '',
+    offerText: '',
+  },
 ] as const;
 
 export const REPEAT_TEMPLATE_DEFAULTS = {

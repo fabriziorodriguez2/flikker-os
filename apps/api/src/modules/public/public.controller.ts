@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Param, Body, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Param, Body, HttpCode, Headers } from '@nestjs/common';
 import { IsString, IsNotEmpty } from 'class-validator';
 import { PublicService } from './public.service';
 
@@ -17,8 +17,11 @@ export class PublicController {
   constructor(private readonly publicService: PublicService) {}
 
   @Get('qr/:businessId')
-  getQrInfo(@Param('businessId') businessId: string) {
-    return this.publicService.getQrInfo(businessId);
+  getQrInfo(
+    @Param('businessId') businessId: string,
+    @Headers('user-agent') userAgent?: string,
+  ) {
+    return this.publicService.getQrInfo(businessId, userAgent);
   }
 
   @Post('qr/:businessId/capture')

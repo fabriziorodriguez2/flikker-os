@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Check, Clock3, Edit2, Gift, UserRound } from "lucide-react";
+import { Check, Clock3, Edit2, Gift, QrCode, UserRound } from "lucide-react";
 import CampaignStatusToggle from "@/components/campaigns/campaign-status-toggle";
 
 export interface RepeatCampaign {
@@ -22,6 +22,7 @@ function CampaignIcon({ kind }: { kind: string | null }) {
   const cls = "h-5 w-5";
   if (kind === "birthday") return <Gift className={cls} />;
   if (kind === "reactivation") return <UserRound className={cls} />;
+  if (kind === "qr_capture") return <QrCode className={cls} />;
   return <Clock3 className={cls} />;
 }
 
@@ -40,6 +41,9 @@ function descriptionFor(c: RepeatCampaign) {
   if (c.templateKind === "post_service") {
     return "Mensaje automático luego de la atención.";
   }
+  if (c.templateKind === "qr_capture") {
+    return "Captación de contactos vía QR. Activá para que el landing funcione.";
+  }
   return c.description ?? "Campaña automática.";
 }
 
@@ -49,6 +53,9 @@ function metadataFor(c: RepeatCampaign) {
   }
   if (c.templateKind === "reactivation") {
     return "WhatsApp · primer martes de cada mes · 10:00";
+  }
+  if (c.templateKind === "qr_capture") {
+    return "Sin mensajes automáticos · registra scans al landing";
   }
   return "WhatsApp · clientes con consentimiento";
 }
@@ -200,7 +207,7 @@ export default function RepeatCampaignsSection({
             Campañas automáticas
           </h2>
           <p className="mt-1 text-sm text-[#8891A4]">
-            Las 3 campañas Repeat vienen pre-armadas. Activá o pausá cuando quieras.
+            Las campañas automáticas vienen pre-armadas. Activá o pausá cuando quieras.
           </p>
         </div>
         <span className="rounded-full bg-[#EEF7E8] px-3 py-1 text-xs font-semibold text-[#639922]">
@@ -276,7 +283,15 @@ export default function RepeatCampaignsSection({
             />
 
             <div className="flex justify-end">
-              {campaign.templateKind !== "post_service" ? (
+              {campaign.templateKind === "qr_capture" ? (
+                <Link
+                  href="/dashboard/qr"
+                  className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#E8EAF0] px-3 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]"
+                >
+                  <QrCode className="h-4 w-4" />
+                  Ver QR
+                </Link>
+              ) : campaign.templateKind !== "post_service" ? (
                 <Link
                   href={`/dashboard/campaigns/${campaign.id}`}
                   className="inline-flex h-9 items-center gap-2 rounded-[8px] border border-[#E8EAF0] px-3 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]"
