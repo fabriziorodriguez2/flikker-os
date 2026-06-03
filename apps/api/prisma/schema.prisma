@@ -283,6 +283,7 @@ model Business {
   shopifyOrders             ShopifyOrder[]
   googleCalendarIntegration GoogleCalendarIntegration?
   calendarEvents            CalendarEvent[]
+  manualCampaigns           ManualCampaign[]
 }
 
 // ---------------------------------------------------------------------------
@@ -496,19 +497,22 @@ model Customer {
   optedOut   Boolean   @default(false) @map("opted_out")
   isActive   Boolean   @default(true)
   tags       Json?
+  origin     String    @default("manual")
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  business           Business            @relation(fields: [businessId], references: [id])
-  serviceEvents      ServiceEvent[]
-  messages           Message[]
-  campaignExecutions CampaignExecution[]
-  feedbackResponses  FeedbackResponse[]
+  business               Business               @relation(fields: [businessId], references: [id])
+  serviceEvents          ServiceEvent[]
+  messages               Message[]
+  campaignExecutions     CampaignExecution[]
+  feedbackResponses      FeedbackResponse[]
+  manualCampaignContacts ManualCampaignContact[]
 
   @@index([businessId])
   @@index([businessId, isActive])
   @@index([businessId, phoneE164])
   @@index([businessId, birthday])
+  @@index([businessId, origin])
 }
 
 // ---------------------------------------------------------------------------
@@ -984,4 +988,44 @@ model CalendarEvent {
   @@index([integrationId])
   @@index([businessId, status])
   @@index([businessId, startAt])
+}
+
+// ---------------------------------------------------------------------------
+// ManualCampaign (one-off WhatsApp blasts created from the panel)
+// ---------------------------------------------------------------------------
+
+model ManualCampaign {
+  id              String   @id @default(uuid())
+  businessId      String   @map("business_id")
+  createdByUserId String?  @map("created_by_user_id")
+  messageBody     String   @map("message_body")
+  totalCount      Int      @default(0) @map("total_count")
+  sentCount       Int      @default(0) @map("sent_count")
+  failedCount     Int      @default(0) @map("failed_count")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  business Business               @relation(fields: [businessId], references: [id])
+  contacts ManualCampaignContact[]
+
+  @@index([businessId])
+}
+
+model ManualCampaignContact {
+  id               String    @id @default(uuid())
+  manualCampaignId String    @map("manual_campaign_id")
+  businessId       String    @map("business_id")
+  customerId       String?   @map("customer_id")
+  phoneE164        String    @map("phone_e164")
+  name             String
+  status           String    @default("pending")
+  sentAt           DateTime? @map("sent_at")
+  failReason       String?   @map("fail_reason")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  manualCampaign ManualCampaign @relation(fields: [manualCampaignId], references: [id])
+  customer       Customer?      @relation(fields: [customerId], references: [id])
+
+  @@index([manualCampaignId])
+  @@index([businessId])
 }

@@ -37,14 +37,32 @@ export class CustomersService {
 
   async list(
     businessId: string,
-    query: { search?: string; page?: string; limit?: string },
+    query: {
+      search?: string;
+      page?: string;
+      limit?: string;
+      origin?: string;
+      from?: string;
+      to?: string;
+    },
   ) {
     const page = Math.max(Number(query.page ?? 1), 1);
     const limit = Math.min(Math.max(Number(query.limit ?? 20), 1), 100);
+
+    const originFilter = query.origin
+      ? query.origin.split(',').filter(Boolean)
+      : undefined;
+
+    const from = query.from ? new Date(query.from) : undefined;
+    const to = query.to ? new Date(query.to) : undefined;
+
     const [total, data] = await this.repository.findMany(businessId, {
       search: query.search?.trim() || undefined,
       page,
       limit,
+      origin: originFilter,
+      from,
+      to,
     });
 
     return { data, total, page, limit };

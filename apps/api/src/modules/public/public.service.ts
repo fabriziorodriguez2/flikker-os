@@ -83,7 +83,7 @@ export class PublicService {
       });
     } else {
       await this.prisma.customer.create({
-        data: { businessId, name, phoneE164 },
+        data: { businessId, name, phoneE164, origin: 'qr' },
       });
     }
 

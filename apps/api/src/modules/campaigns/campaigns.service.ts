@@ -14,6 +14,8 @@ import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
 import { UpdateRepeatCampaignDto } from './dto/update-repeat-campaign.dto';
 import { UpdateCampaignStatusDto } from './dto/update-campaign-status.dto';
+import { SendManualCampaignDto } from './dto/send-manual-campaign.dto';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 
 /** Allowed status transitions: from → [to, to, ...] */
 const STATUS_TRANSITIONS: Record<CampaignStatus, CampaignStatus[]> = {
@@ -35,6 +37,7 @@ export class CampaignsService {
     private readonly branchesRepository: BranchesRepository,
     private readonly plansService: PlansService,
     private readonly auditService: AuditService,
+    private readonly whatsApp: WhatsAppBspService,
   ) {}
 
   async listForBusiness(
@@ -257,6 +260,67 @@ export class CampaignsService {
       campaignId,
       dto.status,
     );
+  }
+
+  async sendManual(
+    businessId: string,
+    userId: string,
+    dto: SendManualCampaignDto,
+  ) {
+    if (!dto.recipients || dto.recipients.length === 0) {
+      throw new BadRequestException('At least one recipient is required');
+    }
+
+    const businessName =
+      await this.campaignsRepository.getBusinessName(businessId);
+    const campaign = await this.campaignsRepository.createManualCampaign(
+      businessId,
+      userId,
+      { messageBody: dto.messageBody, recipients: dto.recipients },
+    );
+
+    const contacts =
+      await this.campaignsRepository.findManualCampaignContacts(campaign.id);
+
+    let sent = 0;
+    let failed = 0;
+    const BATCH_SIZE = 10;
+
+    for (let i = 0; i < contacts.length; i += BATCH_SIZE) {
+      if (i > 0) await new Promise((resolve) => setTimeout(resolve, 1000));
+      const batch = contacts.slice(i, i + BATCH_SIZE);
+      await Promise.all(
+        batch.map(async (contact) => {
+          try {
+            const text = dto.messageBody
+              .replace(/{nombre}/g, contact.name)
+              .replace(/{negocio}/g, businessName);
+            await this.whatsApp.sendText({ phone: contact.phoneE164, text });
+            await this.campaignsRepository.updateManualCampaignContact(
+              contact.id,
+              true,
+            );
+            sent++;
+          } catch (err) {
+            const reason =
+              err instanceof Error ? err.message : 'Error al enviar';
+            await this.campaignsRepository.updateManualCampaignContact(
+              contact.id,
+              false,
+              reason,
+            );
+            failed++;
+          }
+        }),
+      );
+    }
+
+    await this.campaignsRepository.updateManualCampaignStats(
+      campaign.id,
+      sent,
+      failed,
+    );
+    return { campaignId: campaign.id, sent, failed };
   }
 
   private async assertBranchBelongsToBusiness(

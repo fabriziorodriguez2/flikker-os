@@ -6,10 +6,12 @@ import {
   Check,
   Download,
   Edit2,
+  MessageSquarePlus,
   Plus,
   Search,
   Trash2,
   Upload,
+  X,
 } from "lucide-react";
 import Papa from "papaparse";
 import * as XLSX from "xlsx";
@@ -26,6 +28,8 @@ interface Customer {
   optedOut: boolean;
   createdAt: string;
   birthday: string | null;
+  origin: string;
+  attendedToday: boolean;
 }
 
 interface CustomersResponse {
@@ -58,6 +62,28 @@ const buttonBase =
 const secondaryButton = `${buttonBase} border border-[#E8EAF0] bg-white text-[#1A202C] hover:bg-[#F5F6FA]`;
 const primaryButton = `${buttonBase} bg-[#5C6BC0] text-white hover:bg-[#4f5eb0]`;
 
+const ORIGIN_LABELS: Record<string, string> = {
+  qr: "QR",
+  whatsapp: "WhatsApp",
+  manual: "Manual",
+};
+
+const ORIGIN_COLORS: Record<string, string> = {
+  qr: "bg-[#EEF0FB] text-[#5C6BC0]",
+  whatsapp: "bg-[#E8F5E9] text-[#2E7D32]",
+  manual: "bg-[#F5F6FA] text-[#8891A4]",
+};
+
+function OriginBadge({ origin }: { origin: string }) {
+  const label = ORIGIN_LABELS[origin] ?? origin;
+  const color = ORIGIN_COLORS[origin] ?? "bg-[#F5F6FA] text-[#8891A4]";
+  return (
+    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${color}`}>
+      {label}
+    </span>
+  );
+}
+
 function formatDate(value: string | null | undefined) {
   if (!value) return "-";
   return new Intl.DateTimeFormat("es-UY", {
@@ -72,18 +98,40 @@ function toDateInput(value: string | null | undefined) {
   return new Date(value).toISOString().slice(0, 10);
 }
 
+function periodToRange(period: string): { from?: string; to?: string } {
+  const now = new Date();
+  if (period === "month") {
+    const from = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    return { from: from.toISOString() };
+  }
+  if (period === "lastMonth") {
+    const from = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1),
+    );
+    const to = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    return { from: from.toISOString(), to: to.toISOString() };
+  }
+  return {};
+}
+
 const STAR_RAYS = [
-  { tx: 0,   ty: -78 },
-  { tx: 55,  ty: -55 },
-  { tx: 78,  ty: 0   },
-  { tx: 55,  ty: 55  },
-  { tx: 0,   ty: 78  },
-  { tx: -55, ty: 55  },
-  { tx: -78, ty: 0   },
+  { tx: 0, ty: -78 },
+  { tx: 55, ty: -55 },
+  { tx: 78, ty: 0 },
+  { tx: 55, ty: 55 },
+  { tx: 0, ty: 78 },
+  { tx: -55, ty: 55 },
+  { tx: -78, ty: 0 },
   { tx: -55, ty: -55 },
 ];
 
-function CelebrationModal({ name, onDone }: { name: string; onDone: () => void }) {
+function CelebrationModal({
+  name,
+  onDone,
+}: {
+  name: string;
+  onDone: () => void;
+}) {
   const [visible, setVisible] = useState(false);
   const onDoneRef = useRef(onDone);
   onDoneRef.current = onDone;
@@ -128,8 +176,10 @@ function CelebrationModal({ name, onDone }: { name: string; onDone: () => void }
             visible ? "scale-100 opacity-100" : "scale-90 opacity-0"
           }`}
         >
-          {/* star burst */}
-          <div className="pointer-events-none absolute inset-0 flex items-start justify-center" style={{ top: 40 }}>
+          <div
+            className="pointer-events-none absolute inset-0 flex items-start justify-center"
+            style={{ top: 40 }}
+          >
             {STAR_RAYS.map((ray, i) => (
               <span
                 key={i}
@@ -150,19 +200,17 @@ function CelebrationModal({ name, onDone }: { name: string; onDone: () => void }
               </span>
             ))}
           </div>
-
-          {/* checkmark */}
           <div
             style={{
-              animation: visible ? "flk-check-pop 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards" : "none",
+              animation: visible
+                ? "flk-check-pop 0.5s cubic-bezier(0.34,1.56,0.64,1) forwards"
+                : "none",
               opacity: 0,
             }}
             className="flex h-[76px] w-[76px] items-center justify-center rounded-full bg-[#639922]/10"
           >
             <Check strokeWidth={3} className="h-9 w-9 text-[#639922]" />
           </div>
-
-          {/* text */}
           <div
             className="text-center"
             style={{
@@ -171,7 +219,9 @@ function CelebrationModal({ name, onDone }: { name: string; onDone: () => void }
             }}
           >
             <p className="text-[18px] font-bold text-[#1A202C]">{name}</p>
-            <p className="mt-1 text-sm text-[#8891A4]">Pedido de reseña en camino</p>
+            <p className="mt-1 text-sm text-[#8891A4]">
+              Pedido de reseña en camino
+            </p>
             <p className="mt-3 text-[13px] font-semibold text-[#639922]">
               ¡Así se construye reputación!
             </p>
@@ -182,36 +232,366 @@ function CelebrationModal({ name, onDone }: { name: string; onDone: () => void }
   );
 }
 
+// ── Manual Campaign Modal ────────────────────────────────────────────────────
+
+interface ManualRecipient {
+  id: string;
+  name: string;
+  phoneE164: string;
+}
+
+function WhatsAppPreview({
+  message,
+  businessName,
+}: {
+  message: string;
+  businessName: string;
+}) {
+  const preview = message
+    .replace(/{nombre}/g, "María García")
+    .replace(/{negocio}/g, businessName || "tu negocio");
+
+  return (
+    <div className="rounded-[12px] bg-[#E5DDD5] p-4">
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#8891A4]">
+        Vista previa WhatsApp
+      </p>
+      {preview ? (
+        <div className="max-w-[260px] rounded-[12px] rounded-tl-none bg-white px-3 py-2 shadow-sm">
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#111]">
+            {preview}
+          </p>
+        </div>
+      ) : (
+        <p className="text-xs italic text-[#9ca3af]">
+          Escribí el mensaje para ver la vista previa
+        </p>
+      )}
+    </div>
+  );
+}
+
+function ManualCampaignModal({
+  initialRecipients,
+  onClose,
+}: {
+  initialRecipients: ManualRecipient[];
+  onClose: () => void;
+}) {
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+  const [recipients, setRecipients] =
+    useState<ManualRecipient[]>(initialRecipients);
+  const [message, setMessage] = useState("");
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{
+    sent: number;
+    failed: number;
+  } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  function removeRecipient(id: string) {
+    setRecipients((prev) => prev.filter((r) => r.id !== id));
+  }
+
+  function insertVariable(variable: string) {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const next =
+      message.slice(0, start) + variable + message.slice(end);
+    setMessage(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(
+        start + variable.length,
+        start + variable.length,
+      );
+    });
+  }
+
+  async function handleSend() {
+    setSending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/proxy/campaigns/manual", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          recipients: recipients.map((r) => ({
+            customerId: r.id,
+            name: r.name,
+            phoneE164: r.phoneE164,
+          })),
+          messageBody: message,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        sent?: number;
+        failed?: number;
+        message?: string;
+      };
+      if (!res.ok) throw new Error(data.message ?? "Error al enviar");
+      setResult({ sent: data.sent ?? 0, failed: data.failed ?? 0 });
+      setStep(3);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al enviar");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
+      <div className="w-full max-w-2xl rounded-[16px] border border-[#E8EAF0] bg-white shadow-xl">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-[#E8EAF0] px-6 py-4">
+          <div>
+            <h2 className="text-lg font-bold text-[#1A202C]">
+              Campaña manual
+            </h2>
+            <p className="text-xs text-[#8891A4]">
+              Paso {step} de {result ? "3" : "2"}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-8 w-8 items-center justify-center rounded-[8px] text-[#8891A4] hover:bg-[#F5F6FA]"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Step indicators */}
+        <div className="flex gap-1 px-6 pt-4">
+          {[1, 2, 3].map((s) => (
+            <div
+              key={s}
+              className={`h-1 flex-1 rounded-full transition-colors ${
+                step >= s ? "bg-[#5C6BC0]" : "bg-[#E8EAF0]"
+              }`}
+            />
+          ))}
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5">
+          {/* Step 1 — Recipients */}
+          {step === 1 && (
+            <div>
+              <p className="mb-3 text-sm font-semibold text-[#1A202C]">
+                Destinatarios ({recipients.length})
+              </p>
+              {recipients.length === 0 ? (
+                <p className="rounded-[8px] bg-[#FFF3CD] px-4 py-3 text-sm text-[#856404]">
+                  No hay destinatarios seleccionados.
+                </p>
+              ) : (
+                <div className="max-h-[260px] overflow-y-auto rounded-[8px] border border-[#E8EAF0]">
+                  {recipients.map((r) => (
+                    <div
+                      key={r.id}
+                      className="flex items-center justify-between border-b border-[#E8EAF0] px-4 py-2.5 last:border-b-0"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-[#1A202C]">
+                          {r.name}
+                        </p>
+                        <p className="text-xs text-[#8891A4]">{r.phoneE164}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => removeRecipient(r.id)}
+                        className="flex h-7 w-7 items-center justify-center rounded-[6px] text-[#8891A4] hover:bg-[#F5F6FA] hover:text-[#C0392B]"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Step 2 — Message */}
+          {step === 2 && (
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div>
+                <p className="mb-2 text-sm font-semibold text-[#1A202C]">
+                  Mensaje
+                </p>
+                <div className="mb-2 flex gap-2">
+                  {["{nombre}", "{negocio}"].map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => insertVariable(v)}
+                      className="rounded-full border border-[#E8EAF0] bg-[#F5F6FA] px-3 py-1 text-xs font-semibold text-[#5C6BC0] hover:bg-[#EEF0FB]"
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  ref={textareaRef}
+                  value={message}
+                  onChange={(e) => setMessage(e.target.value)}
+                  maxLength={1000}
+                  rows={8}
+                  placeholder="Hola {nombre}, queremos contarte algo especial en {negocio}..."
+                  className="w-full resize-none rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2.5 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]"
+                />
+                <p className="mt-1 text-right text-xs text-[#8891A4]">
+                  {message.length}/1000
+                </p>
+              </div>
+              <WhatsAppPreview message={message} businessName="" />
+            </div>
+          )}
+
+          {/* Step 3 — Result */}
+          {step === 3 && result && (
+            <div className="text-center">
+              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#639922]/10">
+                <Check strokeWidth={2.5} className="h-8 w-8 text-[#639922]" />
+              </div>
+              <p className="text-lg font-bold text-[#1A202C]">¡Enviado!</p>
+              <p className="mt-2 text-sm text-[#8891A4]">
+                {result.sent} enviados · {result.failed} fallidos
+              </p>
+              {result.failed > 0 && (
+                <p className="mt-3 text-xs text-[#C0392B]">
+                  Los mensajes fallidos no se reintentarán automáticamente.
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between border-t border-[#E8EAF0] px-6 py-4">
+          {error && <p className="text-sm text-[#C0392B]">{error}</p>}
+          {!error && <span />}
+          <div className="flex gap-2">
+            {step === 3 ? (
+              <button type="button" onClick={onClose} className={primaryButton}>
+                Cerrar
+              </button>
+            ) : (
+              <>
+                {step > 1 && !sending && (
+                  <button
+                    type="button"
+                    onClick={() => setStep((s) => (s - 1) as 1 | 2)}
+                    className={secondaryButton}
+                  >
+                    Atrás
+                  </button>
+                )}
+                {step === 1 && (
+                  <button
+                    type="button"
+                    onClick={() => setStep(2)}
+                    disabled={recipients.length === 0}
+                    className={primaryButton}
+                  >
+                    Continuar
+                  </button>
+                )}
+                {step === 2 && (
+                  <button
+                    type="button"
+                    onClick={() => void handleSend()}
+                    disabled={sending || !message.trim()}
+                    className={primaryButton}
+                  >
+                    {sending
+                      ? `Enviando a ${recipients.length}...`
+                      : `Enviar a ${recipients.length}`}
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main page ────────────────────────────────────────────────────────────────
+
+const ORIGIN_FILTER_OPTIONS = [
+  { value: "qr", label: "QR" },
+  { value: "whatsapp", label: "WhatsApp" },
+  { value: "manual", label: "Manual" },
+];
+
+const DATE_FILTER_OPTIONS = [
+  { value: "all", label: "Todo el tiempo" },
+  { value: "month", label: "Este mes" },
+  { value: "lastMonth", label: "Último mes" },
+];
+
 export default function CustomersPage() {
   const canMutate = useCanMutate();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
+  const [originFilter, setOriginFilter] = useState<string[]>([]);
+  const [dateFilter, setDateFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [celebrationName, setCelebrationName] = useState<string | null>(null);
+  const [attendedTodayIds, setAttendedTodayIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [resendCustomer, setResendCustomer] = useState<Customer | null>(null);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Customer | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [showImport, setShowImport] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [showManualModal, setShowManualModal] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [birthday, setBirthday] = useState("");
   const [saving, setSaving] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importColumns, setImportColumns] = useState<string[]>([]);
-  const [importRows, setImportRows] = useState<Array<Record<string, string>>>([]);
-  const [columnMapping, setColumnMapping] = useState<Record<string, ImportField>>({});
+  const [importRows, setImportRows] = useState<Array<Record<string, string>>>(
+    [],
+  );
+  const [columnMapping, setColumnMapping] = useState<
+    Record<string, ImportField>
+  >({});
   const [importResult, setImportResult] = useState<ImportResult | null>(null);
   const [dragActive, setDragActive] = useState(false);
+
+  const dateRange = useMemo(() => periodToRange(dateFilter), [dateFilter]);
 
   const query = useMemo(() => {
     const params = new URLSearchParams({ page: String(page), limit: "10" });
     if (search.trim()) params.set("search", search.trim());
+    if (originFilter.length > 0) params.set("origin", originFilter.join(","));
+    if (dateRange.from) params.set("from", dateRange.from);
+    if (dateRange.to) params.set("to", dateRange.to);
     return params.toString();
-  }, [page, search]);
+  }, [page, search, originFilter, dateRange]);
+
+  // Export query — same filters but high limit, no pagination
+  const exportQuery = useMemo(() => {
+    const params = new URLSearchParams({ page: "1", limit: "1000" });
+    if (search.trim()) params.set("search", search.trim());
+    if (originFilter.length > 0) params.set("origin", originFilter.join(","));
+    if (dateRange.from) params.set("from", dateRange.from);
+    if (dateRange.to) params.set("to", dateRange.to);
+    return params.toString();
+  }, [search, originFilter, dateRange]);
 
   const fetchCustomers = useCallback(async () => {
     setLoading(true);
@@ -228,8 +608,17 @@ export default function CustomersPage() {
             : "Error al cargar clientes",
         );
       }
-      setCustomers((data as CustomersResponse).data);
-      setTotal((data as CustomersResponse).total);
+      const resp = data as CustomersResponse;
+      setCustomers(resp.data);
+      setTotal(resp.total);
+      // Seed local attended state from API
+      setAttendedTodayIds((prev) => {
+        const next = new Set(prev);
+        resp.data.forEach((c) => {
+          if (c.attendedToday) next.add(c.id);
+        });
+        return next;
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al cargar clientes");
     } finally {
@@ -240,6 +629,37 @@ export default function CustomersPage() {
   useEffect(() => {
     void fetchCustomers();
   }, [fetchCustomers]);
+
+  // Reset page and selection when filters change
+  useEffect(() => {
+    setPage(1);
+    setSelectedIds(new Set());
+  }, [search, originFilter, dateFilter]);
+
+  function toggleOriginFilter(val: string) {
+    setOriginFilter((prev) =>
+      prev.includes(val) ? prev.filter((o) => o !== val) : [...prev, val],
+    );
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === customers.length && customers.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(customers.map((c) => c.id)));
+    }
+  }
+
+  const selectedCustomers = customers.filter((c) => selectedIds.has(c.id));
 
   function openNew() {
     setEditing(null);
@@ -312,7 +732,7 @@ export default function CustomersPage() {
     }
   }
 
-  async function handleAttendedToday(customer: Customer) {
+  async function doAttendToday(customer: Customer) {
     setError(null);
     try {
       const res = await fetch("/api/proxy/service-events", {
@@ -326,10 +746,56 @@ export default function CustomersPage() {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message ?? "Error al registrar atención");
+      setAttendedTodayIds((prev) => new Set([...prev, customer.id]));
       setCelebrationName(customer.name);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al registrar atención");
     }
+  }
+
+  function handleAttendedClick(customer: Customer) {
+    if (customer.optedOut || !canMutate) return;
+    if (attendedTodayIds.has(customer.id)) {
+      setResendCustomer(customer);
+    } else {
+      void doAttendToday(customer);
+    }
+  }
+
+  async function handleExportCsv(onlySelected = false) {
+    let rows: Customer[];
+    if (onlySelected) {
+      rows = customers.filter((c) => selectedIds.has(c.id));
+    } else {
+      try {
+        const res = await fetch(`/api/proxy/customers?${exportQuery}`);
+        const data = (await res.json().catch(() => ({}))) as CustomersResponse;
+        rows = data.data ?? [];
+      } catch {
+        rows = [];
+      }
+    }
+
+    const csv = [
+      ["nombre", "telefono", "origen", "fecha_captura"].join(","),
+      ...rows.map((r) =>
+        [
+          `"${r.name.replace(/"/g, '""')}"`,
+          r.phoneE164,
+          r.origin,
+          r.createdAt.slice(0, 10),
+        ].join(","),
+      ),
+    ].join("\n");
+
+    const today = new Date().toISOString().slice(0, 10);
+    const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `clientes-${today}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   }
 
   async function handleImport(e: React.FormEvent) {
@@ -395,7 +861,7 @@ export default function CustomersPage() {
       "María García,091234567,2026-01-15",
       "Claudia Ruiz,099887766,2026-01-16",
     ].join("\n");
-    const blob = new Blob([`\uFEFF${csvTemplate}`], {
+    const blob = new Blob([`﻿${csvTemplate}`], {
       type: "text/csv;charset=utf-8",
     });
     const url = URL.createObjectURL(blob);
@@ -405,6 +871,10 @@ export default function CustomersPage() {
     link.click();
     URL.revokeObjectURL(url);
   }
+
+  const totalPages = Math.max(1, Math.ceil(total / 10));
+  const allSelected =
+    customers.length > 0 && selectedIds.size === customers.length;
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
@@ -426,24 +896,30 @@ export default function CustomersPage() {
         </div>
       ) : null}
 
+      {/* Search + actions row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <label className="relative w-full max-w-[340px]">
+        <label className="relative w-full max-w-[300px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8891A4]" />
           <input
             value={search}
-            onChange={(e) => {
-              setSearch(e.target.value);
-              setPage(1);
-            }}
+            onChange={(e) => setSearch(e.target.value)}
             className="h-10 w-full rounded-[8px] border border-[#E8EAF0] bg-white pl-10 pr-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]"
             placeholder="Buscar por nombre o teléfono"
           />
         </label>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void handleExportCsv(false)}
+            className={secondaryButton}
+          >
+            <Download className="h-4 w-4" />
+            Exportar CSV
+          </button>
           {canMutate ? (
             <button
               className={secondaryButton}
-              onClick={() => setShowImport((value) => !value)}
+              onClick={() => setShowImport((v) => !v)}
             >
               <Upload className="h-4 w-4" />
               Importar CSV
@@ -453,6 +929,53 @@ export default function CustomersPage() {
             <Plus className="h-4 w-4" />
             Nuevo cliente
           </button>
+        </div>
+      </div>
+
+      {/* Filters row */}
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-[#8891A4]">Origen:</span>
+          {ORIGIN_FILTER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => toggleOriginFilter(opt.value)}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                originFilter.includes(opt.value)
+                  ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#5C6BC0]"
+                  : "border-[#E8EAF0] bg-white text-[#8891A4] hover:border-[#5C6BC0] hover:text-[#5C6BC0]"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+          {originFilter.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setOriginFilter([])}
+              className="text-xs text-[#8891A4] hover:text-[#C0392B]"
+            >
+              Todos
+            </button>
+          )}
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-semibold text-[#8891A4]">Período:</span>
+          {DATE_FILTER_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => setDateFilter(opt.value)}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                dateFilter === opt.value
+                  ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#5C6BC0]"
+                  : "border-[#E8EAF0] bg-white text-[#8891A4] hover:border-[#5C6BC0] hover:text-[#5C6BC0]"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -470,7 +993,11 @@ export default function CustomersPage() {
                 Subí un CSV o XLSX y confirmá el mapeo antes de importar.
               </p>
             </div>
-            <button type="button" onClick={downloadTemplate} className={secondaryButton}>
+            <button
+              type="button"
+              onClick={downloadTemplate}
+              className={secondaryButton}
+            >
               <Download className="h-4 w-4" />
               Descargar plantilla
             </button>
@@ -507,7 +1034,9 @@ export default function CustomersPage() {
               Arrastrá tu archivo acá o hacé clic para seleccionarlo
             </span>
             {importFile ? (
-              <span className="mt-2 block text-[#5C6BC0]">{importFile.name}</span>
+              <span className="mt-2 block text-[#5C6BC0]">
+                {importFile.name}
+              </span>
             ) : null}
           </label>
 
@@ -519,7 +1048,10 @@ export default function CustomersPage() {
                 </h3>
                 <div className="mt-3 grid gap-2">
                   {importColumns.map((column) => (
-                    <label key={column} className="grid grid-cols-2 items-center gap-2 text-sm">
+                    <label
+                      key={column}
+                      className="grid grid-cols-2 items-center gap-2 text-sm"
+                    >
                       <span className="text-[#8891A4]">{column}</span>
                       <select
                         className={inputClass}
@@ -585,12 +1117,22 @@ export default function CustomersPage() {
         </form>
       ) : null}
 
+      {/* Table */}
       <div className="overflow-hidden rounded-[12px] border border-[#E8EAF0] bg-white">
-        <table className="w-full min-w-[760px] text-left text-sm">
+        <table className="w-full min-w-[820px] text-left text-sm">
           <thead className="bg-[#F5F6FA] text-[11px] uppercase tracking-[0.08em] text-[#8891A4]">
             <tr>
+              <th className="px-4 py-3">
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  onChange={toggleSelectAll}
+                  className="h-4 w-4 rounded border-[#D0D5DD] accent-[#5C6BC0]"
+                />
+              </th>
               <th className="px-4 py-3 font-semibold">Nombre</th>
               <th className="px-4 py-3 font-semibold">Teléfono</th>
+              <th className="px-4 py-3 font-semibold">Origen</th>
               <th className="px-4 py-3 font-semibold">Fecha</th>
               <th className="px-4 py-3 text-right font-semibold">Acciones</th>
             </tr>
@@ -598,101 +1140,170 @@ export default function CustomersPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={4} className="px-4 py-10 text-center text-[#8891A4]">
+                <td
+                  colSpan={6}
+                  className="px-4 py-10 text-center text-[#8891A4]"
+                >
                   Cargando clientes...
                 </td>
               </tr>
             ) : customers.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-4 py-10 text-center text-[#8891A4]">
+                <td
+                  colSpan={6}
+                  className="px-4 py-10 text-center text-[#8891A4]"
+                >
                   No hay clientes para mostrar.
                 </td>
               </tr>
             ) : (
-              customers.map((customer) => (
-                <tr key={customer.id} className="border-t border-[#E8EAF0]">
-                  <td className="px-4 py-4 font-semibold text-[#1A202C]">
-                    {customer.name}
-                  </td>
-                  <td className="px-4 py-4 text-[#1A202C]">
-                    {customer.phoneE164}
-                  </td>
-                  <td className="px-4 py-4 text-[#1A202C]">
-                    {formatDate(customer.createdAt)}
-                  </td>
-                  <td className="px-4 py-4">
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void handleAttendedToday(customer)}
-                        disabled={!canMutate || customer.optedOut}
-                        className="inline-flex h-8 items-center gap-1 rounded-[8px] bg-[#639922] px-3 text-xs font-semibold text-white disabled:opacity-50"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                        Atendido hoy
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => openEdit(customer)}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA]"
-                        aria-label="Editar cliente"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setPendingDelete(customer)}
-                        disabled={!canMutate}
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA] disabled:opacity-50"
-                        aria-label="Archivar cliente"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+              customers.map((customer) => {
+                const isAttended = attendedTodayIds.has(customer.id);
+                return (
+                  <tr
+                    key={customer.id}
+                    className={`border-t border-[#E8EAF0] ${
+                      selectedIds.has(customer.id) ? "bg-[#F8F9FF]" : "hover:bg-[#FAFBFC]"
+                    }`}
+                  >
+                    <td className="px-4 py-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(customer.id)}
+                        onChange={() => toggleSelect(customer.id)}
+                        className="h-4 w-4 rounded border-[#D0D5DD] accent-[#5C6BC0]"
+                      />
+                    </td>
+                    <td className="px-4 py-4 font-semibold text-[#1A202C]">
+                      {customer.name}
+                    </td>
+                    <td className="px-4 py-4 text-[#1A202C]">
+                      {customer.phoneE164}
+                    </td>
+                    <td className="px-4 py-4">
+                      <OriginBadge origin={customer.origin} />
+                    </td>
+                    <td className="px-4 py-4 text-[#8891A4]">
+                      {formatDate(customer.createdAt)}
+                    </td>
+                    <td className="px-4 py-4">
+                      <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleAttendedClick(customer)}
+                          disabled={!canMutate || customer.optedOut}
+                          className={`inline-flex h-8 items-center gap-1.5 rounded-[8px] px-3 text-xs font-semibold disabled:opacity-50 ${
+                            isAttended
+                              ? "bg-[#EEF7E8] text-[#639922]"
+                              : "border border-[#E8EAF0] bg-white text-[#8891A4] hover:border-[#5C6BC0] hover:text-[#5C6BC0]"
+                          }`}
+                        >
+                          {isAttended ? (
+                            <>
+                              <Check className="h-3.5 w-3.5" />
+                              Atendido hoy
+                            </>
+                          ) : (
+                            "Marcar atendido"
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openEdit(customer)}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA]"
+                          aria-label="Editar cliente"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPendingDelete(customer)}
+                          disabled={!canMutate}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA] disabled:opacity-50"
+                          aria-label="Archivar cliente"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
       </div>
 
-      {(() => {
-        const totalPages = Math.max(1, Math.ceil(total / 10));
-        return (
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <p className="text-xs text-[#8891A4]">
-              {total > 0
-                ? `${(page - 1) * 10 + 1}–${Math.min(page * 10, total)} de ${total} clientes`
-                : "0 clientes"}
-            </p>
-            {totalPages > 1 && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  disabled={page <= 1}
-                  className="inline-flex h-8 items-center rounded-[8px] border border-[#E8EAF0] px-3 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-40"
-                >
-                  ← Anterior
-                </button>
-                <span className="text-sm text-[#8891A4]">
-                  {page} / {totalPages}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={page >= totalPages}
-                  className="inline-flex h-8 items-center rounded-[8px] border border-[#E8EAF0] px-3 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-40"
-                >
-                  Siguiente →
-                </button>
-              </div>
-            )}
+      {/* Pagination */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-[#8891A4]">
+          {total > 0
+            ? `${(page - 1) * 10 + 1}–${Math.min(page * 10, total)} de ${total} clientes`
+            : "0 clientes"}
+        </p>
+        {totalPages > 1 && (
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page <= 1}
+              className="inline-flex h-8 items-center rounded-[8px] border border-[#E8EAF0] px-3 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-40"
+            >
+              ← Anterior
+            </button>
+            <span className="text-sm text-[#8891A4]">
+              {page} / {totalPages}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              className="inline-flex h-8 items-center rounded-[8px] border border-[#E8EAF0] px-3 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-40"
+            >
+              Siguiente →
+            </button>
           </div>
-        );
-      })()}
+        )}
+      </div>
 
+      {/* Sticky selection action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2">
+          <div className="flex items-center gap-3 rounded-2xl border border-[#E8EAF0] bg-white px-5 py-3 shadow-xl">
+            <span className="text-sm font-semibold text-[#1A202C]">
+              {selectedIds.size} seleccionado{selectedIds.size !== 1 ? "s" : ""}
+            </span>
+            <div className="h-5 w-px bg-[#E8EAF0]" />
+            <button
+              type="button"
+              onClick={() => {
+                setShowManualModal(true);
+              }}
+              className="inline-flex items-center gap-1.5 rounded-[8px] bg-[#5C6BC0] px-3 py-1.5 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
+            >
+              <MessageSquarePlus className="h-4 w-4" />
+              Crear campaña
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleExportCsv(true)}
+              className="inline-flex items-center gap-1.5 rounded-[8px] border border-[#E8EAF0] px-3 py-1.5 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]"
+            >
+              <Download className="h-4 w-4" />
+              Exportar selección
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedIds(new Set())}
+              className="flex h-7 w-7 items-center justify-center rounded-full text-[#8891A4] hover:bg-[#F5F6FA]"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Forms and modals */}
       {showForm ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
           <form
@@ -713,7 +1324,12 @@ export default function CustomersPage() {
                   required
                 />
               </label>
-              <PhoneInput label="Teléfono" value={phone} onChange={setPhone} required />
+              <PhoneInput
+                label="Teléfono"
+                value={phone}
+                onChange={setPhone}
+                required
+              />
               <div className="grid gap-2">
                 <label className="text-sm font-semibold text-[#1A202C]">
                   Fecha de nacimiento
@@ -724,7 +1340,9 @@ export default function CustomersPage() {
                     className={`${inputClass} mt-2`}
                   />
                 </label>
-                <p className="text-xs text-[#B0B8C9]">Opcional · se usa para la campaña de cumpleaños</p>
+                <p className="text-xs text-[#B0B8C9]">
+                  Opcional · se usa para la campaña de cumpleaños
+                </p>
               </div>
             </div>
             <div className="mt-6 flex justify-end gap-2">
@@ -735,7 +1353,11 @@ export default function CustomersPage() {
               >
                 Cancelar
               </button>
-              <button type="submit" disabled={saving || !canMutate} className={primaryButton}>
+              <button
+                type="submit"
+                disabled={saving || !canMutate}
+                className={primaryButton}
+              >
                 {saving ? "Guardando..." : "Guardar"}
               </button>
             </div>
@@ -748,6 +1370,40 @@ export default function CustomersPage() {
           name={celebrationName}
           onDone={() => setCelebrationName(null)}
         />
+      ) : null}
+
+      {/* Resend confirmation */}
+      {resendCustomer ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
+          <div className="w-full max-w-sm rounded-[12px] border border-[#E8EAF0] bg-white p-6">
+            <h2 className="text-base font-bold text-[#1A202C]">
+              Ya marcaste a {resendCustomer.name} hoy
+            </h2>
+            <p className="mt-2 text-sm text-[#8891A4]">
+              ¿Querés reenviarle el pedido de reseña?
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                className={secondaryButton}
+                onClick={() => setResendCustomer(null)}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                className={primaryButton}
+                onClick={() => {
+                  const c = resendCustomer;
+                  setResendCustomer(null);
+                  void doAttendToday(c);
+                }}
+              >
+                Sí, reenviar
+              </button>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {pendingDelete ? (
@@ -800,6 +1456,17 @@ export default function CustomersPage() {
           </div>
         </div>
       ) : null}
+
+      {showManualModal && (
+        <ManualCampaignModal
+          initialRecipients={selectedCustomers.map((c) => ({
+            id: c.id,
+            name: c.name,
+            phoneE164: c.phoneE164,
+          }))}
+          onClose={() => setShowManualModal(false)}
+        />
+      )}
     </div>
   );
 }
@@ -827,7 +1494,10 @@ async function parseImportFile(file: File): Promise<{
             return;
           }
           const columns = result.meta.fields?.filter(Boolean) ?? [];
-          resolve({ columns, rows: normalizePreviewRows(result.data, columns) });
+          resolve({
+            columns,
+            rows: normalizePreviewRows(result.data, columns),
+          });
         },
         error: () => reject(new Error("No se pudo leer el CSV")),
       });
@@ -846,7 +1516,10 @@ async function parseImportFile(file: File): Promise<{
   return { columns, rows: normalizePreviewRows(rows, columns) };
 }
 
-function normalizePreviewRows(rows: Array<Record<string, unknown>>, columns: string[]) {
+function normalizePreviewRows(
+  rows: Array<Record<string, unknown>>,
+  columns: string[],
+) {
   return rows.map((row) =>
     Object.fromEntries(
       columns.map((column) => [column, String(row[column] ?? "").trim()]),
@@ -854,13 +1527,16 @@ function normalizePreviewRows(rows: Array<Record<string, unknown>>, columns: str
   );
 }
 
-function inferColumnMapping(columns: string[]): Record<string, ImportField> {
+function inferColumnMapping(
+  columns: string[],
+): Record<string, ImportField> {
   return Object.fromEntries(
     columns.map((column) => {
       const normalized = normalizeColumn(column);
       let field: ImportField = "ignore";
       if (["nombre", "name"].includes(normalized)) field = "name";
-      if (["telefono", "teléfono", "phone"].includes(normalized)) field = "phone";
+      if (["telefono", "teléfono", "phone"].includes(normalized))
+        field = "phone";
       if (normalized === "email") field = "email";
       if (
         [

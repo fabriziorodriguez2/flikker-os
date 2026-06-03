@@ -12,6 +12,7 @@ interface CustomerData {
   email?: string;
   lastServiceAt?: Date;
   birthday?: Date;
+  origin?: string;
 }
 
 type CustomerUpdateData = Partial<Omit<CustomerData, 'email' | 'birthday'>> & {
@@ -25,10 +26,24 @@ type CustomerUpdateData = Partial<Omit<CustomerData, 'email' | 'birthday'>> & {
 export class CustomersRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  findMany(
+  async findMany(
     businessId: string,
-    options: { search?: string; page: number; limit: number },
+    options: {
+      search?: string;
+      page: number;
+      limit: number;
+      origin?: string[];
+      from?: Date;
+      to?: Date;
+    },
   ) {
+    // Uruguay is UTC-3: day starts at 03:00 UTC
+    const todayStart = new Date();
+    todayStart.setUTCHours(3, 0, 0, 0);
+    if (new Date() < todayStart) {
+      todayStart.setUTCDate(todayStart.getUTCDate() - 1);
+    }
+
     const where = {
       businessId,
       isActive: true,
@@ -45,9 +60,18 @@ export class CustomersRepository {
             ],
           }
         : {}),
+      ...(options.origin?.length ? { origin: { in: options.origin } } : {}),
+      ...(options.from || options.to
+        ? {
+            createdAt: {
+              ...(options.from ? { gte: options.from } : {}),
+              ...(options.to ? { lt: options.to } : {}),
+            },
+          }
+        : {}),
     };
 
-    return this.prisma.$transaction([
+    const [total, customers] = await this.prisma.$transaction([
       this.prisma.customer.count({ where }),
       this.prisma.customer.findMany({
         where,
@@ -56,6 +80,24 @@ export class CustomersRepository {
         take: options.limit,
       }),
     ]);
+
+    if (customers.length === 0) return [total, []] as const;
+
+    const attendedEvents = await this.prisma.serviceEvent.findMany({
+      where: {
+        businessId,
+        customerId: { in: customers.map((c) => c.id) },
+        eventAt: { gte: todayStart },
+      },
+      select: { customerId: true },
+      distinct: ['customerId'],
+    });
+    const attendedSet = new Set(attendedEvents.map((e) => e.customerId));
+
+    return [
+      total,
+      customers.map((c) => ({ ...c, attendedToday: attendedSet.has(c.id) })),
+    ] as const;
   }
 
   findOne(businessId: string, id: string) {
@@ -83,6 +125,13 @@ export class CustomersRepository {
     });
   }
 
+  findManyByIds(businessId: string, ids: string[]) {
+    return this.prisma.customer.findMany({
+      where: { businessId, id: { in: ids }, isActive: true },
+      select: { id: true, name: true, phoneE164: true, optedOut: true },
+    });
+  }
+
   create(businessId: string, data: CustomerData) {
     return this.prisma.$transaction(async (tx) => {
       const customer = await tx.customer.create({
@@ -92,6 +141,7 @@ export class CustomersRepository {
           phoneE164: data.phoneE164,
           email: data.email,
           birthday: data.birthday,
+          origin: data.origin ?? 'manual',
         },
       });
 
@@ -120,6 +170,7 @@ export class CustomersRepository {
           phoneE164: row.phoneE164,
           email: row.email,
           birthday: row.birthday,
+          origin: row.origin ?? 'manual',
         })),
       });
 

@@ -259,4 +259,81 @@ export class CampaignsRepository {
       return tx.campaign.findUniqueOrThrow({ where: { id: campaignId } });
     });
   }
+
+  async getBusinessName(businessId: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { name: true },
+    });
+    return business?.name ?? '';
+  }
+
+  async createManualCampaign(
+    businessId: string,
+    createdByUserId: string,
+    data: {
+      messageBody: string;
+      recipients: Array<{
+        customerId?: string;
+        name: string;
+        phoneE164: string;
+      }>;
+    },
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const campaign = await tx.manualCampaign.create({
+        data: {
+          businessId,
+          createdByUserId,
+          messageBody: data.messageBody,
+          totalCount: data.recipients.length,
+        },
+      });
+      if (data.recipients.length > 0) {
+        await tx.manualCampaignContact.createMany({
+          data: data.recipients.map((r) => ({
+            manualCampaignId: campaign.id,
+            businessId,
+            customerId: r.customerId ?? null,
+            phoneE164: r.phoneE164,
+            name: r.name,
+            status: 'pending',
+          })),
+        });
+      }
+      return campaign;
+    });
+  }
+
+  findManualCampaignContacts(campaignId: string) {
+    return this.prisma.manualCampaignContact.findMany({
+      where: { manualCampaignId: campaignId },
+    });
+  }
+
+  updateManualCampaignContact(
+    contactId: string,
+    success: boolean,
+    failReason?: string,
+  ) {
+    return this.prisma.manualCampaignContact.update({
+      where: { id: contactId },
+      data: {
+        status: success ? 'sent' : 'failed',
+        sentAt: success ? new Date() : null,
+        failReason: success ? null : (failReason ?? 'Error'),
+      },
+    });
+  }
+
+  updateManualCampaignStats(
+    campaignId: string,
+    sentCount: number,
+    failedCount: number,
+  ) {
+    return this.prisma.manualCampaign.update({
+      where: { id: campaignId },
+      data: { sentCount, failedCount },
+    });
+  }
 }

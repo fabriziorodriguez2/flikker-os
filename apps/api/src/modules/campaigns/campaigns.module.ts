@@ -5,11 +5,12 @@ import { CampaignsRepository } from './campaigns.repository';
 import { CampaignStatsService } from './campaigns.stats.service';
 import { BranchesModule } from '../branches/branches.module';
 import { PlansModule } from '../plans/plans.module';
+import { JobsModule } from '../../jobs/jobs.module';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuditService } from '../../common/services/audit.service';
 
 @Module({
-  imports: [PlansModule, BranchesModule],
+  imports: [PlansModule, BranchesModule, JobsModule],
   controllers: [CampaignsController],
   providers: [
     CampaignsService,

@@ -32,7 +32,15 @@ export class CustomersController {
   @Get()
   list(
     @Req() req: AuthenticatedRequest,
-    @Query() query: { search?: string; page?: string; limit?: string },
+    @Query()
+    query: {
+      search?: string;
+      page?: string;
+      limit?: string;
+      origin?: string;
+      from?: string;
+      to?: string;
+    },
   ) {
     return this.customersService.list(req.currentBusinessId!, query);
   }

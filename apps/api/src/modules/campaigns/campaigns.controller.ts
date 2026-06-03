@@ -16,6 +16,7 @@ import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
 import { UpdateRepeatCampaignDto } from './dto/update-repeat-campaign.dto';
 import { UpdateCampaignStatusDto } from './dto/update-campaign-status.dto';
+import { SendManualCampaignDto } from './dto/send-manual-campaign.dto';
 import { StatsQueryDto } from './dto/stats-query.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
@@ -80,6 +81,24 @@ export class CampaignsController {
       req.currentBusinessId!,
       id,
       range,
+    );
+  }
+
+  /**
+   * Sends a one-off WhatsApp blast to a list of recipients.
+   * Must be declared before :id routes to avoid shadowing.
+   */
+  @Post('manual')
+  @UseGuards(RolesGuard)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.OPERATOR)
+  sendManual(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: SendManualCampaignDto,
+  ) {
+    return this.campaignsService.sendManual(
+      req.currentBusinessId!,
+      req.user.id,
+      dto,
     );
   }
 
