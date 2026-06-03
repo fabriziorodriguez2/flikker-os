@@ -1,9 +1,9 @@
 "use client";
 
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -26,19 +26,26 @@ interface ActivityEvolutionChartProps {
 export default function ActivityEvolutionChart({
   data,
 }: ActivityEvolutionChartProps) {
+  const activeData = data.filter(
+    (d) => d.messagesSent > 0 || d.reviewsGenerated > 0 || d.reactivatedCustomers > 0,
+  );
+
+  if (activeData.length === 0) {
+    return (
+      <div className="flex h-[320px] w-full items-center justify-center text-sm text-[#8891A4]">
+        Sin actividad registrada todavía.
+      </div>
+    );
+  }
+
   return (
     <div className="h-[320px] w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={data}
+        <LineChart
+          data={activeData}
           margin={{ top: 8, right: 8, bottom: 0, left: -18 }}
-          barGap={4}
         >
-          <CartesianGrid
-            stroke="#E8EAF0"
-            strokeDasharray="4 4"
-            vertical={false}
-          />
+          <CartesianGrid strokeDasharray="3 3" stroke="#E5E7EB" vertical={false} />
           <XAxis
             dataKey="label"
             tickLine={false}
@@ -52,7 +59,7 @@ export default function ActivityEvolutionChart({
             tick={{ fill: "#8891A4", fontSize: 12, fontFamily: "Manrope" }}
           />
           <Tooltip
-            cursor={{ fill: "rgba(92, 107, 192, 0.08)" }}
+            cursor={{ stroke: "rgba(92, 107, 192, 0.15)", strokeWidth: 1 }}
             content={({ active, payload, label }) => {
               if (!active || !payload?.length) return null;
               return (
@@ -70,7 +77,7 @@ export default function ActivityEvolutionChart({
                         >
                           <span className="flex items-center gap-2">
                             <span
-                              className="h-2.5 w-2.5 rounded-[3px]"
+                              className="h-2.5 w-2.5 rounded-full"
                               style={{ backgroundColor: series.color }}
                             />
                             {series.label}
@@ -87,16 +94,18 @@ export default function ActivityEvolutionChart({
             }}
           />
           {ACTIVITY_SERIES.map((series) => (
-            <Bar
+            <Line
               key={series.key}
               dataKey={series.key}
               name={series.label}
-              fill={series.color}
-              radius={[6, 6, 0, 0]}
-              maxBarSize={32}
+              stroke={series.color}
+              type="monotone"
+              strokeWidth={2}
+              dot={{ r: 4, fill: series.color, strokeWidth: 0 }}
+              activeDot={{ r: 6, fill: series.color, strokeWidth: 0 }}
             />
           ))}
-        </BarChart>
+        </LineChart>
       </ResponsiveContainer>
     </div>
   );
