@@ -3,14 +3,18 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const MAIN_NAV_ITEMS = [
-  { href: "/dashboard", label: "Panel" },
+const MAIN_NAV_ITEMS: Array<{
+  href: string;
+  label: string;
+  onboardingKey?: string;
+}> = [
+  { href: "/dashboard", label: "Panel", onboardingKey: "panel" },
   { href: "/dashboard/insights", label: "Insights" },
-  { href: "/dashboard/customers", label: "Clientes" },
-  { href: "/dashboard/campaigns", label: "Campañas" },
+  { href: "/dashboard/customers", label: "Clientes", onboardingKey: "clientes" },
+  { href: "/dashboard/campaigns", label: "Campañas", onboardingKey: "campaigns" },
   { href: "/dashboard/reviews", label: "Reseñas" },
   { href: "/dashboard/widgets", label: "Widget" },
-  { href: "/dashboard/qr", label: "QR" },
+  { href: "/dashboard/qr", label: "QR", onboardingKey: "qr" },
 ];
 
 export default function MobileNav() {
@@ -30,6 +34,7 @@ export default function MobileNav() {
             <Link
               key={item.href}
               href={item.href}
+              data-onboarding={item.onboardingKey}
               className={`shrink-0 rounded-full px-3 py-2 text-xs font-medium transition-colors ${
                 isActive
                   ? "bg-[#5C6BC0] text-white"

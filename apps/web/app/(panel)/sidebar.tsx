@@ -90,14 +90,19 @@ const InsightsIcon = () => (
   </Icon>
 );
 
-const MAIN_NAV_ITEMS = [
-  { href: "/dashboard", label: "Panel", icon: <HomeIcon /> },
+const MAIN_NAV_ITEMS: Array<{
+  href: string;
+  label: string;
+  icon: ReactNode;
+  onboardingKey?: string;
+}> = [
+  { href: "/dashboard", label: "Panel", icon: <HomeIcon />, onboardingKey: "panel" },
   { href: "/dashboard/insights", label: "Insights", icon: <InsightsIcon /> },
-  { href: "/dashboard/customers", label: "Clientes", icon: <CustomersIcon /> },
-  { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon /> },
+  { href: "/dashboard/customers", label: "Clientes", icon: <CustomersIcon />, onboardingKey: "clientes" },
+  { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon />, onboardingKey: "campaigns" },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
   { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon /> },
-  { href: "/dashboard/qr", label: "QR", icon: <QrIcon /> },
+  { href: "/dashboard/qr", label: "QR", icon: <QrIcon />, onboardingKey: "qr" },
 ];
 
 function isItemActive(pathname: string, href: string) {
@@ -171,6 +176,7 @@ export default function Sidebar(props: SidebarProps) {
             <Link
               key={item.href}
               href={item.href}
+              data-onboarding={item.onboardingKey}
               className={`group relative flex min-h-11 items-center rounded-[8px] py-3 text-[15px] font-semibold transition-colors ${
                 collapsed ? "justify-center px-2" : "gap-3.5 px-4"
               } ${

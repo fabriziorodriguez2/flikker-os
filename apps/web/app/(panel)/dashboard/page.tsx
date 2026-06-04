@@ -3,6 +3,7 @@ import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import QuickAttend from "./quick-attend";
 import FlikPanel from "./flik-panel";
+import OnboardingTour from "./onboarding-tour";
 
 interface RecentAttendance {
   id: string;
@@ -10,6 +11,18 @@ interface RecentAttendance {
   eventAt: string;
   hasReview: boolean;
   messageSent: boolean;
+}
+
+export type PlanType = "FREE_TRIAL" | "BASE" | "PRO";
+export type GoalType = "REVIEWS" | "CONTACTS";
+
+export interface GoalView {
+  source: "trial" | "user";
+  type: GoalType;
+  target: number;
+  current: number;
+  deadline: string | null;
+  startedAt: string;
 }
 
 interface PanelStats {
@@ -27,7 +40,8 @@ interface PanelStats {
     thisMonth: number;
     quotaLimit: number;
   };
-  reviewGoal: number;
+  currentPlan: { type: PlanType } | null;
+  goalView: GoalView | null;
   recentAttendances: RecentAttendance[];
 }
 
@@ -130,10 +144,19 @@ export default async function DashboardPage() {
   if (!businessId) redirect("/login");
 
   let stats: PanelStats | null = null;
+  let onboardingCompletedAt: string | null = null;
   let error: string | null = null;
 
   try {
-    stats = await apiFetch<PanelStats>("/metrics/panel", accessToken, { businessId });
+    const [statsRes, meRes] = await Promise.all([
+      apiFetch<PanelStats>("/metrics/panel", accessToken, { businessId }),
+      apiFetch<{ onboardingCompletedAt: string | null }>(
+        "/auth/me",
+        session.accessToken,
+      ).catch(() => ({ onboardingCompletedAt: null })),
+    ]);
+    stats = statsRes;
+    onboardingCompletedAt = meRes.onboardingCompletedAt;
   } catch (e) {
     if (isUnauthorizedApiError(e)) redirect("/session-expired");
     error = e instanceof Error ? e.message : "Error al cargar datos";
@@ -197,12 +220,16 @@ export default async function DashboardPage() {
 
       <FlikPanel
         attendedToday={stats.attended.today}
-        reviewsThisMonth={stats.reviews.thisMonth}
-        reviewGoal={stats.reviewGoal}
+        currentPlan={stats.currentPlan}
+        goalView={stats.goalView}
         recentAttendances={stats.recentAttendances}
       />
 
       <QuickAttend />
+
+      <OnboardingTour
+        alreadyCompleted={onboardingCompletedAt !== null}
+      />
     </div>
   );
 }

@@ -505,6 +505,8 @@ export class MetricsService {
       messagesToday,
       business,
       recentEvents,
+      currentPlan,
+      activeGoal,
     ] = await Promise.all([
       this.countGoogleReviews(businessId, monthStart, nextMonthStart),
       this.countGoogleReviews(businessId, prevMonthStart, monthStart),
@@ -520,7 +522,6 @@ export class MetricsService {
         select: {
           messageCountCurrentMonth: true,
           messageQuotaMonthly: true,
-          reviewGoalMonthly: true,
         },
       }),
       this.prisma.serviceEvent.findMany({
@@ -537,6 +538,26 @@ export class MetricsService {
         orderBy: { eventAt: 'desc' },
         take: 5,
       }),
+      this.prisma.businessPlan.findFirst({
+        where: { businessId },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          plan: true,
+          trialGoal: true,
+          trialStart: true,
+          createdAt: true,
+        },
+      }),
+      this.prisma.businessGoal.findFirst({
+        where: { businessId },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          type: true,
+          target: true,
+          deadline: true,
+          createdAt: true,
+        },
+      }),
     ]);
 
     const reviewsDelta =
@@ -547,6 +568,12 @@ export class MetricsService {
         : reviewsThisMonth > 0
           ? 100
           : 0;
+
+    const goalView = await this.buildGoalView(
+      businessId,
+      currentPlan,
+      activeGoal,
+    );
 
     return {
       reviews: {
@@ -563,7 +590,8 @@ export class MetricsService {
         thisMonth: business?.messageCountCurrentMonth ?? 0,
         quotaLimit: business?.messageQuotaMonthly ?? 0,
       },
-      reviewGoal: business?.reviewGoalMonthly ?? 0,
+      currentPlan: currentPlan ? { type: currentPlan.plan } : null,
+      goalView,
       recentAttendances: recentEvents.map((e) => ({
         id: e.id,
         customerName: e.customer.name,
@@ -574,6 +602,66 @@ export class MetricsService {
         ),
       })),
     };
+  }
+
+  private async buildGoalView(
+    businessId: string,
+    plan: {
+      plan: 'FREE_TRIAL' | 'BASE' | 'PRO';
+      trialGoal: number | null;
+      trialStart: Date | null;
+      createdAt: Date;
+    } | null,
+    goal: {
+      type: 'REVIEWS' | 'CONTACTS' | 'CAMPAIGN';
+      target: number;
+      deadline: Date;
+      createdAt: Date;
+    } | null,
+  ) {
+    // FREE_TRIAL: progress comes from the plan's trialGoal, REVIEWS type
+    if (plan?.plan === 'FREE_TRIAL' && plan.trialGoal && plan.trialGoal > 0) {
+      const startedAt = plan.trialStart ?? plan.createdAt;
+      const current = await this.prisma.googleReview.count({
+        where: { businessId, postedAt: { gte: startedAt } },
+      });
+      return {
+        source: 'trial' as const,
+        type: 'REVIEWS' as const,
+        target: plan.trialGoal,
+        current,
+        deadline: null as string | null,
+        startedAt: startedAt.toISOString(),
+      };
+    }
+
+    // BASE / PRO with an active user goal (REVIEWS or CONTACTS)
+    if (goal && goal.type !== 'CAMPAIGN') {
+      let current = 0;
+      if (goal.type === 'REVIEWS') {
+        current = await this.prisma.googleReview.count({
+          where: { businessId, postedAt: { gte: goal.createdAt } },
+        });
+      } else {
+        current = await this.prisma.customer.count({
+          where: {
+            businessId,
+            origin: 'qr',
+            createdAt: { gte: goal.createdAt },
+          },
+        });
+      }
+      return {
+        source: 'user' as const,
+        type: goal.type,
+        target: goal.target,
+        current,
+        deadline: goal.deadline.toISOString(),
+        startedAt: goal.createdAt.toISOString(),
+      };
+    }
+
+    return null;
   }
 
   async acknowledgeNegativeFeedback(businessId: string, feedbackId: string) {

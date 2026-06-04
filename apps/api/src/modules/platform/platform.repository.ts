@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  BusinessPlanType,
   BusinessStatus,
   MembershipRole,
   MembershipStatus,
@@ -382,6 +383,70 @@ export class PlatformRepository {
     }
 
     return slug;
+  }
+
+  // ── Business plans ────────────────────────────────────────────────────────
+
+  createBusinessPlan(data: {
+    businessId: string;
+    plan: BusinessPlanType;
+    trialGoal: number | null;
+    trialStart: Date | null;
+    startDate: Date;
+    notes: string | null;
+    createdById: string | null;
+  }) {
+    return this.prisma.businessPlan.create({
+      data: {
+        businessId: data.businessId,
+        plan: data.plan,
+        trialGoal: data.trialGoal,
+        trialStart: data.trialStart,
+        startDate: data.startDate,
+        notes: data.notes,
+        createdById: data.createdById,
+      },
+    });
+  }
+
+  findCurrentBusinessPlan(businessId: string) {
+    return this.prisma.businessPlan.findFirst({
+      where: { businessId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  findBusinessPlanHistory(businessId: string) {
+    return this.prisma.businessPlan.findMany({
+      where: { businessId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        createdBy: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+      },
+    });
+  }
+
+  // ── Onboarding reset (admin QA tool) ──────────────────────────────────────
+
+  async resetOnboardingForBusinessOwners(businessId: string) {
+    const memberships = await this.prisma.membership.findMany({
+      where: {
+        businessId,
+        role: MembershipRole.OWNER,
+        status: MembershipStatus.ACTIVE,
+      },
+      select: { userId: true },
+    });
+    const userIds = memberships.map((m) => m.userId);
+    if (userIds.length === 0) return { resetCount: 0 };
+
+    const result = await this.prisma.user.updateMany({
+      where: { id: { in: userIds } },
+      data: { onboardingCompletedAt: null },
+    });
+    return { resetCount: result.count };
   }
 }
 

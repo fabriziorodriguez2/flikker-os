@@ -9,6 +9,7 @@ import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcrypt';
 import type { StringValue } from 'ms';
 import {
+  BusinessPlanType,
   BusinessStatus,
   CampaignChannel,
   CampaignStatus,
@@ -20,6 +21,7 @@ import {
   WidgetStatus,
   WidgetType,
 } from '@prisma/client';
+import { SetBusinessPlanDto } from './dto/set-business-plan.dto';
 import { PlatformRepository } from './platform.repository';
 import { AuditService } from '../../common/services/audit.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
@@ -159,6 +161,7 @@ export class PlatformService {
       ownerFirstName?: string;
       ownerLastName?: string;
       whatsappPhone?: string;
+      initialPlan?: SetBusinessPlanDto;
     },
   ) {
     const name = dto.name?.trim();
@@ -212,6 +215,16 @@ export class PlatformService {
       process.env.WEB_BASE_URL ??
       'https://app.flikker.com'
     ).replace(/\/$/, '')}/login`;
+
+    if (dto.initialPlan) {
+      try {
+        await this.setBusinessPlan(result.business.id, adminId, dto.initialPlan);
+      } catch (err) {
+        this.logger.warn(
+          `Failed to assign initial plan to business ${result.business.id}: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
 
     return {
       business: result.business,
@@ -869,6 +882,72 @@ export class PlatformService {
       throw new BadRequestException('Invalid business timezone');
     }
     return timezone;
+  }
+
+  // ── Business plans ────────────────────────────────────────────────────────
+
+  async setBusinessPlan(
+    businessId: string,
+    adminUserId: string,
+    dto: SetBusinessPlanDto,
+  ) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true },
+    });
+    if (!business) throw new NotFoundException('Business not found');
+
+    const isTrial = dto.plan === BusinessPlanType.FREE_TRIAL;
+
+    if (isTrial && dto.trialGoal === undefined) {
+      throw new BadRequestException('trialGoal is required for FREE_TRIAL');
+    }
+
+    const startDate = dto.startDate ? new Date(dto.startDate) : new Date();
+    const trialStart = isTrial
+      ? dto.trialStart
+        ? new Date(dto.trialStart)
+        : new Date()
+      : null;
+
+    return this.repository.createBusinessPlan({
+      businessId,
+      plan: dto.plan,
+      trialGoal: isTrial ? (dto.trialGoal ?? 25) : null,
+      trialStart,
+      startDate,
+      notes: dto.notes ?? null,
+      createdById: adminUserId,
+    });
+  }
+
+  async getCurrentBusinessPlan(businessId: string) {
+    return this.repository.findCurrentBusinessPlan(businessId);
+  }
+
+  async listBusinessPlanHistory(businessId: string) {
+    return this.repository.findBusinessPlanHistory(businessId);
+  }
+
+  async resetOnboardingForBusiness(adminId: string, businessId: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true },
+    });
+    if (!business) throw new NotFoundException('Business not found');
+
+    const result = await this.repository.resetOnboardingForBusinessOwners(
+      businessId,
+    );
+
+    this.logPlatformWrite(
+      adminId,
+      businessId,
+      'PLATFORM_ONBOARDING_RESET',
+      { resetCount: result.resetCount },
+    );
+
+    return result;
   }
 }
 

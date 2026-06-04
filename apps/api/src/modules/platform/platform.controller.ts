@@ -14,6 +14,7 @@ import { PlatformAdminGuard } from '../../common/guards/platform-admin.guard';
 import type { AuthenticatedRequest } from '../../common/types/request.types';
 import { PlatformService } from './platform.service';
 import { ShopifyConfigService } from '../integrations/shopify/shopify-config.service';
+import { SetBusinessPlanDto } from './dto/set-business-plan.dto';
 
 @Controller('platform')
 @UseGuards(JwtGuard, PlatformAdminGuard)
@@ -46,6 +47,7 @@ export class PlatformController {
       ownerFirstName?: string;
       ownerLastName?: string;
       whatsappPhone?: string;
+      initialPlan?: SetBusinessPlanDto;
     },
   ) {
     return this.platformService.createBusiness(req.user.id, body);
@@ -209,5 +211,37 @@ export class PlatformController {
   @Get('businesses/:businessId/integrations/shopify/orders')
   getShopifyOrders(@Param('businessId') businessId: string) {
     return this.shopifyConfigService.getRecentOrders(businessId);
+  }
+
+  // ── Business plans ─────────────────────────────────────────────────────────
+
+  @Post('businesses/:businessId/plans')
+  setBusinessPlan(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+    @Body() dto: SetBusinessPlanDto,
+  ) {
+    return this.platformService.setBusinessPlan(businessId, req.user.id, dto);
+  }
+
+  @Get('businesses/:businessId/plans/current')
+  getCurrentBusinessPlan(@Param('businessId') businessId: string) {
+    return this.platformService.getCurrentBusinessPlan(businessId);
+  }
+
+  @Get('businesses/:businessId/plans')
+  listBusinessPlanHistory(@Param('businessId') businessId: string) {
+    return this.platformService.listBusinessPlanHistory(businessId);
+  }
+
+  @Post('businesses/:businessId/reset-onboarding')
+  resetOnboarding(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+  ) {
+    return this.platformService.resetOnboardingForBusiness(
+      req.user.id,
+      businessId,
+    );
   }
 }

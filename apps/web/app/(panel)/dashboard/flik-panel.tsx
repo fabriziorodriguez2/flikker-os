@@ -1,7 +1,9 @@
 "use client";
 
-import Link from "next/link";
+import { useState } from "react";
 import Flik, { type FlikPose } from "@/components/ui/flik";
+import WelcomeGoalPicker from "./welcome-goal-picker";
+import type { GoalView, PlanType } from "./page";
 
 interface RecentAttendance {
   id: string;
@@ -13,20 +15,20 @@ interface RecentAttendance {
 
 interface FlikPanelProps {
   attendedToday: number;
-  reviewsThisMonth: number;
-  reviewGoal: number;
+  currentPlan: { type: PlanType } | null;
+  goalView: GoalView | null;
   recentAttendances: RecentAttendance[];
 }
 
 function getPoseAndMessage(
   attendedToday: number,
-  reviewsThisMonth: number,
-  effectiveGoal: number,
+  goalView: GoalView | null,
 ): { pose: FlikPose; message: string } {
-  if (reviewsThisMonth >= effectiveGoal) {
+  if (goalView && goalView.current >= goalView.target) {
+    const noun = goalView.type === "REVIEWS" ? "reseñas" : "contactos";
     return {
       pose: "celebrando",
-      message: `¡Llegaste a la meta! ${reviewsThisMonth} reseñas nuevas este mes. 🎉`,
+      message: `¡Llegaste a la meta! ${goalView.current} ${noun} nuevos. 🎉`,
     };
   }
   if (attendedToday === 0) {
@@ -62,16 +64,18 @@ function formatRelative(isoDate: string) {
 }
 
 function ProgressBar({
-  current,
-  goal,
+  goalView,
   celebrating,
 }: {
-  current: number;
-  goal: number;
+  goalView: GoalView;
   celebrating: boolean;
 }) {
-  const pct = Math.min(Math.round((current / goal) * 100), 100);
-  const over = current >= goal;
+  const pct = Math.min(
+    Math.round((goalView.current / goalView.target) * 100),
+    100,
+  );
+  const over = goalView.current >= goalView.target;
+  const noun = goalView.type === "REVIEWS" ? "reseñas" : "contactos";
 
   let barColor = "#9188F5";
   let hint = "Vas bien, seguí marcando clientes.";
@@ -92,7 +96,7 @@ function ProgressBar({
       <div className="flex items-center justify-between text-xs font-semibold text-[#1A202C]">
         <span>Progreso al objetivo</span>
         <span className="tabular-nums">
-          {current} de {goal} reseñas
+          {goalView.current} de {goalView.target} {noun}
         </span>
       </div>
       <div className="h-2 w-full overflow-hidden rounded-full bg-[#F0F2FA]">
@@ -108,17 +112,26 @@ function ProgressBar({
 
 export default function FlikPanel({
   attendedToday,
-  reviewsThisMonth,
-  reviewGoal,
+  currentPlan,
+  goalView,
   recentAttendances,
 }: FlikPanelProps) {
-  const effectiveGoal = reviewGoal > 0 ? reviewGoal : 20;
-  const { pose, message } = getPoseAndMessage(
-    attendedToday,
-    reviewsThisMonth,
-    effectiveGoal,
-  );
+  const { pose, message } = getPoseAndMessage(attendedToday, goalView);
   const celebrating = pose === "celebrando";
+
+  // BASE/PRO without an active user goal → welcome banner with cards
+  const showWelcomeCards =
+    currentPlan != null &&
+    (currentPlan.type === "BASE" || currentPlan.type === "PRO") &&
+    goalView === null;
+
+  // Goal-reached banner for FREE_TRIAL (CTA to talk about monthly plan)
+  const showTrialReachedBanner =
+    currentPlan?.type === "FREE_TRIAL" &&
+    goalView &&
+    goalView.current >= goalView.target;
+
+  const [editingGoal, setEditingGoal] = useState(false);
 
   return (
     <div className="space-y-4">
@@ -135,24 +148,63 @@ export default function FlikPanel({
         </div>
       </div>
 
-      {/* Progress bar or goal link */}
-      {reviewGoal > 0 ? (
-        <div className="rounded-[12px] border border-[#E8EAF0] bg-white px-5 py-4">
-          <ProgressBar
-            current={reviewsThisMonth}
-            goal={reviewGoal}
-            celebrating={celebrating}
-          />
+      {/* Trial reached: CTA to talk plans */}
+      {showTrialReachedBanner && (
+        <div className="rounded-[12px] border border-[color:rgba(29,158,117,0.25)] bg-[color:rgba(29,158,117,0.08)] px-5 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-sm font-semibold text-[#1D9E75]">
+              ¡Llegaste a las {goalView!.target} reseñas! Hablemos del plan mensual.
+            </p>
+            <a
+              href="https://www.flikker.website/#precios"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center justify-center rounded-[8px] bg-[#1D9E75] px-4 py-2 text-sm font-semibold text-white hover:bg-[#168360]"
+            >
+              Ver planes
+            </a>
+          </div>
         </div>
-      ) : (
-        <p className="text-xs text-[#8891A4]">
-          <Link
-            href="/dashboard/campaigns"
-            className="font-medium text-[#5C6BC0] hover:underline"
-          >
-            ¿Querés configurar una meta?
-          </Link>
-        </p>
+      )}
+
+      {/* Welcome cards for BASE/PRO without goal */}
+      {showWelcomeCards && <WelcomeGoalPicker />}
+
+      {/* Progress bar when there's an active goal */}
+      {goalView && !editingGoal && (
+        <div className="rounded-[12px] border border-[#E8EAF0] bg-white px-5 py-4">
+          <ProgressBar goalView={goalView} celebrating={celebrating} />
+          {goalView.source === "user" && (
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setEditingGoal(true)}
+                className="text-xs font-medium text-[#5C6BC0] hover:underline"
+              >
+                Editar meta
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Editing the existing goal */}
+      {editingGoal && (
+        <div className="space-y-2">
+          <WelcomeGoalPicker
+            compact
+            onGoalCreated={() => setEditingGoal(false)}
+          />
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={() => setEditingGoal(false)}
+              className="text-xs font-medium text-[#8891A4] hover:text-[#1A202C]"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
       )}
 
       {/* Recent attendances */}

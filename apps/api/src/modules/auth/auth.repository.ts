@@ -42,7 +42,16 @@ export class AuthRepository {
         lastName: true,
         isActive: true,
         createdAt: true,
+        onboardingCompletedAt: true,
       },
+    });
+  }
+
+  markUserOnboardingComplete(id: string) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { onboardingCompletedAt: new Date() },
+      select: { id: true, onboardingCompletedAt: true },
     });
   }
 

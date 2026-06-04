@@ -260,6 +260,10 @@ export class AuthService {
     return this.repository.findMembershipsWithStatus(userId);
   }
 
+  async markOnboardingComplete(userId: string) {
+    return this.repository.markUserOnboardingComplete(userId);
+  }
+
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------

@@ -17,6 +17,7 @@ import { WidgetsModule } from './modules/widgets/widgets.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
 import { ServiceEventsModule } from './modules/service-events/service-events.module';
+import { BusinessGoalsModule } from './modules/business-goals/business-goals.module';
 import { WebhooksModule } from './modules/webhooks/webhooks.module';
 import { JobsModule } from './jobs/jobs.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -46,6 +47,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     CustomersModule,
     FeedbackModule,
     ServiceEventsModule,
+    BusinessGoalsModule,
     WebhooksModule,
     JobsModule,
     TestLabModule,

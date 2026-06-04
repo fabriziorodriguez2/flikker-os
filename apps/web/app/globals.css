@@ -261,3 +261,59 @@ textarea {
   caret-color: #1a202c;
   transition: background-color 9999s ease-out;
 }
+
+/* ── Flik mascot animations ───────────────────────────────────────────── */
+
+@keyframes flik-bounce {
+  0%,
+  100% {
+    transform: translateY(0) rotate(10deg);
+  }
+  50% {
+    transform: translateY(-8px) rotate(10deg);
+  }
+}
+
+@keyframes flik-dots {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.flik-bounce {
+  animation: flik-bounce 0.6s ease-in-out infinite;
+}
+
+.flik-dot {
+  display: inline-block;
+  border-radius: 9999px;
+  background-color: #9188f5;
+  animation: flik-dots 1.4s ease-in-out infinite;
+}
+
+.flik-dot-1 {
+  animation-delay: 0s;
+}
+.flik-dot-2 {
+  animation-delay: 0.2s;
+}
+.flik-dot-3 {
+  animation-delay: 0.4s;
+}
+
+/* Onboarding tour — punches the highlighted nav item above the overlay */
+.onboarding-highlight {
+  position: relative;
+  z-index: 60;
+  box-shadow:
+    0 0 0 3px rgba(145, 136, 245, 0.65),
+    0 0 24px rgba(145, 136, 245, 0.45);
+  border-radius: 10px;
+  transition:
+    box-shadow 0.25s ease,
+    z-index 0s;
+}

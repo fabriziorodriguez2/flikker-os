@@ -34,6 +34,8 @@ interface PlatformBusiness {
   reviewCount: number;
 }
 
+type InitialPlanType = "FREE_TRIAL" | "BASE" | "PRO";
+
 interface CreateForm {
   name: string;
   ownerEmail: string;
@@ -41,6 +43,15 @@ interface CreateForm {
   ownerLastName: string;
   vertical: string;
   timezone: string;
+  plan: InitialPlanType;
+  trialGoal: string;
+  trialStart: string;
+  startDate: string;
+  notes: string;
+}
+
+function todayIsoDate() {
+  return new Date().toISOString().slice(0, 10);
 }
 
 const EMPTY_CREATE_FORM: CreateForm = {
@@ -50,6 +61,11 @@ const EMPTY_CREATE_FORM: CreateForm = {
   ownerLastName: "",
   vertical: "otro",
   timezone: "America/Montevideo",
+  plan: "FREE_TRIAL",
+  trialGoal: "25",
+  trialStart: todayIsoDate(),
+  startDate: todayIsoDate(),
+  notes: "",
 };
 
 const PAGE_SIZE = 8;
@@ -185,10 +201,42 @@ export default function PlatformPage() {
     setCreating(true);
     setCreateError(null);
     try {
+      const isTrial = createForm.plan === "FREE_TRIAL";
+      const goal = parseInt(createForm.trialGoal, 10);
+      if (isTrial && (!Number.isFinite(goal) || goal < 1)) {
+        setCreateError("La meta de reseñas debe ser un número mayor a 0.");
+        setCreating(false);
+        return;
+      }
+
+      const initialPlan = isTrial
+        ? {
+            plan: createForm.plan,
+            trialGoal: goal,
+            trialStart: new Date(`${createForm.trialStart}T00:00:00`).toISOString(),
+          }
+        : {
+            plan: createForm.plan,
+            startDate: new Date(`${createForm.startDate}T00:00:00`).toISOString(),
+            ...(createForm.notes.trim()
+              ? { notes: createForm.notes.trim() }
+              : {}),
+          };
+
+      const payload = {
+        name: createForm.name,
+        ownerEmail: createForm.ownerEmail,
+        ownerFirstName: createForm.ownerFirstName,
+        ownerLastName: createForm.ownerLastName,
+        vertical: createForm.vertical,
+        timezone: createForm.timezone,
+        initialPlan,
+      };
+
       const res = await fetch("/api/proxy/platform/businesses", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(createForm),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { message?: string };
@@ -398,6 +446,12 @@ export default function PlatformPage() {
                           className="inline-flex h-9 items-center justify-center rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]"
                         >
                           Onboarding
+                        </Link>
+                        <Link
+                          href={`/platform/businesses/${business.id}/plan`}
+                          className="inline-flex h-9 items-center justify-center rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]"
+                        >
+                          Plan
                         </Link>
                         <button
                           type="button"
@@ -610,6 +664,110 @@ export default function PlatformPage() {
                     <option value="America/Mexico_City">México</option>
                   </select>
                 </div>
+              </div>
+
+              <div className="border-t border-[#E8EAF0] pt-4">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+                  Plan inicial
+                </p>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {(["FREE_TRIAL", "BASE", "PRO"] as InitialPlanType[]).map((p) => {
+                    const labels: Record<InitialPlanType, { title: string; sub: string }> = {
+                      FREE_TRIAL: { title: "① Prueba gratis", sub: "Piloto con meta de reseñas" },
+                      BASE: { title: "② Plan Base", sub: "$1.000 UYU/mes" },
+                      PRO: { title: "③ Plan Pro", sub: "$2.000 UYU/mes" },
+                    };
+                    const selected = createForm.plan === p;
+                    return (
+                      <label
+                        key={p}
+                        className={`cursor-pointer rounded-lg border p-3 text-left transition-colors ${
+                          selected
+                            ? "border-[#5C6BC0] bg-[#EEF0FB]"
+                            : "border-[#E8EAF0] hover:bg-[#F5F6FA]"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="initial-plan"
+                          value={p}
+                          checked={selected}
+                          onChange={() => setCreateForm((f) => ({ ...f, plan: p }))}
+                          className="sr-only"
+                        />
+                        <p
+                          className={`text-sm font-semibold ${selected ? "text-[#5C6BC0]" : "text-[#1A202C]"}`}
+                        >
+                          {labels[p].title}
+                        </p>
+                        <p className="mt-0.5 text-xs text-[#8891A4]">{labels[p].sub}</p>
+                      </label>
+                    );
+                  })}
+                </div>
+
+                {createForm.plan === "FREE_TRIAL" ? (
+                  <div className="mt-3 grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-[#1A202C]">
+                        Meta de reseñas
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={createForm.trialGoal}
+                        onChange={(e) =>
+                          setCreateForm((f) => ({ ...f, trialGoal: e.target.value }))
+                        }
+                        className="h-10 w-full rounded-lg border border-[#E8EAF0] px-3 text-sm outline-none focus:border-[#5C6BC0]"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-[#1A202C]">
+                        Inicio del piloto
+                      </label>
+                      <input
+                        type="date"
+                        value={createForm.trialStart}
+                        onChange={(e) =>
+                          setCreateForm((f) => ({ ...f, trialStart: e.target.value }))
+                        }
+                        className="h-10 w-full rounded-lg border border-[#E8EAF0] px-3 text-sm outline-none focus:border-[#5C6BC0]"
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-[#1A202C]">
+                        Inicio de facturación
+                      </label>
+                      <input
+                        type="date"
+                        value={createForm.startDate}
+                        onChange={(e) =>
+                          setCreateForm((f) => ({ ...f, startDate: e.target.value }))
+                        }
+                        className="h-10 w-full rounded-lg border border-[#E8EAF0] px-3 text-sm outline-none focus:border-[#5C6BC0] sm:max-w-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold text-[#1A202C]">
+                        Notas internas
+                      </label>
+                      <textarea
+                        value={createForm.notes}
+                        onChange={(e) =>
+                          setCreateForm((f) => ({ ...f, notes: e.target.value }))
+                        }
+                        rows={2}
+                        maxLength={2000}
+                        className="w-full rounded-lg border border-[#E8EAF0] px-3 py-2 text-sm outline-none focus:border-[#5C6BC0]"
+                        placeholder="Notas para el equipo admin..."
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

@@ -62,4 +62,10 @@ export class AuthController {
   memberships(@CurrentUser() user: { id: string }) {
     return this.authService.memberships(user.id);
   }
+
+  @UseGuards(JwtGuard)
+  @Post('me/onboarding-complete')
+  markOnboardingComplete(@CurrentUser() user: { id: string }) {
+    return this.authService.markOnboardingComplete(user.id);
+  }
 }
