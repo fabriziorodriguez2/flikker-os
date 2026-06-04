@@ -253,6 +253,7 @@ model Business {
   whatsappPhoneId           String?        @map("whatsapp_phone_id")
   messageQuotaMonthly       Int            @default(600) @map("message_quota_monthly")
   messageCountCurrentMonth  Int            @default(0) @map("message_count_current_month")
+  reviewGoalMonthly         Int            @default(0) @map("review_goal_monthly")
   reviewRequestsPausedUntil DateTime?      @map("review_requests_paused_until")
   defaultReviewRedirectUrl  String?
   isActive                  Boolean        @default(true)

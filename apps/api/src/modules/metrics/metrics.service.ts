@@ -504,6 +504,7 @@ export class MetricsService {
       attendedThisWeek,
       messagesToday,
       business,
+      recentEvents,
     ] = await Promise.all([
       this.countGoogleReviews(businessId, monthStart, nextMonthStart),
       this.countGoogleReviews(businessId, prevMonthStart, monthStart),
@@ -519,7 +520,22 @@ export class MetricsService {
         select: {
           messageCountCurrentMonth: true,
           messageQuotaMonthly: true,
+          reviewGoalMonthly: true,
         },
+      }),
+      this.prisma.serviceEvent.findMany({
+        where: { businessId },
+        include: {
+          customer: { select: { name: true } },
+          messages: {
+            select: {
+              status: true,
+              attributedGoogleReviews: { select: { id: true }, take: 1 },
+            },
+          },
+        },
+        orderBy: { eventAt: 'desc' },
+        take: 5,
       }),
     ]);
 
@@ -547,6 +563,16 @@ export class MetricsService {
         thisMonth: business?.messageCountCurrentMonth ?? 0,
         quotaLimit: business?.messageQuotaMonthly ?? 0,
       },
+      reviewGoal: business?.reviewGoalMonthly ?? 0,
+      recentAttendances: recentEvents.map((e) => ({
+        id: e.id,
+        customerName: e.customer.name,
+        eventAt: e.eventAt.toISOString(),
+        hasReview: e.messages.some((m) => m.attributedGoogleReviews.length > 0),
+        messageSent: e.messages.some(
+          (m) => m.status !== 'queued' && m.status !== 'failed',
+        ),
+      })),
     };
   }
 

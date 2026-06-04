@@ -2,6 +2,15 @@ import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import QuickAttend from "./quick-attend";
+import FlikPanel from "./flik-panel";
+
+interface RecentAttendance {
+  id: string;
+  customerName: string;
+  eventAt: string;
+  hasReview: boolean;
+  messageSent: boolean;
+}
 
 interface PanelStats {
   reviews: {
@@ -18,6 +27,8 @@ interface PanelStats {
     thisMonth: number;
     quotaLimit: number;
   };
+  reviewGoal: number;
+  recentAttendances: RecentAttendance[];
 }
 
 function KpiCard({
@@ -183,6 +194,13 @@ export default async function DashboardPage() {
           badgeVariant="neutral"
         />
       </section>
+
+      <FlikPanel
+        attendedToday={stats.attended.today}
+        reviewsThisMonth={stats.reviews.thisMonth}
+        reviewGoal={stats.reviewGoal}
+        recentAttendances={stats.recentAttendances}
+      />
 
       <QuickAttend />
     </div>
