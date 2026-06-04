@@ -165,7 +165,7 @@ export class ReviewsRepository {
     monthStart.setDate(1);
     monthStart.setHours(0, 0, 0, 0);
 
-    const [total, thisMonth, agg] = await Promise.all([
+    const [total, thisMonth, agg, distribution] = await Promise.all([
       this.prisma.googleReview.count({ where: { businessId } }),
       this.prisma.googleReview.count({
         where: { businessId, postedAt: { gte: monthStart } },
@@ -174,12 +174,25 @@ export class ReviewsRepository {
         where: { businessId },
         _avg: { stars: true },
       }),
+      this.prisma.googleReview.groupBy({
+        by: ['stars'],
+        where: { businessId },
+        _count: { stars: true },
+      }),
     ]);
+
+    const ratingDistribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    for (const row of distribution) {
+      if (row.stars >= 1 && row.stars <= 5) {
+        ratingDistribution[row.stars] = row._count.stars;
+      }
+    }
 
     return {
       total,
       thisMonth,
       avgStars: Math.round((agg._avg.stars ?? 0) * 10) / 10,
+      ratingDistribution,
     };
   }
 

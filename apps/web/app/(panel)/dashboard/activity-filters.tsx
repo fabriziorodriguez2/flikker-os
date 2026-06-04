@@ -23,7 +23,7 @@ export default function ActivityFilters({
         <button
           key={opt.value}
           type="button"
-          onClick={() => router.push(`/dashboard?granularity=${opt.value}`)}
+          onClick={() => router.push(`/dashboard/insights?granularity=${opt.value}`)}
           className={`px-3 py-1.5 transition-colors ${
             i > 0 ? "border-l border-[#E8EAF0]" : ""
           } ${

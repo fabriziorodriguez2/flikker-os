@@ -18,6 +18,11 @@ import { MetricsService } from './metrics.service';
 export class MetricsController {
   constructor(private readonly metricsService: MetricsService) {}
 
+  @Get('panel')
+  panel(@Req() req: AuthenticatedRequest) {
+    return this.metricsService.getPanelStats(req.currentBusinessId!);
+  }
+
   @Get('overview')
   overview(
     @Req() req: AuthenticatedRequest,

@@ -480,6 +480,76 @@ export class MetricsService {
 
   // ──────────────────────────────────────────────────────────────────────────
 
+  async getPanelStats(businessId: string) {
+    const now = new Date();
+
+    // Uruguay is UTC-3: business day starts at 03:00 UTC
+    const todayStart = new Date();
+    todayStart.setUTCHours(3, 0, 0, 0);
+    if (now.getTime() < todayStart.getTime()) {
+      todayStart.setUTCDate(todayStart.getUTCDate() - 1);
+    }
+
+    // Week start (Monday) in UTC-3
+    const weekStart = startOfWeek(todayStart);
+
+    const monthStart = startOfMonth(now);
+    const prevMonthStart = addMonths(monthStart, -1);
+    const nextMonthStart = addMonths(monthStart, 1);
+
+    const [
+      reviewsThisMonth,
+      reviewsLastMonth,
+      attendedToday,
+      attendedThisWeek,
+      messagesToday,
+      business,
+    ] = await Promise.all([
+      this.countGoogleReviews(businessId, monthStart, nextMonthStart),
+      this.countGoogleReviews(businessId, prevMonthStart, monthStart),
+      this.prisma.serviceEvent.count({
+        where: { businessId, eventAt: { gte: todayStart } },
+      }),
+      this.prisma.serviceEvent.count({
+        where: { businessId, eventAt: { gte: weekStart } },
+      }),
+      this.countMessagesSent(businessId, todayStart, now),
+      this.prisma.business.findUnique({
+        where: { id: businessId },
+        select: {
+          messageCountCurrentMonth: true,
+          messageQuotaMonthly: true,
+        },
+      }),
+    ]);
+
+    const reviewsDelta =
+      reviewsLastMonth > 0
+        ? Math.round(
+            ((reviewsThisMonth - reviewsLastMonth) / reviewsLastMonth) * 100,
+          )
+        : reviewsThisMonth > 0
+          ? 100
+          : 0;
+
+    return {
+      reviews: {
+        thisMonth: reviewsThisMonth,
+        lastMonth: reviewsLastMonth,
+        delta: reviewsDelta,
+      },
+      attended: {
+        today: attendedToday,
+        thisWeek: attendedThisWeek,
+      },
+      messages: {
+        today: messagesToday,
+        thisMonth: business?.messageCountCurrentMonth ?? 0,
+        quotaLimit: business?.messageQuotaMonthly ?? 0,
+      },
+    };
+  }
+
   async acknowledgeNegativeFeedback(businessId: string, feedbackId: string) {
     const feedback = await this.prisma.feedbackResponse.findFirst({
       where: {
