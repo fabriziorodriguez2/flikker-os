@@ -240,10 +240,10 @@ export default function QrPage() {
               <img
                 src={qrDataUrl}
                 alt="QR de captación"
-                className="mx-auto w-56 rounded-xl border border-[#F3F4F8]"
+                className="mx-auto w-full max-w-[280px] rounded-xl border border-[#F3F4F8] sm:w-56"
               />
             ) : (
-              <div className="mx-auto flex h-56 w-56 items-center justify-center rounded-xl bg-[#F5F6FA] text-xs text-[#8891A4]">
+              <div className="mx-auto flex h-56 w-full max-w-[280px] items-center justify-center rounded-xl bg-[#F5F6FA] text-xs text-[#8891A4] sm:w-56">
                 Generando…
               </div>
             )}
@@ -256,12 +256,12 @@ export default function QrPage() {
             Tu QR está listo. Imprimilo y ponelo donde tus pacientes esperan. Cada escaneo captura un contacto nuevo y después los lleva directo a dejarte una reseña en Google.
           </div>
 
-          <div className="flex flex-wrap gap-3">
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
             <button
               type="button"
               onClick={handleDownload}
               disabled={!qrDataUrl}
-              className="inline-flex items-center gap-2 rounded-xl bg-[#5C6BC0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-[#5C6BC0] px-5 py-2.5 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50 sm:w-auto"
             >
               <Download className="h-4 w-4" />
               Descargar QR
@@ -269,7 +269,7 @@ export default function QrPage() {
             <button
               type="button"
               onClick={() => setShowFlow(true)}
-              className="inline-flex items-center gap-2 rounded-xl border border-[#E8EAF0] bg-white px-5 py-2.5 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]"
+              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl border border-[#E8EAF0] bg-white px-5 py-2.5 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] sm:w-auto"
             >
               Ver flujo completo
             </button>

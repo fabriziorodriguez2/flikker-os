@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { SessionMembership } from "@/lib/auth";
 
@@ -124,6 +124,7 @@ export default function Sidebar(props: SidebarProps) {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
   });
+  const [mobileOpen, setMobileOpen] = useState(false);
   const activeBusiness = props.memberships.find(
     (membership) => membership.businessId === props.activeBusinessId,
   );
@@ -131,14 +132,57 @@ export default function Sidebar(props: SidebarProps) {
     window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(collapsed));
   }, [collapsed]);
 
+  // Listen for hamburger toggle events from the header
+  useEffect(() => {
+    function handleToggle() {
+      setMobileOpen((v) => !v);
+    }
+    window.addEventListener("flikker:mobile-menu-toggle", handleToggle);
+    return () =>
+      window.removeEventListener("flikker:mobile-menu-toggle", handleToggle);
+  }, []);
+
+  // Close drawer on navigation
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   return (
+    <>
+      {/* Mobile overlay */}
+      {mobileOpen && (
+        <div
+          aria-hidden="true"
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          onClick={() => setMobileOpen(false)}
+        />
+      )}
+
     <aside
       aria-label={`Navegación del panel${activeBusiness ? ` de ${activeBusiness.business.name}` : ""}`}
-      className={`sticky top-0 hidden h-screen shrink-0 flex-col border-r border-[#223247] bg-[#0D1B2A] transition-[width] duration-200 lg:flex ${
-        collapsed ? "w-[88px]" : "w-[250px]"
-      }`}
+      className={`
+        fixed top-0 left-0 z-50 flex h-full w-[min(280px,80vw)] flex-col
+        border-r border-[#223247] bg-[#0D1B2A]
+        transition-transform duration-[250ms] ease-in-out
+        ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
+        lg:sticky lg:z-auto lg:h-screen lg:translate-x-0 lg:transition-[width] lg:duration-200
+        ${collapsed ? "lg:w-[88px]" : "lg:w-[250px]"}
+        shrink-0
+      `}
     >
-      <div className={collapsed ? "px-5 pt-6" : "px-7 pt-6"}>
+      {/* Mobile close button */}
+      <div className="flex items-center justify-end px-4 pt-4 lg:hidden">
+        <button
+          type="button"
+          onClick={() => setMobileOpen(false)}
+          aria-label="Cerrar menú"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#A7B0C1] hover:text-white"
+        >
+          <X aria-hidden="true" className="h-5 w-5" />
+        </button>
+      </div>
+
+      <div className={collapsed ? "px-5 pt-4 lg:pt-6" : "px-7 pt-4 lg:pt-6"}>
         <div className={`flex items-center ${collapsed ? "justify-center" : "justify-start"}`}>
           <Link
             href="/dashboard"
@@ -184,7 +228,8 @@ export default function Sidebar(props: SidebarProps) {
         })}
       </nav>
 
-      <div className={`mt-auto ${collapsed ? "px-4" : "px-5"} pb-4`}>
+      {/* Collapse toggle — desktop only */}
+      <div className={`mt-auto hidden lg:block ${collapsed ? "px-4" : "px-5"} pb-4`}>
         <div className="border-t border-[#223247]/60 pt-2">
           <button
             type="button"
@@ -207,5 +252,6 @@ export default function Sidebar(props: SidebarProps) {
         </div>
       </div>
     </aside>
+    </>
   );
 }

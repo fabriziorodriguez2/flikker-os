@@ -11,6 +11,7 @@ import BusinessLogo from "@/components/business/business-logo";
 import SessionExpiryHandler from "@/components/auth/session-expiry-handler";
 import ImpersonationBanner from "./impersonation-banner";
 import QueryProvider from "@/components/providers/query-provider";
+import MobileMenuButton from "./mobile-menu-button";
 
 interface CurrentBusiness {
   name: string;
@@ -135,11 +136,12 @@ export default async function PanelLayout({
         ) : null}
         <header className="sticky top-0 z-10 bg-[color:var(--background)]/96 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--background)]/92">
           <div className="flex items-center justify-between gap-4 px-4 py-3.5 md:px-6">
-            <div className="lg:hidden">
+            <div className="flex items-center gap-1 lg:hidden">
+              <MobileMenuButton />
               <BrandLogo
                 width={126}
                 height={107}
-                className="h-auto w-[108px]"
+                className="h-auto w-[96px]"
               />
             </div>
 

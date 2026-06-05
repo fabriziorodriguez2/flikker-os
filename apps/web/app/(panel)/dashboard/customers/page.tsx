@@ -927,7 +927,7 @@ export default function CustomersPage() {
 
       {/* Search + actions row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <label className="relative w-full max-w-[300px]">
+        <label className="relative w-full sm:max-w-[300px]">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8891A4]" />
           <input
             value={search}
@@ -962,7 +962,7 @@ export default function CustomersPage() {
       </div>
 
       {/* Filters row */}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 overflow-x-auto pb-1 sm:pb-0">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-semibold text-[#8891A4]">Origen:</span>
           {ORIGIN_FILTER_OPTIONS.map((opt) => (
@@ -1146,8 +1146,88 @@ export default function CustomersPage() {
         </form>
       ) : null}
 
-      {/* Table */}
-      <div className="overflow-hidden rounded-[12px] border border-[#E8EAF0] bg-white">
+      {/* Mobile: card list */}
+      <div className="sm:hidden space-y-3">
+        {loading ? (
+          <div className="py-10 text-center text-sm text-[#8891A4]">Cargando clientes...</div>
+        ) : customers.length === 0 ? (
+          <div className="py-10 text-center text-sm text-[#8891A4]">No hay clientes para mostrar.</div>
+        ) : (
+          customers.map((customer) => {
+            const isAttended = attendedTodayIds.has(customer.id);
+            return (
+              <div
+                key={customer.id}
+                className={`rounded-[12px] border bg-white p-4 ${
+                  selectedIds.has(customer.id) ? "border-[#5C6BC0]" : "border-[#E8EAF0]"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(customer.id)}
+                      onChange={() => toggleSelect(customer.id)}
+                      className="h-4 w-4 shrink-0 rounded border-[#D0D5DD] accent-[#5C6BC0]"
+                    />
+                    <p className="truncate font-semibold text-[#1A202C]">{customer.name}</p>
+                  </div>
+                  <OriginBadge origin={customer.origin} />
+                </div>
+                <p className="mt-1.5 pl-7 text-sm text-[#8891A4]">{customer.phoneE164}</p>
+                <p className="mt-0.5 pl-7 text-xs text-[#B0B8C9]">{formatDate(customer.createdAt)}</p>
+                <div className="mt-3 flex flex-wrap items-center gap-2 pl-7">
+                  <button
+                    type="button"
+                    onClick={() => handleAttendedClick(customer)}
+                    disabled={!canMutate || customer.optedOut}
+                    className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-[8px] px-3 text-xs font-semibold disabled:opacity-50 ${
+                      isAttended
+                        ? "bg-[#EEF7E8] text-[#639922]"
+                        : "border border-[#E8EAF0] bg-white text-[#8891A4] hover:border-[#5C6BC0] hover:text-[#5C6BC0]"
+                    }`}
+                  >
+                    {isAttended ? (
+                      <><Check className="h-3.5 w-3.5" />Atendido hoy</>
+                    ) : (
+                      "Marcar atendido"
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openNotifyAppointment(customer)}
+                    disabled={!canMutate || customer.optedOut}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] disabled:opacity-50"
+                    aria-label="Avisar turno"
+                  >
+                    <CalendarClock className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => openEdit(customer)}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4]"
+                    aria-label="Editar cliente"
+                  >
+                    <Edit2 className="h-4 w-4" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPendingDelete(customer)}
+                    disabled={!canMutate}
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] disabled:opacity-50"
+                    aria-label="Archivar cliente"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden overflow-hidden rounded-[12px] border border-[#E8EAF0] bg-white sm:block">
         <table className="w-full min-w-[820px] text-left text-sm">
           <thead className="bg-[#F5F6FA] text-[11px] uppercase tracking-[0.08em] text-[#8891A4]">
             <tr>

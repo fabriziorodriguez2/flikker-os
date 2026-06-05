@@ -136,12 +136,12 @@ export default function FlikPanel({
   return (
     <div className="space-y-4">
       {/* Flik bubble */}
-      <div className="flex items-center gap-4">
-        <div className="shrink-0">
-          <Flik pose={pose} size={104} />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+        <div className="shrink-0 self-start sm:self-auto">
+          <Flik pose={pose} size={80} />
         </div>
         <div
-          className="rounded-[12px_12px_12px_2px] border border-[#E8EAF0] bg-white px-4 py-3 text-sm font-medium text-[#1A202C] shadow-[0_4px_16px_rgba(0,0,0,0.06)]"
+          className="border border-[#E8EAF0] bg-white px-4 py-3 text-sm font-medium text-[#1A202C] shadow-[0_4px_16px_rgba(0,0,0,0.06)]"
           style={{ borderRadius: "12px 12px 12px 2px" }}
         >
           {message}
