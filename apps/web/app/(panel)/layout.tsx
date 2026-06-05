@@ -79,6 +79,7 @@ export default async function PanelLayout({
           inset: 0,
           zIndex: 0,
           pointerEvents: "none",
+          background: "rgba(255, 0, 0, 0.3)",
         }}
       >
         <div
