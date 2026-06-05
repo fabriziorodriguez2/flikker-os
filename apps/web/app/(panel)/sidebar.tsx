@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { SessionMembership } from "@/lib/auth";
 
@@ -138,19 +138,6 @@ export default function Sidebar(props: SidebarProps) {
         collapsed ? "w-[88px]" : "w-[250px]"
       }`}
     >
-      <button
-        type="button"
-        onClick={() => setCollapsed((value) => !value)}
-        aria-label={collapsed ? "Abrir sidebar" : "Cerrar sidebar"}
-        className="absolute right-0 top-1/2 z-30 inline-flex h-9 w-9 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[10px] border border-[#223247] bg-[#0D1B2A] text-[#A7B0C1] transition-colors hover:bg-[#16263A] hover:text-white"
-      >
-        {collapsed ? (
-          <ChevronRight aria-hidden="true" className="h-[18px] w-[18px]" />
-        ) : (
-          <ChevronLeft aria-hidden="true" className="h-[18px] w-[18px]" />
-        )}
-      </button>
-
       <div className={collapsed ? "px-5 pt-6" : "px-7 pt-6"}>
         <div className={`flex items-center ${collapsed ? "justify-center" : "justify-start"}`}>
           <Link
@@ -197,7 +184,28 @@ export default function Sidebar(props: SidebarProps) {
         })}
       </nav>
 
-      <div className="mt-auto" />
+      <div className={`mt-auto ${collapsed ? "px-4" : "px-5"} pb-4`}>
+        <div className="border-t border-[#223247]/60 pt-2">
+          <button
+            type="button"
+            onClick={() => setCollapsed((v) => !v)}
+            aria-label={collapsed ? "Expandir menú" : "Colapsar menú"}
+            className={`group relative flex min-h-11 w-full cursor-pointer items-center rounded-[8px] py-3 text-[#A7B0C1] transition-colors hover:text-white ${
+              collapsed ? "justify-center px-2" : "gap-3.5 px-4"
+            }`}
+          >
+            {collapsed ? (
+              <PanelLeftOpen aria-hidden="true" className="h-[18px] w-[18px] shrink-0" />
+            ) : (
+              <PanelLeftClose aria-hidden="true" className="h-[18px] w-[18px] shrink-0" />
+            )}
+            {!collapsed ? (
+              <span className="text-[15px] font-semibold">Colapsar menú</span>
+            ) : null}
+            {collapsed ? <SidebarTooltip label="Expandir menú" /> : null}
+          </button>
+        </div>
+      </div>
     </aside>
   );
 }

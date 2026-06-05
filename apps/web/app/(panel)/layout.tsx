@@ -79,43 +79,45 @@ export default async function PanelLayout({
           inset: 0,
           zIndex: 0,
           pointerEvents: "none",
-          background: "rgba(255, 0, 0, 0.3)",
         }}
       >
+        {/* top-right purple — center at ~(vw-150px, 100px) */}
         <div
           style={{
             position: "absolute",
-            top: "-200px",
-            right: "-150px",
-            width: "600px",
-            height: "600px",
-            borderRadius: "50%",
-            background: "rgba(145, 136, 245, 0.18)",
-            filter: "blur(120px)",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "-150px",
-            left: "-100px",
+            top: "-150px",
+            right: "-100px",
             width: "500px",
             height: "500px",
             borderRadius: "50%",
-            background: "rgba(250, 171, 75, 0.14)",
-            filter: "blur(100px)",
+            background: "rgba(145, 136, 245, 0.28)",
+            filter: "blur(80px)",
           }}
         />
+        {/* bottom-left orange */}
         <div
           style={{
             position: "absolute",
-            top: "40%",
-            right: "10%",
-            width: "400px",
-            height: "400px",
+            bottom: "-100px",
+            left: "-80px",
+            width: "450px",
+            height: "450px",
             borderRadius: "50%",
-            background: "rgba(145, 136, 245, 0.12)",
-            filter: "blur(140px)",
+            background: "rgba(250, 171, 75, 0.18)",
+            filter: "blur(70px)",
+          }}
+        />
+        {/* center-right soft purple */}
+        <div
+          style={{
+            position: "absolute",
+            top: "25%",
+            right: "15%",
+            width: "350px",
+            height: "350px",
+            borderRadius: "50%",
+            background: "rgba(145, 136, 245, 0.15)",
+            filter: "blur(100px)",
           }}
         />
       </div>
