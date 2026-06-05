@@ -71,7 +71,54 @@ export default async function PanelLayout({
     currentBusiness?.logoUrl ?? activeMembership?.business?.logoUrl ?? null;
 
   return (
-    <div className="flikker-app-shell min-h-screen lg:flex">
+    <>
+      <div
+        aria-hidden="true"
+        style={{
+          position: "fixed",
+          inset: 0,
+          zIndex: 0,
+          pointerEvents: "none",
+        }}
+      >
+        <div
+          style={{
+            position: "absolute",
+            top: "-200px",
+            right: "-150px",
+            width: "600px",
+            height: "600px",
+            borderRadius: "50%",
+            background: "rgba(145, 136, 245, 0.18)",
+            filter: "blur(120px)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            bottom: "-150px",
+            left: "-100px",
+            width: "500px",
+            height: "500px",
+            borderRadius: "50%",
+            background: "rgba(250, 171, 75, 0.14)",
+            filter: "blur(100px)",
+          }}
+        />
+        <div
+          style={{
+            position: "absolute",
+            top: "40%",
+            right: "10%",
+            width: "400px",
+            height: "400px",
+            borderRadius: "50%",
+            background: "rgba(145, 136, 245, 0.12)",
+            filter: "blur(140px)",
+          }}
+        />
+      </div>
+    <div className="flikker-app-shell relative z-[1] min-h-screen lg:flex">
       <SessionExpiryHandler />
       <Sidebar
         memberships={memberships}
@@ -120,5 +167,6 @@ export default async function PanelLayout({
         </main>
       </div>
     </div>
+    </>
   );
 }

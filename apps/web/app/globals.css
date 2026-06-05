@@ -132,18 +132,7 @@ textarea {
 }
 
 .flikker-app-shell {
-  background-image:
-    radial-gradient(ellipse 700px 700px at calc(100% + 150px) -200px, rgba(145, 136, 245, 0.18), transparent 75%),
-    radial-gradient(ellipse 600px 600px at -100px calc(100% + 150px), rgba(250, 171, 75, 0.14), transparent 75%),
-    radial-gradient(ellipse 500px 500px at 90% 40%, rgba(145, 136, 245, 0.12), transparent 75%);
-  background-attachment: fixed;
-}
-
-:root[data-theme="dark"] .flikker-app-shell {
-  background-image:
-    radial-gradient(ellipse 700px 700px at calc(100% + 150px) -200px, rgba(145, 136, 245, 0.09), transparent 75%),
-    radial-gradient(ellipse 600px 600px at -100px calc(100% + 150px), rgba(250, 171, 75, 0.07), transparent 75%),
-    radial-gradient(ellipse 500px 500px at 90% 40%, rgba(145, 136, 245, 0.06), transparent 75%);
+  /* background intentionally absent — body provides the page color */
 }
 
 .flikker-card {
