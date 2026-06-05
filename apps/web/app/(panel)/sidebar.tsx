@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { SessionMembership } from "@/lib/auth";
@@ -119,6 +119,7 @@ function SidebarTooltip({ label }: { label: string }) {
 
 export default function Sidebar(props: SidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const [collapsed, setCollapsed] = useState(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SIDEBAR_STORAGE_KEY) === "true";
@@ -177,6 +178,7 @@ export default function Sidebar(props: SidebarProps) {
               key={item.href}
               href={item.href}
               data-onboarding={item.onboardingKey}
+              onMouseEnter={() => router.prefetch(item.href)}
               className={`group relative flex min-h-11 items-center rounded-[8px] py-3 text-[15px] font-semibold transition-colors ${
                 collapsed ? "justify-center px-2" : "gap-3.5 px-4"
               } ${

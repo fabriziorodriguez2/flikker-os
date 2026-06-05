@@ -515,6 +515,10 @@ export class CustomersService {
     return this.repository.getFilterCounts(businessId);
   }
 
+  getContactsStats(businessId: string) {
+    return this.repository.getContactsStats(businessId);
+  }
+
   async previewFilter(
     businessId: string,
     mode: string,

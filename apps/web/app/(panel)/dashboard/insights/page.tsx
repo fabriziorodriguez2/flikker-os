@@ -7,6 +7,8 @@ import ActivityFilters, { type ActivityGranularity } from "../activity-filters";
 import { ACTIVITY_SERIES } from "../activity-series";
 import NegativeFeedbackList from "../negative-feedback-list";
 import ConversionSection from "../conversion-section";
+import ContactsStatsSection from "../contacts-stats-section";
+import ConversionByOriginSection from "../conversion-by-origin-section";
 
 interface KpiMetric {
   current: number;
@@ -193,8 +195,14 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
         </div>
       </SectionCard>
 
+      {/* Contact base composition */}
+      <ContactsStatsSection businessId={businessId} />
+
       {/* Conversion */}
-      <ConversionSection rawRange={firstValue(resolvedSearchParams.cvRange)} />
+      <ConversionSection
+        rawRange={firstValue(resolvedSearchParams.cvRange)}
+        after={<ConversionByOriginSection businessId={businessId} />}
+      />
 
       {/* Avg rating */}
       {googleStats ? <AvgRatingCard stats={googleStats} /> : null}

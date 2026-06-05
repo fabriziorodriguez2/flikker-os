@@ -132,7 +132,7 @@ textarea {
 }
 
 .flikker-app-shell {
-  background: var(--background);
+  /* background intentionally absent — body provides the page color */
 }
 
 .flikker-card {
@@ -320,6 +320,64 @@ textarea {
   position: absolute;
   border-radius: 9999px;
   animation: flik-confetti-pop 1.8s ease-out infinite;
+}
+
+/* ── Dashboard background blobs ──────────────────────────────────────── */
+
+.dashboard-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.bg-blob {
+  position: absolute;
+  border-radius: 9999px;
+  will-change: transform;
+}
+
+.bg-blob-1 {
+  width: 600px;
+  height: 600px;
+  background: #9188f5;
+  opacity: 0.07;
+  filter: blur(120px);
+  top: -200px;
+  right: -150px;
+}
+
+.bg-blob-2 {
+  width: 500px;
+  height: 500px;
+  background: #faab4b;
+  opacity: 0.05;
+  filter: blur(100px);
+  bottom: -150px;
+  left: -100px;
+}
+
+.bg-blob-3 {
+  width: 400px;
+  height: 400px;
+  background: #9188f5;
+  opacity: 0.04;
+  filter: blur(140px);
+  top: 40%;
+  right: 10%;
+}
+
+:root[data-theme="dark"] .bg-blob-1 {
+  opacity: 0.04;
+}
+
+:root[data-theme="dark"] .bg-blob-2 {
+  opacity: 0.025;
+}
+
+:root[data-theme="dark"] .bg-blob-3 {
+  opacity: 0.02;
 }
 
 /* ── Onboarding tour ──────────────────────────────────────────────────── */

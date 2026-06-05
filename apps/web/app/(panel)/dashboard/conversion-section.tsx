@@ -237,7 +237,13 @@ async function ConversionContent({ range }: { range: ValidRange }) {
   );
 }
 
-export default function ConversionSection({ rawRange }: { rawRange?: string }) {
+export default function ConversionSection({
+  rawRange,
+  after,
+}: {
+  rawRange?: string;
+  after?: React.ReactNode;
+}) {
   const range = normalizeRange(rawRange);
 
   return (
@@ -256,6 +262,7 @@ export default function ConversionSection({ rawRange }: { rawRange?: string }) {
       >
         <ConversionContent range={range} />
       </Suspense>
+      {after}
     </SectionCard>
   );
 }

@@ -22,7 +22,7 @@ export default function PhoneInput({
   onChange,
   label,
   required,
-  placeholder = "091 624 988",
+  placeholder = "91 624 988",
   className = "",
   disabled,
 }: PhoneInputProps) {

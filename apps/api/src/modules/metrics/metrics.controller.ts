@@ -66,10 +66,12 @@ export class MetricsController {
   getConversionFunnel(
     @Req() req: AuthenticatedRequest,
     @Query('attribution_window_days') attributionWindowDays?: string,
+    @Query('origin') origin?: string,
   ) {
     return this.metricsService.getConversionFunnel(
       req.currentBusinessId!,
       parseAttributionWindow(attributionWindowDays),
+      origin,
     );
   }
 

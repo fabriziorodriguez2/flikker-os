@@ -341,6 +341,37 @@ export class CustomersRepository {
     };
   }
 
+  async getContactsStats(businessId: string) {
+    const now = new Date();
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const [total, byOriginRaw, newThisMonth] = await Promise.all([
+      this.prisma.customer.count({
+        where: { businessId, isActive: true },
+      }),
+      this.prisma.customer.groupBy({
+        by: ['origin'],
+        where: { businessId, isActive: true },
+        _count: { _all: true },
+      }),
+      this.prisma.customer.count({
+        where: { businessId, isActive: true, createdAt: { gte: startOfMonth } },
+      }),
+    ]);
+
+    const byOrigin: { qr: number; manual: number; whatsapp: number } = {
+      qr: 0,
+      manual: 0,
+      whatsapp: 0,
+    };
+    for (const row of byOriginRaw) {
+      const key = row.origin as keyof typeof byOrigin;
+      if (key in byOrigin) byOrigin[key] = row._count._all;
+    }
+
+    return { total, byOrigin, newThisMonth };
+  }
+
   async findByFilter(
     businessId: string,
     mode: string,

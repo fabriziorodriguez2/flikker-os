@@ -343,9 +343,10 @@ export class MetricsService {
   async getConversionFunnel(
     businessId: string,
     attributionWindowDays: number = 7,
+    origin?: string,
   ): Promise<ConversionFunnel> {
     const cutoff = new Date(Date.now() - attributionWindowDays * 86_400_000);
-    const baseWhere = this.sentMessageWhere(businessId, null, cutoff);
+    const baseWhere = this.sentMessageWhere(businessId, null, cutoff, origin);
 
     const [sent, clicked, positiveFeedback, negativeFeedback, reviewDetected] =
       await Promise.all([
@@ -428,7 +429,7 @@ export class MetricsService {
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
-  private sentMessageWhere(businessId: string, from: Date | null, cutoff: Date) {
+  private sentMessageWhere(businessId: string, from: Date | null, cutoff: Date, origin?: string) {
     return {
       businessId,
       status: { in: SENT_STATUSES },
@@ -436,6 +437,7 @@ export class MetricsService {
         lt: cutoff,
         ...(from ? { gte: from } : {}),
       },
+      ...(origin ? { customer: { origin } } : {}),
     };
   }
 

@@ -21,6 +21,7 @@ import PhoneInput, {
   isValidNationalPhone,
   toNationalDigits,
 } from "@/components/ui/phone-input";
+import { useQueryClient } from "@tanstack/react-query";
 import { useCanMutate } from "../../role-context";
 import ManualCampaignModal, {
   type ManualRecipient,
@@ -474,6 +475,7 @@ const DATE_FILTER_OPTIONS = [
 
 export default function CustomersPage() {
   const canMutate = useCanMutate();
+  const queryClient = useQueryClient();
   const router = useRouter();
   const searchParams = useSearchParams();
   const campaignIntent = searchParams.get("openCampaign") === "1";
@@ -676,6 +678,7 @@ export default function CustomersPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message ?? "Error al guardar");
       setMessage(editing ? "Cliente actualizado" : "Cliente creado");
+      void queryClient.invalidateQueries({ queryKey: ["contacts-stats"] });
       setShowForm(false);
       await fetchCustomers();
     } catch (e) {
@@ -696,6 +699,7 @@ export default function CustomersPage() {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.message ?? "Error al archivar");
       setMessage("Cliente archivado");
+      void queryClient.invalidateQueries({ queryKey: ["contacts-stats"] });
       setPendingDelete(null);
       await fetchCustomers();
     } catch (e) {
@@ -843,6 +847,7 @@ export default function CustomersPage() {
       setMessage(
         `Importados: ${result.imported}. Duplicados: ${result.duplicates}. Fallidos: ${result.failed.length}`,
       );
+      void queryClient.invalidateQueries({ queryKey: ["contacts-stats"] });
       await fetchCustomers();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al importar");

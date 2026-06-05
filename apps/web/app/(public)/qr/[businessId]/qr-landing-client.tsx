@@ -169,8 +169,8 @@ function CaptureForm({
               type="tel"
               inputMode="numeric"
               value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-              placeholder="091624988"
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").replace(/^0+/, ""))}
+              placeholder="91624988"
               maxLength={9}
               required
               className="w-full bg-transparent py-4 pl-3 pr-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:outline-none"

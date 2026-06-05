@@ -42,7 +42,11 @@
       "Bash(mkdir -p \"c:/Users/fabri/OneDrive/Desktop/flikker system/flikker-os/apps/web/app/\\(public\\)/qr/[businessId]\" 2>/dev/null; echo done)",
       "Bash(mkdir -p \"c:/Users/fabri/OneDrive/Desktop/flikker system/flikker-os/apps/web/app/api/qr/[businessId]/capture\" 2>/dev/null; echo done)",
       "Bash(awk 'NR<238 || NR>522' page.tsx)",
-      "Bash(mv page.tsx.tmp page.tsx)"
+      "Bash(mv page.tsx.tmp page.tsx)",
+      "Bash(python -c \"import sys,json; d=json.load\\(sys.stdin\\); deps={**d.get\\('dependencies',{}\\), **d.get\\('devDependencies',{}\\)}; print\\('react-query' in deps or '@tanstack/react-query' in deps\\)\")",
+      "Bash(powershell -command \"\\(Get-Content 'app/\\(panel\\)/dashboard/customers/page.tsx'\\).Count\")",
+      "Bash(dir \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\\\\apps\\\\web\\\\app\\\\api\" /s /b)",
+      "Bash(powershell -command \"Get-ChildItem 'c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\\\\apps\\\\web\\\\app\\\\api' -Recurse -Name\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

@@ -10,6 +10,7 @@ import BrandLogo from "@/components/brand/brand-logo";
 import BusinessLogo from "@/components/business/business-logo";
 import SessionExpiryHandler from "@/components/auth/session-expiry-handler";
 import ImpersonationBanner from "./impersonation-banner";
+import QueryProvider from "@/components/providers/query-provider";
 
 interface CurrentBusiness {
   name: string;
@@ -70,7 +71,13 @@ export default async function PanelLayout({
     currentBusiness?.logoUrl ?? activeMembership?.business?.logoUrl ?? null;
 
   return (
-    <div className="flikker-app-shell min-h-screen lg:flex">
+    <>
+    <div className="dashboard-bg" aria-hidden="true">
+      <div className="bg-blob bg-blob-1" />
+      <div className="bg-blob bg-blob-2" />
+      <div className="bg-blob bg-blob-3" />
+    </div>
+    <div className="flikker-app-shell relative z-[1] min-h-screen lg:flex">
       <SessionExpiryHandler />
       <Sidebar
         memberships={memberships}
@@ -113,9 +120,12 @@ export default async function PanelLayout({
         <MobileNav />
 
         <main className="flex-1 overflow-auto px-4 py-6 md:px-6 md:py-8">
-          <RoleProvider role={currentRole}>{children}</RoleProvider>
+          <QueryProvider>
+            <RoleProvider role={currentRole}>{children}</RoleProvider>
+          </QueryProvider>
         </main>
       </div>
     </div>
+    </>
   );
 }

@@ -137,6 +137,11 @@ export class CustomersController {
 export class ContactsController {
   constructor(private readonly customersService: CustomersService) {}
 
+  @Get('stats')
+  stats(@Req() req: AuthenticatedRequest) {
+    return this.customersService.getContactsStats(req.currentBusinessId!);
+  }
+
   @Post(':contactId/notify-appointment')
   @UseGuards(RolesGuard)
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.OPERATOR)
