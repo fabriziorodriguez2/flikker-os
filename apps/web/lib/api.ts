@@ -63,7 +63,9 @@ export async function apiFetch<T>(
     throw new ApiError(res.status, error?.message ?? res.statusText);
   }
 
-  return res.json() as Promise<T>;
+  const text = await res.text();
+  if (!text.trim()) return null as T;
+  return JSON.parse(text) as T;
 }
 
 export class ApiError extends Error {

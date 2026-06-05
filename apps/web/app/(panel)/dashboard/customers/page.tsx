@@ -283,6 +283,9 @@ function CelebrationModal({
   );
 }
 
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+const MINUTES = Array.from({ length: 60 }, (_, i) => String(i).padStart(2, "0"));
+
 function AppointmentNotificationModal({
   customer,
   businessName,
@@ -304,6 +307,37 @@ function AppointmentNotificationModal({
   onClose: () => void;
   onSubmit: (event: React.FormEvent) => void;
 }) {
+  const [timeError, setTimeError] = useState<string | null>(null);
+
+  const timeParts = appointmentTime ? appointmentTime.split(":") : [];
+  const currentHour = timeParts[0] ?? "";
+  const currentMinute = timeParts[1] ?? "";
+
+  function handleHourChange(h: string) {
+    setTimeError(null);
+    if (!h) {
+      onTimeChange("");
+      return;
+    }
+    const m = currentMinute || "00";
+    onTimeChange(`${h}:${m}`);
+  }
+
+  function handleMinuteChange(m: string) {
+    setTimeError(null);
+    if (!currentHour) return;
+    onTimeChange(`${currentHour}:${m}`);
+  }
+
+  function handleFormSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!appointmentTime) {
+      setTimeError("Necesitás elegir la hora del turno antes de enviar");
+      return;
+    }
+    onSubmit(e);
+  }
+
   const selectedDate = addDays(new Date(), dayOffset);
   const selectedDateValue = formatDateInput(selectedDate);
   const selectedDateTime = appointmentTime
@@ -320,10 +354,13 @@ function AppointmentNotificationModal({
     dayOffset,
   });
 
+  const selectClass =
+    "h-10 flex-1 rounded-[8px] border border-[#E8EAF0] bg-white px-3 text-sm text-[#1A202C] outline-none focus:border-[#5C6BC0] cursor-pointer";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
       <form
-        onSubmit={onSubmit}
+        onSubmit={handleFormSubmit}
         className="w-full max-w-md rounded-[12px] border border-[#E8EAF0] bg-white p-6"
       >
         <h2 className="text-lg font-bold text-[#1A202C]">
@@ -331,17 +368,38 @@ function AppointmentNotificationModal({
         </h2>
 
         <div className="mt-5 grid gap-4">
-          <label className="grid gap-2 text-sm font-semibold text-[#1A202C]">
-            ¿A qué hora es el turno?
-            <input
-              type="time"
-              value={appointmentTime}
-              onChange={(event) => onTimeChange(event.target.value)}
-              className={inputClass}
-              placeholder="ej: 10:30"
-              required
-            />
-          </label>
+          <div className="grid gap-2">
+            <p className="text-sm font-semibold text-[#1A202C]">
+              ¿A qué hora es el turno?
+            </p>
+            <div className="flex items-center gap-2">
+              <select
+                value={currentHour}
+                onChange={(e) => handleHourChange(e.target.value)}
+                className={`${selectClass} ${timeError ? "border-[#C0392B]" : ""}`}
+              >
+                <option value="">Hora</option>
+                {HOURS.map((h) => (
+                  <option key={h} value={h}>{h}</option>
+                ))}
+              </select>
+              <span className="text-lg font-bold text-[#8891A4]">:</span>
+              <select
+                value={currentMinute}
+                onChange={(e) => handleMinuteChange(e.target.value)}
+                disabled={!currentHour}
+                className={`${selectClass} ${timeError ? "border-[#C0392B]" : ""} disabled:opacity-40`}
+              >
+                <option value="">Min</option>
+                {MINUTES.map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
+            </div>
+            {timeError && (
+              <p className="text-xs font-semibold text-[#C0392B]">{timeError}</p>
+            )}
+          </div>
 
           <div className="flex flex-wrap gap-2" aria-label="Día del turno">
             {[
