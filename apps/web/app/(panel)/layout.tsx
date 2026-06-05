@@ -71,13 +71,7 @@ export default async function PanelLayout({
     currentBusiness?.logoUrl ?? activeMembership?.business?.logoUrl ?? null;
 
   return (
-    <>
-    <div className="dashboard-bg" aria-hidden="true">
-      <div className="bg-blob bg-blob-1" />
-      <div className="bg-blob bg-blob-2" />
-      <div className="bg-blob bg-blob-3" />
-    </div>
-    <div className="flikker-app-shell relative z-[1] min-h-screen lg:flex">
+    <div className="flikker-app-shell min-h-screen lg:flex">
       <SessionExpiryHandler />
       <Sidebar
         memberships={memberships}
@@ -126,6 +120,5 @@ export default async function PanelLayout({
         </main>
       </div>
     </div>
-    </>
   );
 }

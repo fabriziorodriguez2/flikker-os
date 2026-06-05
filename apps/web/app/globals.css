@@ -132,7 +132,18 @@ textarea {
 }
 
 .flikker-app-shell {
-  /* background intentionally absent — body provides the page color */
+  background-image:
+    radial-gradient(ellipse 700px 700px at calc(100% + 150px) -200px, rgba(145, 136, 245, 0.18), transparent 75%),
+    radial-gradient(ellipse 600px 600px at -100px calc(100% + 150px), rgba(250, 171, 75, 0.14), transparent 75%),
+    radial-gradient(ellipse 500px 500px at 90% 40%, rgba(145, 136, 245, 0.12), transparent 75%);
+  background-attachment: fixed;
+}
+
+:root[data-theme="dark"] .flikker-app-shell {
+  background-image:
+    radial-gradient(ellipse 700px 700px at calc(100% + 150px) -200px, rgba(145, 136, 245, 0.09), transparent 75%),
+    radial-gradient(ellipse 600px 600px at -100px calc(100% + 150px), rgba(250, 171, 75, 0.07), transparent 75%),
+    radial-gradient(ellipse 500px 500px at 90% 40%, rgba(145, 136, 245, 0.06), transparent 75%);
 }
 
 .flikker-card {
@@ -322,63 +333,6 @@ textarea {
   animation: flik-confetti-pop 1.8s ease-out infinite;
 }
 
-/* ── Dashboard background blobs ──────────────────────────────────────── */
-
-.dashboard-bg {
-  position: fixed;
-  inset: 0;
-  z-index: 0;
-  pointer-events: none;
-  overflow: hidden;
-}
-
-.bg-blob {
-  position: absolute;
-  border-radius: 9999px;
-  will-change: transform;
-}
-
-.bg-blob-1 {
-  width: 600px;
-  height: 600px;
-  background: #9188f5;
-  opacity: 0.07;
-  filter: blur(120px);
-  top: -200px;
-  right: -150px;
-}
-
-.bg-blob-2 {
-  width: 500px;
-  height: 500px;
-  background: #faab4b;
-  opacity: 0.05;
-  filter: blur(100px);
-  bottom: -150px;
-  left: -100px;
-}
-
-.bg-blob-3 {
-  width: 400px;
-  height: 400px;
-  background: #9188f5;
-  opacity: 0.04;
-  filter: blur(140px);
-  top: 40%;
-  right: 10%;
-}
-
-:root[data-theme="dark"] .bg-blob-1 {
-  opacity: 0.04;
-}
-
-:root[data-theme="dark"] .bg-blob-2 {
-  opacity: 0.025;
-}
-
-:root[data-theme="dark"] .bg-blob-3 {
-  opacity: 0.02;
-}
 
 /* ── Onboarding tour ──────────────────────────────────────────────────── */
 
