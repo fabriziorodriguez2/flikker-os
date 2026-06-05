@@ -28,6 +28,10 @@ export default async function CampaignDetailPage({
   const { accessToken, businessId } = getEffectiveApiContext(session);
   if (!businessId) redirect("/dashboard");
 
+  const businessName =
+    session.memberships.find((m) => m.businessId === businessId)?.business
+      .name ?? "";
+
   let campaign: Campaign | null = null;
   let error: string | null = null;
 
@@ -96,7 +100,7 @@ export default async function CampaignDetailPage({
         <p className="mt-1 text-sm text-[#8891A4]">{campaign.name}</p>
       </div>
 
-      <CampaignEditForm campaign={campaign} />
+      <CampaignEditForm campaign={campaign} businessName={businessName} />
     </div>
   );
 }

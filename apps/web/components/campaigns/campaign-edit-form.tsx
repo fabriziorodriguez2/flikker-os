@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import Switch from "@/components/ui/switch";
 
@@ -15,6 +15,7 @@ interface CampaignEditFormProps {
     messageBody: string | null;
     offerText: string | null;
   };
+  businessName: string;
 }
 
 function isBirthdayCampaign(kind: string | null) {
@@ -27,7 +28,51 @@ function conditionText(kind: string | null, offset: string) {
   return `Después de la atención (${offset || "0"} días de offset)`;
 }
 
-export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
+function buildPreview(message: string, offer: string, businessName: string) {
+  return message
+    .replace(/\{\{nombre\}\}|\{nombre\}/g, "María García")
+    .replace(/\{\{negocio\}\}|\{negocio\}|\{clinica\}/g, businessName || "tu negocio")
+    .replace(/\{\{link_resena\}\}|\{link_resena\}/g, "flikker.com/r/demo")
+    .replace(/\{\{oferta\}\}|\{oferta\}/g, offer || "")
+    .replace(/\{\{fecha_cumpleanos\}\}|\{fecha_cumpleanos\}/g, "15 de junio");
+}
+
+function WhatsAppPreview({
+  message,
+  offer,
+  businessName,
+}: {
+  message: string;
+  offer: string;
+  businessName: string;
+}) {
+  const preview = buildPreview(message, offer, businessName);
+  return (
+    <div className="rounded-[12px] bg-[#E5DDD5] p-4">
+      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#8891A4]">
+        Vista previa WhatsApp
+      </p>
+      {preview.trim() ? (
+        <div className="max-w-[280px] rounded-[12px] rounded-tl-none bg-white px-3 py-2 shadow-sm">
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#111]">
+            {preview}
+          </p>
+        </div>
+      ) : (
+        <p className="text-xs italic text-[#9ca3af]">
+          Escribí el mensaje para ver la vista previa
+        </p>
+      )}
+    </div>
+  );
+}
+
+export default function CampaignEditForm({
+  campaign,
+  businessName,
+}: CampaignEditFormProps) {
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
   const [name, setName] = useState(campaign.name);
   const [active, setActive] = useState(campaign.status === "ACTIVE");
   const [messageBody, setMessageBody] = useState(campaign.messageBody ?? "");
@@ -36,6 +81,19 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+
+  function insertVariable(variable: string) {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const next = messageBody.slice(0, start) + variable + messageBody.slice(end);
+    setMessageBody(next);
+    requestAnimationFrame(() => {
+      ta.focus();
+      ta.setSelectionRange(start + variable.length, start + variable.length);
+    });
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -86,6 +144,13 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
     }
   }
 
+  const variables = [
+    "{{nombre}}",
+    "{{negocio}}",
+    "{{link_resena}}",
+    ...(isBirthdayCampaign(campaign.templateKind) ? ["{{fecha_cumpleanos}}"] : []),
+  ];
+
   return (
     <form
       onSubmit={save}
@@ -130,14 +195,25 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
             />
           </label>
 
-          <label className="grid gap-2 text-sm font-semibold text-[#1A202C]">
-            Mensaje editable
-            <textarea
-              value={messageBody}
-              onChange={(event) => setMessageBody(event.target.value)}
-              className="min-h-40 rounded-[8px] border border-[#E8EAF0] px-3 py-3 text-sm leading-6 outline-none focus:border-[#5C6BC0]"
+          {/* Message + preview side by side */}
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="grid gap-2">
+              <p className="text-sm font-semibold text-[#1A202C]">
+                Mensaje editable
+              </p>
+              <textarea
+                ref={textareaRef}
+                value={messageBody}
+                onChange={(event) => setMessageBody(event.target.value)}
+                className="min-h-40 rounded-[8px] border border-[#E8EAF0] px-3 py-3 text-sm leading-6 outline-none focus:border-[#5C6BC0]"
+              />
+            </div>
+            <WhatsAppPreview
+              message={messageBody}
+              offer={offer}
+              businessName={businessName}
             />
-          </label>
+          </div>
 
           <div className="grid gap-4 md:grid-cols-2">
             <label className="grid gap-2 text-sm font-semibold text-[#1A202C]">
@@ -192,21 +268,19 @@ export default function CampaignEditForm({ campaign }: CampaignEditFormProps) {
             <p className="text-xs font-bold uppercase tracking-[0.08em] text-[#8891A4]">
               Variables disponibles
             </p>
+            <p className="mt-1 text-[10px] text-[#B0B8C9]">
+              Tocá una variable para insertarla en el mensaje
+            </p>
             <div className="mt-3 flex flex-wrap gap-2">
-              {[
-                "{{nombre}}",
-                "{{negocio}}",
-                "{{link_resena}}",
-                ...(isBirthdayCampaign(campaign.templateKind)
-                  ? ["{{fecha_cumpleanos}}"]
-                  : []),
-              ].map((variable) => (
-                <span
+              {variables.map((variable) => (
+                <button
                   key={variable}
-                  className="rounded-[8px] bg-[#EEF0FB] px-2.5 py-1 text-xs font-semibold text-[#5C6BC0]"
+                  type="button"
+                  onClick={() => insertVariable(variable)}
+                  className="rounded-[8px] bg-[#EEF0FB] px-2.5 py-1 text-xs font-semibold text-[#5C6BC0] transition-colors hover:bg-[#DDE1F5]"
                 >
                   {variable}
-                </span>
+                </button>
               ))}
             </div>
           </div>

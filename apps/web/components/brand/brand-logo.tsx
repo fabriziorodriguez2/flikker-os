@@ -53,7 +53,7 @@ export default function BrandLogo({
 
   return (
     <Image
-      src={theme === 'dark' ? '/flikker-logotype-white.svg' : '/flikker-logotype.svg'}
+      src={theme === 'dark' ? '/flikker-wordmark-white.svg' : '/flikker-wordmark.svg'}
       alt="Flikker"
       width={width}
       height={height}

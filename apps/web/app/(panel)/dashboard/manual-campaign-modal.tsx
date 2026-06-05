@@ -110,15 +110,25 @@ function ModeCard({
         onClick={onSelect}
         className="w-full text-left disabled:cursor-not-allowed"
       >
-        <p className="text-xs font-semibold text-[#8891A4]">{number}</p>
+        <span
+          className={`mb-2 inline-flex items-center justify-center rounded px-1.5 py-0.5 text-[10px] font-bold tracking-wide ${
+            disabled
+              ? "bg-[#F0F1F5] text-[#B0B8C9]"
+              : selected
+                ? "bg-[#5C6BC0] text-white"
+                : "bg-[#EEF0FB] text-[#5C6BC0]"
+          }`}
+        >
+          {number}
+        </span>
         <p
-          className={`mt-1 text-sm font-semibold ${
+          className={`text-sm font-semibold ${
             selected ? "text-[#5C6BC0]" : "text-[#1A202C]"
           }`}
         >
           {title}
         </p>
-        <p className="mt-1 text-xs text-[#8891A4]">{subtitle}</p>
+        <p className="mt-0.5 text-xs text-[#8891A4]">{subtitle}</p>
       </button>
       {selected && children ? <div className="mt-3">{children}</div> : null}
     </div>
@@ -283,9 +293,9 @@ export default function ManualCampaignModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
-      <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-[16px] border border-[#E8EAF0] bg-white shadow-xl">
+      <div className="flex w-full max-w-2xl max-h-[90vh] flex-col rounded-[16px] border border-[#E8EAF0] bg-white shadow-xl">
         {/* Header */}
-        <div className="sticky top-0 z-10 flex items-center justify-between border-b border-[#E8EAF0] bg-white px-6 py-4">
+        <div className="flex flex-shrink-0 items-center justify-between border-b border-[#E8EAF0] px-6 py-4">
           <div>
             <h2 className="text-lg font-bold text-[#1A202C]">Campaña manual</h2>
             <p className="text-xs text-[#8891A4]">
@@ -302,7 +312,7 @@ export default function ManualCampaignModal({
         </div>
 
         {/* Step indicators */}
-        <div className="flex gap-1 px-6 pt-4">
+        <div className="flex flex-shrink-0 gap-1 px-6 pt-4">
           {[1, 2, 3].map((s) => (
             <div
               key={s}
@@ -314,7 +324,7 @@ export default function ManualCampaignModal({
         </div>
 
         {/* Body */}
-        <div className="px-6 py-5">
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           {/* Step 1 — Recipient selection */}
           {step === 1 && preselected && (
             <div>
@@ -361,7 +371,7 @@ export default function ManualCampaignModal({
               <ModeCard
                 selected={mode === "all"}
                 onSelect={() => setMode("all")}
-                number="①"
+                number="1"
                 title="Todos los contactos"
                 subtitle={
                   counts
@@ -373,7 +383,7 @@ export default function ManualCampaignModal({
               <ModeCard
                 selected={mode === "by-origin"}
                 onSelect={() => setMode("by-origin")}
-                number="②"
+                number="2"
                 title="Filtrar por origen"
                 subtitle="Elegí de dónde vienen los contactos"
               >
@@ -409,7 +419,7 @@ export default function ManualCampaignModal({
                 selected={mode === "birthday-month"}
                 onSelect={() => setMode("birthday-month")}
                 disabled={!!counts && counts.birthdayThisMonth === 0}
-                number="③a"
+                number="3a"
                 title="Cumpleaños este mes"
                 subtitle={
                   counts
@@ -421,7 +431,7 @@ export default function ManualCampaignModal({
               <ModeCard
                 selected={mode === "no-review"}
                 onSelect={() => setMode("no-review")}
-                number="③b"
+                number="3b"
                 title="Sin reseña todavía"
                 subtitle={
                   counts
@@ -433,7 +443,7 @@ export default function ManualCampaignModal({
               <ModeCard
                 selected={mode === "not-attended-30d"}
                 onSelect={() => setMode("not-attended-30d")}
-                number="③c"
+                number="3c"
                 title="No atendidos en 30 días"
                 subtitle={
                   counts
@@ -448,7 +458,7 @@ export default function ManualCampaignModal({
                   onClose();
                   router.push("/dashboard/customers?openCampaign=1");
                 }}
-                number="③d"
+                number="3d"
                 title="Selección manual"
                 subtitle="Te llevamos a Clientes para elegir uno por uno"
               />
@@ -531,7 +541,7 @@ export default function ManualCampaignModal({
         </div>
 
         {/* Footer */}
-        <div className="sticky bottom-0 flex items-center justify-between border-t border-[#E8EAF0] bg-white px-6 py-4">
+        <div className="flex flex-shrink-0 items-center justify-between border-t border-[#E8EAF0] px-6 py-4">
           {error && <p className="text-sm text-[#C0392B]">{error}</p>}
           {!error && <span />}
           <div className="flex gap-2">

@@ -136,7 +136,7 @@ export default function FlikPanel({
   return (
     <div className="space-y-4">
       {/* Flik bubble */}
-      <div className="flex items-end gap-4">
+      <div className="flex items-center gap-4">
         <div className="shrink-0">
           <Flik pose={pose} size={104} />
         </div>
