@@ -4,10 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { AppointmentNotificationStatus } from '@prisma/client';
 import * as XLSX from 'xlsx';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
 import { CreateCustomerDto } from './dto/create-customer.dto';
 import { ImportCsvDto } from './dto/import-csv.dto';
+import { NotifyAppointmentDto } from './dto/notify-appointment.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomersRepository } from './customers.repository';
 
@@ -33,7 +36,10 @@ interface ImportFileParams {
 
 @Injectable()
 export class CustomersService {
-  constructor(private readonly repository: CustomersRepository) {}
+  constructor(
+    private readonly repository: CustomersRepository,
+    private readonly whatsAppBspService: WhatsAppBspService,
+  ) {}
 
   async list(
     businessId: string,
@@ -121,6 +127,58 @@ export class CustomersService {
     await this.assertExists(businessId, customerId);
     await this.repository.update(businessId, customerId, { optedOut: true });
     return this.repository.findOne(businessId, customerId);
+  }
+
+  async notifyAppointment(
+    businessId: string,
+    contactId: string,
+    dto: NotifyAppointmentDto,
+  ) {
+    const contact = await this.repository.findOneWithBusiness(
+      businessId,
+      contactId,
+    );
+    if (!contact) throw new NotFoundException('Customer not found');
+    if (contact.optedOut) throw new BadRequestException('Customer opted out');
+
+    const appointmentDate = this.parseAppointmentDate(
+      dto.appointmentDate,
+      dto.appointmentTime,
+    );
+    const text = this.buildAppointmentMessage({
+      customerName: contact.name,
+      businessName: contact.business.name,
+      appointmentDate: dto.appointmentDate,
+      appointmentTime: dto.appointmentTime,
+    });
+
+    try {
+      await this.whatsAppBspService.sendText({
+        phone: contact.phoneE164,
+        text,
+      });
+      await this.repository.createAppointmentNotification({
+        businessId,
+        contactId,
+        appointmentDate,
+        status: AppointmentNotificationStatus.SENT,
+      });
+      return { success: true, message: 'Aviso enviado' };
+    } catch (error) {
+      await this.repository.createAppointmentNotification({
+        businessId,
+        contactId,
+        appointmentDate,
+        status: AppointmentNotificationStatus.FAILED,
+      });
+      return {
+        success: false,
+        message:
+          error instanceof Error
+            ? error.message
+            : 'No se pudo enviar el aviso',
+      };
+    }
   }
 
   async importFile(businessId: string, params: ImportFileParams) {
@@ -384,6 +442,53 @@ export class CustomersService {
     return parsed;
   }
 
+  private parseAppointmentDate(dateValue: string, timeValue: string) {
+    const date = new Date(`${dateValue}T${timeValue}:00`);
+    if (Number.isNaN(date.getTime())) {
+      throw new BadRequestException('Fecha u hora de turno invalida');
+    }
+    return date;
+  }
+
+  private buildAppointmentMessage(input: {
+    customerName: string;
+    businessName: string;
+    appointmentDate: string;
+    appointmentTime: string;
+  }) {
+    const dayText = this.appointmentDayText(input.appointmentDate);
+    return `Hola ${input.customerName}, te recordamos que tenés turno ${dayText} a las ${input.appointmentTime} en ${input.businessName}.\n¡Te esperamos!`;
+  }
+
+  private appointmentDayText(dateValue: string) {
+    const selected = this.localDateOnly(dateValue);
+    const today = this.localDateOnly(new Date());
+    const tomorrow = this.addDays(today, 1);
+
+    if (selected.getTime() === today.getTime()) return 'hoy';
+    if (selected.getTime() === tomorrow.getTime()) return 'mañana';
+
+    return `el ${new Intl.DateTimeFormat('es-UY', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    }).format(selected)}`;
+  }
+
+  private localDateOnly(value: string | Date) {
+    if (value instanceof Date) {
+      return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+    }
+    const [year, month, day] = value.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  }
+
+  private addDays(date: Date, days: number) {
+    const next = new Date(date);
+    next.setDate(next.getDate() + days);
+    return next;
+  }
+
   private splitCsvLine(line: string) {
     const values: string[] = [];
     let current = '';
@@ -402,5 +507,24 @@ export class CustomersService {
 
     values.push(current);
     return values;
+  }
+
+  // ── Manual-campaign filter previews ────────────────────────────────────────
+
+  getFilterCounts(businessId: string) {
+    return this.repository.getFilterCounts(businessId);
+  }
+
+  async previewFilter(
+    businessId: string,
+    mode: string,
+    origins?: string[],
+  ) {
+    const recipients = await this.repository.findByFilter(
+      businessId,
+      mode,
+      origins,
+    );
+    return { count: recipients.length, recipients };
   }
 }

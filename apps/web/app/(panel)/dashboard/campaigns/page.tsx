@@ -4,6 +4,7 @@ import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import RepeatCampaignsSection, {
   type RepeatCampaign,
 } from "./repeat-campaigns-section";
+import NewCampaignButton from "./new-campaign-button";
 
 // ---------------------------------------------------------------------------
 // Types matching the backend responses
@@ -102,9 +103,12 @@ export default async function CampaignsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <h1 className="font-display text-[24px] font-bold text-[#1A202C]">
-        Campañas
-      </h1>
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="font-display text-[24px] font-bold text-[#1A202C]">
+          Campañas
+        </h1>
+        <NewCampaignButton />
+      </div>
 
       <RepeatCampaignsSection initialCampaigns={campaigns} />
 

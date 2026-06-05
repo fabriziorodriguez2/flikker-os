@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
+  CalendarClock,
   Check,
   Download,
   Edit2,
@@ -20,6 +22,9 @@ import PhoneInput, {
   toNationalDigits,
 } from "@/components/ui/phone-input";
 import { useCanMutate } from "../../role-context";
+import ManualCampaignModal, {
+  type ManualRecipient,
+} from "../manual-campaign-modal";
 
 interface Customer {
   id: string;
@@ -37,6 +42,17 @@ interface CustomersResponse {
   total: number;
   page: number;
   limit: number;
+}
+
+interface CurrentBusinessResponse {
+  name: string;
+}
+
+type AppointmentDayOffset = 0 | 1 | 2;
+
+interface NotifyAppointmentResponse {
+  success: boolean;
+  message: string;
 }
 
 type ImportField = "ignore" | "name" | "phone" | "email" | "lastServiceAt";
@@ -91,6 +107,41 @@ function formatDate(value: string | null | undefined) {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
+}
+
+function formatDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function addDays(date: Date, days: number) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+function appointmentDayLabel(offset: AppointmentDayOffset) {
+  if (offset === 0) return "hoy";
+  if (offset === 1) return "mañana";
+  return `el ${new Intl.DateTimeFormat("es-UY", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(addDays(new Date(), offset))}`;
+}
+
+function buildAppointmentPreview(input: {
+  customerName: string;
+  businessName: string;
+  appointmentTime: string;
+  dayOffset: AppointmentDayOffset;
+}) {
+  const time = input.appointmentTime || "HH:MM";
+  return `Hola ${input.customerName}, te recordamos que tenés turno ${appointmentDayLabel(
+    input.dayOffset,
+  )} a las ${time} en ${input.businessName || "tu negocio"}.\n¡Te esperamos!`;
 }
 
 function toDateInput(value: string | null | undefined) {
@@ -232,294 +283,122 @@ function CelebrationModal({
   );
 }
 
-// ── Manual Campaign Modal ────────────────────────────────────────────────────
-
-interface ManualRecipient {
-  id: string;
-  name: string;
-  phoneE164: string;
-}
-
-function WhatsAppPreview({
-  message,
+function AppointmentNotificationModal({
+  customer,
   businessName,
-}: {
-  message: string;
-  businessName: string;
-}) {
-  const preview = message
-    .replace(/{nombre}/g, "María García")
-    .replace(/{negocio}/g, businessName || "tu negocio");
-
-  return (
-    <div className="rounded-[12px] bg-[#E5DDD5] p-4">
-      <p className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-[#8891A4]">
-        Vista previa WhatsApp
-      </p>
-      {preview ? (
-        <div className="max-w-[260px] rounded-[12px] rounded-tl-none bg-white px-3 py-2 shadow-sm">
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-[#111]">
-            {preview}
-          </p>
-        </div>
-      ) : (
-        <p className="text-xs italic text-[#9ca3af]">
-          Escribí el mensaje para ver la vista previa
-        </p>
-      )}
-    </div>
-  );
-}
-
-function ManualCampaignModal({
-  initialRecipients,
+  appointmentTime,
+  dayOffset,
+  saving,
+  onTimeChange,
+  onDayChange,
   onClose,
+  onSubmit,
 }: {
-  initialRecipients: ManualRecipient[];
+  customer: Customer;
+  businessName: string;
+  appointmentTime: string;
+  dayOffset: AppointmentDayOffset;
+  saving: boolean;
+  onTimeChange: (value: string) => void;
+  onDayChange: (value: AppointmentDayOffset) => void;
   onClose: () => void;
+  onSubmit: (event: React.FormEvent) => void;
 }) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [recipients, setRecipients] =
-    useState<ManualRecipient[]>(initialRecipients);
-  const [message, setMessage] = useState("");
-  const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{
-    sent: number;
-    failed: number;
-  } | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-
-  function removeRecipient(id: string) {
-    setRecipients((prev) => prev.filter((r) => r.id !== id));
-  }
-
-  function insertVariable(variable: string) {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    const start = ta.selectionStart;
-    const end = ta.selectionEnd;
-    const next =
-      message.slice(0, start) + variable + message.slice(end);
-    setMessage(next);
-    requestAnimationFrame(() => {
-      ta.focus();
-      ta.setSelectionRange(
-        start + variable.length,
-        start + variable.length,
-      );
-    });
-  }
-
-  async function handleSend() {
-    setSending(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/proxy/campaigns/manual", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          recipients: recipients.map((r) => ({
-            customerId: r.id,
-            name: r.name,
-            phoneE164: r.phoneE164,
-          })),
-          messageBody: message,
-        }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        sent?: number;
-        failed?: number;
-        message?: string;
-      };
-      if (!res.ok) throw new Error(data.message ?? "Error al enviar");
-      setResult({ sent: data.sent ?? 0, failed: data.failed ?? 0 });
-      setStep(3);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al enviar");
-    } finally {
-      setSending(false);
-    }
-  }
+  const selectedDate = addDays(new Date(), dayOffset);
+  const selectedDateValue = formatDateInput(selectedDate);
+  const selectedDateTime = appointmentTime
+    ? new Date(`${selectedDateValue}T${appointmentTime}:00`)
+    : null;
+  const isPastToday =
+    dayOffset === 0 &&
+    selectedDateTime !== null &&
+    selectedDateTime.getTime() < Date.now();
+  const preview = buildAppointmentPreview({
+    customerName: customer.name,
+    businessName,
+    appointmentTime,
+    dayOffset,
+  });
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
-      <div className="w-full max-w-2xl rounded-[16px] border border-[#E8EAF0] bg-white shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#E8EAF0] px-6 py-4">
-          <div>
-            <h2 className="text-lg font-bold text-[#1A202C]">
-              Campaña manual
-            </h2>
-            <p className="text-xs text-[#8891A4]">
-              Paso {step} de {result ? "3" : "2"}
-            </p>
+      <form
+        onSubmit={onSubmit}
+        className="w-full max-w-md rounded-[12px] border border-[#E8EAF0] bg-white p-6"
+      >
+        <h2 className="text-lg font-bold text-[#1A202C]">
+          Avisar turno a {customer.name}
+        </h2>
+
+        <div className="mt-5 grid gap-4">
+          <label className="grid gap-2 text-sm font-semibold text-[#1A202C]">
+            ¿A qué hora es el turno?
+            <input
+              type="time"
+              value={appointmentTime}
+              onChange={(event) => onTimeChange(event.target.value)}
+              className={inputClass}
+              placeholder="ej: 10:30"
+              required
+            />
+          </label>
+
+          <div className="flex flex-wrap gap-2" aria-label="Día del turno">
+            {[
+              { value: 0 as const, label: "Hoy" },
+              { value: 1 as const, label: "Mañana" },
+              { value: 2 as const, label: "Pasado mañana" },
+            ].map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => onDayChange(option.value)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  dayOffset === option.value
+                    ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#5C6BC0]"
+                    : "border-[#E8EAF0] bg-white text-[#8891A4] hover:bg-[#F5F6FA]"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
+
+          {isPastToday ? (
+            <p className="rounded-[8px] border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-700">
+              Esa hora ya pasó hoy. ¿Querés enviarlo igual?
+            </p>
+          ) : null}
+
+          <div className="rounded-[12px] bg-[#E5DDD5] p-4">
+            <div className="ml-auto max-w-[86%] whitespace-pre-line rounded-[8px] bg-[#DCF8C6] px-3 py-2 text-sm leading-6 text-[#1A202C] shadow-sm">
+              {preview}
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 flex justify-end gap-2">
           <button
             type="button"
+            className={secondaryButton}
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-[8px] text-[#8891A4] hover:bg-[#F5F6FA]"
+            disabled={saving}
           >
-            <X className="h-4 w-4" />
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            className={primaryButton}
+            disabled={saving}
+          >
+            {saving ? "Enviando..." : "Enviar aviso"}
           </button>
         </div>
-
-        {/* Step indicators */}
-        <div className="flex gap-1 px-6 pt-4">
-          {[1, 2, 3].map((s) => (
-            <div
-              key={s}
-              className={`h-1 flex-1 rounded-full transition-colors ${
-                step >= s ? "bg-[#5C6BC0]" : "bg-[#E8EAF0]"
-              }`}
-            />
-          ))}
-        </div>
-
-        {/* Body */}
-        <div className="px-6 py-5">
-          {/* Step 1 — Recipients */}
-          {step === 1 && (
-            <div>
-              <p className="mb-3 text-sm font-semibold text-[#1A202C]">
-                Destinatarios ({recipients.length})
-              </p>
-              {recipients.length === 0 ? (
-                <p className="rounded-[8px] bg-[#FFF3CD] px-4 py-3 text-sm text-[#856404]">
-                  No hay destinatarios seleccionados.
-                </p>
-              ) : (
-                <div className="max-h-[260px] overflow-y-auto rounded-[8px] border border-[#E8EAF0]">
-                  {recipients.map((r) => (
-                    <div
-                      key={r.id}
-                      className="flex items-center justify-between border-b border-[#E8EAF0] px-4 py-2.5 last:border-b-0"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-[#1A202C]">
-                          {r.name}
-                        </p>
-                        <p className="text-xs text-[#8891A4]">{r.phoneE164}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeRecipient(r.id)}
-                        className="flex h-7 w-7 items-center justify-center rounded-[6px] text-[#8891A4] hover:bg-[#F5F6FA] hover:text-[#C0392B]"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Step 2 — Message */}
-          {step === 2 && (
-            <div className="grid gap-4 lg:grid-cols-2">
-              <div>
-                <p className="mb-2 text-sm font-semibold text-[#1A202C]">
-                  Mensaje
-                </p>
-                <div className="mb-2 flex gap-2">
-                  {["{nombre}", "{negocio}"].map((v) => (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => insertVariable(v)}
-                      className="rounded-full border border-[#E8EAF0] bg-[#F5F6FA] px-3 py-1 text-xs font-semibold text-[#5C6BC0] hover:bg-[#EEF0FB]"
-                    >
-                      {v}
-                    </button>
-                  ))}
-                </div>
-                <textarea
-                  ref={textareaRef}
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  maxLength={1000}
-                  rows={8}
-                  placeholder="Hola {nombre}, queremos contarte algo especial en {negocio}..."
-                  className="w-full resize-none rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2.5 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]"
-                />
-                <p className="mt-1 text-right text-xs text-[#8891A4]">
-                  {message.length}/1000
-                </p>
-              </div>
-              <WhatsAppPreview message={message} businessName="" />
-            </div>
-          )}
-
-          {/* Step 3 — Result */}
-          {step === 3 && result && (
-            <div className="text-center">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-[#639922]/10">
-                <Check strokeWidth={2.5} className="h-8 w-8 text-[#639922]" />
-              </div>
-              <p className="text-lg font-bold text-[#1A202C]">¡Enviado!</p>
-              <p className="mt-2 text-sm text-[#8891A4]">
-                {result.sent} enviados · {result.failed} fallidos
-              </p>
-              {result.failed > 0 && (
-                <p className="mt-3 text-xs text-[#C0392B]">
-                  Los mensajes fallidos no se reintentarán automáticamente.
-                </p>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="flex items-center justify-between border-t border-[#E8EAF0] px-6 py-4">
-          {error && <p className="text-sm text-[#C0392B]">{error}</p>}
-          {!error && <span />}
-          <div className="flex gap-2">
-            {step === 3 ? (
-              <button type="button" onClick={onClose} className={primaryButton}>
-                Cerrar
-              </button>
-            ) : (
-              <>
-                {step > 1 && !sending && (
-                  <button
-                    type="button"
-                    onClick={() => setStep((s) => (s - 1) as 1 | 2)}
-                    className={secondaryButton}
-                  >
-                    Atrás
-                  </button>
-                )}
-                {step === 1 && (
-                  <button
-                    type="button"
-                    onClick={() => setStep(2)}
-                    disabled={recipients.length === 0}
-                    className={primaryButton}
-                  >
-                    Continuar
-                  </button>
-                )}
-                {step === 2 && (
-                  <button
-                    type="button"
-                    onClick={() => void handleSend()}
-                    disabled={sending || !message.trim()}
-                    className={primaryButton}
-                  >
-                    {sending
-                      ? `Enviando a ${recipients.length}...`
-                      : `Enviar a ${recipients.length}`}
-                  </button>
-                )}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
+      </form>
     </div>
   );
 }
+
 
 // ── Main page ────────────────────────────────────────────────────────────────
 
@@ -537,6 +416,9 @@ const DATE_FILTER_OPTIONS = [
 
 export default function CustomersPage() {
   const canMutate = useCanMutate();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const campaignIntent = searchParams.get("openCampaign") === "1";
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -546,11 +428,18 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [businessName, setBusinessName] = useState("");
   const [celebrationName, setCelebrationName] = useState<string | null>(null);
   const [attendedTodayIds, setAttendedTodayIds] = useState<Set<string>>(
     new Set(),
   );
   const [resendCustomer, setResendCustomer] = useState<Customer | null>(null);
+  const [notifyCustomer, setNotifyCustomer] = useState<Customer | null>(null);
+  const [appointmentTime, setAppointmentTime] = useState("");
+  const [appointmentDayOffset, setAppointmentDayOffset] =
+    useState<AppointmentDayOffset>(0);
+  const [sendingAppointmentNotice, setSendingAppointmentNotice] =
+    useState(false);
   const [editing, setEditing] = useState<Customer | null>(null);
   const [pendingDelete, setPendingDelete] = useState<Customer | null>(null);
   const [showForm, setShowForm] = useState(false);
@@ -630,6 +519,26 @@ export default function CustomersPage() {
     void fetchCustomers();
   }, [fetchCustomers]);
 
+  useEffect(() => {
+    let alive = true;
+
+    async function fetchBusiness() {
+      try {
+        const res = await fetch("/api/proxy/businesses/current");
+        if (!res.ok) return;
+        const data = (await res.json()) as CurrentBusinessResponse;
+        if (alive) setBusinessName(data.name ?? "");
+      } catch {
+        // Preview falls back to "tu negocio"; backend still uses the real name.
+      }
+    }
+
+    void fetchBusiness();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   // Reset page and selection when filters change
   useEffect(() => {
     setPage(1);
@@ -675,6 +584,12 @@ export default function CustomersPage() {
     setPhone(customer.phoneE164);
     setBirthday(toDateInput(customer.birthday));
     setShowForm(true);
+  }
+
+  function openNotifyAppointment(customer: Customer) {
+    setNotifyCustomer(customer);
+    setAppointmentTime("");
+    setAppointmentDayOffset(0);
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -732,6 +647,47 @@ export default function CustomersPage() {
     }
   }
 
+  async function handleNotifyAppointment(e: React.FormEvent) {
+    e.preventDefault();
+    if (!notifyCustomer || !appointmentTime) return;
+
+    setMessage(null);
+    setError(null);
+    setSendingAppointmentNotice(true);
+    try {
+      const appointmentDate = formatDateInput(
+        addDays(new Date(), appointmentDayOffset),
+      );
+      const res = await fetch(
+        `/api/proxy/customers/${notifyCustomer.id}/notify-appointment`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            appointmentTime,
+            appointmentDate,
+          }),
+        },
+      );
+      const data = (await res.json().catch(() => ({}))) as
+        | NotifyAppointmentResponse
+        | { message?: string };
+      if (!res.ok || !("success" in data) || !data.success) {
+        throw new Error(
+          "message" in data && data.message
+            ? data.message
+            : "No se pudo enviar. Intentá de nuevo.",
+        );
+      }
+      setMessage(`✓ Aviso enviado a ${notifyCustomer.name}`);
+      setNotifyCustomer(null);
+    } catch {
+      setError("No se pudo enviar. Intentá de nuevo.");
+    } finally {
+      setSendingAppointmentNotice(false);
+    }
+  }
+
   async function doAttendToday(customer: Customer) {
     setError(null);
     try {
@@ -777,13 +733,14 @@ export default function CustomersPage() {
     }
 
     const csv = [
-      ["nombre", "telefono", "origen", "fecha_captura"].join(","),
+      ["nombre", "telefono", "origen", "fecha_captura", "fecha_nacimiento"].join(","),
       ...rows.map((r) =>
         [
           `"${r.name.replace(/"/g, '""')}"`,
           r.phoneE164,
           r.origin,
           r.createdAt.slice(0, 10),
+          r.birthday ? r.birthday.slice(0, 10) : "",
         ].join(","),
       ),
     ].join("\n");
@@ -895,6 +852,15 @@ export default function CustomersPage() {
           {error ?? message}
         </div>
       ) : null}
+
+      {campaignIntent && selectedIds.size === 0 && (
+        <div className="flex items-center gap-3 rounded-[10px] border border-[#5C6BC0]/40 bg-[#EEF0FB] px-4 py-3 text-sm">
+          <span className="font-semibold text-[#5C6BC0]">Modo campaña</span>
+          <span className="text-[#5C6BC0]/80">
+            Elegí los contactos con las casillas y luego hacé clic en "Crear campaña".
+          </span>
+        </div>
+      )}
 
       {/* Search + actions row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1209,6 +1175,16 @@ export default function CustomersPage() {
                         </button>
                         <button
                           type="button"
+                          onClick={() => openNotifyAppointment(customer)}
+                          disabled={!canMutate || customer.optedOut}
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA] disabled:opacity-50"
+                          aria-label="Avisar turno"
+                          title="Avisar turno"
+                        >
+                          <CalendarClock className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => openEdit(customer)}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA]"
                           aria-label="Editar cliente"
@@ -1304,6 +1280,20 @@ export default function CustomersPage() {
       )}
 
       {/* Forms and modals */}
+      {notifyCustomer ? (
+        <AppointmentNotificationModal
+          customer={notifyCustomer}
+          businessName={businessName}
+          appointmentTime={appointmentTime}
+          dayOffset={appointmentDayOffset}
+          saving={sendingAppointmentNotice}
+          onTimeChange={setAppointmentTime}
+          onDayChange={setAppointmentDayOffset}
+          onClose={() => setNotifyCustomer(null)}
+          onSubmit={handleNotifyAppointment}
+        />
+      ) : null}
+
       {showForm ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
           <form
@@ -1464,7 +1454,10 @@ export default function CustomersPage() {
             name: c.name,
             phoneE164: c.phoneE164,
           }))}
-          onClose={() => setShowManualModal(false)}
+          onClose={() => {
+            setShowManualModal(false);
+            if (campaignIntent) router.replace("/dashboard/customers");
+          }}
         />
       )}
     </div>

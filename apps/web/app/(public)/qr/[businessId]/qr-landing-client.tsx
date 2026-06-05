@@ -9,12 +9,17 @@ async function captureContact(
   businessId: string,
   name: string,
   phone: string,
+  birthdate?: string,
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(`/api/qr/${encodeURIComponent(businessId)}/capture`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, phone }),
+      body: JSON.stringify({
+        name,
+        phone,
+        ...(birthdate ? { birthdate } : {}),
+      }),
     });
     if (!res.ok) {
       const data = (await res.json().catch(() => ({}))) as { message?: string };
@@ -24,6 +29,49 @@ async function captureContact(
   } catch {
     return { ok: false, error: "Error de conexión" };
   }
+}
+
+const MONTHS_ES = [
+  "Enero",
+  "Febrero",
+  "Marzo",
+  "Abril",
+  "Mayo",
+  "Junio",
+  "Julio",
+  "Agosto",
+  "Septiembre",
+  "Octubre",
+  "Noviembre",
+  "Diciembre",
+];
+
+function buildBirthdateIso(
+  day: string,
+  month: string,
+  year: string,
+): string | null {
+  if (!day || !month || !year) return null;
+  const d = parseInt(day, 10);
+  const m = parseInt(month, 10);
+  const y = parseInt(year, 10);
+  if (!Number.isFinite(d) || !Number.isFinite(m) || !Number.isFinite(y)) {
+    return null;
+  }
+  // Build YYYY-MM-DD. Validate that day fits the month (e.g. no Feb 30).
+  const isoCandidate = `${y.toString().padStart(4, "0")}-${m
+    .toString()
+    .padStart(2, "0")}-${d.toString().padStart(2, "0")}`;
+  const parsed = new Date(`${isoCandidate}T00:00:00`);
+  if (
+    Number.isNaN(parsed.getTime()) ||
+    parsed.getUTCFullYear() !== y ||
+    parsed.getUTCMonth() + 1 !== m ||
+    parsed.getUTCDate() !== d
+  ) {
+    return null;
+  }
+  return isoCandidate;
 }
 
 function CaptureForm({
@@ -38,6 +86,9 @@ function CaptureForm({
   const brand = info.primaryColor ?? "#5C6BC0";
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
+  const [birthDay, setBirthDay] = useState("");
+  const [birthMonth, setBirthMonth] = useState("");
+  const [birthYear, setBirthYear] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,11 +102,28 @@ function CaptureForm({
 
   const btnLabel = info.benefitText ? "Quiero mi beneficio" : "Anotarme";
 
+  const currentYear = new Date().getFullYear();
+  const yearRange: number[] = [];
+  for (let y = currentYear - 10; y >= currentYear - 100; y--) {
+    yearRange.push(y);
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
     setSaving(true);
-    const result = await captureContact(businessId, name.trim(), phone);
+    // Build birthdate only when all three selects are filled. Partial values
+    // are silently dropped (field is optional, no validation noise).
+    const birthdate =
+      birthDay && birthMonth && birthYear
+        ? (buildBirthdateIso(birthDay, birthMonth, birthYear) ?? undefined)
+        : undefined;
+    const result = await captureContact(
+      businessId,
+      name.trim(),
+      phone,
+      birthdate,
+    );
     if (result.ok) {
       onSuccess();
     } else {
@@ -107,6 +175,53 @@ function CaptureForm({
               required
               className="w-full bg-transparent py-4 pl-3 pr-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:outline-none"
             />
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-xs font-medium text-[#475467]">
+              Fecha de nacimiento (opcional)
+            </p>
+            <div className="grid grid-cols-3 gap-2">
+              <select
+                value={birthDay}
+                onChange={(e) => setBirthDay(e.target.value)}
+                aria-label="Día"
+                className="rounded-2xl border border-[#d0d5dd] bg-white px-3 py-3 text-sm text-[#101828] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0]"
+              >
+                <option value="">Día</option>
+                {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                  <option key={d} value={d}>
+                    {d.toString().padStart(2, "0")}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={birthMonth}
+                onChange={(e) => setBirthMonth(e.target.value)}
+                aria-label="Mes"
+                className="rounded-2xl border border-[#d0d5dd] bg-white px-3 py-3 text-sm text-[#101828] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0]"
+              >
+                <option value="">Mes</option>
+                {MONTHS_ES.map((label, i) => (
+                  <option key={i} value={i + 1}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={birthYear}
+                onChange={(e) => setBirthYear(e.target.value)}
+                aria-label="Año"
+                className="rounded-2xl border border-[#d0d5dd] bg-white px-3 py-3 text-sm text-[#101828] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0]"
+              >
+                <option value="">Año</option>
+                {yearRange.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           {error && (

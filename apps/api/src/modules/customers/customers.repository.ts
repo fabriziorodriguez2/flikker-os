@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import {
+  AppointmentNotificationStatus,
   MessageChannel,
   MessageStatus,
   ServiceEventCreatedVia,
@@ -103,6 +104,13 @@ export class CustomersRepository {
   findOne(businessId: string, id: string) {
     return this.prisma.customer.findFirst({
       where: { id, businessId, isActive: true },
+    });
+  }
+
+  findOneWithBusiness(businessId: string, id: string) {
+    return this.prisma.customer.findFirst({
+      where: { id, businessId, isActive: true },
+      include: { business: { select: { name: true } } },
     });
   }
 
@@ -245,5 +253,165 @@ export class CustomersRepository {
         },
       });
     });
+  }
+
+  createAppointmentNotification(data: {
+    businessId: string;
+    contactId: string;
+    appointmentDate: Date;
+    status: AppointmentNotificationStatus;
+  }) {
+    return this.prisma.appointmentNotification.create({
+      data,
+    });
+  }
+
+  // ── Filter previews (manual campaign recipient selector) ──────────────────
+
+  private thirtyDaysAgo(): Date {
+    return new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  }
+
+  async getFilterCounts(businessId: string) {
+    const thirty = this.thirtyDaysAgo();
+
+    const [total, byOriginRaw, withBirthday, noReview, notAttended30d] =
+      await Promise.all([
+        this.prisma.customer.count({
+          where: { businessId, isActive: true },
+        }),
+        this.prisma.customer.groupBy({
+          by: ['origin'],
+          where: { businessId, isActive: true },
+          _count: { _all: true },
+        }),
+        // Birthday list (compact) — month filter happens app-side because
+        // Prisma has no portable month-extract operator.
+        this.prisma.customer.findMany({
+          where: {
+            businessId,
+            isActive: true,
+            birthday: { not: null },
+          },
+          select: { birthday: true },
+        }),
+        this.prisma.customer.count({
+          where: {
+            businessId,
+            isActive: true,
+            messages: { some: {} },
+            NOT: {
+              messages: {
+                some: { attributedGoogleReviews: { some: {} } },
+              },
+            },
+          },
+        }),
+        this.prisma.customer.count({
+          where: {
+            businessId,
+            isActive: true,
+            NOT: {
+              serviceEvents: { some: { eventAt: { gte: thirty } } },
+            },
+          },
+        }),
+      ]);
+
+    const byOrigin: Record<string, number> = {
+      qr: 0,
+      whatsapp: 0,
+      manual: 0,
+    };
+    for (const row of byOriginRaw) {
+      byOrigin[row.origin] = row._count._all;
+    }
+
+    const currentMonth = new Date().getMonth();
+    const birthdayThisMonth = withBirthday.filter(
+      (c) => c.birthday && c.birthday.getMonth() === currentMonth,
+    ).length;
+
+    return {
+      total,
+      byOrigin,
+      birthdayThisMonth,
+      noReview,
+      notAttended30d,
+    };
+  }
+
+  async findByFilter(
+    businessId: string,
+    mode: string,
+    origins: string[] | undefined,
+    limit = 1000,
+  ): Promise<{ id: string; name: string; phoneE164: string }[]> {
+    const base = { businessId, isActive: true } as const;
+    const select = { id: true, name: true, phoneE164: true } as const;
+
+    if (mode === 'all') {
+      return this.prisma.customer.findMany({
+        where: base,
+        select,
+        take: limit,
+      });
+    }
+
+    if (mode === 'by-origin') {
+      const allowed = (origins ?? []).filter((o) =>
+        ['qr', 'whatsapp', 'manual'].includes(o),
+      );
+      if (allowed.length === 0) return [];
+      return this.prisma.customer.findMany({
+        where: { ...base, origin: { in: allowed } },
+        select,
+        take: limit,
+      });
+    }
+
+    if (mode === 'birthday-month') {
+      // Pull customers with birthday set, filter app-side by current month.
+      const candidates = await this.prisma.customer.findMany({
+        where: { ...base, birthday: { not: null } },
+        select: { ...select, birthday: true },
+      });
+      const month = new Date().getMonth();
+      return candidates
+        .filter((c) => c.birthday && c.birthday.getMonth() === month)
+        .slice(0, limit)
+        .map(({ id, name, phoneE164 }) => ({ id, name, phoneE164 }));
+    }
+
+    if (mode === 'no-review') {
+      return this.prisma.customer.findMany({
+        where: {
+          ...base,
+          messages: { some: {} },
+          NOT: {
+            messages: { some: { attributedGoogleReviews: { some: {} } } },
+          },
+        },
+        select,
+        take: limit,
+      });
+    }
+
+    if (mode === 'not-attended-30d') {
+      return this.prisma.customer.findMany({
+        where: {
+          ...base,
+          NOT: {
+            serviceEvents: {
+              some: { eventAt: { gte: this.thirtyDaysAgo() } },
+            },
+          },
+        },
+        select,
+        take: limit,
+      });
+    }
+
+    return [];
   }
 }

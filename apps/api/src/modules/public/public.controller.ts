@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Param, Body, HttpCode, Headers } from '@nestjs/common';
-import { IsString, IsNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsISO8601 } from 'class-validator';
 import { PublicService } from './public.service';
 
 class CaptureContactDto {
@@ -10,6 +10,11 @@ class CaptureContactDto {
   @IsString()
   @IsNotEmpty()
   phone!: string;
+
+  /** Optional ISO date (YYYY-MM-DD) of birthday. Stored as DateTime in DB. */
+  @IsOptional()
+  @IsISO8601()
+  birthdate?: string;
 }
 
 @Controller('public')
@@ -30,6 +35,11 @@ export class PublicController {
     @Param('businessId') businessId: string,
     @Body() body: CaptureContactDto,
   ) {
-    return this.publicService.captureContact(businessId, body.name, body.phone);
+    return this.publicService.captureContact(
+      businessId,
+      body.name,
+      body.phone,
+      body.birthdate,
+    );
   }
 }

@@ -270,50 +270,117 @@ textarea {
     transform: translateY(0) rotate(10deg);
   }
   50% {
-    transform: translateY(-8px) rotate(10deg);
+    transform: translateY(-10px) rotate(10deg);
   }
 }
 
-@keyframes flik-dots {
+@keyframes flik-breathe {
   0%,
   100% {
-    opacity: 0.1;
+    transform: scale(1);
   }
   50% {
-    opacity: 0.5;
+    transform: scale(1.035);
+  }
+}
+
+@keyframes flik-confetti-pop {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.3) rotate(0deg);
+  }
+  20% {
+    opacity: 1;
+    transform: translate(var(--cx, 0), var(--cy, -6px)) scale(1)
+      rotate(120deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(var(--cx, 0) * 1.6), calc(var(--cy, -6px) * 1.6))
+      scale(0.6) rotate(360deg);
   }
 }
 
 .flik-bounce {
-  animation: flik-bounce 0.6s ease-in-out infinite;
+  animation: flik-bounce 0.7s ease-in-out infinite;
 }
 
-.flik-dot {
-  display: inline-block;
+.flik-breathe {
+  animation: flik-breathe 3.4s ease-in-out infinite;
+  transform-origin: center bottom;
+}
+
+.flik-confetti {
+  position: absolute;
+  inset: -30%;
+  pointer-events: none;
+}
+
+.flik-confetti-piece {
+  position: absolute;
   border-radius: 9999px;
-  background-color: #9188f5;
-  animation: flik-dots 1.4s ease-in-out infinite;
+  animation: flik-confetti-pop 1.8s ease-out infinite;
 }
 
-.flik-dot-1 {
-  animation-delay: 0s;
-}
-.flik-dot-2 {
-  animation-delay: 0.2s;
-}
-.flik-dot-3 {
-  animation-delay: 0.4s;
+/* ── Onboarding tour ──────────────────────────────────────────────────── */
+
+@keyframes onboarding-highlight-pulse {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgba(145, 136, 245, 0.7),
+      0 0 0 6px rgba(145, 136, 245, 0.25),
+      0 0 28px rgba(145, 136, 245, 0.55);
+  }
+  50% {
+    box-shadow:
+      0 0 0 5px rgba(145, 136, 245, 0.95),
+      0 0 0 12px rgba(145, 136, 245, 0.35),
+      0 0 40px rgba(145, 136, 245, 0.8);
+  }
 }
 
-/* Onboarding tour — punches the highlighted nav item above the overlay */
 .onboarding-highlight {
   position: relative;
   z-index: 60;
-  box-shadow:
-    0 0 0 3px rgba(145, 136, 245, 0.65),
-    0 0 24px rgba(145, 136, 245, 0.45);
   border-radius: 10px;
-  transition:
-    box-shadow 0.25s ease,
-    z-index 0s;
+  animation: onboarding-highlight-pulse 1.4s ease-in-out infinite;
+}
+
+/* Traveler dot — flies from the card toward the highlighted nav item */
+@keyframes onboarding-travel {
+  0% {
+    transform: translate(var(--start-x), var(--start-y)) scale(0.4);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+    transform: translate(var(--start-x), var(--start-y)) scale(1);
+  }
+  85% {
+    opacity: 0.9;
+    transform: translate(var(--target-x), var(--target-y)) scale(0.9);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--target-x), var(--target-y)) scale(0.4);
+  }
+}
+
+.onboarding-traveler {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  margin-top: -7px;
+  border-radius: 9999px;
+  background: #9188f5;
+  box-shadow:
+    0 0 0 4px rgba(145, 136, 245, 0.3),
+    0 0 16px rgba(145, 136, 245, 0.55);
+  pointer-events: none;
+  z-index: 55;
+  animation: onboarding-travel 1.3s ease-in-out infinite;
 }

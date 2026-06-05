@@ -157,6 +157,11 @@ enum MessageStatus {
   failed
 }
 
+enum AppointmentNotificationStatus {
+  SENT
+  FAILED
+}
+
 enum WidgetMode {
   toast
   carousel
@@ -301,6 +306,7 @@ model Business {
   manualCampaigns           ManualCampaign[]
   businessPlans             BusinessPlan[]
   businessGoals             BusinessGoal[]
+  appointmentNotifications  AppointmentNotification[]
 }
 
 // ---------------------------------------------------------------------------
@@ -524,12 +530,29 @@ model Customer {
   campaignExecutions     CampaignExecution[]
   feedbackResponses      FeedbackResponse[]
   manualCampaignContacts ManualCampaignContact[]
+  appointmentNotifications AppointmentNotification[]
 
   @@index([businessId])
   @@index([businessId, isActive])
   @@index([businessId, phoneE164])
   @@index([businessId, birthday])
   @@index([businessId, origin])
+}
+
+model AppointmentNotification {
+  id              String                        @id @default(uuid())
+  contactId       String                        @map("contact_id")
+  businessId      String                        @map("business_id")
+  appointmentDate DateTime                      @map("appointment_date")
+  sentAt          DateTime                      @default(now()) @map("sent_at")
+  status          AppointmentNotificationStatus
+
+  contact  Customer @relation(fields: [contactId], references: [id])
+  business Business @relation(fields: [businessId], references: [id])
+
+  @@index([contactId])
+  @@index([businessId])
+  @@index([appointmentDate])
 }
 
 // ---------------------------------------------------------------------------

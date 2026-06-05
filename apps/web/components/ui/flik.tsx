@@ -7,9 +7,40 @@ interface FlikProps {
 
 const FLIK_SRC = "/flik.svg";
 
+interface ConfettiPiece {
+  top?: string;
+  bottom?: string;
+  left?: string;
+  right?: string;
+  cx: string;
+  cy: string;
+  color: string;
+  size: number;
+  delay: number;
+}
+
+// Static confetti config — 14 pieces around Flik. Deterministic per-index so
+// it doesn't trip React hydration. Values picked to feel organic.
+const CONFETTI: ConfettiPiece[] = [
+  { top: "8%", left: "12%", cx: "-12px", cy: "-10px", color: "#FAAB4B", size: 8, delay: 0 },
+  { top: "5%", left: "48%", cx: "-2px", cy: "-14px", color: "#9188F5", size: 6, delay: 0.15 },
+  { top: "10%", right: "10%", cx: "12px", cy: "-10px", color: "#DCE2F0", size: 8, delay: 0.3 },
+  { top: "22%", left: "4%", cx: "-16px", cy: "-2px", color: "#9188F5", size: 5, delay: 0.45 },
+  { top: "24%", right: "5%", cx: "16px", cy: "-2px", color: "#FAAB4B", size: 7, delay: 0.6 },
+  { top: "38%", left: "0%", cx: "-18px", cy: "4px", color: "#DCE2F0", size: 5, delay: 0.1 },
+  { top: "40%", right: "0%", cx: "18px", cy: "4px", color: "#9188F5", size: 6, delay: 0.4 },
+  { bottom: "30%", left: "2%", cx: "-16px", cy: "8px", color: "#FAAB4B", size: 6, delay: 0.55 },
+  { bottom: "28%", right: "3%", cx: "16px", cy: "8px", color: "#DCE2F0", size: 7, delay: 0.2 },
+  { bottom: "12%", left: "16%", cx: "-10px", cy: "14px", color: "#9188F5", size: 5, delay: 0.7 },
+  { bottom: "10%", left: "44%", cx: "-2px", cy: "16px", color: "#FAAB4B", size: 8, delay: 0.05 },
+  { bottom: "14%", right: "14%", cx: "10px", cy: "14px", color: "#DCE2F0", size: 6, delay: 0.35 },
+  { top: "16%", left: "30%", cx: "-6px", cy: "-10px", color: "#FAAB4B", size: 4, delay: 0.8 },
+  { top: "18%", right: "30%", cx: "6px", cy: "-10px", color: "#9188F5", size: 4, delay: 0.5 },
+];
+
 export default function Flik({ pose = "normal", size = 80 }: FlikProps) {
   const celebrating = pose === "celebrando";
-  const dotSize = Math.max(3, Math.round(size * 0.08));
+  const breathing = !celebrating;
 
   return (
     <div
@@ -22,16 +53,49 @@ export default function Flik({ pose = "normal", size = 80 }: FlikProps) {
       }}
       aria-hidden="true"
     >
+      {/* Confetti — rendered first so it sits behind the bouncing Flik */}
+      {celebrating && (
+        <div className="flik-confetti">
+          {CONFETTI.map((c, i) => (
+            <span
+              key={i}
+              className="flik-confetti-piece"
+              style={
+                {
+                  top: c.top,
+                  bottom: c.bottom,
+                  left: c.left,
+                  right: c.right,
+                  width: c.size,
+                  height: c.size,
+                  background: c.color,
+                  animationDelay: `${c.delay}s`,
+                  "--cx": c.cx,
+                  "--cy": c.cy,
+                } as React.CSSProperties
+              }
+            />
+          ))}
+        </div>
+      )}
+
       {/* Base mascot SVG. The original asset is never modified. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={FLIK_SRC}
         alt=""
-        className={celebrating ? "flik-bounce" : undefined}
+        className={
+          celebrating
+            ? "flik-bounce"
+            : breathing
+              ? "flik-breathe"
+              : undefined
+        }
         style={{
           width: "100%",
           height: "100%",
           display: "block",
+          position: "relative",
         }}
       />
 
@@ -56,83 +120,6 @@ export default function Flik({ pose = "normal", size = 80 }: FlikProps) {
             strokeLinecap="round"
           />
         </svg>
-      )}
-
-      {/* Confetti (celebrando) — sits in the surrounding box, stays upright */}
-      {celebrating && (
-        <svg
-          viewBox="0 0 100 100"
-          preserveAspectRatio="none"
-          style={{
-            position: "absolute",
-            top: "-18%",
-            left: "-18%",
-            width: "136%",
-            height: "136%",
-            pointerEvents: "none",
-          }}
-        >
-          <circle cx="8" cy="22" r="2.6" fill="#FAAB4B" />
-          <circle cx="92" cy="26" r="2.2" fill="#DCE2F0" />
-          <circle cx="93" cy="70" r="2.2" fill="#9188F5" />
-          <circle cx="7" cy="66" r="2.6" fill="#FAAB4B" />
-          <circle cx="56" cy="5" r="2.2" fill="#DCE2F0" />
-          <circle cx="34" cy="4" r="1.8" fill="#FAAB4B" />
-          <line
-            x1="4"
-            y1="44"
-            x2="0"
-            y2="38"
-            stroke="#FAAB4B"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-          <line
-            x1="96"
-            y1="46"
-            x2="100"
-            y2="40"
-            stroke="#DCE2F0"
-            strokeWidth="1.8"
-            strokeLinecap="round"
-          />
-          <line
-            x1="78"
-            y1="90"
-            x2="84"
-            y2="96"
-            stroke="#FAAB4B"
-            strokeWidth="1.6"
-            strokeLinecap="round"
-          />
-        </svg>
-      )}
-
-      {/* Waiting dots (esperando) */}
-      {pose === "esperando" && (
-        <div
-          style={{
-            position: "absolute",
-            left: "50%",
-            bottom: `-${Math.round(size * 0.2)}px`,
-            transform: "translateX(-50%)",
-            display: "flex",
-            gap: Math.round(size * 0.06),
-          }}
-        >
-          <span
-            className="flik-dot flik-dot-1"
-            style={{ width: dotSize, height: dotSize }}
-          />
-          <span
-            className="flik-dot flik-dot-2"
-            style={{ width: dotSize, height: dotSize }}
-          />
-          <span
-            className="flik-dot flik-dot-3"
-            style={{ width: dotSize, height: dotSize }}
-          />
-        </div>
       )}
     </div>
   );

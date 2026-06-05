@@ -1,15 +1,13 @@
-import { NextResponse } from 'next/server';
 import { clearSession } from '@/lib/auth';
 
-export async function GET(request: Request) {
+export async function GET() {
   await clearSession();
 
-  const url = new URL(request.url);
-  // 0.0.0.0 is an invalid browser destination (Docker dev binding). Normalize to localhost.
-  const hostname = url.hostname === '0.0.0.0' ? 'localhost' : url.hostname;
-  const port = url.port ? `:${url.port}` : '';
-  const loginUrl = new URL(`${url.protocol}//${hostname}${port}/login`);
-  loginUrl.searchParams.set('reason', 'session_expired');
-
-  return NextResponse.redirect(loginUrl);
+  // Use a relative Location header so the browser resolves it against the
+  // public origin (e.g. https://flikker.site) instead of the internal Railway
+  // host/port that `request.url` exposes when behind a reverse proxy.
+  return new Response(null, {
+    status: 307,
+    headers: { Location: '/login?reason=session_expired' },
+  });
 }

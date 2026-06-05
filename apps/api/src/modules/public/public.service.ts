@@ -48,7 +48,12 @@ export class PublicService {
     };
   }
 
-  async captureContact(businessId: string, name: string, rawPhone: string) {
+  async captureContact(
+    businessId: string,
+    name: string,
+    rawPhone: string,
+    rawBirthdate?: string,
+  ) {
     const business = await this.prisma.business.findUnique({
       where: { id: businessId, isActive: true },
       select: {
@@ -72,6 +77,16 @@ export class PublicService {
       throw new BadRequestException('Número de teléfono inválido');
     }
 
+    // Parse optional birthday — silently ignore if malformed (it's an optional
+    // capture field, we don't want to fail the whole registration over it).
+    let birthday: Date | undefined;
+    if (rawBirthdate) {
+      const parsed = new Date(rawBirthdate);
+      if (!Number.isNaN(parsed.getTime())) {
+        birthday = parsed;
+      }
+    }
+
     const existing = await this.prisma.customer.findFirst({
       where: { businessId, phoneE164, isActive: true },
     });
@@ -79,11 +94,21 @@ export class PublicService {
     if (existing) {
       await this.prisma.customer.update({
         where: { id: existing.id },
-        data: { name },
+        data: {
+          name,
+          // Only overwrite birthday if a new one is provided and none stored.
+          ...(birthday && !existing.birthday ? { birthday } : {}),
+        },
       });
     } else {
       await this.prisma.customer.create({
-        data: { businessId, name, phoneE164, origin: 'qr' },
+        data: {
+          businessId,
+          name,
+          phoneE164,
+          origin: 'qr',
+          ...(birthday ? { birthday } : {}),
+        },
       });
     }
 

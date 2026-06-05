@@ -40,7 +40,9 @@
       "Bash(ls -la middleware*)",
       "Bash(Get-ChildItem -Path \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\\\\apps\\\\api\\\\src\" -Recurse -Filter \"*shopify*\" -ErrorAction SilentlyContinue)",
       "Bash(mkdir -p \"c:/Users/fabri/OneDrive/Desktop/flikker system/flikker-os/apps/web/app/\\(public\\)/qr/[businessId]\" 2>/dev/null; echo done)",
-      "Bash(mkdir -p \"c:/Users/fabri/OneDrive/Desktop/flikker system/flikker-os/apps/web/app/api/qr/[businessId]/capture\" 2>/dev/null; echo done)"
+      "Bash(mkdir -p \"c:/Users/fabri/OneDrive/Desktop/flikker system/flikker-os/apps/web/app/api/qr/[businessId]/capture\" 2>/dev/null; echo done)",
+      "Bash(awk 'NR<238 || NR>522' page.tsx)",
+      "Bash(mv page.tsx.tmp page.tsx)"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

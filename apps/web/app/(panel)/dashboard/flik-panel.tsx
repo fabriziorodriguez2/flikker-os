@@ -138,7 +138,7 @@ export default function FlikPanel({
       {/* Flik bubble */}
       <div className="flex items-end gap-4">
         <div className="shrink-0">
-          <Flik pose={pose} size={80} />
+          <Flik pose={pose} size={104} />
         </div>
         <div
           className="rounded-[12px_12px_12px_2px] border border-[#E8EAF0] bg-white px-4 py-3 text-sm font-medium text-[#1A202C] shadow-[0_4px_16px_rgba(0,0,0,0.06)]"

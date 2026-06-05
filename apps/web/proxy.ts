@@ -13,7 +13,13 @@ export function proxy(request: NextRequest) {
   // that check causes an infinite redirect loop when the JWT is expired but
   // the session cookie is still present.
   if (isDashboard && !session) {
-    return NextResponse.redirect(new URL('/login', request.url));
+    // Relative Location → the browser resolves against the public origin it
+    // actually navigated to. Avoids leaking the internal Railway host/port
+    // when running behind a reverse proxy.
+    return new NextResponse(null, {
+      status: 307,
+      headers: { Location: '/login' },
+    });
   }
 
   return NextResponse.next();
