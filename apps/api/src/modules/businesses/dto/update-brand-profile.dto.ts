@@ -52,6 +52,11 @@ export class UpdateBrandProfileDto {
   signatureText?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  benefitText?: string;
+
+  @IsOptional()
   @IsUrl()
   googleBusinessProfileUrl?: string;
 

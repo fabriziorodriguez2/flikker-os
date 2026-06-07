@@ -265,6 +265,7 @@ model Business {
   whatsappUrl               String?
   shortBio                  String?
   signatureText             String?
+  benefitText               String?        @map("benefit_text")
   googleBusinessProfileUrl  String?
   googlePlaceId             String?        @map("google_place_id")
   googleRefreshToken        String?        @map("google_refresh_token")

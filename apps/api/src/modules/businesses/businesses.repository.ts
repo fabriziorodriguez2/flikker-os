@@ -32,6 +32,7 @@ export class BusinessesRepository {
         website: true,
         shortBio: true,
         signatureText: true,
+        benefitText: true,
         googleBusinessProfileUrl: true,
         defaultReviewRedirectUrl: true,
       },
