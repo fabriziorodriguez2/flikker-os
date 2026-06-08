@@ -9,15 +9,21 @@ import QRCode from "qrcode";
 const QR_BASE_URL = "https://flikker.site/qr";
 const DEFAULT_COLOR = "#9188F5";
 const DEFAULT_BENEFIT = "10% de descuento en tu próxima visita";
+const DEFAULT_MAIN_TEXT = "Escaneá y llevate";
+const DEFAULT_A4_TITLE = "¿Querés un regalo?";
+const DEFAULT_A4_SUBTITLE = "Beneficios exclusivos para vos";
 const MAX_BENEFIT_LEN = 60;
+const MAX_MAIN_LEN = 30;
+const MAX_A4_TITLE_LEN = 40;
+const MAX_A4_SUBTITLE_LEN = 60;
 
-type Version = "mesa" | "mostrador" | "sticker";
+type Version = "mesa" | "mostrador" | "sticker" | "a4";
 
-// Print dimensions in mm at 300 DPI
 const PRINT_DIMS: Record<Version, { w: number; h: number }> = {
   mesa: { w: 100, h: 100 },
   mostrador: { w: 100, h: 150 },
   sticker: { w: 60, h: 60 },
+  a4: { w: 210, h: 297 },
 };
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -28,7 +34,33 @@ interface BusinessData {
   logoUrl?: string | null;
   primaryColor?: string | null;
   benefitText?: string | null;
+  qrA4Title?: string | null;
+  qrA4Subtitle?: string | null;
+  qrA4BgColor?: string | null;
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function darkenHex(hex: string, amount: number): string {
+  const n = parseInt(hex.replace("#", ""), 16);
+  const r = Math.round(((n >> 16) & 255) * (1 - amount));
+  const g = Math.round(((n >> 8) & 255) * (1 - amount));
+  const b = Math.round((n & 255) * (1 - amount));
+  return `#${[r, g, b].map((x) => x.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function loadImage(src: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+
+const FLIKKER_MARK_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 516.34 402.58"><polygon fill="#9188F5" points="169.64 200.96 214.33 149.16 173.32 101.62 0 302.58 86.22 402.58 173.32 301.6 260.42 402.58 346.69 302.58 300.58 249.13 255.86 300.95 169.64 200.96"/><polygon fill="#9188F5" points="430.11 300.95 516.34 200.96 342.99 0 214.33 149.16 300.58 249.13 342.99 199.96 430.11 300.95"/></svg>`;
+const FLIKKER_MARK_DATA_URL = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(FLIKKER_MARK_SVG)}`;
 
 // ─── QR generation ────────────────────────────────────────────────────────────
 
@@ -46,259 +78,279 @@ async function generateQrDataUrl(businessId: string, color: string): Promise<str
   return canvas.toDataURL("image/png");
 }
 
+function clipRoundRect(
+  ctx: CanvasRenderingContext2D,
+  x: number, y: number, w: number, h: number, r: number,
+) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+async function generateStickerQrDataUrl(
+  businessId: string,
+  color: string,
+  logoUrl: string | null,
+): Promise<string> {
+  const url = `${QR_BASE_URL}/${businessId}`;
+  const size = 800;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+
+  await QRCode.toCanvas(canvas, url, {
+    errorCorrectionLevel: "H",
+    margin: 3,
+    width: size,
+    color: { dark: color, light: "#ffffff" },
+  });
+
+  const ctx = canvas.getContext("2d")!;
+  const logoLinear = Math.round(size * 0.25);
+  const padding = 6;
+  const boxSize = logoLinear + padding * 2;
+  const boxX = (size - boxSize) / 2;
+  const boxY = (size - boxSize) / 2;
+
+  // White rounded background behind logo
+  ctx.save();
+  clipRoundRect(ctx, boxX, boxY, boxSize, boxSize, 8);
+  ctx.fillStyle = "#ffffff";
+  ctx.fill();
+  ctx.restore();
+
+  const imageUrl = logoUrl ?? FLIKKER_MARK_DATA_URL;
+  try {
+    const img = await loadImage(imageUrl);
+    const scale = Math.min(logoLinear / img.width, logoLinear / img.height);
+    const w = img.width * scale;
+    const h = img.height * scale;
+    ctx.drawImage(img, boxX + padding + (logoLinear - w) / 2, boxY + padding + (logoLinear - h) / 2, w, h);
+  } catch {
+    // Cross-origin failed — try Flikker fallback
+    if (logoUrl) {
+      try {
+        const fallback = await loadImage(FLIKKER_MARK_DATA_URL);
+        ctx.drawImage(fallback, boxX + padding, boxY + padding, logoLinear, logoLinear);
+      } catch { /* silent — QR still works without logo */ }
+    }
+  }
+
+  return canvas.toDataURL("image/png");
+}
+
+// ─── Shared UI pieces ─────────────────────────────────────────────────────────
+
+function FlikkerMark({ style }: { style?: React.CSSProperties }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      viewBox="0 0 516.34 402.58"
+      style={{ fill: "currentColor", flexShrink: 0, display: "block", ...style }}
+    >
+      <polygon points="169.64 200.96 214.33 149.16 173.32 101.62 0 302.58 86.22 402.58 173.32 301.6 260.42 402.58 346.69 302.58 300.58 249.13 255.86 300.95 169.64 200.96" />
+      <polygon points="430.11 300.95 516.34 200.96 342.99 0 214.33 149.16 300.58 249.13 342.99 199.96 430.11 300.95" />
+    </svg>
+  );
+}
+
+function PoweredBy({
+  color = "#C8D0E0",
+  fontSize = 9,
+  iconHeight = 12,
+}: {
+  color?: string;
+  fontSize?: number;
+  iconHeight?: number;
+}) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, color }}>
+      <FlikkerMark style={{ height: iconHeight, width: "auto" }} />
+      <span style={{ fontSize, margin: 0, lineHeight: 1 }}>Powered by Flikker</span>
+    </div>
+  );
+}
+
 // ─── Preview components ──────────────────────────────────────────────────────
 
 function MesaPreview({
-  business,
-  color,
-  benefitText,
-  qrDataUrl,
+  business, color, mainText, benefitText, qrDataUrl,
 }: {
-  business: BusinessData;
-  color: string;
-  benefitText: string;
-  qrDataUrl: string | null;
+  business: BusinessData; color: string; mainText: string; benefitText: string; qrDataUrl: string | null;
 }) {
   return (
-    <div
-      style={{
-        width: 360,
-        height: 360,
-        background: "#ffffff",
-        borderRadius: 12,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
-      }}
-    >
-      {/* Header band */}
-      <div
-        style={{
-          background: color,
-          height: 100,
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "0 20px",
-        }}
-      >
+    <div style={{ width: 360, height: 360, background: "#ffffff", borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
+      <div style={{ background: color, height: 100, display: "flex", alignItems: "center", justifyContent: "center", padding: "0 20px" }}>
         {business.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={business.logoUrl}
-            alt={business.name}
-            style={{ maxHeight: 64, maxWidth: 180, objectFit: "contain" }}
-          />
+          <img src={business.logoUrl} alt={business.name} style={{ maxHeight: 64, maxWidth: 180, objectFit: "contain" }} />
         ) : (
-          <span style={{ color: "#fff", fontWeight: 700, fontSize: 18, textAlign: "center" }}>
-            {business.name}
-          </span>
+          <span style={{ color: "#fff", fontWeight: 700, fontSize: 18, textAlign: "center" }}>{business.name}</span>
         )}
       </div>
-
-      {/* Body */}
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "12px 20px 8px",
-          gap: 6,
-        }}
-      >
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "12px 20px 8px", gap: 6 }}>
         <p style={{ fontSize: 12, color: "#8891A4", margin: 0, textAlign: "center" }}>
-          Escaneá y llevate
+          {mainText || DEFAULT_MAIN_TEXT}
         </p>
-        <p
-          style={{
-            fontSize: 14,
-            fontWeight: 700,
-            color: color,
-            margin: 0,
-            textAlign: "center",
-            lineHeight: 1.3,
-          }}
-        >
+        <p style={{ fontSize: 14, fontWeight: 700, color, margin: 0, textAlign: "center", lineHeight: 1.3 }}>
           {benefitText || DEFAULT_BENEFIT}
         </p>
-
         {qrDataUrl ? (
-          <img
-            src={qrDataUrl}
-            alt="QR"
-            style={{ width: 140, height: 140, marginTop: 4 }}
-          />
+          <img src={qrDataUrl} alt="QR" style={{ width: 140, height: 140, marginTop: 4 }} />
         ) : (
-          <div
-            style={{
-              width: 140,
-              height: 140,
-              background: "#F0F2FA",
-              borderRadius: 8,
-              marginTop: 4,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              fontSize: 11,
-              color: "#8891A4",
-            }}
-          >
+          <div style={{ width: 140, height: 140, background: "#F0F2FA", borderRadius: 8, marginTop: 4, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#8891A4" }}>
             Generando…
           </div>
         )}
       </div>
-
-      {/* Footer */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "0 0 8px", color: "#C8D0E0" }}>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 516.34 402.58" style={{ height: 12, width: "auto", fill: "currentColor", flexShrink: 0, display: "block" }}>
-          <polygon points="169.64 200.96 214.33 149.16 173.32 101.62 0 302.58 86.22 402.58 173.32 301.6 260.42 402.58 346.69 302.58 300.58 249.13 255.86 300.95 169.64 200.96"/>
-          <polygon points="430.11 300.95 516.34 200.96 342.99 0 214.33 149.16 300.58 249.13 342.99 199.96 430.11 300.95"/>
-        </svg>
-        <span style={{ fontSize: 9, margin: 0, lineHeight: 1 }}>Powered by Flikker</span>
+      <div style={{ padding: "0 0 8px" }}>
+        <PoweredBy />
       </div>
     </div>
   );
 }
 
 function MostradorPreview({
-  business,
-  color,
-  benefitText,
-  qrDataUrl,
+  business, color, mainText, benefitText, qrDataUrl,
 }: {
-  business: BusinessData;
-  color: string;
-  benefitText: string;
-  qrDataUrl: string | null;
+  business: BusinessData; color: string; mainText: string; benefitText: string; qrDataUrl: string | null;
 }) {
   return (
-    <div
-      style={{
-        width: 240,
-        height: 380,
-        background: color,
-        borderRadius: 12,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        padding: "28px 20px 16px",
-        gap: 12,
-        boxShadow: "0 4px 24px rgba(0,0,0,0.18)",
-      }}
-    >
-      {/* Heading */}
+    <div style={{ width: 240, height: 400, background: color, borderRadius: 12, overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", padding: "28px 20px 12px", gap: 10, boxShadow: "0 4px 24px rgba(0,0,0,0.18)" }}>
       <p style={{ color: "#fff", fontWeight: 800, fontSize: 20, margin: 0, textAlign: "center", lineHeight: 1.2 }}>
-        ¿Querés un regalo?
+        {mainText || DEFAULT_A4_TITLE}
       </p>
       <p style={{ color: "rgba(255,255,255,0.85)", fontSize: 12, margin: 0, textAlign: "center", lineHeight: 1.4 }}>
         {benefitText || DEFAULT_BENEFIT}
       </p>
-
-      {/* QR on white */}
-      <div
-        style={{
-          background: "#fff",
-          borderRadius: 12,
-          padding: 10,
-          marginTop: 4,
-        }}
-      >
+      <div style={{ background: "#fff", borderRadius: 12, padding: 10, marginTop: 4 }}>
         {qrDataUrl ? (
           <img src={qrDataUrl} alt="QR" style={{ width: 130, height: 130, display: "block" }} />
         ) : (
           <div style={{ width: 130, height: 130, background: "#F0F2FA", borderRadius: 8 }} />
         )}
       </div>
-
-      {/* Logo or name */}
       <div style={{ marginTop: "auto" }}>
         {business.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={business.logoUrl}
-            alt={business.name}
-            style={{ maxHeight: 32, maxWidth: 120, objectFit: "contain", filter: "brightness(10)" }}
-          />
+          <img src={business.logoUrl} alt={business.name} style={{ maxHeight: 32, maxWidth: 120, objectFit: "contain", filter: "brightness(10)" }} />
         ) : (
-          <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: 600 }}>
-            {business.name}
-          </span>
+          <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: 600 }}>{business.name}</span>
         )}
       </div>
-
-      {/* Footer */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 6, color: "rgba(255,255,255,0.4)" }}>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 516.34 402.58" style={{ height: 12, width: "auto", fill: "currentColor", flexShrink: 0, display: "block" }}>
-          <polygon points="169.64 200.96 214.33 149.16 173.32 101.62 0 302.58 86.22 402.58 173.32 301.6 260.42 402.58 346.69 302.58 300.58 249.13 255.86 300.95 169.64 200.96"/>
-          <polygon points="430.11 300.95 516.34 200.96 342.99 0 214.33 149.16 300.58 249.13 342.99 199.96 430.11 300.95"/>
-        </svg>
-        <span style={{ fontSize: 9, margin: 0, lineHeight: 1 }}>Powered by Flikker</span>
-      </div>
+      <PoweredBy color="rgba(255,255,255,0.4)" />
     </div>
   );
 }
 
 function StickerPreview({
-  business,
-  color,
-  qrDataUrl,
+  business, color, stickerQrDataUrl,
 }: {
-  business: BusinessData;
-  color: string;
-  qrDataUrl: string | null;
+  business: BusinessData; color: string; stickerQrDataUrl: string | null;
 }) {
   return (
-    <div
-      style={{
-        width: 240,
-        height: 240,
-        background: "#ffffff",
-        borderRadius: 12,
-        border: `4px solid ${color}`,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 14,
-        gap: 8,
-        boxShadow: "0 4px 24px rgba(0,0,0,0.12)",
-      }}
-    >
-      {qrDataUrl ? (
-        <img src={qrDataUrl} alt="QR" style={{ width: 168, height: 168 }} />
+    <div style={{ width: 240, height: 240, background: "#ffffff", borderRadius: 12, border: `4px solid ${color}`, overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 14, gap: 6, boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
+      {stickerQrDataUrl ? (
+        <img src={stickerQrDataUrl} alt="QR" style={{ width: 168, height: 168 }} />
       ) : (
-        <div style={{ width: 168, height: 168, background: "#F0F2FA", borderRadius: 8 }} />
+        <div style={{ width: 168, height: 168, background: "#F0F2FA", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#8891A4" }}>
+          Generando…
+        </div>
       )}
-
       {business.logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={business.logoUrl}
-          alt={business.name}
-          style={{ maxHeight: 22, maxWidth: 100, objectFit: "contain" }}
-        />
+        <img src={business.logoUrl} alt={business.name} style={{ maxHeight: 22, maxWidth: 100, objectFit: "contain" }} />
       ) : (
         <span style={{ fontSize: 10, color: "#8891A4", fontWeight: 600 }}>{business.name}</span>
       )}
+      <PoweredBy color="#C8D0E0" fontSize={8} iconHeight={10} />
+    </div>
+  );
+}
+
+function A4Preview({
+  business, bgColor, qrDataUrl, a4Title, a4Subtitle,
+}: {
+  business: BusinessData; bgColor: string; qrDataUrl: string | null; a4Title: string; a4Subtitle: string;
+}) {
+  const darkBg = darkenHex(bgColor, 0.85);
+  const W = 360;
+  const H = 510;
+  const halfH = H / 2;          // 255 — divides top text / bottom QR
+  const iphoneH = Math.round(H * 0.7); // 357 — spans both halves intentionally
+  const leftW = Math.round(W * 0.6);   // 216 — text column width
+
+  return (
+    <div style={{ width: W, height: H, background: darkBg, borderRadius: 16, overflow: "hidden", position: "relative", boxShadow: "0 8px 32px rgba(0,0,0,0.32)" }}>
+      {/* Background blobs */}
+      <div style={{ position: "absolute", top: -60, right: -60, width: 200, height: 200, borderRadius: "50%", background: bgColor, opacity: 0.15, filter: "blur(80px)", pointerEvents: "none" }} />
+      <div style={{ position: "absolute", bottom: -60, left: -60, width: 200, height: 200, borderRadius: "50%", background: bgColor, opacity: 0.15, filter: "blur(80px)", pointerEvents: "none" }} />
+
+      {/* iPhone mockup — right column, overflows from top into bottom half */}
+      <div style={{ position: "absolute", right: 0, top: -8, width: W - leftW + 24, height: iphoneH + 8, zIndex: 2, pointerEvents: "none" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/iphone-mockup.png"
+          alt=""
+          crossOrigin="anonymous"
+          style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "right top" }}
+        />
+      </div>
+
+      {/* Top-left: logo + title + subtitle */}
+      <div style={{ position: "absolute", left: 0, top: 0, width: leftW, height: halfH, display: "flex", flexDirection: "column", justifyContent: "center", padding: "24px 12px 24px 24px", zIndex: 3 }}>
+        {business.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={business.logoUrl}
+            alt={business.name}
+            crossOrigin="anonymous"
+            style={{ maxHeight: 40, maxWidth: 150, objectFit: "contain", filter: "brightness(0) invert(1)", marginBottom: 16 }}
+          />
+        ) : (
+          <span style={{ fontSize: 15, fontWeight: 700, color: "#ffffff", marginBottom: 16, lineHeight: 1.2 }}>
+            {business.name}
+          </span>
+        )}
+        <h2 style={{ fontSize: 26, fontWeight: 800, color: "#ffffff", margin: 0, lineHeight: 1.2 }}>
+          {a4Title || DEFAULT_A4_TITLE}
+        </h2>
+        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", margin: "10px 0 0", lineHeight: 1.4 }}>
+          {a4Subtitle || DEFAULT_A4_SUBTITLE}
+        </p>
+      </div>
+
+      {/* Bottom-left: QR + scan instruction */}
+      <div style={{ position: "absolute", left: 0, top: halfH, width: leftW, bottom: 44, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 3 }}>
+        <div style={{ background: "#ffffff", borderRadius: 14, padding: 14 }}>
+          {qrDataUrl ? (
+            <img src={qrDataUrl} alt="QR" style={{ width: 130, height: 130, display: "block" }} />
+          ) : (
+            <div style={{ width: 130, height: 130, background: "#F0F2FA", borderRadius: 8 }} />
+          )}
+        </div>
+        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 10, margin: "10px 0 0", textAlign: "center" }}>
+          Escaneá con la cámara de tu celular
+        </p>
+      </div>
 
       {/* Footer */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 3, color: "#C8D0E0" }}>
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 516.34 402.58" style={{ height: 10, width: "auto", fill: "currentColor", flexShrink: 0, display: "block" }}>
-          <polygon points="169.64 200.96 214.33 149.16 173.32 101.62 0 302.58 86.22 402.58 173.32 301.6 260.42 402.58 346.69 302.58 300.58 249.13 255.86 300.95 169.64 200.96"/>
-          <polygon points="430.11 300.95 516.34 200.96 342.99 0 214.33 149.16 300.58 249.13 342.99 199.96 430.11 300.95"/>
-        </svg>
-        <span style={{ fontSize: 8, margin: 0, lineHeight: 1 }}>Powered by Flikker</span>
+      <div style={{ position: "absolute", bottom: 16, left: 0, right: 0, display: "flex", justifyContent: "center", zIndex: 3 }}>
+        <PoweredBy color="rgba(255,255,255,0.35)" fontSize={10} iconHeight={12} />
       </div>
     </div>
   );
 }
 
-// ─── Download helpers (html2canvas → identical to preview) ───────────────────
+// ─── Download helpers (html2canvas → identical to preview) ────────────────────
 
 async function capturePreview(): Promise<HTMLCanvasElement | null> {
   const element = document.getElementById("qr-preview-card");
@@ -333,7 +385,6 @@ async function downloadPdf(businessName: string, version: Version) {
     unit: "mm",
     format: [dims.w, dims.h],
   });
-  // Fit captured image into page, preserving aspect ratio, centered
   const canvasAspect = canvas.height / canvas.width;
   let imgW = dims.w;
   let imgH = dims.w * canvasAspect;
@@ -350,6 +401,20 @@ async function downloadPdf(businessName: string, version: Version) {
 
 // ─── Main page ────────────────────────────────────────────────────────────────
 
+const VERSION_TABS: Array<{ key: Version; label: string }> = [
+  { key: "mesa", label: "Mesa" },
+  { key: "mostrador", label: "Mostrador" },
+  { key: "sticker", label: "Sticker" },
+  { key: "a4", label: "Cartel A4" },
+];
+
+const PREVIEW_LABEL: Record<Version, string> = {
+  mesa: "Mesa (10×10 cm)",
+  mostrador: "Mostrador (10×15 cm)",
+  sticker: "Sticker (6×6 cm)",
+  a4: "Cartel A4 (21×29.7 cm)",
+};
+
 export default function QrPage() {
   const [business, setBusiness] = useState<BusinessData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -359,27 +424,43 @@ export default function QrPage() {
   const [version, setVersion] = useState<Version>("mesa");
   const [color, setColor] = useState(DEFAULT_COLOR);
   const [benefitText, setBenefitText] = useState("");
+  const [mainText, setMainText] = useState(DEFAULT_MAIN_TEXT);
+  const [a4Title, setA4Title] = useState(DEFAULT_A4_TITLE);
+  const [a4Subtitle, setA4Subtitle] = useState(DEFAULT_A4_SUBTITLE);
+  const [a4BgColor, setA4BgColor] = useState(DEFAULT_COLOR);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
 
-  // Generated QR
+  // Generated QRs
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+  const [stickerQrDataUrl, setStickerQrDataUrl] = useState<string | null>(null);
   const generatingRef = useRef(false);
+  const generatingStickerRef = useRef(false);
 
-  // Saving state
-  const [savingBenefit, setSavingBenefit] = useState(false);
-  const [savedBenefit, setSavedBenefit] = useState(false);
+  // Saving / downloading state
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  // Regenerate QR when color changes
   const regenerateQr = useCallback(async (bizId: string, qrColor: string) => {
     if (generatingRef.current) return;
     generatingRef.current = true;
     try {
-      const url = await generateQrDataUrl(bizId, qrColor);
-      setQrDataUrl(url);
+      setQrDataUrl(await generateQrDataUrl(bizId, qrColor));
     } finally {
       generatingRef.current = false;
+    }
+  }, []);
+
+  const regenerateStickerQr = useCallback(async (
+    bizId: string, qrColor: string, logo: string | null,
+  ) => {
+    if (generatingStickerRef.current) return;
+    generatingStickerRef.current = true;
+    try {
+      setStickerQrDataUrl(await generateStickerQrDataUrl(bizId, qrColor, logo));
+    } finally {
+      generatingStickerRef.current = false;
     }
   }, []);
 
@@ -396,9 +477,13 @@ export default function QrPage() {
         const initColor = biz.primaryColor ?? DEFAULT_COLOR;
         setColor(initColor);
         setBenefitText(biz.benefitText ?? "");
+        setA4Title(biz.qrA4Title ?? DEFAULT_A4_TITLE);
+        setA4Subtitle(biz.qrA4Subtitle ?? DEFAULT_A4_SUBTITLE);
+        setA4BgColor(biz.qrA4BgColor ?? initColor);
         if (biz.logoUrl) setLogoPreviewUrl(biz.logoUrl);
 
         void regenerateQr(biz.id, initColor);
+        void regenerateStickerQr(biz.id, initColor, biz.logoUrl ?? null);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Error al cargar");
       } finally {
@@ -406,16 +491,18 @@ export default function QrPage() {
       }
     }
     void load();
-  }, [regenerateQr]);
+  }, [regenerateQr, regenerateStickerQr]);
 
-  // Regenerate QR on color change (debounced slightly)
+  // Regenerate QRs when color or logo changes
   useEffect(() => {
     if (!business) return;
-    const t = setTimeout(() => void regenerateQr(business.id, color), 300);
+    const t = setTimeout(() => {
+      void regenerateQr(business.id, color);
+      void regenerateStickerQr(business.id, color, logoPreviewUrl);
+    }, 300);
     return () => clearTimeout(t);
-  }, [color, business, regenerateQr]);
+  }, [color, logoPreviewUrl, business, regenerateQr, regenerateStickerQr]);
 
-  // Logo file handling
   function handleLogoFile(file: File) {
     if (file.size > 2 * 1024 * 1024) {
       alert("El logo no puede superar 2 MB");
@@ -427,24 +514,28 @@ export default function QrPage() {
     reader.readAsDataURL(file);
   }
 
-  async function handleSaveBenefit() {
+  async function handleSave() {
     if (!business) return;
-    setSavingBenefit(true);
+    setSaving(true);
     try {
+      const payload =
+        version === "a4"
+          ? { qrA4Title: a4Title, qrA4Subtitle: a4Subtitle, qrA4BgColor: a4BgColor }
+          : { benefitText };
       await fetch("/api/proxy/businesses/current/brand", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ benefitText }),
+        body: JSON.stringify(payload),
       });
-      setSavedBenefit(true);
-      setTimeout(() => setSavedBenefit(false), 2500);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
     } finally {
-      setSavingBenefit(false);
+      setSaving(false);
     }
   }
 
   async function handleDownloadPdf() {
-    if (!business || !qrDataUrl) return;
+    if (!business) return;
     setDownloading(true);
     try {
       await downloadPdf(business.name ?? "negocio", version);
@@ -454,7 +545,7 @@ export default function QrPage() {
   }
 
   async function handleDownloadPng() {
-    if (!business || !qrDataUrl) return;
+    if (!business) return;
     await downloadPng(business.name ?? "negocio", version);
   }
 
@@ -463,11 +554,8 @@ export default function QrPage() {
     logoUrl: logoPreviewUrl ?? business?.logoUrl ?? null,
   };
 
-  const VERSION_TABS: Array<{ key: Version; label: string }> = [
-    { key: "mesa", label: "Mesa" },
-    { key: "mostrador", label: "Mostrador" },
-    { key: "sticker", label: "Sticker" },
-  ];
+  const isA4 = version === "a4";
+  const qrReady = version === "sticker" ? !!stickerQrDataUrl : !!qrDataUrl;
 
   if (loading) {
     return (
@@ -503,13 +591,13 @@ export default function QrPage() {
             <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
               Versión del diseño
             </p>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {VERSION_TABS.map((tab) => (
                 <button
                   key={tab.key}
                   type="button"
                   onClick={() => setVersion(tab.key)}
-                  className={`flex-1 rounded-[8px] px-3 py-2 text-sm font-semibold transition-colors ${
+                  className={`rounded-[8px] px-3 py-2 text-sm font-semibold transition-colors ${
                     version === tab.key
                       ? "bg-[#5C6BC0] text-white"
                       : "border border-[#E8EAF0] bg-white text-[#8891A4] hover:border-[#5C6BC0] hover:text-[#5C6BC0]"
@@ -521,50 +609,116 @@ export default function QrPage() {
             </div>
           </div>
 
-          {/* Benefit text */}
-          <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-4">
-            <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-              ¿Qué le ofrecés al cliente por escanear?
-            </label>
-            <textarea
-              value={benefitText}
-              onChange={(e) => setBenefitText(e.target.value.slice(0, MAX_BENEFIT_LEN))}
-              placeholder={DEFAULT_BENEFIT}
-              rows={3}
-              className="mt-2 w-full resize-none rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
-            />
-            <div className="mt-1.5 flex items-center justify-between">
-              <span className="text-xs text-[#B0B8C9]">
-                {benefitText.length} / {MAX_BENEFIT_LEN} caracteres
-              </span>
+          {/* A4-specific content fields */}
+          {isA4 && (
+            <div className="space-y-3 rounded-[12px] border border-[#E8EAF0] bg-white p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+                Contenido del cartel
+              </p>
+              <div>
+                <label className="block text-xs font-medium text-[#4A5568]">Título</label>
+                <input
+                  type="text"
+                  value={a4Title}
+                  onChange={(e) => setA4Title(e.target.value.slice(0, MAX_A4_TITLE_LEN))}
+                  placeholder={DEFAULT_A4_TITLE}
+                  className="mt-1 w-full rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
+                />
+                <span className="mt-0.5 block text-right text-[11px] text-[#B0B8C9]">
+                  {a4Title.length}/{MAX_A4_TITLE_LEN}
+                </span>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[#4A5568]">Subtítulo</label>
+                <input
+                  type="text"
+                  value={a4Subtitle}
+                  onChange={(e) => setA4Subtitle(e.target.value.slice(0, MAX_A4_SUBTITLE_LEN))}
+                  placeholder={DEFAULT_A4_SUBTITLE}
+                  className="mt-1 w-full rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
+                />
+                <span className="mt-0.5 block text-right text-[11px] text-[#B0B8C9]">
+                  {a4Subtitle.length}/{MAX_A4_SUBTITLE_LEN}
+                </span>
+              </div>
               <button
                 type="button"
-                onClick={() => void handleSaveBenefit()}
-                disabled={savingBenefit}
-                className="flex items-center gap-1 text-xs font-medium text-[#5C6BC0] hover:underline disabled:opacity-50"
+                onClick={() => void handleSave()}
+                disabled={saving}
+                className="flex w-full items-center justify-center gap-1 rounded-[8px] border border-[#E8EAF0] py-2 text-xs font-medium text-[#5C6BC0] hover:bg-[#F5F6FA] disabled:opacity-50"
               >
                 <Save className="h-3 w-3" />
-                {savedBenefit ? "¡Guardado!" : "Guardar como predeterminado"}
+                {saved ? "¡Guardado!" : "Guardar como predeterminado"}
               </button>
             </div>
-          </div>
+          )}
+
+          {/* Mesa / Mostrador / Sticker text fields */}
+          {!isA4 && (
+            <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-4">
+              <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+                Texto principal
+              </label>
+              <input
+                type="text"
+                value={mainText}
+                onChange={(e) => setMainText(e.target.value.slice(0, MAX_MAIN_LEN))}
+                placeholder={DEFAULT_MAIN_TEXT}
+                className="mt-2 w-full rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
+              />
+              <span className="mt-1 block text-right text-[11px] text-[#B0B8C9]">
+                {mainText.length}/{MAX_MAIN_LEN}
+              </span>
+
+              <label className="mt-3 block text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+                ¿Qué le ofrecés al cliente?
+              </label>
+              <textarea
+                value={benefitText}
+                onChange={(e) => setBenefitText(e.target.value.slice(0, MAX_BENEFIT_LEN))}
+                placeholder={DEFAULT_BENEFIT}
+                rows={3}
+                className="mt-2 w-full resize-none rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
+              />
+              <div className="mt-1.5 flex items-center justify-between">
+                <span className="text-xs text-[#B0B8C9]">
+                  {benefitText.length} / {MAX_BENEFIT_LEN}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void handleSave()}
+                  disabled={saving}
+                  className="flex items-center gap-1 text-xs font-medium text-[#5C6BC0] hover:underline disabled:opacity-50"
+                >
+                  <Save className="h-3 w-3" />
+                  {saved ? "¡Guardado!" : "Guardar como predeterminado"}
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Color picker */}
           <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-4">
             <label className="block text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-              Color del diseño
+              {isA4 ? "Color de fondo" : "Color del diseño"}
             </label>
             <div className="mt-2 flex items-center gap-3">
               <input
                 type="color"
-                value={color}
-                onChange={(e) => setColor(e.target.value)}
+                value={isA4 ? a4BgColor : color}
+                onChange={(e) => isA4 ? setA4BgColor(e.target.value) : setColor(e.target.value)}
                 className="h-10 w-10 cursor-pointer rounded-[8px] border border-[#E8EAF0] p-0.5"
               />
-              <span className="font-mono text-sm font-semibold text-[#1A202C]">{color.toUpperCase()}</span>
+              <span className="font-mono text-sm font-semibold text-[#1A202C]">
+                {(isA4 ? a4BgColor : color).toUpperCase()}
+              </span>
               <button
                 type="button"
-                onClick={() => setColor(business.primaryColor ?? DEFAULT_COLOR)}
+                onClick={() =>
+                  isA4
+                    ? setA4BgColor(business.primaryColor ?? DEFAULT_COLOR)
+                    : setColor(business.primaryColor ?? DEFAULT_COLOR)
+                }
                 className="ml-auto text-xs text-[#8891A4] hover:text-[#1A202C]"
               >
                 Restablecer
@@ -602,7 +756,7 @@ export default function QrPage() {
                   }}
                 />
               </label>
-              {logoFile || logoPreviewUrl ? (
+              {(logoFile ?? logoPreviewUrl) ? (
                 <button
                   type="button"
                   onClick={() => {
@@ -623,7 +777,7 @@ export default function QrPage() {
             <button
               type="button"
               onClick={() => void handleDownloadPdf()}
-              disabled={!qrDataUrl || downloading}
+              disabled={!qrReady || downloading}
               className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[10px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
             >
               <Download className="h-4 w-4" />
@@ -632,7 +786,7 @@ export default function QrPage() {
             <button
               type="button"
               onClick={() => void handleDownloadPng()}
-              disabled={!qrDataUrl}
+              disabled={!qrReady}
               className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[10px] border border-[#E8EAF0] bg-white px-5 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-50"
             >
               <Download className="h-4 w-4" />
@@ -646,11 +800,9 @@ export default function QrPage() {
 
         {/* ── Preview ──────────────────────────────────────────── */}
         <div className="flex flex-1 flex-col items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-              Preview — {version === "mesa" ? "Mesa (10×10 cm)" : version === "mostrador" ? "Mostrador (10×15 cm)" : "Sticker (6×6 cm)"}
-            </span>
-          </div>
+          <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+            Preview — {PREVIEW_LABEL[version]}
+          </span>
 
           <div className="flex items-center justify-center rounded-[16px] bg-[#F0F2FA] p-8">
             <div id="qr-preview-card" style={{ display: "inline-block" }}>
@@ -658,6 +810,7 @@ export default function QrPage() {
                 <MesaPreview
                   business={displayBusiness}
                   color={color}
+                  mainText={mainText}
                   benefitText={benefitText}
                   qrDataUrl={qrDataUrl}
                 />
@@ -665,14 +818,23 @@ export default function QrPage() {
                 <MostradorPreview
                   business={displayBusiness}
                   color={color}
+                  mainText={mainText}
                   benefitText={benefitText}
                   qrDataUrl={qrDataUrl}
                 />
-              ) : (
+              ) : version === "sticker" ? (
                 <StickerPreview
                   business={displayBusiness}
                   color={color}
+                  stickerQrDataUrl={stickerQrDataUrl}
+                />
+              ) : (
+                <A4Preview
+                  business={displayBusiness}
+                  bgColor={a4BgColor}
                   qrDataUrl={qrDataUrl}
+                  a4Title={a4Title}
+                  a4Subtitle={a4Subtitle}
                 />
               )}
             </div>

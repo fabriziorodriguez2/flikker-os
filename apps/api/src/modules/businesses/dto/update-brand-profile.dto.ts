@@ -57,6 +57,24 @@ export class UpdateBrandProfileDto {
   benefitText?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  qrA4Title?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(60)
+  qrA4Subtitle?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(7)
+  @Matches(/^#[0-9A-Fa-f]{6}$/, {
+    message: 'qrA4BgColor must be a hex color (e.g. #1A1040)',
+  })
+  qrA4BgColor?: string;
+
+  @IsOptional()
   @IsUrl()
   googleBusinessProfileUrl?: string;
 

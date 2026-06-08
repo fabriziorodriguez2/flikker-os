@@ -3,7 +3,9 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ---------------------------------------------------------------------------
@@ -266,6 +268,9 @@ model Business {
   shortBio                  String?
   signatureText             String?
   benefitText               String?        @map("benefit_text")
+  qrA4Title                 String?        @map("qr_a4_title")
+  qrA4Subtitle              String?        @map("qr_a4_subtitle")
+  qrA4BgColor               String?        @map("qr_a4_bg_color")
   googleBusinessProfileUrl  String?
   googlePlaceId             String?        @map("google_place_id")
   googleRefreshToken        String?        @map("google_refresh_token")
