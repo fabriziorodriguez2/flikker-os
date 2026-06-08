@@ -26,6 +26,10 @@ const PRINT_DIMS: Record<Version, { w: number; h: number }> = {
   a4: { w: 210, h: 297 },
 };
 
+const A4_W = 794;
+const A4_H = 1123;
+const A4_SCALE = 0.5;
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface BusinessData {
@@ -271,74 +275,102 @@ function StickerPreview({
 }
 
 function A4Preview({
-  business, bgColor, qrDataUrl, a4Title, a4Subtitle,
+  business, bgColor, qrDataUrl, a4Title, a4Subtitle, mainText, benefitText,
 }: {
-  business: BusinessData; bgColor: string; qrDataUrl: string | null; a4Title: string; a4Subtitle: string;
+  business: BusinessData; bgColor: string; qrDataUrl: string | null;
+  a4Title: string; a4Subtitle: string; mainText: string; benefitText: string;
 }) {
-  const darkBg = darkenHex(bgColor, 0.85);
-  const W = 360;
-  const H = 510;
-  const halfH = H / 2;          // 255 — divides top text / bottom QR
-  const iphoneH = Math.round(H * 0.7); // 357 — spans both halves intentionally
-  const leftW = Math.round(W * 0.6);   // 216 — text column width
+  // iPhone screen: use a dark variant of bgColor, floor at #1a1a1a so pure black stays visible
+  const screenBg = bgColor.toLowerCase() === "#000000"
+    ? "#1a1a1a"
+    : darkenHex(bgColor, 0.20);
 
   return (
-    <div style={{ width: W, height: H, background: darkBg, borderRadius: 16, overflow: "hidden", position: "relative", boxShadow: "0 8px 32px rgba(0,0,0,0.32)" }}>
-      {/* Background blobs */}
-      <div style={{ position: "absolute", top: -60, right: -60, width: 200, height: 200, borderRadius: "50%", background: bgColor, opacity: 0.15, filter: "blur(80px)", pointerEvents: "none" }} />
-      <div style={{ position: "absolute", bottom: -60, left: -60, width: 200, height: 200, borderRadius: "50%", background: bgColor, opacity: 0.15, filter: "blur(80px)", pointerEvents: "none" }} />
-
-      {/* iPhone mockup — right column, overflows from top into bottom half */}
-      <div style={{ position: "absolute", right: 0, top: -8, width: W - leftW + 24, height: iphoneH + 8, zIndex: 2, pointerEvents: "none" }}>
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/iphone-mockup.png"
-          alt=""
-          crossOrigin="anonymous"
-          style={{ width: "100%", height: "100%", objectFit: "contain", objectPosition: "right top" }}
-        />
-      </div>
-
-      {/* Top-left: logo + title + subtitle */}
-      <div style={{ position: "absolute", left: 0, top: 0, width: leftW, height: halfH, display: "flex", flexDirection: "column", justifyContent: "center", padding: "24px 12px 24px 24px", zIndex: 3 }}>
-        {business.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={business.logoUrl}
-            alt={business.name}
-            crossOrigin="anonymous"
-            style={{ maxHeight: 40, maxWidth: 150, objectFit: "contain", filter: "brightness(0) invert(1)", marginBottom: 16 }}
-          />
-        ) : (
-          <span style={{ fontSize: 15, fontWeight: 700, color: "#ffffff", marginBottom: 16, lineHeight: 1.2 }}>
-            {business.name}
-          </span>
-        )}
-        <h2 style={{ fontSize: 26, fontWeight: 800, color: "#ffffff", margin: 0, lineHeight: 1.2 }}>
+    <div style={{
+      width: A4_W, height: A4_H,
+      background: bgColor,
+      position: "relative",
+      fontFamily: "system-ui, -apple-system, sans-serif",
+      overflow: "visible",
+    }}>
+      {/* ── Top zone (35% = 393px): title + subtitle ── */}
+      <div style={{
+        position: "absolute", top: 0, left: 0, right: 0, height: 393,
+        padding: "40px 48px 0",
+      }}>
+        <h1 style={{
+          fontSize: 72, fontWeight: 900, color: "#ffffff",
+          margin: 0, lineHeight: 1.1, textAlign: "left",
+        }}>
           {a4Title || DEFAULT_A4_TITLE}
-        </h2>
-        <p style={{ fontSize: 12, color: "rgba(255,255,255,0.75)", margin: "10px 0 0", lineHeight: 1.4 }}>
+        </h1>
+        <p style={{
+          fontSize: 28, fontWeight: 400, color: "#ffffff",
+          margin: "24px 0 0", textAlign: "center", lineHeight: 1.3,
+        }}>
           {a4Subtitle || DEFAULT_A4_SUBTITLE}
         </p>
       </div>
 
-      {/* Bottom-left: QR + scan instruction */}
-      <div style={{ position: "absolute", left: 0, top: halfH, width: leftW, bottom: 44, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", zIndex: 3 }}>
-        <div style={{ background: "#ffffff", borderRadius: 14, padding: 14 }}>
-          {qrDataUrl ? (
-            <img src={qrDataUrl} alt="QR" style={{ width: 130, height: 130, display: "block" }} />
-          ) : (
-            <div style={{ width: 130, height: 130, background: "#F0F2FA", borderRadius: 8 }} />
-          )}
-        </div>
-        <p style={{ color: "rgba(255,255,255,0.6)", fontSize: 10, margin: "10px 0 0", textAlign: "center" }}>
-          Escaneá con la cámara de tu celular
-        </p>
-      </div>
+      {/* ── Bottom zone (65% = 730px): iPhone mockup ── */}
+      <div style={{
+        position: "absolute", top: 393, left: 0, right: 0, bottom: 0,
+        display: "flex", justifyContent: "center", alignItems: "flex-start",
+        overflow: "visible",
+      }}>
+        {/* iPhone wrapper — position:relative anchors the screen overlay */}
+        <div style={{ position: "relative", width: Math.round(A4_W * 0.65), flexShrink: 0 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/iphone-mockup.png"
+            alt=""
+            crossOrigin="anonymous"
+            style={{ width: "100%", height: "auto", display: "block" }}
+          />
 
-      {/* Footer */}
-      <div style={{ position: "absolute", bottom: 16, left: 0, right: 0, display: "flex", justifyContent: "center", zIndex: 3 }}>
-        <PoweredBy color="rgba(255,255,255,0.35)" fontSize={10} iconHeight={12} />
+          {/* Screen overlay — covers the iPhone display area */}
+          <div style={{
+            position: "absolute",
+            top: "15%", left: "11%",
+            width: "78%", height: "72%",
+            background: screenBg,
+            borderRadius: 8,
+            display: "flex", flexDirection: "column",
+            alignItems: "center", justifyContent: "center",
+            padding: "20px 16px",
+            overflow: "hidden",
+          }}>
+            <p style={{ fontSize: 22, fontWeight: 700, color: "#ffffff", margin: 0, textAlign: "center" }}>
+              {mainText || DEFAULT_MAIN_TEXT}
+            </p>
+            <p style={{ fontSize: 16, color: "rgba(255,255,255,0.85)", margin: "8px 0 0", textAlign: "center", lineHeight: 1.4 }}>
+              {benefitText || DEFAULT_BENEFIT}
+            </p>
+            <div style={{ marginTop: 20, background: "#ffffff", borderRadius: 12, padding: 12 }}>
+              {qrDataUrl ? (
+                <img src={qrDataUrl} alt="QR" style={{ width: 160, height: 160, display: "block" }} />
+              ) : (
+                <div style={{ width: 160, height: 160, background: "#F0F2FA", borderRadius: 8 }} />
+              )}
+            </div>
+            <div style={{ marginTop: 16 }}>
+              {business.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={business.logoUrl}
+                  alt={business.name}
+                  crossOrigin="anonymous"
+                  style={{ height: 28, maxWidth: 120, objectFit: "contain", filter: "brightness(0) invert(1)" }}
+                />
+              ) : (
+                <span style={{ fontSize: 16, fontWeight: 700, color: "#ffffff" }}>{business.name}</span>
+              )}
+            </div>
+            <div style={{ position: "absolute", bottom: 10, left: 0, right: 0, display: "flex", justifyContent: "center" }}>
+              <PoweredBy color="rgba(255,255,255,0.4)" fontSize={11} iconHeight={13} />
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -346,20 +378,23 @@ function A4Preview({
 
 // ─── Download helpers (html2canvas → identical to preview) ────────────────────
 
-async function capturePreview(): Promise<HTMLCanvasElement | null> {
-  const element = document.getElementById("qr-preview-card");
+async function capturePreview(version: Version): Promise<HTMLCanvasElement | null> {
+  const elementId = version === "a4" ? "qr-preview-a4" : "qr-preview-card";
+  const element = document.getElementById(elementId);
   if (!element) return null;
   const html2canvas = (await import("html2canvas")).default;
   return html2canvas(element, {
     scale: 3,
     useCORS: true,
     allowTaint: false,
-    backgroundColor: "#ffffff",
+    ...(version === "a4"
+      ? { width: A4_W, height: A4_H }
+      : { backgroundColor: "#ffffff" }),
   });
 }
 
 async function downloadPng(businessName: string, version: Version) {
-  const canvas = await capturePreview();
+  const canvas = await capturePreview(version);
   if (!canvas) return;
   const safeName = businessName.toLowerCase().replace(/\s+/g, "-");
   const link = document.createElement("a");
@@ -369,7 +404,7 @@ async function downloadPng(businessName: string, version: Version) {
 }
 
 async function downloadPdf(businessName: string, version: Version) {
-  const canvas = await capturePreview();
+  const canvas = await capturePreview(version);
   if (!canvas) return;
   const imgData = canvas.toDataURL("image/png");
   const { jsPDF } = await import("jspdf");
@@ -421,7 +456,7 @@ export default function QrPage() {
   const [mainText, setMainText] = useState(DEFAULT_MAIN_TEXT);
   const [a4Title, setA4Title] = useState(DEFAULT_A4_TITLE);
   const [a4Subtitle, setA4Subtitle] = useState(DEFAULT_A4_SUBTITLE);
-  const [a4BgColor, setA4BgColor] = useState(DEFAULT_COLOR);
+  const [a4BgColor, setA4BgColor] = useState("#000000");
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string | null>(null);
 
@@ -473,7 +508,7 @@ export default function QrPage() {
         setBenefitText(biz.benefitText ?? "");
         setA4Title(biz.qrA4Title ?? DEFAULT_A4_TITLE);
         setA4Subtitle(biz.qrA4Subtitle ?? DEFAULT_A4_SUBTITLE);
-        setA4BgColor(biz.qrA4BgColor ?? initColor);
+        setA4BgColor(biz.qrA4BgColor ?? "#000000");
         if (biz.logoUrl) setLogoPreviewUrl(biz.logoUrl);
 
         void regenerateQr(biz.id, initColor);
@@ -514,7 +549,7 @@ export default function QrPage() {
     try {
       const payload =
         version === "a4"
-          ? { qrA4Title: a4Title, qrA4Subtitle: a4Subtitle, qrA4BgColor: a4BgColor }
+          ? { qrA4Title: a4Title, qrA4Subtitle: a4Subtitle, qrA4BgColor: a4BgColor, benefitText }
           : { benefitText };
       await fetch("/api/proxy/businesses/current/brand", {
         method: "PATCH",
@@ -568,7 +603,7 @@ export default function QrPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6">
+    <div className="relative mx-auto max-w-5xl space-y-6">
       <div>
         <h1 className="font-display text-2xl font-bold text-[#1A202C]">Tu QR de captación</h1>
         <p className="mt-1 text-sm text-[#8891A4]">
@@ -607,7 +642,7 @@ export default function QrPage() {
           {isA4 && (
             <div className="space-y-3 rounded-[12px] border border-[#E8EAF0] bg-white p-4">
               <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-                Contenido del cartel
+                Texto del cartel
               </p>
               <div>
                 <label className="block text-xs font-medium text-[#4A5568]">Título</label>
@@ -635,6 +670,37 @@ export default function QrPage() {
                   {a4Subtitle.length}/{MAX_A4_SUBTITLE_LEN}
                 </span>
               </div>
+
+              <p className="pt-1 text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+                Pantalla del iPhone
+              </p>
+              <div>
+                <label className="block text-xs font-medium text-[#4A5568]">Texto principal</label>
+                <input
+                  type="text"
+                  value={mainText}
+                  onChange={(e) => setMainText(e.target.value.slice(0, MAX_MAIN_LEN))}
+                  placeholder={DEFAULT_MAIN_TEXT}
+                  className="mt-1 w-full rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
+                />
+                <span className="mt-0.5 block text-right text-[11px] text-[#B0B8C9]">
+                  {mainText.length}/{MAX_MAIN_LEN}
+                </span>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-[#4A5568]">Texto del beneficio</label>
+                <textarea
+                  value={benefitText}
+                  onChange={(e) => setBenefitText(e.target.value.slice(0, MAX_BENEFIT_LEN))}
+                  placeholder={DEFAULT_BENEFIT}
+                  rows={2}
+                  className="mt-1 w-full resize-none rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
+                />
+                <span className="mt-0.5 block text-right text-[11px] text-[#B0B8C9]">
+                  {benefitText.length}/{MAX_BENEFIT_LEN}
+                </span>
+              </div>
+
               <button
                 type="button"
                 onClick={() => void handleSave()}
@@ -710,7 +776,7 @@ export default function QrPage() {
                 type="button"
                 onClick={() =>
                   isA4
-                    ? setA4BgColor(business.primaryColor ?? DEFAULT_COLOR)
+                    ? setA4BgColor("#000000")
                     : setColor(business.primaryColor ?? DEFAULT_COLOR)
                 }
                 className="ml-auto text-xs text-[#8891A4] hover:text-[#1A202C]"
@@ -798,47 +864,103 @@ export default function QrPage() {
             Preview — {PREVIEW_LABEL[version]}
           </span>
 
-          <div className="flex items-center justify-center rounded-[16px] bg-[#F0F2FA] p-8">
-            <div id="qr-preview-card" style={{ display: "inline-block" }}>
-              {version === "mesa" ? (
-                <MesaPreview
-                  business={displayBusiness}
-                  color={color}
-                  mainText={mainText}
-                  benefitText={benefitText}
-                  qrDataUrl={qrDataUrl}
-                />
-              ) : version === "mostrador" ? (
-                <MostradorPreview
-                  business={displayBusiness}
-                  color={color}
-                  mainText={mainText}
-                  benefitText={benefitText}
-                  qrDataUrl={qrDataUrl}
-                />
-              ) : version === "sticker" ? (
-                <StickerPreview
-                  business={displayBusiness}
-                  color={color}
-                  stickerQrDataUrl={stickerQrDataUrl}
-                />
-              ) : (
+          {isA4 ? (
+            /* A4: scaled-down visible preview (CSS transform, not captured by html2canvas) */
+            <div
+              style={{
+                width: Math.round(A4_W * A4_SCALE),
+                height: Math.round(A4_H * A4_SCALE),
+                position: "relative",
+                overflow: "hidden",
+                borderRadius: 8,
+                flexShrink: 0,
+              }}
+            >
+              <div
+                style={{
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  transform: `scale(${A4_SCALE})`,
+                  transformOrigin: "top left",
+                  pointerEvents: "none",
+                }}
+              >
                 <A4Preview
                   business={displayBusiness}
                   bgColor={a4BgColor}
                   qrDataUrl={qrDataUrl}
                   a4Title={a4Title}
                   a4Subtitle={a4Subtitle}
+                  mainText={mainText}
+                  benefitText={benefitText}
                 />
-              )}
+              </div>
             </div>
-          </div>
+          ) : (
+            <div className="flex items-center justify-center rounded-[16px] bg-[#F0F2FA] p-8">
+              <div id="qr-preview-card" style={{ display: "inline-block" }}>
+                {version === "mesa" ? (
+                  <MesaPreview
+                    business={displayBusiness}
+                    color={color}
+                    mainText={mainText}
+                    benefitText={benefitText}
+                    qrDataUrl={qrDataUrl}
+                  />
+                ) : version === "mostrador" ? (
+                  <MostradorPreview
+                    business={displayBusiness}
+                    color={color}
+                    mainText={mainText}
+                    benefitText={benefitText}
+                    qrDataUrl={qrDataUrl}
+                  />
+                ) : (
+                  <StickerPreview
+                    business={displayBusiness}
+                    color={color}
+                    stickerQrDataUrl={stickerQrDataUrl}
+                  />
+                )}
+              </div>
+            </div>
+          )}
 
           <p className="max-w-[300px] text-center text-xs text-[#B0B8C9]">
             La preview es representativa. El PDF descargado estará optimizado para impresión a 300 DPI.
           </p>
         </div>
       </div>
+
+      {/* Hidden full-size A4 element — captured by html2canvas for download */}
+      {isA4 && (
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: 0,
+            left: "-9999px",
+            width: A4_W,
+            height: A4_H,
+            overflow: "visible",
+            pointerEvents: "none",
+            zIndex: -1,
+          }}
+        >
+          <div id="qr-preview-a4">
+            <A4Preview
+              business={displayBusiness}
+              bgColor={a4BgColor}
+              qrDataUrl={qrDataUrl}
+              a4Title={a4Title}
+              a4Subtitle={a4Subtitle}
+              mainText={mainText}
+              benefitText={benefitText}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
