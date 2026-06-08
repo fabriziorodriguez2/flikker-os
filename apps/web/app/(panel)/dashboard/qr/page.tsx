@@ -259,17 +259,11 @@ function StickerPreview({
   return (
     <div style={{ width: 240, height: 240, background: "#ffffff", borderRadius: 12, border: `4px solid ${color}`, overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 14, gap: 6, boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
       {stickerQrDataUrl ? (
-        <img src={stickerQrDataUrl} alt="QR" style={{ width: 168, height: 168 }} />
+        <img src={stickerQrDataUrl} alt="QR" style={{ width: 196, height: 196 }} />
       ) : (
-        <div style={{ width: 168, height: 168, background: "#F0F2FA", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#8891A4" }}>
+        <div style={{ width: 196, height: 196, background: "#F0F2FA", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, color: "#8891A4" }}>
           Generando…
         </div>
-      )}
-      {business.logoUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={business.logoUrl} alt={business.name} style={{ maxHeight: 22, maxWidth: 100, objectFit: "contain" }} />
-      ) : (
-        <span style={{ fontSize: 10, color: "#8891A4", fontWeight: 600 }}>{business.name}</span>
       )}
       <PoweredBy color="#C8D0E0" fontSize={8} iconHeight={10} />
     </div>
