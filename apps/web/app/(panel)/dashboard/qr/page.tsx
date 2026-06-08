@@ -256,9 +256,9 @@ function MostradorPreview({
 }
 
 function StickerPreview({
-  business, color, stickerQrDataUrl,
+  color, stickerQrDataUrl,
 }: {
-  business: BusinessData; color: string; stickerQrDataUrl: string | null;
+  color: string; stickerQrDataUrl: string | null;
 }) {
   return (
     <div style={{ width: 240, height: 240, background: "#ffffff", borderRadius: 12, border: `4px solid ${color}`, overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 14, gap: 6, boxShadow: "0 4px 24px rgba(0,0,0,0.12)" }}>
@@ -434,7 +434,6 @@ const VERSION_TABS: Array<{ key: Version; label: string }> = [
   { key: "mesa", label: "Mesa" },
   { key: "mostrador", label: "Mostrador" },
   { key: "sticker", label: "Sticker" },
-  { key: "a4", label: "Cartel A4" },
 ];
 
 const PREVIEW_LABEL: Record<Version, string> = {
@@ -918,7 +917,6 @@ export default function QrPage() {
                   />
                 ) : (
                   <StickerPreview
-                    business={displayBusiness}
                     color={color}
                     stickerQrDataUrl={stickerQrDataUrl}
                   />
