@@ -152,9 +152,13 @@ function MesaPreview({
       </div>
 
       {/* Footer */}
-      <p style={{ fontSize: 9, color: "#C8D0E0", textAlign: "center", padding: "0 0 8px", margin: 0 }}>
-        Powered by Flikker
-      </p>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, padding: "0 0 8px", color: "#C8D0E0" }}>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 516.34 402.58" style={{ height: 12, width: "auto", fill: "currentColor", flexShrink: 0, display: "block" }}>
+          <polygon points="169.64 200.96 214.33 149.16 173.32 101.62 0 302.58 86.22 402.58 173.32 301.6 260.42 402.58 346.69 302.58 300.58 249.13 255.86 300.95 169.64 200.96"/>
+          <polygon points="430.11 300.95 516.34 200.96 342.99 0 214.33 149.16 300.58 249.13 342.99 199.96 430.11 300.95"/>
+        </svg>
+        <span style={{ fontSize: 9, margin: 0, lineHeight: 1 }}>Powered by Flikker</span>
+      </div>
     </div>
   );
 }
@@ -225,6 +229,15 @@ function MostradorPreview({
           </span>
         )}
       </div>
+
+      {/* Footer */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 4, marginTop: 6, color: "rgba(255,255,255,0.4)" }}>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 516.34 402.58" style={{ height: 12, width: "auto", fill: "currentColor", flexShrink: 0, display: "block" }}>
+          <polygon points="169.64 200.96 214.33 149.16 173.32 101.62 0 302.58 86.22 402.58 173.32 301.6 260.42 402.58 346.69 302.58 300.58 249.13 255.86 300.95 169.64 200.96"/>
+          <polygon points="430.11 300.95 516.34 200.96 342.99 0 214.33 149.16 300.58 249.13 342.99 199.96 430.11 300.95"/>
+        </svg>
+        <span style={{ fontSize: 9, margin: 0, lineHeight: 1 }}>Powered by Flikker</span>
+      </div>
     </div>
   );
 }
@@ -272,6 +285,15 @@ function StickerPreview({
       ) : (
         <span style={{ fontSize: 10, color: "#8891A4", fontWeight: 600 }}>{business.name}</span>
       )}
+
+      {/* Footer */}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 3, color: "#C8D0E0" }}>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 516.34 402.58" style={{ height: 10, width: "auto", fill: "currentColor", flexShrink: 0, display: "block" }}>
+          <polygon points="169.64 200.96 214.33 149.16 173.32 101.62 0 302.58 86.22 402.58 173.32 301.6 260.42 402.58 346.69 302.58 300.58 249.13 255.86 300.95 169.64 200.96"/>
+          <polygon points="430.11 300.95 516.34 200.96 342.99 0 214.33 149.16 300.58 249.13 342.99 199.96 430.11 300.95"/>
+        </svg>
+        <span style={{ fontSize: 8, margin: 0, lineHeight: 1 }}>Powered by Flikker</span>
+      </div>
     </div>
   );
 }
