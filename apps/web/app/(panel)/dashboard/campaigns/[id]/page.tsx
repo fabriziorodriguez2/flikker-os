@@ -35,14 +35,16 @@ export default async function CampaignDetailPage({
   let campaign: Campaign | null = null;
   let error: string | null = null;
 
+  let sessionExpired = false;
   try {
     campaign = await apiFetch<Campaign>(`/campaigns/${id}`, accessToken, {
       businessId,
     });
   } catch (e) {
-    if (isUnauthorizedApiError(e)) redirect("/session-expired");
-    error = e instanceof Error ? e.message : "Error al cargar campaña";
+    if (isUnauthorizedApiError(e)) sessionExpired = true;
+    else error = e instanceof Error ? e.message : "Error al cargar campaña";
   }
+  if (sessionExpired) redirect("/session-expired");
 
   if (error || !campaign) {
     return (

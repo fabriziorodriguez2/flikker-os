@@ -121,6 +121,7 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
   let reviews: GoogleReview[] = [];
   let error: string | null = null;
 
+  let sessionExpired = false;
   try {
     [stats, { data: reviews }] = await Promise.all([
       apiFetch<GoogleStats>("/reviews/google/stats", accessToken, { businessId }),
@@ -131,9 +132,10 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
       ),
     ]);
   } catch (e) {
-    if (isUnauthorizedApiError(e)) redirect("/session-expired");
-    error = e instanceof Error ? e.message : "Error al cargar reseñas";
+    if (isUnauthorizedApiError(e)) sessionExpired = true;
+    else error = e instanceof Error ? e.message : "Error al cargar reseñas";
   }
+  if (sessionExpired) redirect("/session-expired");
 
   if (error) {
     return (

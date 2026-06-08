@@ -147,6 +147,7 @@ export default async function DashboardPage() {
   let onboardingCompletedAt: string | null = null;
   let error: string | null = null;
 
+  let sessionExpired = false;
   try {
     const [statsRes, meRes] = await Promise.all([
       apiFetch<PanelStats>("/metrics/panel", accessToken, { businessId }),
@@ -158,9 +159,10 @@ export default async function DashboardPage() {
     stats = statsRes;
     onboardingCompletedAt = meRes.onboardingCompletedAt;
   } catch (e) {
-    if (isUnauthorizedApiError(e)) redirect("/session-expired");
-    error = e instanceof Error ? e.message : "Error al cargar datos";
+    if (isUnauthorizedApiError(e)) sessionExpired = true;
+    else error = e instanceof Error ? e.message : "Error al cargar datos";
   }
+  if (sessionExpired) redirect("/session-expired");
 
   if (error || !stats) {
     return (

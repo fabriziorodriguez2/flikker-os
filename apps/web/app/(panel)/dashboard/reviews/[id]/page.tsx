@@ -37,6 +37,10 @@ export default async function ReviewDetailPage({
   let response: ReviewResponse | null = null;
   let responseError: string | null = null;
 
+  let reviewSessionExpired = false;
+  let reviewNotFound = false;
+  let reviewFetchError: string | null = null;
+
   try {
     review = await apiFetch<ReviewDetail>(
       `/reviews/${id}`,
@@ -47,16 +51,15 @@ export default async function ReviewDetailPage({
       },
     );
   } catch (e) {
-    if (isUnauthorizedApiError(e)) {
-      redirect("/session-expired");
-    }
-    if (e instanceof ApiError && e.status === 404) {
-      notFound();
-    }
+    if (isUnauthorizedApiError(e)) reviewSessionExpired = true;
+    else if (e instanceof ApiError && e.status === 404) reviewNotFound = true;
+    else reviewFetchError = e instanceof Error ? e.message : "No se pudo cargar la reseña";
+  }
 
-    const message =
-      e instanceof Error ? e.message : "No se pudo cargar la reseña";
+  if (reviewSessionExpired) redirect("/session-expired");
+  if (reviewNotFound) notFound();
 
+  if (reviewFetchError || !review!) {
     return (
       <div className="mx-auto max-w-4xl">
         <PageHeader
@@ -71,13 +74,14 @@ export default async function ReviewDetailPage({
             borderColor: "rgba(161,45,58,0.16)",
           }}
         >
-          {message}
+          {reviewFetchError}
         </div>
       </div>
     );
   }
 
   if (FEATURES.MANUAL_RESPONSES) {
+    let responseSessionExpired = false;
     try {
       response = await apiFetch<ReviewResponse>(
         `/reviews/${id}/response`,
@@ -88,14 +92,13 @@ export default async function ReviewDetailPage({
         },
       );
     } catch (e) {
-      if (isUnauthorizedApiError(e)) {
-        redirect("/session-expired");
-      }
-      if (!(e instanceof ApiError && e.status === 404)) {
+      if (isUnauthorizedApiError(e)) responseSessionExpired = true;
+      else if (!(e instanceof ApiError && e.status === 404)) {
         responseError =
           e instanceof Error ? e.message : "No se pudo cargar la respuesta";
       }
     }
+    if (responseSessionExpired) redirect("/session-expired");
   }
 
   const responderName = review.respondedBy

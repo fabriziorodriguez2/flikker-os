@@ -138,15 +138,17 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
   let googleStats: GoogleStats | null = null;
   let error: string | null = null;
 
+  let sessionExpired = false;
   try {
     [metrics, googleStats] = await Promise.all([
       apiFetch<MetricsOverview>(buildMetricsPath(resolvedSearchParams), accessToken, { businessId }),
       apiFetch<GoogleStats>("/reviews/google/stats", accessToken, { businessId }),
     ]);
   } catch (e) {
-    if (isUnauthorizedApiError(e)) redirect("/session-expired");
-    error = e instanceof Error ? e.message : "Error al cargar datos";
+    if (isUnauthorizedApiError(e)) sessionExpired = true;
+    else error = e instanceof Error ? e.message : "Error al cargar datos";
   }
+  if (sessionExpired) redirect("/session-expired");
 
   if (error || !metrics) {
     return (

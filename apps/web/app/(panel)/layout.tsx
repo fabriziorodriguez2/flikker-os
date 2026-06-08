@@ -50,6 +50,7 @@ export default async function PanelLayout({
     : (activeMembership?.role ?? null);
   const effectiveApiContext = getEffectiveApiContext(session);
   let currentBusiness: CurrentBusiness | null = null;
+  let sessionExpired = false;
 
   try {
     if (effectiveApiContext.businessId) {
@@ -60,9 +61,11 @@ export default async function PanelLayout({
       );
     }
   } catch (error) {
-    if (isUnauthorizedApiError(error)) redirect("/session-expired");
-    currentBusiness = null;
+    if (isUnauthorizedApiError(error)) sessionExpired = true;
+    // else: currentBusiness stays null (API unreachable, render without business data)
   }
+
+  if (sessionExpired) redirect("/session-expired");
 
   const businessDisplayName =
     currentBusiness?.name ??

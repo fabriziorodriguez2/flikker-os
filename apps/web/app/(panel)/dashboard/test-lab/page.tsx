@@ -61,6 +61,7 @@ export default async function TestLabPage() {
   let overview: OverviewResponse | null = null;
   let error: string | null = null;
 
+  let sessionExpired = false;
   try {
     overview = await apiFetch<OverviewResponse>(
       "/test-lab/overview",
@@ -68,9 +69,10 @@ export default async function TestLabPage() {
       { businessId },
     );
   } catch (e) {
-    if (isUnauthorizedApiError(e)) redirect("/session-expired");
-    error = e instanceof Error ? e.message : "Error al cargar el panel de pruebas";
+    if (isUnauthorizedApiError(e)) sessionExpired = true;
+    else error = e instanceof Error ? e.message : "Error al cargar el panel de pruebas";
   }
+  if (sessionExpired) redirect("/session-expired");
 
   if (error || !overview) {
     return (

@@ -83,15 +83,17 @@ export default async function CampaignsPage() {
   let activity: ActivityItem[] = [];
   let error: string | null = null;
 
+  let sessionExpired = false;
   try {
     [campaigns, activity] = await Promise.all([
       apiFetch<RepeatCampaign[]>("/campaigns", accessToken, { businessId }),
       apiFetch<ActivityItem[]>("/campaigns/activity", accessToken, { businessId }),
     ]);
   } catch (e) {
-    if (isUnauthorizedApiError(e)) redirect("/session-expired");
-    error = e instanceof Error ? e.message : "Error al cargar campañas";
+    if (isUnauthorizedApiError(e)) sessionExpired = true;
+    else error = e instanceof Error ? e.message : "Error al cargar campañas";
   }
+  if (sessionExpired) redirect("/session-expired");
 
   if (error) {
     return (
