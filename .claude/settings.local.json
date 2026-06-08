@@ -47,7 +47,8 @@
       "Bash(powershell -command \"\\(Get-Content 'app/\\(panel\\)/dashboard/customers/page.tsx'\\).Count\")",
       "Bash(dir \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\\\\apps\\\\web\\\\app\\\\api\" /s /b)",
       "Bash(powershell -command \"Get-ChildItem 'c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\\\\apps\\\\web\\\\app\\\\api' -Recurse -Name\")",
-      "Bash(Select-String -Pattern \"jspdf|html2canvas|react-pdf\")"
+      "Bash(Select-String -Pattern \"jspdf|html2canvas|react-pdf\")",
+      "Bash(npm list *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

@@ -24,12 +24,12 @@ const STEPS: Step[] = [
   {
     pose: "normal",
     title: null,
-    text: "El Panel es tu vista del día. Acá marcás los clientes que atendiste y Flikker hace el resto.",
+    text: "Acá ves tu actividad del día — reseñas, mensajes y progreso hacia tu objetivo.",
     buttonText: "Siguiente",
     highlight: "panel",
   },
   {
-    pose: "guino",
+    pose: "normal",
     title: null,
     text: "Acá vivé tu base de contactos. Cada cliente que pasa por Flikker queda guardado para siempre.",
     buttonText: "Siguiente",
@@ -43,7 +43,7 @@ const STEPS: Step[] = [
     highlight: "qr",
   },
   {
-    pose: "guino",
+    pose: "normal",
     title: null,
     text: "Desde acá mandás mensajes a toda tu base cuando quieras. Promos, recordatorios, novedades.",
     buttonText: "Siguiente",

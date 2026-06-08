@@ -43,7 +43,7 @@ function getPoseAndMessage(
   }
   if (attendedToday <= 5) {
     return {
-      pose: "guino",
+      pose: "normal",
       message: `Van ${attendedToday} atendidos hoy. Cada uno es una reseña que viene.`,
     };
   }

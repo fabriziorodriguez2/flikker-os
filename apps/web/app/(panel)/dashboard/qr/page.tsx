@@ -276,137 +276,54 @@ function StickerPreview({
   );
 }
 
-// ─── PDF generation ───────────────────────────────────────────────────────────
+// ─── Download helpers (html2canvas → identical to preview) ───────────────────
 
-async function downloadPdf(
-  business: BusinessData,
-  version: Version,
-  color: string,
-  benefitText: string,
-  qrDataUrl: string,
-) {
-  const { jsPDF } = await import("jspdf");
-  const dims = PRINT_DIMS[version];
-  const doc = new jsPDF({ orientation: dims.w > dims.h ? "landscape" : "portrait", unit: "mm", format: [dims.w, dims.h] });
-
-  const W = dims.w;
-  const H = dims.h;
-
-  // Helper: hex to r,g,b
-  function hexRgb(hex: string): [number, number, number] {
-    const n = parseInt(hex.replace("#", ""), 16);
-    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  }
-
-  const [cr, cg, cb] = hexRgb(color);
-
-  if (version === "mesa") {
-    // White background
-    doc.setFillColor(255, 255, 255);
-    doc.rect(0, 0, W, H, "F");
-
-    // Header band
-    doc.setFillColor(cr, cg, cb);
-    doc.rect(0, 0, W, H * 0.28, "F");
-
-    // Business name in header
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    const nameLines = doc.splitTextToSize(business.name ?? "", W - 10);
-    doc.text(nameLines, W / 2, H * 0.14 + 2, { align: "center" });
-
-    // "Escaneá y llevate"
-    doc.setTextColor(136, 145, 164);
-    doc.setFontSize(8);
-    doc.setFont("helvetica", "normal");
-    doc.text("Escaneá y llevate", W / 2, H * 0.36, { align: "center" });
-
-    // Benefit text
-    doc.setTextColor(cr, cg, cb);
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "bold");
-    const benefitLines = doc.splitTextToSize(benefitText || DEFAULT_BENEFIT, W - 12);
-    doc.text(benefitLines, W / 2, H * 0.44, { align: "center" });
-
-    // QR — centered, 50mm wide
-    const qrSize = 50;
-    const qrX = (W - qrSize) / 2;
-    const qrY = H * 0.5;
-    doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
-
-    // Footer
-    doc.setTextColor(200, 208, 224);
-    doc.setFontSize(6);
-    doc.setFont("helvetica", "normal");
-    doc.text("Powered by Flikker", W / 2, H - 3, { align: "center" });
-  } else if (version === "mostrador") {
-    // Colored background
-    doc.setFillColor(cr, cg, cb);
-    doc.rect(0, 0, W, H, "F");
-
-    // "¿Querés un regalo?"
-    doc.setTextColor(255, 255, 255);
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    const heading = doc.splitTextToSize("¿Querés un regalo?", W - 14);
-    doc.text(heading, W / 2, 22, { align: "center" });
-
-    // Benefit text
-    doc.setFontSize(9);
-    doc.setFont("helvetica", "normal");
-    doc.setTextColor(255, 255, 255, 0.85);
-    const bLines = doc.splitTextToSize(benefitText || DEFAULT_BENEFIT, W - 14);
-    doc.text(bLines, W / 2, 38, { align: "center" });
-
-    // White QR box
-    const qrSize = 60;
-    const qrX = (W - qrSize) / 2;
-    const qrY = 50;
-    doc.setFillColor(255, 255, 255);
-    doc.roundedRect(qrX - 5, qrY - 5, qrSize + 10, qrSize + 10, 4, 4, "F");
-    doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
-
-    // Business name at bottom
-    doc.setTextColor(255, 255, 255, 0.7);
-    doc.setFontSize(7);
-    doc.setFont("helvetica", "bold");
-    doc.text(business.name ?? "", W / 2, H - 6, { align: "center" });
-  } else {
-    // Sticker — white with colored border
-    doc.setFillColor(255, 255, 255);
-    doc.rect(0, 0, W, H, "F");
-    doc.setDrawColor(cr, cg, cb);
-    doc.setLineWidth(1.5);
-    doc.rect(1, 1, W - 2, H - 2);
-
-    // QR centered, 70% of space
-    const qrSize = W * 0.7;
-    const qrX = (W - qrSize) / 2;
-    const qrY = (H - qrSize) / 2 - 4;
-    doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
-
-    // Business name below QR
-    doc.setTextColor(136, 145, 164);
-    doc.setFontSize(6);
-    doc.setFont("helvetica", "bold");
-    doc.text(business.name ?? "", W / 2, qrY + qrSize + 5, { align: "center" });
-  }
-
-  const safeName = (business.name ?? "negocio").toLowerCase().replace(/\s+/g, "-");
-  doc.save(`flikker-qr-${safeName}-${version}.pdf`);
+async function capturePreview(): Promise<HTMLCanvasElement | null> {
+  const element = document.getElementById("qr-preview-card");
+  if (!element) return null;
+  const html2canvas = (await import("html2canvas")).default;
+  return html2canvas(element, {
+    scale: 3,
+    useCORS: true,
+    allowTaint: false,
+    backgroundColor: "#ffffff",
+  });
 }
 
-async function downloadPng(
-  business: BusinessData,
-  version: Version,
-  qrDataUrl: string,
-) {
-  const safeName = (business.name ?? "negocio").toLowerCase().replace(/\s+/g, "-");
+async function downloadPng(businessName: string, version: Version) {
+  const canvas = await capturePreview();
+  if (!canvas) return;
+  const safeName = businessName.toLowerCase().replace(/\s+/g, "-");
   const link = document.createElement("a");
-  link.href = qrDataUrl;
   link.download = `flikker-qr-${safeName}-${version}.png`;
+  link.href = canvas.toDataURL("image/png");
   link.click();
+}
+
+async function downloadPdf(businessName: string, version: Version) {
+  const canvas = await capturePreview();
+  if (!canvas) return;
+  const imgData = canvas.toDataURL("image/png");
+  const { jsPDF } = await import("jspdf");
+  const dims = PRINT_DIMS[version];
+  const doc = new jsPDF({
+    orientation: dims.w > dims.h ? "landscape" : "portrait",
+    unit: "mm",
+    format: [dims.w, dims.h],
+  });
+  // Fit captured image into page, preserving aspect ratio, centered
+  const canvasAspect = canvas.height / canvas.width;
+  let imgW = dims.w;
+  let imgH = dims.w * canvasAspect;
+  if (imgH > dims.h) {
+    imgH = dims.h;
+    imgW = dims.h / canvasAspect;
+  }
+  const offsetX = (dims.w - imgW) / 2;
+  const offsetY = (dims.h - imgH) / 2;
+  doc.addImage(imgData, "PNG", offsetX, offsetY, imgW, imgH);
+  const safeName = businessName.toLowerCase().replace(/\s+/g, "-");
+  doc.save(`flikker-qr-${safeName}-${version}.pdf`);
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
@@ -508,15 +425,15 @@ export default function QrPage() {
     if (!business || !qrDataUrl) return;
     setDownloading(true);
     try {
-      await downloadPdf(business, version, color, benefitText, qrDataUrl);
+      await downloadPdf(business.name ?? "negocio", version);
     } finally {
       setDownloading(false);
     }
   }
 
-  function handleDownloadPng() {
+  async function handleDownloadPng() {
     if (!business || !qrDataUrl) return;
-    void downloadPng(business, version, qrDataUrl);
+    await downloadPng(business.name ?? "negocio", version);
   }
 
   const displayBusiness: BusinessData = {
@@ -692,7 +609,7 @@ export default function QrPage() {
             </button>
             <button
               type="button"
-              onClick={handleDownloadPng}
+              onClick={() => void handleDownloadPng()}
               disabled={!qrDataUrl}
               className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-[10px] border border-[#E8EAF0] bg-white px-5 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-50"
             >
@@ -714,27 +631,29 @@ export default function QrPage() {
           </div>
 
           <div className="flex items-center justify-center rounded-[16px] bg-[#F0F2FA] p-8">
-            {version === "mesa" ? (
-              <MesaPreview
-                business={displayBusiness}
-                color={color}
-                benefitText={benefitText}
-                qrDataUrl={qrDataUrl}
-              />
-            ) : version === "mostrador" ? (
-              <MostradorPreview
-                business={displayBusiness}
-                color={color}
-                benefitText={benefitText}
-                qrDataUrl={qrDataUrl}
-              />
-            ) : (
-              <StickerPreview
-                business={displayBusiness}
-                color={color}
-                qrDataUrl={qrDataUrl}
-              />
-            )}
+            <div id="qr-preview-card" style={{ display: "inline-block" }}>
+              {version === "mesa" ? (
+                <MesaPreview
+                  business={displayBusiness}
+                  color={color}
+                  benefitText={benefitText}
+                  qrDataUrl={qrDataUrl}
+                />
+              ) : version === "mostrador" ? (
+                <MostradorPreview
+                  business={displayBusiness}
+                  color={color}
+                  benefitText={benefitText}
+                  qrDataUrl={qrDataUrl}
+                />
+              ) : (
+                <StickerPreview
+                  business={displayBusiness}
+                  color={color}
+                  qrDataUrl={qrDataUrl}
+                />
+              )}
+            </div>
           </div>
 
           <p className="max-w-[300px] text-center text-xs text-[#B0B8C9]">
