@@ -509,6 +509,8 @@ export class MetricsService {
       recentEvents,
       currentPlan,
       activeGoal,
+      googleRatingAgg,
+      fiveStarThisMonth,
     ] = await Promise.all([
       this.countGoogleReviews(businessId, monthStart, nextMonthStart),
       this.countGoogleReviews(businessId, prevMonthStart, monthStart),
@@ -560,6 +562,14 @@ export class MetricsService {
           createdAt: true,
         },
       }),
+      this.prisma.googleReview.aggregate({
+        where: { businessId },
+        _avg: { stars: true },
+        _count: { id: true },
+      }),
+      this.prisma.googleReview.count({
+        where: { businessId, stars: 5, postedAt: { gte: monthStart } },
+      }),
     ]);
 
     const reviewsDelta =
@@ -576,6 +586,34 @@ export class MetricsService {
       currentPlan,
       activeGoal,
     );
+
+    // Rating progress toward next decimal milestone
+    const rawAvg = googleRatingAgg._avg.stars;
+    const ratingTotal = googleRatingAgg._count.id;
+    type RatingData = {
+      current: number; rawAverage: number; total: number;
+      goal: number; reviewsNeeded: number; fiveStarThisMonth: number;
+    };
+    let ratingData: RatingData | null = null;
+    if (rawAvg !== null && ratingTotal > 0) {
+      const currentTenths = Math.round(rawAvg * 10);
+      const current = currentTenths / 10;
+      if (current >= 5.0) {
+        ratingData = { current: 5.0, rawAverage: rawAvg, total: ratingTotal, goal: 5.0, reviewsNeeded: 0, fiveStarThisMonth };
+      } else {
+        const goal = (currentTenths + 1) / 10;
+        const sumaActual = current * ratingTotal;
+        let reviewsNeeded: number;
+        if (goal >= 5.0) {
+          // Threshold 4.95 avoids division by zero when goal === 5.0
+          const thr = 4.95;
+          reviewsNeeded = Math.max(0, Math.ceil((thr * ratingTotal - sumaActual) / (5 - thr)));
+        } else {
+          reviewsNeeded = Math.max(0, Math.ceil((goal * ratingTotal - sumaActual) / (5 - goal)));
+        }
+        ratingData = { current, rawAverage: rawAvg, total: ratingTotal, goal, reviewsNeeded, fiveStarThisMonth };
+      }
+    }
 
     return {
       reviews: {
@@ -594,6 +632,7 @@ export class MetricsService {
       },
       currentPlan: currentPlan ? { type: currentPlan.plan } : null,
       goalView,
+      rating: ratingData,
       recentAttendances: recentEvents.map((e) => ({
         id: e.id,
         customerName: e.customer.name,

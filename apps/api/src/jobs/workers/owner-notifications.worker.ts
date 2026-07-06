@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Job, Worker } from 'bullmq';
 import IORedis from 'ioredis';
-import { CampaignExecutionStatus, MembershipRole } from '@prisma/client';
+import { MembershipRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { createRedisConnection, REDIS_CONFIGURED } from '../redis-connection';
 import {
@@ -126,7 +126,7 @@ export class OwnerNotificationsWorker implements OnModuleInit, OnModuleDestroy {
   async processWeeklySummary(data: WeeklyKpiSummaryJobData) {
     const business = await this.prisma.business.findUnique({
       where: { id: data.businessId },
-      select: { id: true, name: true, timezone: true, isActive: true },
+      select: { id: true, name: true, timezone: true, isActive: true, phone: true },
     });
     if (!business?.isActive) return;
 
@@ -152,6 +152,8 @@ export class OwnerNotificationsWorker implements OnModuleInit, OnModuleDestroy {
       ),
     ]);
 
+    const panelUrl = buildPanelFeedbackUrl();
+
     await this.emailService.send({
       to: contacts.emails,
       subject: `Resumen semanal de ${business.name}`,
@@ -159,9 +161,30 @@ export class OwnerNotificationsWorker implements OnModuleInit, OnModuleDestroy {
         businessName: business.name,
         current,
         previous,
-        panelUrl: buildPanelFeedbackUrl(),
+        panelUrl,
       }),
     });
+
+    // WhatsApp summary — independent of email, never throws
+    const waTargets =
+      contacts.whatsapps.length > 0
+        ? contacts.whatsapps
+        : business.phone
+          ? [business.phone]
+          : [];
+
+    for (const phone of waTargets) {
+      try {
+        await this.whatsAppBspService.sendText({
+          phone,
+          text: buildWeeklyWhatsAppText(business.name, current, previous, panelUrl),
+        });
+      } catch (error) {
+        this.logger.warn(
+          `Weekly WhatsApp summary failed for ${phone}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
   }
 
   async enqueueDueWeeklySummaries(now = new Date()) {
@@ -217,30 +240,23 @@ export class OwnerNotificationsWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   private async calculateWeeklyKpis(businessId: string, from: Date, to: Date) {
-    const [reviewsGenerated, ratingSample, reactivatedCustomers] =
-      await Promise.all([
-        this.prisma.googleReview.count({
-          where: { businessId, postedAt: { gte: from, lt: to } },
-        }),
-        this.prisma.googleReview.findMany({
-          where: { businessId, postedAt: { gte: from, lt: to } },
-          select: { stars: true },
-        }),
-        this.prisma.campaignExecution.findMany({
-          where: {
-            businessId,
-            status: CampaignExecutionStatus.responded,
-            respondedAt: { gte: from, lt: to },
-          },
-          distinct: ['customerId'],
-          select: { customerId: true },
-        }),
-      ]);
+    const [reviewsGenerated, ratingSample, qrScans] = await Promise.all([
+      this.prisma.googleReview.count({
+        where: { businessId, postedAt: { gte: from, lt: to } },
+      }),
+      this.prisma.googleReview.findMany({
+        where: { businessId, postedAt: { gte: from, lt: to } },
+        select: { stars: true },
+      }),
+      this.prisma.scanEvent.count({
+        where: { businessId, scannedAt: { gte: from, lt: to } },
+      }),
+    ]);
 
     return {
       reviewsGenerated,
       averageRating: averageRating(ratingSample),
-      reactivatedCustomers: reactivatedCustomers.length,
+      qrScans,
     };
   }
 
@@ -254,7 +270,7 @@ export class OwnerNotificationsWorker implements OnModuleInit, OnModuleDestroy {
 interface WeeklyKpis {
   reviewsGenerated: number;
   averageRating: number;
-  reactivatedCustomers: number;
+  qrScans: number;
 }
 
 function buildPanelFeedbackUrl(feedbackId?: string) {
@@ -264,6 +280,66 @@ function buildPanelFeedbackUrl(feedbackId?: string) {
     'https://app.flikker.com';
   const url = `${baseUrl.replace(/\/$/, '')}/dashboard`;
   return feedbackId ? `${url}?feedback=${encodeURIComponent(feedbackId)}` : url;
+}
+
+function renderInsightText(current: WeeklyKpis): string {
+  if (current.reviewsGenerated > 0) {
+    return 'Tus clientes están respondiendo bien. Seguí marcando atenciones para mantener el ritmo.';
+  }
+  if (current.qrScans > 0) {
+    const n = current.qrScans;
+    return `Tuviste ${n} ${n === 1 ? 'escaneo' : 'escaneos'} del QR esta semana. Esos contactos están en tu base — podés mandarles una campaña cuando quieras.`;
+  }
+  return 'Recordá marcar a tus clientes como atendidos para que Flikker les mande el pedido de reseña.';
+}
+
+function buildWeeklyWhatsAppText(
+  businessName: string,
+  current: WeeklyKpis,
+  previous: WeeklyKpis,
+  panelUrl: string,
+): string {
+  const allZero = current.reviewsGenerated === 0 && current.qrScans === 0;
+
+  if (allZero) {
+    return [
+      `📊 *Resumen semanal de ${businessName}*`,
+      '',
+      'Esta semana fue tranquila. Recordá marcar a tus clientes como atendidos para que Flikker haga su trabajo.',
+      '',
+      `👉 Ver dashboard: ${panelUrl}`,
+    ].join('\n');
+  }
+
+  const reviewsDelta = current.reviewsGenerated - previous.reviewsGenerated;
+  const reviewsComp =
+    reviewsDelta > 0
+      ? `+${reviewsDelta} vs semana anterior`
+      : reviewsDelta < 0
+        ? `${reviewsDelta} vs semana anterior`
+        : 'igual que la semana anterior';
+
+  const qrDelta = current.qrScans - previous.qrScans;
+  const qrComp =
+    qrDelta > 0
+      ? `+${qrDelta} vs semana anterior`
+      : qrDelta < 0
+        ? `${qrDelta} vs semana anterior`
+        : 'igual que la semana anterior';
+
+  const rating = current.averageRating > 0 ? current.averageRating.toFixed(1) : '—';
+
+  return [
+    `📊 *Resumen semanal de ${businessName}*`,
+    '',
+    `⭐ Reseñas nuevas: ${current.reviewsGenerated} (${reviewsComp})`,
+    `📈 Rating actual: ${rating}`,
+    `📱 Escaneos QR: ${current.qrScans} (${qrComp})`,
+    '',
+    renderInsightText(current),
+    '',
+    `👉 Ver dashboard: ${panelUrl}`,
+  ].join('\n');
 }
 
 function renderLowFeedbackEmail(input: {
@@ -292,43 +368,69 @@ export function renderWeeklySummaryEmail(input: {
   panelUrl: string;
 }) {
   const name = escapeHtml(input.businessName);
+  const allZero = input.current.reviewsGenerated === 0 && input.current.qrScans === 0;
+  const insight = escapeHtml(renderInsightText(input.current));
+  const unsubscribeUrl = `mailto:soporte@flikker.com?subject=${encodeURIComponent('Dar de baja resumen semanal')}`;
+
+  const metricsSection = allZero
+    ? `<tr>
+         <td style="background:#ffffff;padding:0 32px 32px;font-size:15px;color:#4A5568;line-height:1.7;font-style:italic;font-family:Arial,Helvetica,sans-serif;">
+           Esta semana fue tranquila. Segu&iacute; marcando clientes y las rese&ntilde;as van a llegar solas.
+         </td>
+       </tr>`
+    : `<tr>
+         <td style="background:#ffffff;padding:0 32px 32px;">
+           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+             <tr>
+               ${renderKpiCard('&#11088;', 'Rese&ntilde;as nuevas', input.current.reviewsGenerated, input.previous.reviewsGenerated, false)}
+               ${renderKpiCard('&#128202;', 'Rating actual', input.current.averageRating, input.previous.averageRating, false, true)}
+               ${renderKpiCard('&#128241;', 'Escaneos QR', input.current.qrScans, input.previous.qrScans, true)}
+             </tr>
+           </table>
+         </td>
+       </tr>`;
+
   return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
 <html xmlns="http://www.w3.org/1999/xhtml">
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Resumen semanal — Flikker</title>
+  <title>Resumen semanal &mdash; Flikker</title>
 </head>
-<body style="margin:0;padding:0;background:#F5F6FA;font-family:Arial,Helvetica,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F5F6FA;">
+<body style="margin:0;padding:0;background:#F4F5F7;font-family:Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F5F7;">
     <tr><td align="center" style="padding:40px 16px;">
-      <table role="presentation" width="560" cellpadding="0" cellspacing="0" border="0" style="max-width:560px;width:100%;">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
         <tr>
-          <td style="background:#5C6BC0;border-radius:16px 16px 0 0;padding:28px 32px;text-align:center;">
-            <div style="font-size:11px;font-weight:700;letter-spacing:0.1em;color:rgba(255,255,255,0.6);text-transform:uppercase;margin-bottom:8px;">&#9889; Flikker</div>
-            <div style="font-size:24px;font-weight:700;color:#ffffff;line-height:1.3;">Resumen semanal</div>
-            <div style="font-size:14px;color:rgba(255,255,255,0.8);margin-top:6px;">${name}</div>
+          <td style="background:#000441;border-radius:16px 16px 0 0;padding:40px;text-align:center;">
+            <div style="font-size:30px;font-weight:900;color:#ffffff;letter-spacing:-0.5px;font-family:Arial,Helvetica,sans-serif;">&#9889; Flikker</div>
+            <div style="font-size:14px;color:rgba(255,255,255,0.75);margin-top:10px;font-family:Arial,Helvetica,sans-serif;">Resumen semanal &middot; ${name}</div>
           </td>
         </tr>
         <tr>
-          <td style="background:#ffffff;padding:28px 28px 16px;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-              <tr>
-                ${renderKpiCell('Reseñas', input.current.reviewsGenerated, input.previous.reviewsGenerated, false)}
-                ${renderKpiCell('Calificación', input.current.averageRating, input.previous.averageRating, false)}
-                ${renderKpiCell('Reactivados', input.current.reactivatedCustomers, input.previous.reactivatedCustomers, true)}
-              </tr>
-            </table>
+          <td style="background:#ffffff;padding:32px;">
+            <p style="margin:0;font-size:16px;color:#1a1040;line-height:1.6;font-family:Arial,Helvetica,sans-serif;">Hola, ac&aacute; va lo que pas&oacute; esta semana en <strong>${name}</strong>.</p>
+          </td>
+        </tr>
+        ${metricsSection}
+        <tr>
+          <td style="background:#ffffff;padding:0 32px 32px;">
+            <div style="background:#EEF0FF;border-left:3px solid #9188F5;padding:16px 20px;border-radius:0 8px 8px 0;">
+              <p style="margin:0;font-size:14px;color:#4A5568;line-height:1.6;font-family:Arial,Helvetica,sans-serif;">${insight}</p>
+            </div>
           </td>
         </tr>
         <tr>
-          <td style="background:#ffffff;padding:16px 28px 32px;text-align:center;">
-            <a href="${input.panelUrl}" style="display:inline-block;background:#5C6BC0;color:#ffffff;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:700;font-size:15px;font-family:Arial,Helvetica,sans-serif;">Ver dashboard &rarr;</a>
+          <td style="background:#ffffff;padding:0 32px 40px;text-align:center;">
+            <a href="${input.panelUrl}" style="display:inline-block;background:#9188F5;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;font-family:Arial,Helvetica,sans-serif;">Ver mi dashboard &rarr;</a>
           </td>
         </tr>
         <tr>
-          <td style="background:#EEF0F6;border-top:1px solid #E8EAF0;border-radius:0 0 16px 16px;padding:16px 28px;text-align:center;">
-            <span style="font-size:12px;color:#8891A4;font-family:Arial,Helvetica,sans-serif;">Powered by <strong style="color:#5C6BC0;">Flikker</strong></span>
+          <td style="background:#F4F5F7;border-top:1px solid #E5E7EB;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center;">
+            <p style="margin:0;font-size:12px;color:#8891A4;font-family:Arial,Helvetica,sans-serif;">Powered by <strong>Flikker</strong> &middot; flikker.website</p>
+            <p style="margin:8px 0 0;font-size:12px;font-family:Arial,Helvetica,sans-serif;">
+              <a href="${unsubscribeUrl}" style="color:#8891A4;text-decoration:underline;">No quiero recibir m&aacute;s estos emails</a>
+            </p>
           </td>
         </tr>
       </table>
@@ -338,18 +440,35 @@ export function renderWeeklySummaryEmail(input: {
 </html>`;
 }
 
-function renderKpiCell(label: string, current: number, previous: number, isLast: boolean) {
+function renderKpiCard(
+  icon: string,
+  label: string,
+  current: number,
+  previous: number,
+  isLast: boolean,
+  isDecimal = false,
+) {
   const delta = Number((current - previous).toFixed(1));
   const sign = delta > 0 ? '+' : '';
   const deltaColor = delta > 0 ? '#639922' : delta < 0 ? '#C0392B' : '#8891A4';
-  const displayValue = Number.isInteger(current) ? String(current) : current.toFixed(1);
-  const prevDisplay = Number.isInteger(previous) ? String(previous) : previous.toFixed(1);
-  return `<td width="33%" style="padding-right:${isLast ? '0' : '10px'};vertical-align:top;">
+  const deltaText =
+    delta === 0
+      ? 'igual que la semana anterior'
+      : `${sign}${delta} vs semana anterior`;
+  const displayValue = isDecimal
+    ? current > 0
+      ? current.toFixed(1)
+      : '&mdash;'
+    : String(current);
+  const rightPad = isLast ? '0' : '8px';
+
+  return `<td width="${isLast ? '34%' : '33%'}" valign="top" style="padding-right:${rightPad};">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-      <tr><td style="background:#F5F6FA;border:1px solid #E8EAF0;border-radius:12px;padding:16px 14px;">
-        <div style="font-size:10px;font-weight:700;color:#8891A4;text-transform:uppercase;letter-spacing:0.07em;margin-bottom:10px;">${escapeHtml(label)}</div>
-        <div style="font-size:32px;font-weight:700;color:#1A202C;line-height:1;margin-bottom:8px;">${displayValue}</div>
-        <div style="font-size:12px;color:${deltaColor};">${sign}${delta} vs ant. (${prevDisplay})</div>
+      <tr><td style="background:#ffffff;border:1px solid #E5E7EB;border-radius:12px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
+        <div style="font-size:22px;line-height:1;">${icon}</div>
+        <div style="font-size:10px;font-weight:700;color:#8891A4;text-transform:uppercase;letter-spacing:0.1em;margin-top:10px;font-family:Arial,Helvetica,sans-serif;">${label}</div>
+        <div style="font-size:32px;font-weight:900;color:#1A202C;line-height:1;margin:8px 0;font-family:Arial,Helvetica,sans-serif;">${displayValue}</div>
+        <div style="font-size:11px;color:${deltaColor};font-family:Arial,Helvetica,sans-serif;">${deltaText}</div>
       </td></tr>
     </table>
   </td>`;

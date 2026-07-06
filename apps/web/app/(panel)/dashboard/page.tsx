@@ -4,6 +4,7 @@ import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import QuickAttend from "./quick-attend";
 import FlikPanel from "./flik-panel";
 import OnboardingTour from "./onboarding-tour";
+import { RatingProgressCard, type RatingData } from "./rating-progress-card";
 
 interface RecentAttendance {
   id: string;
@@ -42,6 +43,7 @@ interface PanelStats {
   };
   currentPlan: { type: PlanType } | null;
   goalView: GoalView | null;
+  rating: RatingData | null;
   recentAttendances: RecentAttendance[];
 }
 
@@ -219,6 +221,8 @@ export default async function DashboardPage() {
           badgeVariant="neutral"
         />
       </section>
+
+      {stats.rating && <RatingProgressCard rating={stats.rating} />}
 
       <FlikPanel
         attendedToday={stats.attended.today}

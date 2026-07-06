@@ -190,7 +190,7 @@ export class TestLabService {
   }
 
   private async calcWeeklyKpis(businessId: string, from: Date, to: Date) {
-    const [reviewsGenerated, ratingSample, reactivated] = await Promise.all([
+    const [reviewsGenerated, ratingSample, qrScans] = await Promise.all([
       this.prisma.googleReview.count({
         where: { businessId, postedAt: { gte: from, lt: to } },
       }),
@@ -198,8 +198,8 @@ export class TestLabService {
         where: { businessId, postedAt: { gte: from, lt: to } },
         select: { stars: true },
       }),
-      this.prisma.campaignExecution.count({
-        where: { businessId, status: 'responded', respondedAt: { gte: from, lt: to } },
+      this.prisma.scanEvent.count({
+        where: { businessId, scannedAt: { gte: from, lt: to } },
       }),
     ]);
 
@@ -210,6 +210,6 @@ export class TestLabService {
           )
         : 0;
 
-    return { reviewsGenerated, averageRating, reactivatedCustomers: reactivated };
+    return { reviewsGenerated, averageRating, qrScans };
   }
 }

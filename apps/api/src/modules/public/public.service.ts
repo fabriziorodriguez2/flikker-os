@@ -59,6 +59,7 @@ export class PublicService {
       select: {
         id: true,
         name: true,
+        phone: true,
         googleBusinessProfileUrl: true,
         campaigns: {
           where: { status: 'ACTIVE', templateKind: 'qr_capture' },
@@ -119,6 +120,8 @@ export class PublicService {
       business.name,
       business.campaigns[0]?.offerText ?? null,
     );
+
+    void this.trySendOwnerNotification(business.id, business.name, business.phone ?? null, name);
 
     return { ok: true };
   }
@@ -203,6 +206,35 @@ export class PublicService {
     } catch (error) {
       this.logger.warn(
         `WhatsApp welcome failed for ${phoneE164}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private async trySendOwnerNotification(
+    businessId: string,
+    businessName: string,
+    phone: string | null,
+    customerName: string,
+  ) {
+    if (!phone) return;
+    try {
+      const baseUrl =
+        process.env.APP_PUBLIC_URL ??
+        process.env.WEB_BASE_URL ??
+        'https://app.flikker.com';
+      const contactsUrl = `${baseUrl.replace(/\/$/, '')}/dashboard/contacts`;
+      const text = [
+        `📱 *Nuevo contacto en ${businessName}*`,
+        '',
+        `${customerName} escaneó tu QR y quedó en tu base.`,
+        'Ya le enviamos el pedido de reseña por WhatsApp.',
+        '',
+        `👉 Ver contactos: ${contactsUrl}`,
+      ].join('\n');
+      await this.whatsApp.sendText({ phone, text });
+    } catch (error) {
+      this.logger.warn(
+        `Owner QR notification failed for business ${businessId}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
