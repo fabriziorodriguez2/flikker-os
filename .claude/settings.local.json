@@ -50,7 +50,9 @@
       "Bash(Select-String -Pattern \"jspdf|html2canvas|react-pdf\")",
       "Bash(npm list *)",
       "Bash(Select-String \"qr/page\")",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "PowerShell(cd \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\\\\apps\\\\web\"; npx tsc --noEmit 2>&1 | Where-Object { $_ -match \"error TS\" } | Select-Object -First 30)",
+      "PowerShell(cd \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\"; npx tsc --noEmit -p apps/api/tsconfig.json 2>&1 | Where-Object { $_ -match \"message-template\" } | Select-Object -First 20)"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

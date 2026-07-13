@@ -4,14 +4,32 @@ import { useState } from "react";
 import { Plus } from "lucide-react";
 import ManualCampaignModal from "../manual-campaign-modal";
 
+interface BusinessInfo {
+  name: string;
+  vertical?: string | null;
+}
+
 export default function NewCampaignButton() {
   const [open, setOpen] = useState(false);
+  const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
+
+  function handleOpen() {
+    setOpen(true);
+    if (!businessInfo) {
+      void fetch("/api/proxy/businesses/current")
+        .then((r) => r.json())
+        .then((data: BusinessInfo) => {
+          setBusinessInfo({ name: data.name ?? "", vertical: data.vertical ?? null });
+        })
+        .catch(() => {});
+    }
+  }
 
   return (
     <>
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={handleOpen}
         className="inline-flex h-10 items-center justify-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#4f5eb0]"
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
@@ -22,6 +40,8 @@ export default function NewCampaignButton() {
         <ManualCampaignModal
           initialRecipients={[]}
           onClose={() => setOpen(false)}
+          businessName={businessInfo?.name}
+          vertical={businessInfo?.vertical ?? undefined}
         />
       )}
     </>

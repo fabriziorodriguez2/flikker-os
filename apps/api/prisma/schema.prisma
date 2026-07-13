@@ -311,6 +311,7 @@ model Business {
   businessPlans             BusinessPlan[]
   businessGoals             BusinessGoal[]
   appointmentNotifications  AppointmentNotification[]
+  messageTemplates          MessageTemplate[]
 }
 
 // ---------------------------------------------------------------------------
@@ -1111,3 +1112,23 @@ model BusinessGoal {
 
   @@index([businessId, createdAt])
 }
+
+// ---------------------------------------------------------------------------
+// MessageTemplate (custom reusable messages per business)
+// ---------------------------------------------------------------------------
+
+model MessageTemplate {
+  id         String   @id @default(cuid())
+  businessId String   @map("business_id")
+  title      String
+  body       String
+  vertical   String   @default("CUSTOM")
+  tag        String   @default("Custom")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("message_templates")
+}
+

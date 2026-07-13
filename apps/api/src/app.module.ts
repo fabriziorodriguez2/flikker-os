@@ -25,6 +25,7 @@ import { TestLabModule } from './modules/test-lab/test-lab.module';
 import { ShopifyIntegrationModule } from './modules/integrations/shopify/shopify-integration.module';
 import { GoogleCalendarModule } from './modules/integrations/google-calendar/google-calendar.module';
 import { PublicModule } from './modules/public/public.module';
+import { MessageTemplatesModule } from './modules/message-templates/message-templates.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -54,6 +55,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     ShopifyIntegrationModule,
     GoogleCalendarModule,
     PublicModule,
+    MessageTemplatesModule,
   ],
   controllers: [AppController],
 })

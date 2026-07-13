@@ -47,6 +47,7 @@ interface CustomersResponse {
 
 interface CurrentBusinessResponse {
   name: string;
+  vertical?: string | null;
 }
 
 type AppointmentDayOffset = 0 | 1 | 2;
@@ -489,6 +490,7 @@ export default function CustomersPage() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState("");
+  const [businessVertical, setBusinessVertical] = useState<string | null>(null);
   const [celebrationName, setCelebrationName] = useState<string | null>(null);
   const [attendedTodayIds, setAttendedTodayIds] = useState<Set<string>>(
     new Set(),
@@ -587,7 +589,10 @@ export default function CustomersPage() {
         const res = await fetch("/api/proxy/businesses/current");
         if (!res.ok) return;
         const data = (await res.json()) as CurrentBusinessResponse;
-        if (alive) setBusinessName(data.name ?? "");
+        if (alive) {
+          setBusinessName(data.name ?? "");
+          setBusinessVertical(data.vertical ?? null);
+        }
       } catch {
         // Preview falls back to "tu negocio"; backend still uses the real name.
       }
@@ -1601,6 +1606,8 @@ export default function CustomersPage() {
             setShowManualModal(false);
             if (campaignIntent) router.replace("/dashboard/customers");
           }}
+          businessName={businessName || undefined}
+          vertical={businessVertical ?? undefined}
         />
       )}
     </div>
