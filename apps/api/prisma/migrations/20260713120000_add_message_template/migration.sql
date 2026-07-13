@@ -15,4 +15,4 @@ CREATE TABLE "message_templates" (
 CREATE INDEX "message_templates_business_id_idx" ON "message_templates"("business_id");
 
 -- AddForeignKey
-ALTER TABLE "message_templates" ADD CONSTRAINT "message_templates_business_id_fkey" FOREIGN KEY ("business_id") REFERENCES "businesses"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "message_templates" ADD CONSTRAINT "message_templates_business_id_fkey" FOREIGN KEY ("business_id") REFERENCES "Business"("id") ON DELETE CASCADE ON UPDATE CASCADE;
