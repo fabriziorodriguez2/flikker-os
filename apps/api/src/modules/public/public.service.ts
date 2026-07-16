@@ -268,9 +268,9 @@ export class PublicService {
           businessId,
           customerId,
           campaignId: campaignId ?? undefined,
-          channel: MessageChannel.WHATSAPP,
+          channel: MessageChannel.whatsapp,
           trackingToken,
-          status: MessageStatus.pending,
+          status: MessageStatus.queued,
         },
         select: { id: true },
       });
