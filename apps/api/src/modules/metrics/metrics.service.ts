@@ -635,7 +635,7 @@ export class MetricsService {
       rating: ratingData,
       recentAttendances: recentEvents.map((e) => ({
         id: e.id,
-        customerName: e.customer.name,
+        customerName: e.customer?.name ?? 'Cliente',
         eventAt: e.eventAt.toISOString(),
         hasReview: e.messages.some((m) => m.attributedGoogleReviews.length > 0),
         messageSent: e.messages.some(
