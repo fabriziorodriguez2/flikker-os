@@ -69,6 +69,22 @@ export class ReviewRequestWorker implements OnModuleInit, OnModuleDestroy {
       return;
     }
 
+    // Skip if the customer already left a review for this business
+    const hasReview = await this.prisma.googleReview.findFirst({
+      where: {
+        businessId: data.businessId,
+        attributedMessage: { customerId: data.customerId },
+      },
+      select: { id: true },
+    });
+    if (hasReview) {
+      await this.markFailed(message.id);
+      this.logger.log(
+        `Skipping review request for customer ${data.customerId}: already has a review`,
+      );
+      return;
+    }
+
     if (
       message.business.reviewRequestsPausedUntil &&
       message.business.reviewRequestsPausedUntil > new Date()

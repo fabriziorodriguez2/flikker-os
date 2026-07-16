@@ -1,7 +1,12 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
+import { randomBytes } from 'crypto';
+import { MessageChannel, MessageStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { ReviewRequestQueue } from '../../jobs/review-request.queue';
 import { normalizeToE164 } from '../../common/utils/phone.util';
+
+const QR_REVIEW_DELAY_MS = 2 * 60 * 1000; // 2 minutos
 
 @Injectable()
 export class PublicService {
@@ -10,6 +15,7 @@ export class PublicService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly whatsApp: WhatsAppBspService,
+    private readonly reviewRequestQueue: ReviewRequestQueue,
   ) {}
 
   async getQrInfo(businessId: string, userAgent?: string) {
@@ -63,7 +69,7 @@ export class PublicService {
         googleBusinessProfileUrl: true,
         campaigns: {
           where: { status: 'ACTIVE', templateKind: 'qr_capture' },
-          select: { offerText: true },
+          select: { id: true, offerText: true },
           take: 1,
           orderBy: { createdAt: 'asc' },
         },
@@ -92,6 +98,8 @@ export class PublicService {
       where: { businessId, phoneE164, isActive: true },
     });
 
+    let customerId: string;
+
     if (existing) {
       await this.prisma.customer.update({
         where: { id: existing.id },
@@ -101,8 +109,9 @@ export class PublicService {
           ...(birthday && !existing.birthday ? { birthday } : {}),
         },
       });
+      customerId = existing.id;
     } else {
-      await this.prisma.customer.create({
+      const created = await this.prisma.customer.create({
         data: {
           businessId,
           name,
@@ -111,6 +120,7 @@ export class PublicService {
           ...(birthday ? { birthday } : {}),
         },
       });
+      customerId = created.id;
     }
 
     // Send WhatsApp welcome — never throw
@@ -122,6 +132,13 @@ export class PublicService {
     );
 
     void this.trySendOwnerNotification(business.id, business.name, business.phone ?? null, name);
+
+    // Enqueue review request with 2-minute delay — never throw
+    void this.tryEnqueueQrReviewRequest(
+      businessId,
+      customerId,
+      business.campaigns[0]?.id ?? null,
+    );
 
     return { ok: true };
   }
@@ -235,6 +252,35 @@ export class PublicService {
     } catch (error) {
       this.logger.warn(
         `Owner QR notification failed for business ${businessId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
+  private async tryEnqueueQrReviewRequest(
+    businessId: string,
+    customerId: string,
+    campaignId: string | null,
+  ) {
+    try {
+      const trackingToken = randomBytes(8).toString('base64url');
+      const message = await this.prisma.message.create({
+        data: {
+          businessId,
+          customerId,
+          campaignId: campaignId ?? undefined,
+          channel: MessageChannel.WHATSAPP,
+          trackingToken,
+          status: MessageStatus.pending,
+        },
+        select: { id: true },
+      });
+      await this.reviewRequestQueue.enqueue(
+        { messageId: message.id, customerId, businessId },
+        QR_REVIEW_DELAY_MS,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `QR review request enqueue failed for customer ${customerId}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
