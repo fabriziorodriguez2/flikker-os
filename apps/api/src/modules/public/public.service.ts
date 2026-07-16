@@ -222,7 +222,7 @@ export class PublicService {
         process.env.APP_PUBLIC_URL ??
         process.env.WEB_BASE_URL ??
         'https://app.flikker.com';
-      const contactsUrl = `${baseUrl.replace(/\/$/, '')}/dashboard/contacts`;
+      const contactsUrl = `${baseUrl.replace(/\/$/, '')}/dashboard/customers`;
       const text = [
         `📱 *Nuevo contacto en ${businessName}*`,
         '',

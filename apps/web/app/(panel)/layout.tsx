@@ -28,6 +28,8 @@ export default async function PanelLayout({
 
   const { user, memberships, activeBusinessId } = session;
 
+  if (!user || !memberships) redirect("/login");
+
   if (user.isPlatformAdmin && !session.impersonation) {
     redirect("/platform");
   }
