@@ -242,12 +242,12 @@ function MostradorPreview({
           <div style={{ width: 130, height: 130, background: "#F0F2FA", borderRadius: 8 }} />
         )}
       </div>
-      <div style={{ marginTop: "auto" }}>
+      <div style={{ marginTop: "auto", background: "#fff", borderRadius: 8, padding: "6px 12px", display: "flex", alignItems: "center", justifyContent: "center", minWidth: 64, minHeight: 36 }}>
         {business.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={business.logoUrl} alt={business.name} style={{ maxHeight: 32, maxWidth: 120, objectFit: "contain", filter: "brightness(10)" }} />
+          <img src={business.logoUrl} alt={business.name} style={{ maxHeight: 28, maxWidth: 100, objectFit: "contain" }} />
         ) : (
-          <span style={{ color: "rgba(255,255,255,0.7)", fontSize: 11, fontWeight: 600 }}>{business.name}</span>
+          <span style={{ color: "#1A202C", fontSize: 11, fontWeight: 700 }}>{business.name}</span>
         )}
       </div>
       <PoweredBy color="rgba(255,255,255,0.4)" />
@@ -583,7 +583,7 @@ export default function QrPage() {
   };
 
   const isA4 = version === "a4";
-  const qrReady = (version === "sticker" || version === "mostrador") ? !!stickerQrDataUrl : !!qrDataUrl;
+  const qrReady = version === "sticker" ? !!stickerQrDataUrl : !!qrDataUrl;
 
   if (loading) {
     return (
@@ -913,7 +913,7 @@ export default function QrPage() {
                     color={color}
                     mainText={mainText}
                     benefitText={benefitText}
-                    qrDataUrl={stickerQrDataUrl}
+                    qrDataUrl={qrDataUrl}
                   />
                 ) : (
                   <StickerPreview
