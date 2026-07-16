@@ -583,7 +583,7 @@ export default function QrPage() {
   };
 
   const isA4 = version === "a4";
-  const qrReady = version === "sticker" ? !!stickerQrDataUrl : !!qrDataUrl;
+  const qrReady = (version === "sticker" || version === "mostrador") ? !!stickerQrDataUrl : !!qrDataUrl;
 
   if (loading) {
     return (
@@ -913,7 +913,7 @@ export default function QrPage() {
                     color={color}
                     mainText={mainText}
                     benefitText={benefitText}
-                    qrDataUrl={qrDataUrl}
+                    qrDataUrl={stickerQrDataUrl}
                   />
                 ) : (
                   <StickerPreview

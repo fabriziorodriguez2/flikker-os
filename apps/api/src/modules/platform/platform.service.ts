@@ -929,6 +929,18 @@ export class PlatformService {
     return this.repository.findBusinessPlanHistory(businessId);
   }
 
+  async changeUserPassword(email: string, newPassword: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { email: email.toLowerCase().trim() },
+      select: { id: true, email: true },
+    });
+    if (!user) throw new NotFoundException('Usuario no encontrado');
+    const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
+    await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+    this.logger.log(`[platform] Password changed for user ${user.email}`);
+    return { ok: true, email: user.email };
+  }
+
   async resetOnboardingForBusiness(adminId: string, businessId: string) {
     const business = await this.prisma.business.findUnique({
       where: { id: businessId },

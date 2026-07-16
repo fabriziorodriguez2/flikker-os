@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  KeyRound,
   Plus,
   RefreshCw,
   Search,
@@ -88,6 +89,11 @@ export default function PlatformPage() {
   const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE_FORM);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncedId, setSyncedId] = useState<string | null>(null);
+  const [showPasswordForm, setShowPasswordForm] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({ email: "", newPassword: "", confirmPassword: "" });
+  const [passwordChanging, setPasswordChanging] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [passwordSuccess, setPasswordSuccess] = useState<string | null>(null);
   const [createdCredentials, setCreatedCredentials] = useState<{
     businessId: string;
     email: string;
@@ -308,14 +314,29 @@ export default function PlatformPage() {
         </div>
 
         <div className="flex flex-col items-end gap-3">
-          <button
-            type="button"
-            onClick={() => setShowCreateForm(true)}
-            className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4e5db0]"
-          >
-            <Plus className="h-4 w-4" aria-hidden="true" />
-            Nuevo negocio
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setShowPasswordForm(true);
+                setPasswordError(null);
+                setPasswordSuccess(null);
+                setPasswordForm({ email: "", newPassword: "", confirmPassword: "" });
+              }}
+              className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA]"
+            >
+              <KeyRound className="h-4 w-4" aria-hidden="true" />
+              Cambiar contraseña
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowCreateForm(true)}
+              className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4e5db0]"
+            >
+              <Plus className="h-4 w-4" aria-hidden="true" />
+              Nuevo negocio
+            </button>
+          </div>
           <div className="grid gap-3 sm:grid-cols-3">
             <MetricCard label="Negocios activos" value={stats.active} />
             <MetricCard label="Reseñas detectadas" value={stats.reviews} />
@@ -792,6 +813,134 @@ export default function PlatformPage() {
               >
                 {creating ? "Creando..." : "Crear negocio"}
               </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {showPasswordForm ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="change-password-title"
+            className="w-full max-w-md rounded-xl border border-[#E8EAF0] bg-white p-6"
+          >
+            <div className="flex items-start gap-4">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#EEF0FB] text-[#5C6BC0]">
+                <KeyRound className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <h2 id="change-password-title" className="text-lg font-bold text-[#1A202C]">
+                  Cambiar contraseña
+                </h2>
+                <p className="mt-1 text-sm text-[#8891A4]">
+                  Buscá la cuenta por email y seteale una nueva contraseña directamente.
+                </p>
+              </div>
+            </div>
+
+            {passwordError ? (
+              <div className="mt-4 rounded-lg border border-[#C0392B]/20 bg-[#C0392B]/10 px-4 py-3 text-sm text-[#C0392B]">
+                {passwordError}
+              </div>
+            ) : null}
+
+            {passwordSuccess ? (
+              <div className="mt-4 flex items-center gap-2 rounded-lg border border-[#639922]/20 bg-[#639922]/10 px-4 py-3 text-sm text-[#639922]">
+                <Check className="h-4 w-4 shrink-0" />
+                {passwordSuccess}
+              </div>
+            ) : null}
+
+            {!passwordSuccess ? (
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-[#1A202C]">
+                    Email de la cuenta
+                  </label>
+                  <input
+                    type="email"
+                    value={passwordForm.email}
+                    onChange={(e) => setPasswordForm((f) => ({ ...f, email: e.target.value }))}
+                    placeholder="usuario@email.com"
+                    className="h-10 w-full rounded-lg border border-[#E8EAF0] px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-[#1A202C]">
+                    Nueva contraseña
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordForm.newPassword}
+                    onChange={(e) => setPasswordForm((f) => ({ ...f, newPassword: e.target.value }))}
+                    placeholder="Mínimo 8 caracteres"
+                    className="h-10 w-full rounded-lg border border-[#E8EAF0] px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold text-[#1A202C]">
+                    Confirmar contraseña
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm((f) => ({ ...f, confirmPassword: e.target.value }))}
+                    placeholder="Repetí la contraseña"
+                    className="h-10 w-full rounded-lg border border-[#E8EAF0] px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]"
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-6 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowPasswordForm(false)}
+                disabled={passwordChanging}
+                className="inline-flex h-10 items-center justify-center rounded-lg border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-60"
+              >
+                {passwordSuccess ? "Cerrar" : "Cancelar"}
+              </button>
+              {!passwordSuccess ? (
+                <button
+                  type="button"
+                  disabled={passwordChanging || !passwordForm.email.trim() || !passwordForm.newPassword || !passwordForm.confirmPassword}
+                  onClick={async () => {
+                    setPasswordError(null);
+                    if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+                      setPasswordError("Las contraseñas no coinciden");
+                      return;
+                    }
+                    if (passwordForm.newPassword.length < 8) {
+                      setPasswordError("La contraseña debe tener al menos 8 caracteres");
+                      return;
+                    }
+                    setPasswordChanging(true);
+                    try {
+                      const res = await fetch("/api/proxy/platform/users/change-password", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          email: passwordForm.email.trim(),
+                          newPassword: passwordForm.newPassword,
+                        }),
+                      });
+                      const data = (await res.json().catch(() => ({}))) as { message?: string; email?: string };
+                      if (!res.ok) throw new Error(data.message ?? "No se pudo cambiar la contraseña");
+                      setPasswordSuccess(`Contraseña actualizada para ${data.email ?? passwordForm.email.trim()}`);
+                    } catch (e) {
+                      setPasswordError(e instanceof Error ? e.message : "Error al cambiar contraseña");
+                    } finally {
+                      setPasswordChanging(false);
+                    }
+                  }}
+                  className="inline-flex h-10 items-center justify-center rounded-lg bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4e5db0] disabled:opacity-60"
+                >
+                  {passwordChanging ? "Cambiando..." : "Cambiar contraseña"}
+                </button>
+              ) : null}
             </div>
           </div>
         </div>

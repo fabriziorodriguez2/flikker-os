@@ -1,8 +1,10 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -186,6 +188,18 @@ export class PlatformController {
   @Post('exit-impersonation')
   exitImpersonation() {
     return { ok: true };
+  }
+
+  @Post('users/change-password')
+  @HttpCode(200)
+  changeUserPassword(@Body() body: { email?: string; newPassword?: string }) {
+    if (!body.email?.trim()) {
+      throw new BadRequestException('email is required');
+    }
+    if (!body.newPassword || body.newPassword.length < 8) {
+      throw new BadRequestException('La contraseña debe tener al menos 8 caracteres');
+    }
+    return this.platformService.changeUserPassword(body.email, body.newPassword);
   }
 
   // ── Platform-scoped Shopify integration management ─────────────────────────
