@@ -107,7 +107,7 @@ export class GoogleReviewsProvider {
       token: input.token,
       place_id: input.googlePlaceId,
       num: String(GOOGLE_REVIEWS_PAGE_SIZE),
-      sort_by: 'newestFirst',
+      sort_by: 'newest',
       hl: 'es',
       gl: 'uy',
     });
