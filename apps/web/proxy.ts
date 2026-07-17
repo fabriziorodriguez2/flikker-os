@@ -27,17 +27,14 @@ export function proxy(request: NextRequest) {
   // the session cookie is still present.
   //
   // We validate JSON here (not just cookie existence) so that a present-but-
-  // corrupted session is caught early and handled via NextResponse — which uses
-  // a relative Location and never calls new URL() — rather than falling through
-  // to the server-component redirect() call that throws in some Turbopack builds.
+  // corrupted session is caught early in the middleware rather than falling through
+  // to the server-component redirect() call, which throws in the Turbopack worker.
   if (isDashboard && !hasValidSession(sessionRaw)) {
-    // Relative Location → the browser resolves against the public origin it
-    // actually navigated to. Avoids leaking the internal Railway host/port
-    // when running behind a reverse proxy.
-    return new NextResponse(null, {
-      status: 307,
-      headers: { Location: '/login' },
-    });
+    // Must use an absolute URL: the Turbopack middleware runner (tv()) calls
+    // new U(Location, { headers, nextConfig }) which fails on relative URLs
+    // because it tries new URL('/login', undefined) → TypeError: Invalid URL.
+    // request.url is always absolute in the middleware context.
+    return NextResponse.redirect(new URL('/login', request.url));
   }
 
   // Forward x-forwarded-host so downstream server components can resolve
