@@ -67,10 +67,9 @@ export async function getSession(): Promise<Session | null> {
 /** Escribe la sesion en la cookie. Solo valido en Route Handlers y Server Actions. */
 export async function setSession(session: Session): Promise<void> {
   const cookieStore = await cookies();
-  // URL-encode the JSON so the cookie value is pure ASCII.  Non-ASCII bytes
-  // (e.g. accented chars in user names) can be corrupted by HTTP/1.1 → HTTP/2
-  // header conversion at Railway's edge proxy, producing invalid JSON on read.
-  cookieStore.set(SESSION_COOKIE, encodeURIComponent(JSON.stringify(session)), {
+  // Next.js's stringifyCookie already applies encodeURIComponent to the value,
+  // so we store raw JSON here. parseCookie decodes it back on read.
+  cookieStore.set(SESSION_COOKIE, JSON.stringify(session), {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
