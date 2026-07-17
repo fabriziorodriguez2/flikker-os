@@ -3,7 +3,6 @@ import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import QuickAttend from "./quick-attend";
 import FlikPanel from "./flik-panel";
-import OnboardingTour from "./onboarding-tour";
 import { RatingProgressCard, type RatingData } from "./rating-progress-card";
 
 interface RecentAttendance {
@@ -146,20 +145,11 @@ export default async function DashboardPage() {
   if (!businessId) redirect("/login");
 
   let stats: PanelStats | null = null;
-  let onboardingCompletedAt: string | null = null;
   let error: string | null = null;
 
   let sessionExpired = false;
   try {
-    const [statsRes, meRes] = await Promise.all([
-      apiFetch<PanelStats>("/metrics/panel", accessToken, { businessId }),
-      apiFetch<{ onboardingCompletedAt: string | null }>(
-        "/auth/me",
-        session.accessToken,
-      ).catch(() => ({ onboardingCompletedAt: null })),
-    ]);
-    stats = statsRes;
-    onboardingCompletedAt = meRes.onboardingCompletedAt;
+    stats = await apiFetch<PanelStats>("/metrics/panel", accessToken, { businessId });
   } catch (e) {
     if (isUnauthorizedApiError(e)) sessionExpired = true;
     else error = e instanceof Error ? e.message : "Error al cargar datos";
@@ -233,9 +223,6 @@ export default async function DashboardPage() {
 
       <QuickAttend />
 
-      <OnboardingTour
-        alreadyCompleted={onboardingCompletedAt !== null}
-      />
     </div>
   );
 }
