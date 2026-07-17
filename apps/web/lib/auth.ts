@@ -55,7 +55,10 @@ export async function getSession(): Promise<Session | null> {
   if (!raw) return null;
 
   try {
-    return JSON.parse(raw) as Session;
+    // Values are stored URL-encoded (see setSession). Older sessions stored as
+    // raw JSON don't contain "%" so decodeURIComponent is a safe no-op for them.
+    const json = decodeURIComponent(raw);
+    return JSON.parse(json) as Session;
   } catch {
     return null;
   }
@@ -64,7 +67,10 @@ export async function getSession(): Promise<Session | null> {
 /** Escribe la sesion en la cookie. Solo valido en Route Handlers y Server Actions. */
 export async function setSession(session: Session): Promise<void> {
   const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, JSON.stringify(session), {
+  // URL-encode the JSON so the cookie value is pure ASCII.  Non-ASCII bytes
+  // (e.g. accented chars in user names) can be corrupted by HTTP/1.1 → HTTP/2
+  // header conversion at Railway's edge proxy, producing invalid JSON on read.
+  cookieStore.set(SESSION_COOKIE, encodeURIComponent(JSON.stringify(session)), {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
