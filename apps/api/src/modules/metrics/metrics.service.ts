@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { CampaignExecutionStatus, MessageStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
@@ -131,6 +131,8 @@ const SENT_STATUSES: MessageStatus[] = [
 
 @Injectable()
 export class MetricsService {
+  private readonly logger = new Logger(MetricsService.name);
+
   constructor(private readonly prisma: PrismaService) {}
 
   async getOverview(
@@ -483,6 +485,17 @@ export class MetricsService {
   // ──────────────────────────────────────────────────────────────────────────
 
   async getPanelStats(businessId: string) {
+    try {
+      return await this._getPanelStats(businessId);
+    } catch (error) {
+      this.logger.error(
+        `[getPanelStats] failed for business ${businessId}: ${error instanceof Error ? error.stack : String(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  private async _getPanelStats(businessId: string) {
     const now = new Date();
 
     // Uruguay is UTC-3: business day starts at 03:00 UTC
