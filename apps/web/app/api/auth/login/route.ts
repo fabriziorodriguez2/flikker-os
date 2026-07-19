@@ -38,7 +38,14 @@ export async function POST(request: Request) {
       accessToken: data.accessToken,
       refreshToken: data.refreshToken,
       user: data.user,
-      memberships: data.memberships,
+      // Strip logoUrl: Cloud Storage signed URLs are hundreds of chars long and
+      // push the cookie over the 4096-byte browser limit, causing it to be silently
+      // rejected. The layout fetches logoUrl fresh from /businesses/current anyway.
+      memberships: data.memberships.map((m) => ({
+        businessId: m.businessId,
+        role: m.role,
+        business: { name: m.business.name, slug: m.business.slug },
+      })),
       activeBusinessId:
         data.memberships.length === 1 ? data.memberships[0].businessId : null,
     };
