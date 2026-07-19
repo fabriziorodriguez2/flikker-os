@@ -102,7 +102,7 @@ const MAIN_NAV_ITEMS: Array<{
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon />, onboardingKey: "campaigns" },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
   { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon /> },
-  { href: "/dashboard/qr", label: "QR", icon: <QrIcon />, onboardingKey: "qr" },
+  // { href: "/dashboard/qr", label: "QR", icon: <QrIcon />, onboardingKey: "qr" },
 ];
 
 function isItemActive(pathname: string, href: string) {
