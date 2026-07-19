@@ -12,7 +12,9 @@ export interface ManualRecipient {
   phoneE164: string;
 }
 
-type TemplateVertical = "gastronomy" | "clinic" | "gym" | "general";
+type TemplateVertical = "gastronomy" | "general";
+
+const CUSTOM_MSG_ID = "__custom__";
 type TemplateTag =
   | "Reactivación"
   | "Novedad"
@@ -95,64 +97,6 @@ const SYSTEM_TEMPLATES: SystemTemplate[] = [
     vertical: "gastronomy",
     tag: "Promo",
   },
-  // Clínicas
-  {
-    id: "c1",
-    title: "¿Cómo te fue?",
-    body: "Hola {nombre}, ¿cómo te sentiste después de tu visita a {negocio}? Cualquier consulta, acá estamos.",
-    vertical: "clinic",
-    tag: "Seguimiento",
-  },
-  {
-    id: "c2",
-    title: "Turno disponible",
-    body: "Hola {nombre}, esta semana tenemos turnos disponibles en {negocio}. ¿Agendamos?",
-    vertical: "clinic",
-    tag: "Conversión",
-  },
-  {
-    id: "c3",
-    title: "Recordatorio",
-    body: "Hola {nombre}, te recordamos que tenés turno en {negocio}. ¡Te esperamos!",
-    vertical: "clinic",
-    tag: "Recordatorio",
-  },
-  {
-    id: "c4",
-    title: "Novedad del mes",
-    body: "Hola {nombre}, este mes en {negocio} tenemos algo nuevo para contarte. ¿Querés saber más?",
-    vertical: "clinic",
-    tag: "Novedad",
-  },
-  // Gimnasios
-  {
-    id: "gy1",
-    title: "Te echamos de menos",
-    body: "Hola {nombre}, hace un tiempo que no te vemos en {negocio}. ¿Todo bien? ¡Te esperamos!",
-    vertical: "gym",
-    tag: "Reactivación",
-  },
-  {
-    id: "gy2",
-    title: "Nueva clase",
-    body: "Hola {nombre}, arrancamos una clase nueva en {negocio}. ¿Te sumás?",
-    vertical: "gym",
-    tag: "Novedad",
-  },
-  {
-    id: "gy3",
-    title: "Renovación",
-    body: "Hola {nombre}, tu membresía en {negocio} está por vencer. ¿La renovamos?",
-    vertical: "gym",
-    tag: "Retención",
-  },
-  {
-    id: "gy4",
-    title: "Promo de ingreso",
-    body: "Hola {nombre}, este mes en {negocio} tenemos una promo especial de ingreso. ¿Te la contamos?",
-    vertical: "gym",
-    tag: "Promo",
-  },
   // General
   {
     id: "gen1",
@@ -181,15 +125,11 @@ const FILTER_PILLS: { id: FilterId; label: string }[] = [
   { id: "all", label: "Todos" },
   { id: "custom", label: "Mis plantillas" },
   { id: "gastronomy", label: "Gastronomía" },
-  { id: "clinic", label: "Clínicas" },
-  { id: "gym", label: "Gimnasios" },
   { id: "general", label: "General" },
 ];
 
 function businessVerticalToFilter(v?: string): FilterId {
   if (!v) return "all";
-  if (["dental", "estetica", "fisio", "medico", "nutricion"].includes(v)) return "clinic";
-  if (v === "gimnasio") return "gym";
   if (v === "gastronomy") return "gastronomy";
   return "all";
 }
@@ -881,6 +821,32 @@ export default function ManualCampaignModal({
                   </p>
                 ) : (
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                    {/* Opción de mensaje personalizado sin plantilla */}
+                    <div
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => {
+                        setSelectedTemplateId(CUSTOM_MSG_ID);
+                        requestAnimationFrame(() => textareaRef.current?.focus());
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          setSelectedTemplateId(CUSTOM_MSG_ID);
+                          requestAnimationFrame(() => textareaRef.current?.focus());
+                        }
+                      }}
+                      className={`flex cursor-pointer flex-col gap-1 rounded-[10px] border p-3 text-left transition-colors ${
+                        selectedTemplateId === CUSTOM_MSG_ID
+                          ? "border-[#5C6BC0] bg-[#EEF0FB]"
+                          : "border-[#E8EAF0] bg-white hover:border-[#5C6BC0]/40"
+                      }`}
+                    >
+                      <p className={`text-sm font-semibold ${selectedTemplateId === CUSTOM_MSG_ID ? "text-[#5C6BC0]" : "text-[#1A202C]"}`}>
+                        Personalizado
+                      </p>
+                      <p className="mt-0.5 text-xs text-[#8891A4]">Escribí tu propio mensaje</p>
+                    </div>
                     {filteredTemplates.map((t) => (
                       <TemplateCard
                         key={t.id}
@@ -1003,7 +969,7 @@ export default function ManualCampaignModal({
                     value={message}
                     onChange={(e) => {
                       setMessage(e.target.value);
-                      setSelectedTemplateId(null);
+                      setSelectedTemplateId(CUSTOM_MSG_ID);
                     }}
                     maxLength={1000}
                     rows={6}
