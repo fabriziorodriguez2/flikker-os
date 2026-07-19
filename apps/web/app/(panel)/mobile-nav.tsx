@@ -7,19 +7,20 @@ const MAIN_NAV_ITEMS: Array<{
   href: string;
   label: string;
   onboardingKey?: string;
+  impersonatorOnly?: boolean;
 }> = [
   { href: "/dashboard", label: "Panel", onboardingKey: "panel" },
   { href: "/dashboard/insights", label: "Insights" },
   { href: "/dashboard/customers", label: "Clientes", onboardingKey: "clientes" },
   { href: "/dashboard/campaigns", label: "Campañas", onboardingKey: "campaigns" },
   { href: "/dashboard/reviews", label: "Reseñas" },
-  { href: "/dashboard/widgets", label: "Widget" },
+  { href: "/dashboard/widgets", label: "Widget", impersonatorOnly: true },
   // { href: "/dashboard/qr", label: "QR", onboardingKey: "qr" },
 ];
 
-export default function MobileNav() {
+export default function MobileNav({ isImpersonating }: { isImpersonating: boolean }) {
   const pathname = usePathname();
-  const items = MAIN_NAV_ITEMS;
+  const items = MAIN_NAV_ITEMS.filter((item) => !item.impersonatorOnly || isImpersonating);
 
   return (
     <nav className="border-b border-[#E8EAF0] bg-white px-4 py-2.5 lg:hidden">

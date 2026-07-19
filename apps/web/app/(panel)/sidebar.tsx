@@ -11,6 +11,7 @@ interface SidebarProps {
   memberships: SessionMembership[];
   activeBusinessId: string | null;
   userName: string;
+  isImpersonating: boolean;
 }
 
 const SIDEBAR_STORAGE_KEY = "flikker-panel-sidebar-collapsed";
@@ -95,13 +96,14 @@ const MAIN_NAV_ITEMS: Array<{
   label: string;
   icon: ReactNode;
   onboardingKey?: string;
+  impersonatorOnly?: boolean;
 }> = [
   { href: "/dashboard", label: "Panel", icon: <HomeIcon />, onboardingKey: "panel" },
   { href: "/dashboard/insights", label: "Insights", icon: <InsightsIcon /> },
   { href: "/dashboard/customers", label: "Clientes", icon: <CustomersIcon />, onboardingKey: "clientes" },
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon />, onboardingKey: "campaigns" },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
-  { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon /> },
+  { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon />, impersonatorOnly: true },
   // { href: "/dashboard/qr", label: "QR", icon: <QrIcon />, onboardingKey: "qr" },
 ];
 
@@ -202,7 +204,7 @@ export default function Sidebar(props: SidebarProps) {
       </div>
 
       <nav className={`mt-8 flex flex-col gap-2 ${collapsed ? "px-4" : "px-5"}`}>
-        {MAIN_NAV_ITEMS.map((item) => {
+        {MAIN_NAV_ITEMS.filter((item) => !item.impersonatorOnly || props.isImpersonating).map((item) => {
           const active = isItemActive(pathname, item.href);
           return (
             <Link

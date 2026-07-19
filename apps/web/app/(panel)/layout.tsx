@@ -133,6 +133,7 @@ export default async function PanelLayout({
         memberships={memberships}
         activeBusinessId={activeBusinessId}
         userName={`${user.firstName} ${user.lastName}`}
+        isImpersonating={!!session.impersonation}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -168,7 +169,7 @@ export default async function PanelLayout({
           </div>
         </header>
 
-        <MobileNav />
+        <MobileNav isImpersonating={!!session.impersonation} />
 
         <main className="flex-1 overflow-auto px-4 py-6 md:px-6 md:py-8">
           <QueryProvider>
