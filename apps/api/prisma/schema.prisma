@@ -186,6 +186,17 @@ enum ShopifyOrderStatus {
   failed
 }
 
+// Benefit types. `none` = business explicitly offers no benefit. New types can be
+// added here as the offering grows (coupons, points, stamps, cashback, etc.).
+enum BenefitType {
+  none
+  discount
+  gift
+  raffle
+  promotion
+  other
+}
+
 // ---------------------------------------------------------------------------
 // User
 // ---------------------------------------------------------------------------
@@ -312,6 +323,8 @@ model Business {
   businessGoals             BusinessGoal[]
   appointmentNotifications  AppointmentNotification[]
   messageTemplates          MessageTemplate[]
+  benefits                  Benefit[]
+  benefitParticipations     BenefitParticipation[]
 }
 
 // ---------------------------------------------------------------------------
@@ -536,6 +549,7 @@ model Customer {
   feedbackResponses      FeedbackResponse[]
   manualCampaignContacts ManualCampaignContact[]
   appointmentNotifications AppointmentNotification[]
+  benefitParticipations  BenefitParticipation[]
 
   @@index([businessId])
   @@index([businessId, isActive])
@@ -1130,5 +1144,57 @@ model MessageTemplate {
 
   @@index([businessId])
   @@map("message_templates")
+}
+
+// ---------------------------------------------------------------------------
+// Benefit (optional retention incentive offered by a business)
+// ---------------------------------------------------------------------------
+// A business may offer zero or many benefits, but only one may be active at a
+// time (enforced by a partial unique index in the migration + service logic).
+// Designed to be extended later (coupons, dynamic QR codes, points, stamps,
+// cashback, per-segment / birthday benefits) without reshaping this table.
+
+model Benefit {
+  id          String      @id @default(uuid())
+  businessId  String      @map("business_id")
+  type        BenefitType
+  title       String
+  description String?
+  terms       String?
+  startDate   DateTime?   @map("start_date")
+  endDate     DateTime?   @map("end_date")
+  recurrence  String?
+  active      Boolean     @default(false)
+  createdAt   DateTime    @default(now()) @map("created_at")
+  updatedAt   DateTime    @updatedAt @map("updated_at")
+
+  business       Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  participations BenefitParticipation[]
+
+  @@index([businessId])
+  @@index([businessId, active])
+  @@map("benefits")
+}
+
+// ---------------------------------------------------------------------------
+// BenefitParticipation (a customer opting into a benefit — e.g. a raffle entry)
+// ---------------------------------------------------------------------------
+
+model BenefitParticipation {
+  id         String   @id @default(uuid())
+  benefitId  String   @map("benefit_id")
+  businessId String   @map("business_id")
+  customerId String   @map("customer_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  benefit  Benefit  @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id])
+
+  @@unique([benefitId, customerId])
+  @@index([businessId])
+  @@index([benefitId])
+  @@index([customerId])
+  @@map("benefit_participations")
 }
 

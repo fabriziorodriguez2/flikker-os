@@ -69,6 +69,16 @@ const WidgetIcon = () => (
   </Icon>
 );
 
+const BenefitsIcon = () => (
+  <Icon>
+    <rect x="3" y="8" width="18" height="4" rx="1" />
+    <path d="M12 8v13" />
+    <path d="M5 12v7a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-7" />
+    <path d="M12 8S10.5 4 8 4a2 2 0 0 0 0 4h4Z" />
+    <path d="M12 8s1.5-4 4-4a2 2 0 0 1 0 4h-4Z" />
+  </Icon>
+);
+
 const QrIcon = () => (
   <Icon>
     <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -103,6 +113,7 @@ const MAIN_NAV_ITEMS: Array<{
   { href: "/dashboard/customers", label: "Clientes", icon: <CustomersIcon />, onboardingKey: "clientes" },
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon />, onboardingKey: "campaigns" },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
+  { href: "/dashboard/benefits", label: "Beneficios", icon: <BenefitsIcon /> },
   { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon />, impersonatorOnly: true },
   { href: "/dashboard/qr", label: "QR", icon: <QrIcon />, onboardingKey: "qr", impersonatorOnly: true },
 ];

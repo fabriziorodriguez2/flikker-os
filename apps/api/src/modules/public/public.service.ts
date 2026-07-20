@@ -1,9 +1,15 @@
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { MessageChannel, MessageStatus } from '@prisma/client';
+import {
+  Benefit,
+  BenefitType,
+  MessageChannel,
+  MessageStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { ReviewRequestQueue } from '../../jobs/review-request.queue';
+import { BenefitsRepository } from '../benefits/benefits.repository';
 import { normalizeToE164 } from '../../common/utils/phone.util';
 
 const QR_REVIEW_DELAY_MS = 2 * 60 * 1000; // 2 minutos
@@ -16,6 +22,7 @@ export class PublicService {
     private readonly prisma: PrismaService,
     private readonly whatsApp: WhatsAppBspService,
     private readonly reviewRequestQueue: ReviewRequestQueue,
+    private readonly benefits: BenefitsRepository,
   ) {}
 
   async getQrInfo(businessId: string, userAgent?: string) {
@@ -45,12 +52,24 @@ export class PublicService {
       userAgent,
     );
 
+    const benefit = await this.resolveActiveBenefit(businessId);
+    const fallbackOffer = business.campaigns[0]?.offerText ?? null;
+
     return {
       businessName: business.name,
       logoUrl: business.logoUrl ?? null,
       primaryColor: business.primaryColor ?? null,
       googleBusinessProfileUrl: business.googleBusinessProfileUrl ?? null,
-      benefitText: business.campaigns[0]?.offerText ?? null,
+      // Hook text: active benefit title takes precedence over the legacy offer.
+      benefitText: benefit?.title ?? fallbackOffer,
+      benefit: benefit
+        ? {
+            type: benefit.type,
+            title: benefit.title,
+            description: benefit.description,
+            terms: benefit.terms,
+          }
+        : null,
     };
   }
 
@@ -123,12 +142,23 @@ export class PublicService {
       customerId = created.id;
     }
 
+    const benefit = await this.resolveActiveBenefit(businessId);
+
+    // If the active benefit is a raffle, record this customer as a participant.
+    if (benefit && benefit.type === BenefitType.raffle) {
+      void this.tryRegisterRaffleParticipation(
+        businessId,
+        benefit.id,
+        customerId,
+      );
+    }
+
     // Send WhatsApp welcome — never throw
     void this.trySendWelcome(
       phoneE164,
       name,
       business.name,
-      business.campaigns[0]?.offerText ?? null,
+      benefit?.title ?? business.campaigns[0]?.offerText ?? null,
     );
 
     void this.trySendOwnerNotification(business.id, business.name, business.phone ?? null, name);
@@ -144,6 +174,41 @@ export class PublicService {
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
+
+  /**
+   * Returns the business's active benefit, but only when it is currently valid:
+   * type is not `none` and (if set) the current date is within its window.
+   * Falls back to null so callers use the legacy offer text.
+   */
+  private async resolveActiveBenefit(
+    businessId: string,
+    now = new Date(),
+  ): Promise<Benefit | null> {
+    const benefit = await this.benefits.findActive(businessId);
+    if (!benefit) return null;
+    if (benefit.type === BenefitType.none) return null;
+    if (benefit.startDate && benefit.startDate > now) return null;
+    if (benefit.endDate && benefit.endDate < now) return null;
+    return benefit;
+  }
+
+  private async tryRegisterRaffleParticipation(
+    businessId: string,
+    benefitId: string,
+    customerId: string,
+  ) {
+    try {
+      await this.benefits.registerParticipation(
+        businessId,
+        benefitId,
+        customerId,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Raffle participation failed for customer ${customerId}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
 
   private async tryRecordScan(
     businessId: string,

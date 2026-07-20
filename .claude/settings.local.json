@@ -57,7 +57,10 @@
       "Bash(git commit -m ' *)",
       "Bash(git push *)",
       "Bash(grep -rn \"new URL.*['\\\\\"]\\\\/login\\\\|Location.*new URL\\\\|normalizeAbsoluteUrl\\\\|resolveHref\" \"c:/Users/fabri/OneDrive/Desktop/flikker system/flikker-os/apps/web/.next/standalone/node_modules/next/dist/server\" --include=\"*.js\")",
-      "Bash(xargs grep -l \"trustHostHeader\")"
+      "Bash(xargs grep -l \"trustHostHeader\")",
+      "Bash(npx prisma *)",
+      "Bash(npx jest *)",
+      "Bash(npx eslint *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

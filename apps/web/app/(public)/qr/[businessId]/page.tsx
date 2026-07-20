@@ -1,12 +1,20 @@
 import { notFound } from "next/navigation";
 import QrLandingClient from "./qr-landing-client";
 
+export interface QrBenefit {
+  type: string;
+  title: string;
+  description: string | null;
+  terms: string | null;
+}
+
 export interface QrInfo {
   businessName: string;
   logoUrl: string | null;
   primaryColor: string | null;
   googleBusinessProfileUrl: string | null;
   benefitText: string | null;
+  benefit: QrBenefit | null;
 }
 
 const API_URL = process.env.API_URL ?? "http://localhost:3000";

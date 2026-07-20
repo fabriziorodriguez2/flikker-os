@@ -148,6 +148,20 @@ function CaptureForm({
         </h1>
         <p className="mt-3 text-center text-sm text-[#475467]">{subtitle}</p>
 
+        {info.benefit && (info.benefit.description || info.benefit.terms) && (
+          <div className="mt-5 w-full max-w-sm rounded-2xl border border-[#e4e7ec] bg-white p-4 text-left shadow-sm">
+            {info.benefit.description && (
+              <p className="text-sm text-[#344054]">{info.benefit.description}</p>
+            )}
+            {info.benefit.terms && (
+              <p className="mt-2 text-xs leading-relaxed text-[#667085]">
+                <span className="font-semibold">Condiciones:</span>{" "}
+                {info.benefit.terms}
+              </p>
+            )}
+          </div>
+        )}
+
         <form
           onSubmit={(e) => void handleSubmit(e)}
           className="mt-8 w-full max-w-sm space-y-3"
