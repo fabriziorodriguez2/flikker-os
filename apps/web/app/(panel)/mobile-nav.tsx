@@ -15,7 +15,7 @@ const MAIN_NAV_ITEMS: Array<{
   { href: "/dashboard/campaigns", label: "Campañas", onboardingKey: "campaigns" },
   { href: "/dashboard/reviews", label: "Reseñas" },
   { href: "/dashboard/widgets", label: "Widget", impersonatorOnly: true },
-  // { href: "/dashboard/qr", label: "QR", onboardingKey: "qr" },
+  { href: "/dashboard/qr", label: "QR", onboardingKey: "qr", impersonatorOnly: true },
 ];
 
 export default function MobileNav({ isImpersonating }: { isImpersonating: boolean }) {
