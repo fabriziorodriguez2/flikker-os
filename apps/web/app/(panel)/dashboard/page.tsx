@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { Star } from "lucide-react";
 import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
@@ -278,7 +279,8 @@ export default async function DashboardPage() {
         href="/dashboard/reviews"
         className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#5C6BC0] px-6 py-4 text-base font-bold text-white shadow-[0_10px_24px_rgba(92,107,192,0.28)] transition-colors hover:bg-[#4f5eb0]"
       >
-        Ver reseñas nuevas <span aria-hidden="true">→</span>
+        <Star aria-hidden="true" className="h-5 w-5" />
+        Ver reseñas nuevas
       </Link>
 
       {isClinic ? <QuickAttend /> : null}
