@@ -6,7 +6,6 @@ import ActivityEvolutionChart from "../activity-evolution-chart";
 import ActivityFilters, { type ActivityGranularity } from "../activity-filters";
 import { ACTIVITY_SERIES } from "../activity-series";
 import NegativeFeedbackList from "../negative-feedback-list";
-import ContactsStatsSection from "../contacts-stats-section";
 
 interface KpiMetric {
   current: number;
@@ -54,6 +53,19 @@ interface GoogleStats {
   ratingDistribution: Record<string, number>;
 }
 
+interface ContactsStats {
+  total: number;
+  byOrigin: { qr: number; manual: number; whatsapp: number };
+  newThisMonth: number;
+}
+
+interface ConversionSummary {
+  sentMessages: number;
+  attributedReviews: number;
+  conversionRate: number | null;
+  insufficientData: boolean;
+}
+
 interface InsightsPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
@@ -74,50 +86,112 @@ function buildMetricsPath(params: Record<string, string | string[] | undefined>)
   return serialized ? `/metrics/overview?${serialized}` : "/metrics/overview";
 }
 
-function AvgRatingCard({ stats }: { stats: GoogleStats }) {
-  const dist = stats.ratingDistribution;
-  const maxCount = Math.max(...[5, 4, 3, 2, 1].map((s) => dist[s] ?? 0), 1);
+// ── Compact KPI card — same visual language as /dashboard ──────────────────────
+
+function MiniKpiCard({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: string;
+  sub: string;
+}) {
+  return (
+    <article className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8891A4]">
+        {label}
+      </p>
+      <p className="mt-3 text-[32px] font-bold leading-none text-[#1A202C]">
+        {value}
+      </p>
+      <p className="mt-3 text-xs text-[#8891A4]">{sub}</p>
+    </article>
+  );
+}
+
+// ── Conversion rate — circular chart, friendly when data is short ──────────────
+
+function conversionRingColor(pct: number): string {
+  if (pct >= 20) return "#1D9E75";
+  if (pct >= 10) return "#FAAB4B";
+  return "#9188F5";
+}
+
+function ConversionRing({ pct, muted }: { pct: number; muted: boolean }) {
+  const r = 58;
+  const circumference = 2 * Math.PI * r;
+  const clamped = Math.min(100, Math.max(0, pct));
+  const offset = circumference * (1 - clamped / 100);
+  const color = muted ? "#D0D5DD" : conversionRingColor(clamped);
+
+  return (
+    <div className="relative mx-auto h-[150px] w-[150px] shrink-0">
+      <svg viewBox="0 0 150 150" className="h-full w-full -rotate-90">
+        <circle cx="75" cy="75" r={r} fill="none" stroke="#EEF0FB" strokeWidth="12" />
+        {!muted && (
+          <circle
+            cx="75"
+            cy="75"
+            r={r}
+            fill="none"
+            stroke={color}
+            strokeWidth="12"
+            strokeLinecap="round"
+            strokeDasharray={circumference}
+            strokeDashoffset={offset}
+            className="transition-all duration-700"
+          />
+        )}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        {muted ? (
+          <span className="text-3xl font-bold text-[#B0B8C9]">—</span>
+        ) : (
+          <span className="text-3xl font-bold text-[#1A202C]">
+            {clamped.toLocaleString("es-UY", { maximumFractionDigits: 1 })}%
+          </span>
+        )}
+        <span className="mt-0.5 text-xs font-medium text-[#8891A4]">conversión</span>
+      </div>
+    </div>
+  );
+}
+
+function ConversionCard({ conversion }: { conversion: ConversionSummary | null }) {
+  if (!conversion) return null;
+
+  const muted = conversion.insufficientData || conversion.conversionRate === null;
 
   return (
     <SectionCard
-      title="Tu reputación en Google"
-      description={`${stats.total.toLocaleString("es-UY")} reseñas en total · ${stats.thisMonth} este mes`}
+      title="Conversión a reseñas"
+      description="Cuántos de tus mensajes de los últimos 30 días terminaron en una reseña ⭐"
     >
-      <div className="flex flex-wrap items-start gap-6">
-        <div className="flex flex-col items-center gap-1">
-          <p className="text-[44px] font-bold leading-none text-[#1A202C]">
-            {stats.avgStars.toLocaleString("es-UY", {
-              minimumFractionDigits: 1,
-              maximumFractionDigits: 1,
-            })}
-          </p>
-          <span className="text-xl text-amber-400" aria-hidden="true">★★★★★</span>
-          <p className="text-xs text-[#8891A4]">promedio</p>
-        </div>
-        <div className="flex-1 min-w-[160px] space-y-2">
-          {[5, 4, 3, 2, 1].map((star) => {
-            const count = dist[star] ?? 0;
-            const pct = Math.round((count / maxCount) * 100);
-            return (
-              <div key={star} className="flex items-center gap-2">
-                <span className="w-5 shrink-0 text-right text-xs font-semibold text-[#8891A4]">
-                  {star}
-                </span>
-                <span className="text-amber-400 text-xs" aria-hidden="true">★</span>
-                <div className="flex-1 overflow-hidden rounded-full bg-[#F0F2FA] h-2">
-                  {count > 0 && (
-                    <div
-                      className="h-full rounded-full bg-amber-400"
-                      style={{ width: `${pct}%` }}
-                    />
-                  )}
-                </div>
-                <span className="w-8 shrink-0 text-right text-xs tabular-nums text-[#8891A4]">
-                  {count}
-                </span>
-              </div>
-            );
-          })}
+      <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-center sm:gap-8">
+        <ConversionRing pct={conversion.conversionRate ?? 0} muted={muted} />
+        <div className="max-w-xs text-center sm:text-left">
+          {muted ? (
+            <p className="text-sm text-[#8891A4]">
+              Todavía no hay datos suficientes. Necesitás al menos 30 mensajes
+              enviados (llevás{" "}
+              <span className="font-semibold text-[#1A202C]">
+                {conversion.sentMessages}
+              </span>
+              ) para ver tu tasa de conversión. ¡Seguí mandando! 💪
+            </p>
+          ) : (
+            <p className="text-sm text-[#4A5568]">
+              <span className="font-semibold text-[#1A202C]">
+                {conversion.attributedReviews}
+              </span>{" "}
+              {conversion.attributedReviews === 1 ? "reseña" : "reseñas"} de{" "}
+              <span className="font-semibold text-[#1A202C]">
+                {conversion.sentMessages}
+              </span>{" "}
+              mensajes enviados.
+            </p>
+          )}
         </div>
       </div>
     </SectionCard>
@@ -159,6 +233,28 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
     );
   }
 
+  // Best-effort secondary data: a failure here shouldn't break the whole page,
+  // the affected card is simply omitted.
+  let contactsStats: ContactsStats | null = null;
+  try {
+    contactsStats = await apiFetch<ContactsStats>("/contacts/stats", accessToken, {
+      businessId,
+    });
+  } catch {
+    // card omitted below
+  }
+
+  let conversion: ConversionSummary | null = null;
+  try {
+    conversion = await apiFetch<ConversionSummary>(
+      "/metrics/conversion?range=last_30_days&attribution_window_days=7",
+      accessToken,
+      { businessId },
+    );
+  } catch {
+    // card omitted below
+  }
+
   const unread = metrics.negativeFeedback.filter((f) => !f.acknowledgedByOwner).length;
   const showReactivated = metrics.kpis.reactivatedCustomers.current > 0;
 
@@ -192,6 +288,37 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
         {revSummary}
       </div>
 
+      {/* KPI row — contacts + rating, same visual language as /dashboard */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <MiniKpiCard
+          label="Contactos"
+          value={(contactsStats?.total ?? 0).toLocaleString("es-UY")}
+          sub={
+            contactsStats
+              ? contactsStats.newThisMonth > 0
+                ? `+${contactsStats.newThisMonth.toLocaleString("es-UY")} este mes`
+                : "sin nuevos este mes"
+              : "—"
+          }
+        />
+        <MiniKpiCard
+          label="Tu rating en Google"
+          value={
+            googleStats
+              ? `${googleStats.avgStars.toLocaleString("es-UY", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ★`
+              : "—"
+          }
+          sub={
+            googleStats
+              ? `${googleStats.total.toLocaleString("es-UY")} reseñas en total · ${googleStats.thisMonth} este mes`
+              : "—"
+          }
+        />
+      </div>
+
+      {/* Conversion rate */}
+      <ConversionCard conversion={conversion} />
+
       {/* Activity chart */}
       <SectionCard
         title="Tu actividad"
@@ -215,12 +342,6 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
           <ActivityEvolutionChart data={metrics.activityByMonth} />
         </div>
       </SectionCard>
-
-      {/* Contact base composition */}
-      <ContactsStatsSection businessId={businessId} />
-
-      {/* Avg rating */}
-      {googleStats ? <AvgRatingCard stats={googleStats} /> : null}
 
       {/* Reactivated customers — only if there's data */}
       {showReactivated && (
