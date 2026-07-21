@@ -147,16 +147,32 @@ function statusBadgeClass(status: string) {
     : "bg-[#F1F4F9] text-[#8891A4]";
 }
 
+// Campañas basadas en visitas (ServiceEvent) que quedaron reemplazadas por el
+// sistema nuevo de Retención por tiempo (/dashboard/retention). Se ocultan de la
+// UI pero no se borran: la lógica de backend sigue intacta si se reactivan.
+const HIDDEN_TEMPLATE_KINDS = new Set([
+  "reactivation",
+  "post_service",
+  "birthday",
+]);
+
 export default function RepeatCampaignsSection({
   initialCampaigns,
 }: {
   initialCampaigns: RepeatCampaign[];
 }) {
-  const [campaigns, setCampaigns] = useState<RepeatCampaign[]>(initialCampaigns);
+  const [campaigns, setCampaigns] = useState<RepeatCampaign[]>(
+    initialCampaigns.filter(
+      (c) => !HIDDEN_TEMPLATE_KINDS.has(c.templateKind ?? ""),
+    ),
+  );
   const [savingIds, setSavingIds] = useState<Set<string>>(new Set());
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const activeCount = campaigns.filter((c) => c.status === "ACTIVE").length;
+
+  // Nothing to show once the visit-based campaigns are hidden.
+  if (campaigns.length === 0) return null;
 
   async function toggleCampaign(id: string) {
     const campaign = campaigns.find((c) => c.id === id);

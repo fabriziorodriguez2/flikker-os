@@ -159,6 +159,7 @@ export class PublicService {
       name,
       business.name,
       benefit?.title ?? business.campaigns[0]?.offerText ?? null,
+      benefit?.type ?? null,
     );
 
     void this.trySendOwnerNotification(business.id, business.name, business.phone ?? null, name);
@@ -278,11 +279,26 @@ export class PublicService {
     customerName: string,
     businessName: string,
     benefitText: string | null,
+    benefitType: BenefitType | null = null,
   ) {
     try {
-      const body = benefitText
-        ? `Hola ${customerName}! 🎉 Quedaste registrado en *${businessName}*.\nTu beneficio: ${benefitText}\nPróximamente nos ponemos en contacto.`
-        : `Hola ${customerName}! 👋 Gracias por registrarte en *${businessName}*. Te avisamos cuando haya novedades para vos.`;
+      const registered = `Hola ${customerName}! 🎉 Quedaste registrado en *${businessName}*.`;
+      let body: string;
+      if (benefitText && benefitType === BenefitType.raffle) {
+        // Raffle: the customer is entered into a draw, they didn't win a benefit.
+        body = `${registered}\n🎟️ Ya estás participando del sorteo: ${benefitText}\n¡Mucha suerte! Te avisamos si ganás.`;
+      } else if (benefitText) {
+        const noun =
+          benefitType === BenefitType.discount
+            ? 'descuento'
+            : benefitType === BenefitType.gift
+              ? 'regalo'
+              : 'beneficio';
+        body = `${registered}\nTu ${noun}: ${benefitText}\nMostrá este mensaje en el local para usarlo. ¡Te esperamos!`;
+      } else {
+        // No benefit: warm thank-you sent right at visit time.
+        body = `Hola ${customerName}! 🎉 Gracias por pasar por *${businessName}*. ¡Fue un gusto tenerte y te esperamos pronto de nuevo!`;
+      }
 
       await this.whatsApp.sendText({ phone: phoneE164, text: body });
     } catch (error) {

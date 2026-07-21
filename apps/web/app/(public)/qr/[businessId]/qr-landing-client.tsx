@@ -92,15 +92,23 @@ function CaptureForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isRaffle = info.benefit?.type === "raffle";
+
   const title = info.benefitText
     ? info.benefitText
     : `Recibí descuentos y novedades de ${info.businessName}`;
 
-  const subtitle = info.benefitText
-    ? "Dejanos tu nombre y número y te lo enviamos por WhatsApp."
-    : "Dejanos tu nombre y número y te avisamos cuando haya algo para vos.";
+  const subtitle = isRaffle
+    ? "Dejanos tu nombre y número para participar del sorteo."
+    : info.benefitText
+      ? "Dejanos tu nombre y número y te lo enviamos por WhatsApp."
+      : "Dejanos tu nombre y número y te avisamos cuando haya algo para vos.";
 
-  const btnLabel = info.benefitText ? "Quiero mi beneficio" : "Anotarme";
+  const btnLabel = isRaffle
+    ? "Quiero participar"
+    : info.benefitText
+      ? "Quiero mi beneficio"
+      : "Anotarme";
 
   const currentYear = new Date().getFullYear();
   const yearRange: number[] = [];

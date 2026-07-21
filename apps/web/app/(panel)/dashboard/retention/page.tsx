@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Clock, Loader2, Plus, Trash2 } from "lucide-react";
+import Switch from "@/components/ui/switch";
 import { useCanMutate } from "../../role-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -23,13 +24,20 @@ interface StepDraft {
   messageBody: string;
 }
 
-// Suggested starting point (editable). Day 0 is intentionally omitted: the QR
-// flow already sends a welcome message at registration.
+// Suggested starting point (editable). The "thanks for visiting" note goes out
+// right at registration via the QR welcome message, so the sequence starts a few
+// days later. The later steps (95+) invite without assuming the person did not
+// return — we don't track visits.
 const TEMPLATE_STEPS: Omit<StepDraft, "key">[] = [
+  {
+    offsetDays: 10,
+    messageBody:
+      "Hola {nombre} 😊 Pasaron unos días desde que nos visitaste en {negocio}. ¡Gracias por venir! Si te quedaste con ganas de algo, acá estamos.",
+  },
   {
     offsetDays: 20,
     messageBody:
-      "Hola {nombre}, hace un tiempo nos visitaste en {negocio}. ¡Te esperamos de nuevo!",
+      "Hola {nombre}, en {negocio} siempre hay algo rico esperándote. ¡Nos encantaría verte pronto!",
   },
   {
     offsetDays: 45,
@@ -38,7 +46,51 @@ const TEMPLATE_STEPS: Omit<StepDraft, "key">[] = [
   },
   {
     offsetDays: 75,
-    messageBody: "Hola {nombre}, ¡te extrañamos en {negocio}! Volvé a visitarnos.",
+    messageBody:
+      "Hola {nombre}, preparamos cosas nuevas en {negocio}. ¡Sería un gusto recibirte!",
+  },
+  {
+    offsetDays: 95,
+    messageBody:
+      "Hola {nombre}, este mes en {negocio} tenemos propuestas nuevas. ¡Te esperamos cuando quieras pasar!",
+  },
+  {
+    offsetDays: 115,
+    messageBody:
+      "Hola {nombre}, siempre es un buen momento para darte un gusto en {negocio}. 😋",
+  },
+  {
+    offsetDays: 135,
+    messageBody:
+      "Hola {nombre}, en {negocio} seguimos sumando novedades pensadas para vos.",
+  },
+  {
+    offsetDays: 155,
+    messageBody: "Hola {nombre}, ¿ya conocés lo último de {negocio}? Te va a gustar.",
+  },
+  {
+    offsetDays: 175,
+    messageBody:
+      "Hola {nombre}, en {negocio} tenemos algo para cada antojo. ¡Pasá cuando quieras!",
+  },
+  {
+    offsetDays: 195,
+    messageBody:
+      "Hola {nombre}, novedades frescas en {negocio}. Nos encantaría que las pruebes.",
+  },
+  {
+    offsetDays: 215,
+    messageBody: "Hola {nombre}, en {negocio} siempre hay un motivo para pasar. ✨",
+  },
+  {
+    offsetDays: 235,
+    messageBody:
+      "Hola {nombre}, preparamos nuevas propuestas en {negocio} para vos.",
+  },
+  {
+    offsetDays: 255,
+    messageBody:
+      "Hola {nombre}, en {negocio} te esperamos con las novedades de la temporada.",
   },
 ];
 
@@ -210,25 +262,15 @@ export default function RetentionPage() {
                 Cuando está activa, enviamos los mensajes en los días indicados.
               </p>
             </div>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={enabled}
+            <Switch
+              checked={enabled}
               disabled={!canMutate}
-              onClick={() => {
+              label={enabled ? "Desactivar secuencia" : "Activar secuencia"}
+              onCheckedChange={() => {
                 setEnabled((v) => !v);
                 setSaved(false);
               }}
-              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${
-                enabled ? "bg-[#5C6BC0]" : "bg-[#D0D5DD]"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${
-                  enabled ? "translate-x-[22px]" : "translate-x-0.5"
-                }`}
-              />
-            </button>
+            />
           </div>
 
           {/* Steps */}
