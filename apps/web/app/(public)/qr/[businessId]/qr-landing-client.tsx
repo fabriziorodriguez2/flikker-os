@@ -96,7 +96,7 @@ function CaptureForm({
 
   const title = info.benefitText
     ? info.benefitText
-    : `Recibí descuentos y novedades de ${info.businessName}`;
+    : `Sumate a ${info.businessName}`;
 
   const subtitle = isRaffle
     ? "Dejanos tu nombre y número para participar del sorteo."
