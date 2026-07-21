@@ -60,7 +60,8 @@
       "Bash(xargs grep -l \"trustHostHeader\")",
       "Bash(npx prisma *)",
       "Bash(npx jest *)",
-      "Bash(npx eslint *)"
+      "Bash(npx eslint *)",
+      "Bash(git rm *)"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

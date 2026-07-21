@@ -168,7 +168,7 @@ async function ConversionContent({ range }: { range: ValidRange }) {
           value={fmtRate(summary.conversionRate)}
           sub={
             summary.insufficientData
-              ? `Faltan datos (${summary.sentMessages} mensajes)`
+              ? `Llevás ${summary.sentMessages} ${summary.sentMessages === 1 ? "mensaje" : "mensajes"}`
               : `${summary.attributedReviews} reseñas / ${summary.sentMessages} enviados`
           }
           muted={summary.insufficientData}
@@ -190,8 +190,9 @@ async function ConversionContent({ range }: { range: ValidRange }) {
       {/* Insufficient data notice */}
       {summary.insufficientData && (
         <div className="rounded-[10px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          Se necesitan al menos 30 mensajes enviados (excluyendo los últimos 7 días) para calcular
-          la tasa de conversión.
+          Todavía estamos juntando datos. Cuando llegues a 30 mensajes enviados
+          (sin contar los últimos 7 días) vas a ver acá tu tasa de conversión.
+          ¡Seguí mandando! 💪
         </div>
       )}
 
@@ -249,7 +250,7 @@ export default function ConversionSection({
   return (
     <SectionCard
       title="Conversión a reseñas"
-      description="Qué porcentaje de los mensajes enviados derivó en una reseña de Google."
+      description="Cuántos de tus mensajes terminaron en una reseña de Google ⭐"
       action={<ConversionRangeFilter range={range} />}
     >
       <Suspense

@@ -1,9 +1,10 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import { isClinicVertical } from "@/lib/verticals";
 import QuickAttend from "./quick-attend";
-import FlikPanel from "./flik-panel";
+import MonthlyGoalCard from "./monthly-goal-card";
 import { RatingProgressCard, type RatingData } from "./rating-progress-card";
 
 interface RecentAttendance {
@@ -138,6 +139,25 @@ function MessageQuotaBanner({
   );
 }
 
+function greetingForTimezone(timezone: string): string {
+  let hour = 12;
+  try {
+    hour = Number(
+      new Intl.DateTimeFormat("en-US", {
+        timeZone: timezone,
+        hour: "2-digit",
+        hourCycle: "h23",
+      }).format(new Date()),
+    );
+  } catch {
+    // Invalid timezone → fall back to midday greeting.
+  }
+  if (!Number.isFinite(hour)) hour = 12;
+  if (hour < 12) return "Buen día";
+  if (hour < 20) return "Buenas tardes";
+  return "Buenas noches";
+}
+
 export default async function DashboardPage() {
   const session = await getSession();
   if (!session?.activeBusinessId) redirect("/login");
@@ -158,18 +178,21 @@ export default async function DashboardPage() {
   if (sessionExpired) redirect("/session-expired");
 
   // Attendance UI (marcar atendido / últimas atenciones) is clinic-only.
+  // We also read the timezone to greet by local time of day.
   let vertical: string | null = null;
+  let timezone = "America/Montevideo";
   try {
-    const biz = await apiFetch<{ vertical: string | null }>(
-      "/businesses/current",
-      accessToken,
-      { businessId },
-    );
+    const biz = await apiFetch<{
+      vertical: string | null;
+      timezone?: string | null;
+    }>("/businesses/current", accessToken, { businessId });
     vertical = biz.vertical ?? null;
+    if (biz.timezone) timezone = biz.timezone;
   } catch {
     // Best-effort: default to non-clinic (attendance UI hidden) on failure.
   }
   const isClinic = isClinicVertical(vertical);
+  const greeting = greetingForTimezone(timezone);
 
   if (error || !stats) {
     return (
@@ -192,55 +215,73 @@ export default async function DashboardPage() {
   const reviewVariant =
     stats.reviews.delta > 0 ? "positive" : stats.reviews.delta < 0 ? "negative" : "neutral";
 
+  const firstName = session.user?.firstName?.trim();
+  const heroSubtitle = isClinic
+    ? stats.attended.today === 0
+      ? "Todavía no marcaste a nadie. Un cliente por vez."
+      : `Van ${stats.attended.today.toLocaleString("es-UY")} atendidos hoy. ¡Seguí así!`
+    : "Este es el resumen de tu reputación. Seguí sumando reseñas ✨";
+
+  const secondaryKpi = isClinic ? (
+    <KpiCard
+      label="Clientes atendidos hoy"
+      value={stats.attended.today.toLocaleString("es-UY")}
+      sub={`${stats.attended.thisWeek.toLocaleString("es-UY")} esta semana`}
+      badgeVariant="neutral"
+    />
+  ) : (
+    <KpiCard
+      label="Mensajes enviados hoy"
+      value={stats.messages.today.toLocaleString("es-UY")}
+      sub={`${stats.messages.thisMonth.toLocaleString("es-UY")} este mes`}
+      badgeVariant="neutral"
+    />
+  );
+
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-[#1A202C]">Panel</h1>
-        <p className="mt-1 text-sm text-[#8891A4]">
-          Vista operativa del día
-        </p>
-      </div>
+    <div className="mx-auto max-w-5xl space-y-6">
+      <header className="text-center">
+        <h1 className="font-display text-2xl font-bold text-[#1A202C] sm:text-[28px]">
+          {greeting}
+          {firstName ? `, ${firstName}` : ""}{" "}
+          <span aria-hidden="true">👋</span>
+        </h1>
+        <p className="mt-1.5 text-sm text-[#8891A4]">{heroSubtitle}</p>
+      </header>
 
       <MessageQuotaBanner
         used={stats.messages.thisMonth}
         limit={stats.messages.quotaLimit}
       />
 
-      <section className={`grid gap-4 ${isClinic ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
-        <KpiCard
-          label="Reseñas este mes"
-          value={stats.reviews.thisMonth.toLocaleString("es-UY")}
-          badge={reviewBadge}
-          badgeVariant={reviewVariant}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <MonthlyGoalCard
+          goalView={stats.goalView}
+          currentPlan={stats.currentPlan}
         />
-        {isClinic ? (
-          <KpiCard
-            label="Clientes atendidos hoy"
-            value={stats.attended.today.toLocaleString("es-UY")}
-            sub={`${stats.attended.thisWeek.toLocaleString("es-UY")} esta semana`}
-            badgeVariant="neutral"
-          />
-        ) : null}
-        <KpiCard
-          label="Mensajes enviados hoy"
-          value={stats.messages.today.toLocaleString("es-UY")}
-          sub={`${stats.messages.thisMonth.toLocaleString("es-UY")} este mes`}
-          badgeVariant="neutral"
-        />
-      </section>
 
-      {stats.rating && <RatingProgressCard rating={stats.rating} />}
+        <div className="flex flex-col gap-4">
+          {stats.rating && <RatingProgressCard rating={stats.rating} />}
+          <div className="grid grid-cols-2 gap-4">
+            <KpiCard
+              label="Reseñas este mes"
+              value={stats.reviews.thisMonth.toLocaleString("es-UY")}
+              badge={reviewBadge}
+              badgeVariant={reviewVariant}
+            />
+            {secondaryKpi}
+          </div>
+        </div>
+      </div>
 
-      <FlikPanel
-        attendedToday={stats.attended.today}
-        currentPlan={stats.currentPlan}
-        goalView={stats.goalView}
-        recentAttendances={stats.recentAttendances}
-        isClinic={isClinic}
-      />
+      <Link
+        href="/dashboard/reviews"
+        className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#5C6BC0] px-6 py-4 text-base font-bold text-white shadow-[0_10px_24px_rgba(92,107,192,0.28)] transition-colors hover:bg-[#4f5eb0]"
+      >
+        Ver reseñas nuevas <span aria-hidden="true">→</span>
+      </Link>
 
       {isClinic ? <QuickAttend /> : null}
-
     </div>
   );
 }

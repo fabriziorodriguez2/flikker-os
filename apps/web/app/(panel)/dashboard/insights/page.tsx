@@ -82,7 +82,7 @@ function AvgRatingCard({ stats }: { stats: GoogleStats }) {
 
   return (
     <SectionCard
-      title="Calificación promedio en Google"
+      title="Tu reputación en Google"
       description={`${stats.total.toLocaleString("es-UY")} reseñas en total · ${stats.thisMonth} este mes`}
     >
       <div className="flex flex-wrap items-start gap-6">
@@ -164,19 +164,40 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
   const unread = metrics.negativeFeedback.filter((f) => !f.acknowledgedByOwner).length;
   const showReactivated = metrics.kpis.reactivatedCustomers.current > 0;
 
+  const rev = metrics.kpis.reviewsGenerated;
+  const revUp = rev.current > rev.previous;
+  const revSummary = revUp
+    ? `¡Vas en subida! Este mes sumaste ${rev.current} ${rev.current === 1 ? "reseña" : "reseñas"}${rev.previous > 0 ? `, más que el mes pasado (${rev.previous})` : ""}. Seguí así 🚀`
+    : rev.current === rev.previous
+      ? `Vas parejo: ${rev.current} ${rev.current === 1 ? "reseña" : "reseñas"} este mes, igual que el anterior. Un empujoncito y crecés 💪`
+      : `Este mes sumaste ${rev.current} ${rev.current === 1 ? "reseña" : "reseñas"} (${rev.previous} el mes pasado). Buen momento para pedir algunas más 🙌`;
+
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <div>
-        <h1 className="font-display text-2xl font-bold text-[#1A202C]">Insights</h1>
+        <h1 className="font-display text-2xl font-bold text-[#1A202C]">
+          Tu resumen
+        </h1>
         <p className="mt-1 text-sm text-[#8891A4]">
-          Análisis de actividad, conversión y reputación
+          Mirá cómo evoluciona tu reputación y qué te está trayendo reseñas 📈
         </p>
+      </div>
+
+      {/* Friendly trend summary */}
+      <div
+        className={`rounded-[14px] border px-5 py-4 text-sm font-semibold ${
+          revUp
+            ? "border-[#1D9E75]/20 bg-[#1D9E75]/10 text-[#12795A]"
+            : "border-[#E8EAF0] bg-[#F9F9FB] text-[#4A5568]"
+        }`}
+      >
+        {revSummary}
       </div>
 
       {/* Activity chart */}
       <SectionCard
-        title="Actividad"
-        description="Mensajes, reseñas y reactivaciones por período."
+        title="Tu actividad"
+        description="Cómo se mueven tus mensajes y reseñas con el tiempo."
         action={
           <div className="hidden items-center gap-4 sm:flex">
             {ACTIVITY_SERIES.map((s) => (
@@ -228,8 +249,8 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
 
       {/* Negative feedback */}
       <SectionCard
-        title="Comentarios negativos recientes"
-        description="No se publicaron en Google. Respondé al cliente antes de que escale."
+        title="Comentarios para atender"
+        description="No se publicaron en Google. Un mensaje a tiempo hace la diferencia 💬"
         action={
           unread > 0 ? (
             <span className="rounded-full bg-[#FFAB76]/20 px-3 py-1.5 text-xs font-semibold text-[#D4600A]">
