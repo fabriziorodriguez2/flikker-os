@@ -18,17 +18,26 @@ interface FlikPanelProps {
   currentPlan: { type: PlanType } | null;
   goalView: GoalView | null;
   recentAttendances: RecentAttendance[];
+  isClinic: boolean;
 }
 
 function getPoseAndMessage(
   attendedToday: number,
   goalView: GoalView | null,
+  isClinic: boolean,
 ): { pose: FlikPose; message: string } {
   if (goalView && goalView.current >= goalView.target) {
     const noun = goalView.type === "REVIEWS" ? "reseñas" : "contactos";
     return {
       pose: "celebrando",
       message: `¡Llegaste a la meta! ${goalView.current} ${noun} nuevos. 🎉`,
+    };
+  }
+  // Non-clinic businesses don't track attendance, so avoid attendance language.
+  if (!isClinic) {
+    return {
+      pose: "normal",
+      message: "Este es tu panel. Seguí sumando reseñas para destacar ✨",
     };
   }
   if (attendedToday === 0) {
@@ -115,8 +124,9 @@ export default function FlikPanel({
   currentPlan,
   goalView,
   recentAttendances,
+  isClinic,
 }: FlikPanelProps) {
-  const { pose, message } = getPoseAndMessage(attendedToday, goalView);
+  const { pose, message } = getPoseAndMessage(attendedToday, goalView, isClinic);
   const celebrating = pose === "celebrando";
 
   // BASE/PRO without an active user goal → welcome banner with cards
@@ -207,8 +217,8 @@ export default function FlikPanel({
         </div>
       )}
 
-      {/* Recent attendances */}
-      {recentAttendances.length > 0 && (
+      {/* Recent attendances — clinic-only */}
+      {isClinic && recentAttendances.length > 0 && (
         <div className="rounded-[12px] border border-[#E8EAF0] bg-white overflow-hidden">
           <p className="border-b border-[#E8EAF0] px-5 py-3 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8891A4]">
             Últimas atenciones

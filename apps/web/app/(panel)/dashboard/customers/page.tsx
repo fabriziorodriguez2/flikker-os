@@ -22,6 +22,7 @@ import PhoneInput, {
   toNationalDigits,
 } from "@/components/ui/phone-input";
 import { useQueryClient } from "@tanstack/react-query";
+import { isClinicVertical } from "@/lib/verticals";
 import { useCanMutate } from "../../role-context";
 import ManualCampaignModal, {
   type ManualRecipient,
@@ -491,6 +492,7 @@ export default function CustomersPage() {
   const [error, setError] = useState<string | null>(null);
   const [businessName, setBusinessName] = useState("");
   const [businessVertical, setBusinessVertical] = useState<string | null>(null);
+  const isClinic = isClinicVertical(businessVertical);
   const [celebrationName, setCelebrationName] = useState<string | null>(null);
   const [attendedTodayIds, setAttendedTodayIds] = useState<Set<string>>(
     new Set(),
@@ -1182,31 +1184,35 @@ export default function CustomersPage() {
                 <p className="mt-1.5 pl-7 text-sm text-[#8891A4]">{customer.phoneE164}</p>
                 <p className="mt-0.5 pl-7 text-xs text-[#B0B8C9]">{formatDate(customer.createdAt)}</p>
                 <div className="mt-3 flex flex-wrap items-center gap-2 pl-7">
-                  <button
-                    type="button"
-                    onClick={() => handleAttendedClick(customer)}
-                    disabled={!canMutate || customer.optedOut}
-                    className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-[8px] px-3 text-xs font-semibold disabled:opacity-50 ${
-                      isAttended
-                        ? "bg-[#EEF7E8] text-[#639922]"
-                        : "border border-[#E8EAF0] bg-white text-[#8891A4] hover:border-[#5C6BC0] hover:text-[#5C6BC0]"
-                    }`}
-                  >
-                    {isAttended ? (
-                      <><Check className="h-3.5 w-3.5" />Atendido hoy</>
-                    ) : (
-                      "Marcar atendido"
-                    )}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => openNotifyAppointment(customer)}
-                    disabled={!canMutate || customer.optedOut}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] disabled:opacity-50"
-                    aria-label="Avisar turno"
-                  >
-                    <CalendarClock className="h-4 w-4" />
-                  </button>
+                  {isClinic ? (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleAttendedClick(customer)}
+                        disabled={!canMutate || customer.optedOut}
+                        className={`inline-flex min-h-[36px] items-center gap-1.5 rounded-[8px] px-3 text-xs font-semibold disabled:opacity-50 ${
+                          isAttended
+                            ? "bg-[#EEF7E8] text-[#639922]"
+                            : "border border-[#E8EAF0] bg-white text-[#8891A4] hover:border-[#5C6BC0] hover:text-[#5C6BC0]"
+                        }`}
+                      >
+                        {isAttended ? (
+                          <><Check className="h-3.5 w-3.5" />Atendido hoy</>
+                        ) : (
+                          "Marcar atendido"
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openNotifyAppointment(customer)}
+                        disabled={!canMutate || customer.optedOut}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] disabled:opacity-50"
+                        aria-label="Avisar turno"
+                      >
+                        <CalendarClock className="h-4 w-4" />
+                      </button>
+                    </>
+                  ) : null}
                   <button
                     type="button"
                     onClick={() => openEdit(customer)}
@@ -1302,35 +1308,39 @@ export default function CustomersPage() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => handleAttendedClick(customer)}
-                          disabled={!canMutate || customer.optedOut}
-                          className={`inline-flex h-8 items-center gap-1.5 rounded-[8px] px-3 text-xs font-semibold disabled:opacity-50 ${
-                            isAttended
-                              ? "bg-[#EEF7E8] text-[#639922]"
-                              : "border border-[#E8EAF0] bg-white text-[#8891A4] hover:border-[#5C6BC0] hover:text-[#5C6BC0]"
-                          }`}
-                        >
-                          {isAttended ? (
-                            <>
-                              <Check className="h-3.5 w-3.5" />
-                              Atendido hoy
-                            </>
-                          ) : (
-                            "Marcar atendido"
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openNotifyAppointment(customer)}
-                          disabled={!canMutate || customer.optedOut}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA] disabled:opacity-50"
-                          aria-label="Avisar turno"
-                          title="Avisar turno"
-                        >
-                          <CalendarClock className="h-4 w-4" />
-                        </button>
+                        {isClinic ? (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => handleAttendedClick(customer)}
+                              disabled={!canMutate || customer.optedOut}
+                              className={`inline-flex h-8 items-center gap-1.5 rounded-[8px] px-3 text-xs font-semibold disabled:opacity-50 ${
+                                isAttended
+                                  ? "bg-[#EEF7E8] text-[#639922]"
+                                  : "border border-[#E8EAF0] bg-white text-[#8891A4] hover:border-[#5C6BC0] hover:text-[#5C6BC0]"
+                              }`}
+                            >
+                              {isAttended ? (
+                                <>
+                                  <Check className="h-3.5 w-3.5" />
+                                  Atendido hoy
+                                </>
+                              ) : (
+                                "Marcar atendido"
+                              )}
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openNotifyAppointment(customer)}
+                              disabled={!canMutate || customer.optedOut}
+                              className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:bg-[#F5F6FA] disabled:opacity-50"
+                              aria-label="Avisar turno"
+                              title="Avisar turno"
+                            >
+                              <CalendarClock className="h-4 w-4" />
+                            </button>
+                          </>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => openEdit(customer)}

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
+import { isClinicVertical } from "@/lib/verticals";
 import QuickAttend from "./quick-attend";
 import FlikPanel from "./flik-panel";
 import { RatingProgressCard, type RatingData } from "./rating-progress-card";
@@ -156,6 +157,20 @@ export default async function DashboardPage() {
   }
   if (sessionExpired) redirect("/session-expired");
 
+  // Attendance UI (marcar atendido / últimas atenciones) is clinic-only.
+  let vertical: string | null = null;
+  try {
+    const biz = await apiFetch<{ vertical: string | null }>(
+      "/businesses/current",
+      accessToken,
+      { businessId },
+    );
+    vertical = biz.vertical ?? null;
+  } catch {
+    // Best-effort: default to non-clinic (attendance UI hidden) on failure.
+  }
+  const isClinic = isClinicVertical(vertical);
+
   if (error || !stats) {
     return (
       <div className="max-w-3xl">
@@ -191,19 +206,21 @@ export default async function DashboardPage() {
         limit={stats.messages.quotaLimit}
       />
 
-      <section className="grid gap-4 sm:grid-cols-3">
+      <section className={`grid gap-4 ${isClinic ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
         <KpiCard
           label="Reseñas este mes"
           value={stats.reviews.thisMonth.toLocaleString("es-UY")}
           badge={reviewBadge}
           badgeVariant={reviewVariant}
         />
-        <KpiCard
-          label="Clientes atendidos hoy"
-          value={stats.attended.today.toLocaleString("es-UY")}
-          sub={`${stats.attended.thisWeek.toLocaleString("es-UY")} esta semana`}
-          badgeVariant="neutral"
-        />
+        {isClinic ? (
+          <KpiCard
+            label="Clientes atendidos hoy"
+            value={stats.attended.today.toLocaleString("es-UY")}
+            sub={`${stats.attended.thisWeek.toLocaleString("es-UY")} esta semana`}
+            badgeVariant="neutral"
+          />
+        ) : null}
         <KpiCard
           label="Mensajes enviados hoy"
           value={stats.messages.today.toLocaleString("es-UY")}
@@ -219,9 +236,10 @@ export default async function DashboardPage() {
         currentPlan={stats.currentPlan}
         goalView={stats.goalView}
         recentAttendances={stats.recentAttendances}
+        isClinic={isClinic}
       />
 
-      <QuickAttend />
+      {isClinic ? <QuickAttend /> : null}
 
     </div>
   );
