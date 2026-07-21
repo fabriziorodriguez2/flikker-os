@@ -79,6 +79,13 @@ const BenefitsIcon = () => (
   </Icon>
 );
 
+const RetentionIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3 2" />
+  </Icon>
+);
+
 const QrIcon = () => (
   <Icon>
     <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -114,6 +121,7 @@ const MAIN_NAV_ITEMS: Array<{
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon />, onboardingKey: "campaigns" },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
   { href: "/dashboard/benefits", label: "Beneficios", icon: <BenefitsIcon /> },
+  { href: "/dashboard/retention", label: "Retención", icon: <RetentionIcon /> },
   { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon />, impersonatorOnly: true },
   { href: "/dashboard/qr", label: "QR", icon: <QrIcon />, onboardingKey: "qr", impersonatorOnly: true },
 ];

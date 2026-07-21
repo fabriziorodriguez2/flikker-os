@@ -27,6 +27,7 @@ import { GoogleCalendarModule } from './modules/integrations/google-calendar/goo
 import { PublicModule } from './modules/public/public.module';
 import { MessageTemplatesModule } from './modules/message-templates/message-templates.module';
 import { BenefitsModule } from './modules/benefits/benefits.module';
+import { RetentionModule } from './modules/retention/retention.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -58,6 +59,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     PublicModule,
     MessageTemplatesModule,
     BenefitsModule,
+    RetentionModule,
   ],
   controllers: [AppController],
 })

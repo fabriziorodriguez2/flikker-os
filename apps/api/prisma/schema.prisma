@@ -325,6 +325,9 @@ model Business {
   messageTemplates          MessageTemplate[]
   benefits                  Benefit[]
   benefitParticipations     BenefitParticipation[]
+  retentionSequences        RetentionSequence[]
+  retentionSteps            RetentionStep[]
+  retentionSends            RetentionSend[]
 }
 
 // ---------------------------------------------------------------------------
@@ -550,6 +553,7 @@ model Customer {
   manualCampaignContacts ManualCampaignContact[]
   appointmentNotifications AppointmentNotification[]
   benefitParticipations  BenefitParticipation[]
+  retentionSends         RetentionSend[]
 
   @@index([businessId])
   @@index([businessId, isActive])
@@ -625,6 +629,7 @@ model Message {
   feedbackResponses       FeedbackResponse[]
   campaignExecutions      CampaignExecution[]
   attributedGoogleReviews GoogleReview[]
+  retentionSends          RetentionSend[]
 
   @@index([businessId])
   @@index([customerId])
@@ -1196,5 +1201,70 @@ model BenefitParticipation {
   @@index([benefitId])
   @@index([customerId])
   @@map("benefit_participations")
+}
+
+// ---------------------------------------------------------------------------
+// RetentionSequence (time-based re-engagement sequence, one per business)
+// ---------------------------------------------------------------------------
+// Fully configurable: steps live in the DB (no hardcoded days). Flikker does
+// not know when a customer returns; steps fire relative to the customer's
+// registration date (Customer.createdAt).
+
+model RetentionSequence {
+  id         String   @id @default(uuid())
+  businessId String   @unique @map("business_id")
+  enabled    Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  business Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  steps    RetentionStep[]
+
+  @@map("retention_sequences")
+}
+
+model RetentionStep {
+  id          String   @id @default(uuid())
+  sequenceId  String   @map("sequence_id")
+  businessId  String   @map("business_id")
+  offsetDays  Int      @map("offset_days")
+  messageBody String   @map("message_body")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  sequence RetentionSequence @relation(fields: [sequenceId], references: [id], onDelete: Cascade)
+  business Business          @relation(fields: [businessId], references: [id])
+  sends    RetentionSend[]
+
+  @@unique([sequenceId, offsetDays])
+  @@index([businessId])
+  @@index([sequenceId])
+  @@map("retention_steps")
+}
+
+// Send history — anti-duplicate is keyed by (customerId, offsetDays) so that
+// editing/recreating steps never re-messages a customer for a day they already
+// received. stepId is nullable (SetNull) so history survives step deletion.
+
+model RetentionSend {
+  id         String        @id @default(uuid())
+  businessId String        @map("business_id")
+  customerId String        @map("customer_id")
+  stepId     String?       @map("step_id")
+  offsetDays Int           @map("offset_days")
+  messageId  String?       @map("message_id")
+  status     MessageStatus @default(queued)
+  createdAt  DateTime      @default(now()) @map("created_at")
+
+  business Business       @relation(fields: [businessId], references: [id])
+  customer Customer       @relation(fields: [customerId], references: [id])
+  step     RetentionStep? @relation(fields: [stepId], references: [id], onDelete: SetNull)
+  message  Message?       @relation(fields: [messageId], references: [id])
+
+  @@unique([customerId, offsetDays])
+  @@index([businessId])
+  @@index([customerId])
+  @@index([stepId])
+  @@map("retention_sends")
 }
 

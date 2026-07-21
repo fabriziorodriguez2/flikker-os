@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Check, Gift, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import {
+  Check,
+  Download,
+  Gift,
+  Loader2,
+  Pencil,
+  Plus,
+  Trash2,
+  Users,
+  X,
+} from "lucide-react";
 import { useCanMutate } from "../../role-context";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -242,6 +252,7 @@ function BenefitCard({
   onToggleActive,
   onEdit,
   onDelete,
+  onViewParticipants,
 }: {
   benefit: Benefit;
   canMutate: boolean;
@@ -249,6 +260,7 @@ function BenefitCard({
   onToggleActive: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onViewParticipants: () => void;
 }) {
   const from = formatDate(benefit.startDate);
   const to = formatDate(benefit.endDate);
@@ -335,7 +347,183 @@ function BenefitCard({
           </div>
         ) : null}
       </div>
+
+      {benefit.type === "raffle" ? (
+        <div className="mt-4 border-t border-[#F0F2FA] pt-3">
+          <button
+            type="button"
+            onClick={onViewParticipants}
+            className="inline-flex items-center gap-2 text-sm font-semibold text-[#5C6BC0] hover:underline"
+          >
+            <Users className="h-4 w-4" />
+            Ver participantes
+          </button>
+        </div>
+      ) : null}
     </article>
+  );
+}
+
+// ─── Participants modal ───────────────────────────────────────────────────────
+
+interface Participant {
+  id: string;
+  createdAt: string;
+  customer: {
+    id: string;
+    name: string;
+    phoneE164: string;
+    email: string | null;
+  };
+}
+
+function csvEscape(value: string): string {
+  if (/[",\n]/.test(value)) return `"${value.replace(/"/g, '""')}"`;
+  return value;
+}
+
+function downloadParticipantsCsv(benefitTitle: string, rows: Participant[]) {
+  const header = ["Nombre", "Teléfono", "Email", "Fecha"];
+  const lines = rows.map((r) =>
+    [
+      csvEscape(r.customer.name),
+      csvEscape(r.customer.phoneE164),
+      csvEscape(r.customer.email ?? ""),
+      csvEscape(formatDate(r.createdAt) ?? ""),
+    ].join(","),
+  );
+  const csv = [header.join(","), ...lines].join("\n");
+  const blob = new Blob([`﻿${csv}`], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const safeName = benefitTitle.toLowerCase().replace(/\s+/g, "-") || "sorteo";
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `participantes-${safeName}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+function ParticipantsModal({
+  benefit,
+  onClose,
+}: {
+  benefit: Benefit;
+  onClose: () => void;
+}) {
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(
+          `/api/proxy/benefits/${benefit.id}/participants`,
+        );
+        if (!res.ok) throw new Error("No pudimos cargar los participantes.");
+        const data = (await res.json()) as Participant[];
+        if (!cancelled) setParticipants(data);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Error al cargar.");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [benefit.id]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[85vh] w-full max-w-lg flex-col rounded-[16px] bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between gap-3 border-b border-[#E8EAF0] p-5">
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+              Participantes del sorteo
+            </p>
+            <h2 className="mt-1 truncate text-lg font-bold text-[#1A202C]">
+              {benefit.title}
+            </h2>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] text-[#8891A4] hover:bg-[#F5F6FA]"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-auto p-5">
+          {loading ? (
+            <div className="flex h-24 items-center justify-center text-sm text-[#8891A4]">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Cargando…
+            </div>
+          ) : error ? (
+            <div className="rounded-[8px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-[#C0392B]">
+              {error}
+            </div>
+          ) : participants.length === 0 ? (
+            <p className="py-8 text-center text-sm text-[#8891A4]">
+              Todavía no hay participantes en este sorteo.
+            </p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead>
+                  <tr className="text-xs font-semibold uppercase tracking-[0.08em] text-[#8891A4]">
+                    <th className="pb-2 pr-3">Nombre</th>
+                    <th className="pb-2 pr-3">Teléfono</th>
+                    <th className="pb-2">Fecha</th>
+                  </tr>
+                </thead>
+                <tbody className="text-[#1A202C]">
+                  {participants.map((p) => (
+                    <tr key={p.id} className="border-t border-[#F0F2FA]">
+                      <td className="py-2 pr-3">{p.customer.name}</td>
+                      <td className="py-2 pr-3">{p.customer.phoneE164}</td>
+                      <td className="py-2 text-[#8891A4]">
+                        {formatDate(p.createdAt) ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="flex items-center justify-between gap-3 border-t border-[#E8EAF0] p-5">
+          <span className="text-sm text-[#8891A4]">
+            {participants.length}{" "}
+            {participants.length === 1 ? "participante" : "participantes"}
+          </span>
+          <button
+            type="button"
+            onClick={() => downloadParticipantsCsv(benefit.title, participants)}
+            disabled={participants.length === 0}
+            className="inline-flex h-10 items-center gap-2 rounded-[8px] border border-[#E8EAF0] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F5F6FA] disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" />
+            Descargar CSV
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -377,6 +565,7 @@ export default function BenefitsPage() {
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [participantsFor, setParticipantsFor] = useState<Benefit | null>(null);
 
   async function load() {
     setLoading(true);
@@ -541,10 +730,18 @@ export default function BenefitsPage() {
               onToggleActive={() => void toggleActive(benefit)}
               onEdit={() => openEdit(benefit)}
               onDelete={() => void remove(benefit)}
+              onViewParticipants={() => setParticipantsFor(benefit)}
             />
           ))}
         </div>
       )}
+
+      {participantsFor ? (
+        <ParticipantsModal
+          benefit={participantsFor}
+          onClose={() => setParticipantsFor(null)}
+        />
+      ) : null}
     </div>
   );
 }
