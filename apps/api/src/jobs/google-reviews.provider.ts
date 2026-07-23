@@ -42,7 +42,12 @@ const SCRAPE_DO_REVIEWS_ENDPOINT =
 const SCRAPE_TIMEOUT_MS = 50_000;
 const MAX_RETRIES = 2;
 const GOOGLE_REVIEWS_PAGE_SIZE = 20;
+// Daily/manual sync only needs the newest handful of reviews to attribute them
+// to recent messages, so it stops early to keep scraping cheap.
 const GOOGLE_REVIEWS_MAX_PAGES = 3;
+// One-off historical backfill: paginate much deeper (safety-capped so a place
+// with tens of thousands of reviews can't spin forever). 60 pages ≈ 1200.
+const GOOGLE_REVIEWS_BACKFILL_MAX_PAGES = 60;
 
 @Injectable()
 export class GoogleReviewsProvider {
@@ -52,6 +57,8 @@ export class GoogleReviewsProvider {
     businessId: string;
     googlePlaceId: string;
     googleRefreshToken?: string | null;
+    /** When true, paginate through the full history (safety-capped), not just the newest pages. */
+    full?: boolean;
   }): Promise<DetectedGoogleReview[]> {
     const token = process.env.SCRAPE_DO_TOKEN;
     if (!token) {
@@ -61,10 +68,13 @@ export class GoogleReviewsProvider {
       return [];
     }
 
+    const maxPages = input.full
+      ? GOOGLE_REVIEWS_BACKFILL_MAX_PAGES
+      : GOOGLE_REVIEWS_MAX_PAGES;
     const reviews: DetectedGoogleReview[] = [];
     let nextPageToken: string | undefined;
 
-    for (let page = 1; page <= GOOGLE_REVIEWS_MAX_PAGES; page += 1) {
+    for (let page = 1; page <= maxPages; page += 1) {
       const payload = await this.fetchReviewsPage({
         token,
         businessId: input.businessId,

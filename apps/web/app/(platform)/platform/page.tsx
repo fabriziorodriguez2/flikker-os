@@ -10,6 +10,7 @@ import {
   ChevronDown,
   ChevronLeft,
   ChevronRight,
+  History,
   KeyRound,
   Plus,
   RefreshCw,
@@ -89,6 +90,8 @@ export default function PlatformPage() {
   const [createForm, setCreateForm] = useState<CreateForm>(EMPTY_CREATE_FORM);
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [syncedId, setSyncedId] = useState<string | null>(null);
+  const [backfillingId, setBackfillingId] = useState<string | null>(null);
+  const [backfilledId, setBackfilledId] = useState<string | null>(null);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ email: "", newPassword: "", confirmPassword: "" });
   const [passwordChanging, setPasswordChanging] = useState(false);
@@ -293,6 +296,34 @@ export default function PlatformPage() {
     }
   }
 
+  async function backfillReviews(business: PlatformBusiness) {
+    if (
+      !window.confirm(
+        `¿Importar TODO el historial de reseñas de Google de "${business.name}"? Es una operación pesada (se corre en segundo plano) y solo hace falta una vez.`,
+      )
+    ) {
+      return;
+    }
+    setBackfillingId(business.id);
+    setError(null);
+    try {
+      const res = await fetch(
+        `/api/proxy/platform/businesses/${business.id}/backfill-reviews`,
+        { method: "POST" },
+      );
+      if (!res.ok) {
+        const data = (await res.json().catch(() => ({}))) as { message?: string };
+        throw new Error(data.message ?? "No se pudo importar el histórico");
+      }
+      setBackfilledId(business.id);
+      setTimeout(() => setBackfilledId(null), 4000);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Error al importar el histórico");
+    } finally {
+      setBackfillingId(null);
+    }
+  }
+
   if (loading) {
     return (
       <div className="rounded-xl border border-[#E8EAF0] bg-white p-5 text-sm text-[#8891A4]">
@@ -458,6 +489,27 @@ export default function PlatformPage() {
                           ) : (
                             <RefreshCw
                               className={`h-4 w-4 ${syncingId === business.id ? "animate-spin" : ""}`}
+                              aria-hidden="true"
+                            />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void backfillReviews(business)}
+                          disabled={backfillingId === business.id}
+                          title="Importar todo el historial de reseñas"
+                          className={`inline-flex h-9 w-9 items-center justify-center rounded-lg border transition-colors disabled:opacity-60 ${
+                            backfilledId === business.id
+                              ? "border-[#639922]/30 bg-[#639922]/10 text-[#639922]"
+                              : "border-[#E8EAF0] bg-white text-[#8891A4] hover:bg-[#F5F6FA] hover:text-[#5C6BC0]"
+                          }`}
+                          aria-label={`Importar historial de reseñas de ${business.name}`}
+                        >
+                          {backfilledId === business.id ? (
+                            <Check className="h-4 w-4" aria-hidden="true" />
+                          ) : (
+                            <History
+                              className={`h-4 w-4 ${backfillingId === business.id ? "animate-pulse" : ""}`}
                               aria-hidden="true"
                             />
                           )}

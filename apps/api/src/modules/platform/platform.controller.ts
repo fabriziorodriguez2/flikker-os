@@ -177,6 +177,14 @@ export class PlatformController {
     return this.platformService.triggerReviewSync(req.user.id, businessId);
   }
 
+  @Post('businesses/:businessId/backfill-reviews')
+  backfillReviews(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+  ) {
+    return this.platformService.backfillReviews(req.user.id, businessId);
+  }
+
   @Post('businesses/:businessId/impersonate')
   impersonate(
     @Req() req: AuthenticatedRequest,
@@ -197,9 +205,14 @@ export class PlatformController {
       throw new BadRequestException('email is required');
     }
     if (!body.newPassword || body.newPassword.length < 8) {
-      throw new BadRequestException('La contraseña debe tener al menos 8 caracteres');
+      throw new BadRequestException(
+        'La contraseña debe tener al menos 8 caracteres',
+      );
     }
-    return this.platformService.changeUserPassword(body.email, body.newPassword);
+    return this.platformService.changeUserPassword(
+      body.email,
+      body.newPassword,
+    );
   }
 
   // ── Platform-scoped Shopify integration management ─────────────────────────

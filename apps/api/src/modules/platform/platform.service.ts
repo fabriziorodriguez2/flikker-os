@@ -218,7 +218,11 @@ export class PlatformService {
 
     if (dto.initialPlan) {
       try {
-        await this.setBusinessPlan(result.business.id, adminId, dto.initialPlan);
+        await this.setBusinessPlan(
+          result.business.id,
+          adminId,
+          dto.initialPlan,
+        );
       } catch (err) {
         this.logger.warn(
           `Failed to assign initial plan to business ${result.business.id}: ${err instanceof Error ? err.message : String(err)}`,
@@ -576,9 +580,38 @@ export class PlatformService {
         );
       });
 
-    this.logPlatformWrite(adminId, businessId, 'PLATFORM_REVIEW_SYNC_TRIGGERED', {
-      businessName: business.name,
-    });
+    this.logPlatformWrite(
+      adminId,
+      businessId,
+      'PLATFORM_REVIEW_SYNC_TRIGGERED',
+      {
+        businessName: business.name,
+      },
+    );
+
+    return { ok: true, businessId };
+  }
+
+  /** One-off: import the business's full Google review history (not just newest). */
+  async backfillReviews(adminId: string, businessId: string) {
+    const business = await this.assertBusinessExists(businessId);
+
+    void this.googleReviewDetectionQueue
+      .enqueueBackfill(businessId)
+      .catch((error) => {
+        this.logger.warn(
+          `Could not enqueue review backfill for business ${businessId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
+
+    this.logPlatformWrite(
+      adminId,
+      businessId,
+      'PLATFORM_REVIEW_BACKFILL_TRIGGERED',
+      { businessName: business.name },
+    );
 
     return { ok: true, businessId };
   }
@@ -936,7 +969,10 @@ export class PlatformService {
     });
     if (!user) throw new NotFoundException('Usuario no encontrado');
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
-    await this.prisma.user.update({ where: { id: user.id }, data: { passwordHash } });
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: { passwordHash },
+    });
     this.logger.log(`[platform] Password changed for user ${user.email}`);
     return { ok: true, email: user.email };
   }
@@ -948,16 +984,12 @@ export class PlatformService {
     });
     if (!business) throw new NotFoundException('Business not found');
 
-    const result = await this.repository.resetOnboardingForBusinessOwners(
-      businessId,
-    );
+    const result =
+      await this.repository.resetOnboardingForBusinessOwners(businessId);
 
-    this.logPlatformWrite(
-      adminId,
-      businessId,
-      'PLATFORM_ONBOARDING_RESET',
-      { resetCount: result.resetCount },
-    );
+    this.logPlatformWrite(adminId, businessId, 'PLATFORM_ONBOARDING_RESET', {
+      resetCount: result.resetCount,
+    });
 
     return result;
   }

@@ -50,7 +50,9 @@ export class GoogleReviewDetectionWorker
     }
 
     if (job.name === INITIAL_GOOGLE_REVIEW_SCRAPE_JOB) {
-      return this.runInitial(job.data as { businessId?: string });
+      return this.runInitial(
+        job.data as { businessId?: string; full?: boolean },
+      );
     }
 
     this.logger.warn(`Unknown Google review detection job: ${job.name}`);
@@ -97,15 +99,16 @@ export class GoogleReviewDetectionWorker
     };
   }
 
-  async runInitial(input: { businessId?: string }) {
+  async runInitial(input: { businessId?: string; full?: boolean }) {
     const businessId = input.businessId;
     if (!businessId) {
       this.logger.warn('Initial Google review scrape missing businessId');
       return { created: 0, skipped: true };
     }
 
+    const full = input.full ?? false;
     this.logger.log(
-      `[initial-review-scrape] Iniciando para businessId: ${businessId}`,
+      `[initial-review-scrape] Iniciando para businessId: ${businessId}${full ? ' (backfill completo)' : ''}`,
     );
 
     let created = 0;
@@ -134,6 +137,7 @@ export class GoogleReviewDetectionWorker
       created = await this.detectForBusiness(
         business.id,
         business.googlePlaceId,
+        full,
       );
       this.logger.log(
         `[initial-review-scrape] Completado: ${created} reseñas importadas`,
@@ -171,10 +175,15 @@ export class GoogleReviewDetectionWorker
     await this.connection?.quit();
   }
 
-  private async detectForBusiness(businessId: string, googlePlaceId: string) {
+  private async detectForBusiness(
+    businessId: string,
+    googlePlaceId: string,
+    full = false,
+  ) {
     const detectedReviews = await this.googleReviewsProvider.fetchReviews({
       businessId,
       googlePlaceId,
+      full,
     });
 
     if (detectedReviews.length === 0) return 0;

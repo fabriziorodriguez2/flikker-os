@@ -52,9 +52,11 @@ describe('GoogleReviewDetectionWorker', () => {
     });
 
     expect(provider.fetchReviews).toHaveBeenCalledTimes(2);
+    // Daily run never does a full backfill — always the capped (newest) fetch.
     expect(provider.fetchReviews).toHaveBeenNthCalledWith(2, {
       businessId: 'business-ok',
       googlePlaceId: 'place-ok',
+      full: false,
     });
     expect(prisma.googleReview.create).toHaveBeenCalledWith({
       data: {
@@ -184,6 +186,41 @@ describe('GoogleReviewDetectionWorker', () => {
       where: { id: 'business-1' },
       data: { googleReviewsLastSyncAt: expect.any(Date) },
       select: { id: true },
+    });
+  });
+
+  it('passes full=true to the provider on a backfill run', async () => {
+    const prisma = {
+      business: {
+        findMany: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'business-1',
+          googlePlaceId: 'place-1',
+        }),
+        update: jest.fn().mockResolvedValue({ id: 'business-1' }),
+      },
+      googleReview: {
+        findMany: jest.fn().mockResolvedValue([]),
+        create: jest.fn().mockResolvedValue({ id: 'google-review-1' }),
+      },
+      message: {
+        findFirst: jest.fn().mockResolvedValue(null),
+      },
+    };
+    const provider = {
+      fetchReviews: jest.fn().mockResolvedValue([]),
+    };
+    const worker = new GoogleReviewDetectionWorker(
+      prisma as never,
+      provider as never,
+    );
+
+    await worker.runInitial({ businessId: 'business-1', full: true });
+
+    expect(provider.fetchReviews).toHaveBeenCalledWith({
+      businessId: 'business-1',
+      googlePlaceId: 'place-1',
+      full: true,
     });
   });
 });

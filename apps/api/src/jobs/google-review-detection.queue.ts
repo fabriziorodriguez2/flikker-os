@@ -46,6 +46,16 @@ export class GoogleReviewDetectionQueue
     );
   }
 
+  /** One-off full historical import — paginates the whole review history. */
+  async enqueueBackfill(businessId: string) {
+    if (!this.queue) return null;
+    return this.queue.add(
+      INITIAL_GOOGLE_REVIEW_SCRAPE_JOB,
+      { businessId, full: true },
+      { attempts: 1, removeOnComplete: 30, removeOnFail: false },
+    );
+  }
+
   async enqueueDailyRun() {
     if (!this.queue) return null;
     return this.queue.add(DETECT_GOOGLE_REVIEWS_DAILY_JOB, {}, { attempts: 1 });

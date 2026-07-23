@@ -61,7 +61,9 @@
       "Bash(npx prisma *)",
       "Bash(npx jest *)",
       "Bash(npx eslint *)",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Bash(git stash *)",
+      "Bash(sed 's/^/prettier errors PRE-change: /')"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",
