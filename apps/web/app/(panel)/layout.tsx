@@ -5,6 +5,7 @@ import Sidebar from "./sidebar";
 import MobileNav from "./mobile-nav";
 import LogoutButton from "./logout-button";
 import SelectBusiness from "./select-business";
+import BusinessSelector from "./business-selector";
 import { RoleProvider } from "./role-context";
 import BrandLogo from "@/components/brand/brand-logo";
 import BusinessLogo from "@/components/business/business-logo";
@@ -161,7 +162,17 @@ export default async function PanelLayout({
                       size="sm"
                     />
                   ) : null}
-                  <span className="max-w-[200px] truncate">{businessDisplayName}</span>
+                  {session.impersonation ? (
+                    // Impersonating: keep the business name fixed — switching
+                    // is disabled while an admin is operating as a business.
+                    <span className="max-w-[200px] truncate">{businessDisplayName}</span>
+                  ) : (
+                    <BusinessSelector
+                      memberships={memberships}
+                      activeBusinessId={activeBusinessId}
+                      activeBusinessName={businessDisplayName}
+                    />
+                  )}
                 </div>
               ) : null}
               <LogoutButton />

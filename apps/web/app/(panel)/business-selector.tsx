@@ -58,8 +58,10 @@ export default function BusinessSelector({
         onClick={() => setOpen(!open)}
         disabled={loading}
         title={collapsed ? label : undefined}
-        className={`flikker-focus-ring flex items-center justify-between gap-3 rounded-xl bg-[color:var(--surface)] text-left font-semibold text-[color:var(--foreground)] disabled:opacity-50 ${
-          collapsed ? 'h-9 w-9 justify-center border border-[color:var(--border)] text-sm' : 'w-full text-sm'
+        className={`flikker-focus-ring flex items-center justify-between gap-2 rounded-xl text-left font-semibold text-[color:var(--foreground)] disabled:opacity-50 ${
+          collapsed
+            ? 'h-9 w-9 justify-center border border-[color:var(--border)] bg-[color:var(--surface)] text-sm'
+            : 'text-sm hover:opacity-80'
         }`}
       >
         {collapsed ? (
@@ -69,7 +71,7 @@ export default function BusinessSelector({
           />
         ) : (
           <>
-            <span className="truncate">{label}</span>
+            <span className="max-w-[180px] truncate">{label}</span>
             <span className="text-xs text-[color:var(--text-soft)]">▾</span>
           </>
         )}
@@ -78,7 +80,7 @@ export default function BusinessSelector({
       {open && (
         <div
           className={`absolute top-full z-50 mt-2 overflow-hidden rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--shadow-soft)] ${
-            collapsed ? 'left-full ml-3 w-60' : 'left-0 w-full'
+            collapsed ? 'left-full ml-3 w-60' : 'right-0 min-w-[240px]'
           }`}
         >
           {memberships.map((m) => (
