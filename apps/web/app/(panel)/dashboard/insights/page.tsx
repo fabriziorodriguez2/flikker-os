@@ -61,6 +61,7 @@ interface ContactsStats {
 
 interface ConversionSummary {
   sentMessages: number;
+  sentMessagesRecent: number;
   attributedReviews: number;
   conversionRate: number | null;
   insufficientData: boolean;
@@ -183,12 +184,35 @@ function ConversionCard({ conversion }: { conversion: ConversionSummary | null }
         <div className="max-w-xs text-center sm:text-left">
           {muted ? (
             <p className="text-sm text-[#8891A4]">
-              Todavía no hay datos suficientes. Necesitás al menos 30 mensajes
-              enviados (llevás{" "}
-              <span className="font-semibold text-[#1A202C]">
-                {conversion.sentMessages}
-              </span>
-              ) para ver tu tasa de conversión. ¡Seguí mandando! 💪
+              {conversion.sentMessages === 0 && conversion.sentMessagesRecent === 0 ? (
+                "Todavía no mandaste mensajes. En cuanto empieces, vas a ver acá tu tasa de conversión."
+              ) : conversion.sentMessages === 0 ? (
+                <>
+                  Mandaste{" "}
+                  <span className="font-semibold text-[#1A202C]">
+                    {conversion.sentMessagesRecent}
+                  </span>{" "}
+                  {conversion.sentMessagesRecent === 1 ? "mensaje" : "mensajes"}{" "}
+                  hace poco — como son muy recientes, todavía no dio tiempo a
+                  que llegue una reseña. Dale unos días más. 💪
+                </>
+              ) : (
+                <>
+                  Necesitás al menos 30 mensajes con tiempo suficiente para
+                  contar. Llevás{" "}
+                  <span className="font-semibold text-[#1A202C]">
+                    {conversion.sentMessages}
+                  </span>
+                  {conversion.sentMessagesRecent > 0 && (
+                    <>
+                      {" "}
+                      (+{conversion.sentMessagesRecent} más recientes, todavía
+                      no cuentan)
+                    </>
+                  )}
+                  . ¡Seguí mandando! 💪
+                </>
+              )}
             </p>
           ) : (
             <p className="text-sm text-[#4A5568]">

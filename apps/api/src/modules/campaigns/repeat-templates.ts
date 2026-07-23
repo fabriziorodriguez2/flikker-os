@@ -32,7 +32,7 @@ export const REPEAT_TEMPLATES = [
     description: 'Saludo automatico de cumpleanos.',
     templateKind: CampaignTemplateKind.birthday,
     triggerOffsetDays: 0,
-    messageBody: 'Feliz cumple, {nombre}! Te saluda {clinica}. {oferta}',
+    messageBody: '¡Feliz cumpleaños, {nombre}! 🎉 Que tengas un día increíble.',
     offerText: '',
   },
   {

@@ -191,6 +191,40 @@ describe('MetricsService', () => {
     });
   });
 
+  describe('getConversionSummary', () => {
+    it('reports sentMessagesRecent separately from the mature sentMessages count', async () => {
+      mockPrisma.message.count
+        .mockResolvedValueOnce(0) // sentMessages (mature, >7 days old)
+        .mockResolvedValueOnce(0) // attributedReviews
+        .mockResolvedValueOnce(0) // clickedMessages
+        .mockResolvedValueOnce(0) // positiveFeedback
+        .mockResolvedValueOnce(0) // queuedMessages
+        .mockResolvedValueOnce(0) // failedMessages
+        .mockResolvedValueOnce(12); // sentMessagesRecent (<=7 days old)
+      mockPrisma.googleReview.findMany.mockResolvedValue([]);
+
+      const result = await service.getConversionSummary(BUSINESS_ID);
+
+      expect(result.sentMessages).toBe(0);
+      expect(result.sentMessagesRecent).toBe(12);
+      // Recent (too-young) sends must never count toward the maturity gate.
+      expect(result.insufficientData).toBe(true);
+
+      const recentCountCall = mockPrisma.message.count.mock.calls[6]![0] as {
+        where: { sentAt: { gte: Date } };
+      };
+      expect(recentCountCall.where.sentAt).toEqual({
+        gte: expect.any(Date) as Date,
+      });
+      // Regression guard: the recent-count lower bound must be `cutoff` (now -
+      // attributionWindowDays), not accidentally overwritten by `from` (now -
+      // range) via object-spread order.
+      const cutoffArg = recentCountCall.where.sentAt.gte;
+      const sevenDaysAgo = Date.now() - 7 * 86_400_000;
+      expect(Math.abs(cutoffArg.getTime() - sevenDaysAgo)).toBeLessThan(5000);
+    });
+  });
+
   describe('getConversionFunnel', () => {
     it('prepends "scanned" + "captured" steps for origin=qr, scoped to the qr_capture campaign', async () => {
       mockPrisma.message.count

@@ -87,6 +87,8 @@ export interface ConversionSummary {
   to: string;
   attributionWindowDays: number;
   sentMessages: number;
+  /** Sent within the attribution window — too recent to know yet if a review will come. */
+  sentMessagesRecent: number;
   attributedReviews: number;
   conversionRate: number | null;
   insufficientData: boolean;
@@ -301,6 +303,7 @@ export class MetricsService {
       queuedMessages,
       failedMessages,
       medianTimeToReviewHours,
+      sentMessagesRecent,
     ] = await Promise.all([
       this.prisma.message.count({ where: baseWhere }),
       this.prisma.message.count({
@@ -322,6 +325,20 @@ export class MetricsService {
         where: { ...notSentBase, status: MessageStatus.failed },
       }),
       this.getMedianTimeToReviewHours(businessId, from, cutoff),
+      // Sent within the attribution window (too recent to know yet whether a
+      // review will come). Excluded from `sentMessages`/the rate on purpose,
+      // but the UI needs this to avoid showing "llevás 0" when the business
+      // actually has been sending — just too recently to count yet.
+      this.prisma.message.count({
+        where: {
+          businessId,
+          status: { in: SENT_STATUSES },
+          // cutoff (now - attributionWindowDays) is always more recent than
+          // `from` (now - range) for supported range/window combinations, so
+          // it's the binding lower bound here.
+          sentAt: { gte: cutoff },
+        },
+      }),
     ]);
 
     const insufficientData = sentMessages < CONVERSION_MIN_SAMPLE;
@@ -332,6 +349,7 @@ export class MetricsService {
       to: cutoff.toISOString(),
       attributionWindowDays,
       sentMessages,
+      sentMessagesRecent,
       attributedReviews,
       conversionRate: insufficientData
         ? null
