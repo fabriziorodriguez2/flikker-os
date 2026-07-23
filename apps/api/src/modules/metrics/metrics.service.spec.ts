@@ -28,6 +28,9 @@ const mockPrisma = {
   scanEvent: {
     count: jest.fn(),
   },
+  customer: {
+    count: jest.fn(),
+  },
 };
 
 describe('MetricsService', () => {
@@ -189,7 +192,7 @@ describe('MetricsService', () => {
   });
 
   describe('getConversionFunnel', () => {
-    it('prepends a "scanned" step for origin=qr, scoped to the qr_capture campaign', async () => {
+    it('prepends "scanned" + "captured" steps for origin=qr, scoped to the qr_capture campaign', async () => {
       mockPrisma.message.count
         .mockResolvedValueOnce(40) // sent
         .mockResolvedValueOnce(25) // clicked
@@ -198,6 +201,9 @@ describe('MetricsService', () => {
         .mockResolvedValueOnce(12); // reviewDetected
       mockPrisma.campaign.findFirst.mockResolvedValue({ id: 'qr-campaign-1' });
       mockPrisma.scanEvent.count.mockResolvedValue(90);
+      mockPrisma.customer.count
+        .mockResolvedValueOnce(60) // captured (all-time)
+        .mockResolvedValueOnce(50); // capturedMature (7+ days old)
 
       const result = await service.getConversionFunnel(BUSINESS_ID, 7, 'qr');
 
@@ -213,13 +219,32 @@ describe('MetricsService', () => {
       expect(mockPrisma.scanEvent.count).toHaveBeenCalledWith({
         where: { businessId: BUSINESS_ID, campaignId: 'qr-campaign-1' },
       });
+      // Captured is a direct Customer count — decoupled from whether the
+      // follow-up WhatsApp message ("sent") actually went out. This is the
+      // fix for the bug where captures showed as 0 whenever messages were
+      // stuck queued/failed (e.g. quota exceeded) despite real signups.
+      expect(mockPrisma.customer.count).toHaveBeenNthCalledWith(1, {
+        where: { businessId: BUSINESS_ID, origin: 'qr' },
+      });
       expect(result.steps[0]).toEqual({
         key: 'scanned',
         label: 'Escanearon el QR',
         count: 90,
       });
+      expect(result.steps[1]).toEqual({
+        key: 'captured',
+        label: 'Dejaron sus datos',
+        count: 60,
+      });
+      expect(result.steps[2]).toEqual({
+        key: 'captured_mature',
+        label: 'Dejaron sus datos (hace 7+ días)',
+        count: 50,
+      });
       expect(result.steps.map((s) => s.key)).toEqual([
         'scanned',
+        'captured',
+        'captured_mature',
         'sent',
         'clicked',
         'positive_feedback',
@@ -228,9 +253,10 @@ describe('MetricsService', () => {
       ]);
     });
 
-    it('returns 0 scans for origin=qr when there is no active qr_capture campaign', async () => {
+    it('returns 0 scans and captures for origin=qr when there is no active qr_capture campaign', async () => {
       mockPrisma.message.count.mockResolvedValue(0);
       mockPrisma.campaign.findFirst.mockResolvedValue(null);
+      mockPrisma.customer.count.mockResolvedValue(0);
 
       const result = await service.getConversionFunnel(BUSINESS_ID, 7, 'qr');
 
@@ -242,7 +268,7 @@ describe('MetricsService', () => {
       });
     });
 
-    it('does not add a "scanned" step for other origins', async () => {
+    it('does not add scan/capture steps for other origins', async () => {
       mockPrisma.message.count.mockResolvedValue(0);
 
       const result = await service.getConversionFunnel(
@@ -252,15 +278,18 @@ describe('MetricsService', () => {
       );
 
       expect(mockPrisma.campaign.findFirst).not.toHaveBeenCalled();
+      expect(mockPrisma.customer.count).not.toHaveBeenCalled();
       expect(result.steps.map((s) => s.key)).not.toContain('scanned');
+      expect(result.steps.map((s) => s.key)).not.toContain('captured');
     });
 
-    it('does not add a "scanned" step when no origin is given', async () => {
+    it('does not add scan/capture steps when no origin is given', async () => {
       mockPrisma.message.count.mockResolvedValue(0);
 
       const result = await service.getConversionFunnel(BUSINESS_ID, 7);
 
       expect(result.steps.map((s) => s.key)).not.toContain('scanned');
+      expect(result.steps.map((s) => s.key)).not.toContain('captured');
     });
   });
 });

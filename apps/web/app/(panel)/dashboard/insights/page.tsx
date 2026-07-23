@@ -245,9 +245,14 @@ function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
   if (!funnel) return null;
 
   const scanned = stepCount(funnel.steps, "scanned");
-  const captured = stepCount(funnel.steps, "sent");
+  // "captured" = contact form submitted (Customer row), independent of whether
+  // the follow-up WhatsApp review-request later succeeded — do not use "sent"
+  // here, it undercounts whenever that message stays queued/failed.
+  const captured = stepCount(funnel.steps, "captured");
+  const capturedMature = stepCount(funnel.steps, "captured_mature");
   const reviewed = stepCount(funnel.steps, "review_detected");
-  const noData = captured - reviewed;
+  // Only counted among captures old enough to have had time to convert.
+  const noData = Math.max(0, capturedMature - reviewed);
   const notCaptured = Math.max(0, scanned - captured);
 
   if (scanned === 0) {
@@ -283,17 +288,18 @@ function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
         />
         <QrStat
           label="Dejaron datos, sin reseña"
-          value={Math.max(0, noData)}
+          value={noData}
           sub={
-            captured > 0
-              ? `${Math.round((Math.max(0, noData) / captured) * 100)}% de los que dejaron datos`
+            capturedMature > 0
+              ? `${Math.round((noData / capturedMature) * 100)}% de los que dejaron datos hace 7+ días`
               : undefined
           }
         />
       </div>
       <p className="mt-3 text-xs text-[#B0B8C9]">
-        No incluye escaneos de la última semana — todavía no dio tiempo a que
-        llegue la reseña.
+        &ldquo;Sin reseña&rdquo; solo cuenta a quienes dejaron sus datos hace
+        más de una semana — a los más recientes todavía no les dio tiempo de
+        reseñar.
       </p>
     </SectionCard>
   );

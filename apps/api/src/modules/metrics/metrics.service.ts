@@ -362,6 +362,8 @@ export class MetricsService {
       negativeFeedback,
       reviewDetected,
       scanned,
+      captured,
+      capturedMature,
     ] = await Promise.all([
       this.prisma.message.count({ where: baseWhere }),
       this.prisma.message.count({
@@ -383,13 +385,43 @@ export class MetricsService {
         where: { ...baseWhere, attributedGoogleReviews: { some: {} } },
       }),
       origin === 'qr' ? this.countQrScans(businessId) : Promise.resolve(null),
+      // Captured = the contact form was submitted (Customer row exists), which
+      // is independent of whether the follow-up WhatsApp review-request later
+      // succeeded. "sent" below only reflects that downstream message pipeline
+      // — it undercounts captures whenever a message stays queued/failed (e.g.
+      // quota exceeded), so it must NOT be used as a proxy for "left their data".
+      origin === 'qr'
+        ? this.prisma.customer.count({ where: { businessId, origin: 'qr' } })
+        : Promise.resolve(null),
+      origin === 'qr'
+        ? this.prisma.customer.count({
+            where: { businessId, origin: 'qr', createdAt: { lt: cutoff } },
+          })
+        : Promise.resolve(null),
     ]);
 
     const steps: FunnelStep[] = [];
-    // Scanning is the QR-only entry point of the funnel — a scan doesn't need
-    // to "wait" like a review does, so it's counted all-time, no cutoff.
+    // Scanning and capturing are QR-only, immediate events — no need to "wait"
+    // like a review does, so both are counted all-time, no cutoff.
     if (scanned !== null) {
       steps.push({ key: 'scanned', label: 'Escanearon el QR', count: scanned });
+    }
+    if (captured !== null) {
+      steps.push({
+        key: 'captured',
+        label: 'Dejaron sus datos',
+        count: captured,
+      });
+    }
+    // Not rendered as a funnel bar — only used by consumers to compute
+    // "captured but no review yet" without penalizing very recent captures
+    // that haven't had time to convert.
+    if (capturedMature !== null) {
+      steps.push({
+        key: 'captured_mature',
+        label: 'Dejaron sus datos (hace 7+ días)',
+        count: capturedMature,
+      });
     }
     steps.push(
       { key: 'sent', label: 'Mensajes enviados', count: sent },
