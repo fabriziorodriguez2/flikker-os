@@ -22,6 +22,12 @@ const mockPrisma = {
   business: {
     findUnique: jest.fn(),
   },
+  campaign: {
+    findFirst: jest.fn(),
+  },
+  scanEvent: {
+    count: jest.fn(),
+  },
 };
 
 describe('MetricsService', () => {
@@ -179,6 +185,82 @@ describe('MetricsService', () => {
       used: 0,
       limit: 200,
       percentage: 0,
+    });
+  });
+
+  describe('getConversionFunnel', () => {
+    it('prepends a "scanned" step for origin=qr, scoped to the qr_capture campaign', async () => {
+      mockPrisma.message.count
+        .mockResolvedValueOnce(40) // sent
+        .mockResolvedValueOnce(25) // clicked
+        .mockResolvedValueOnce(18) // positiveFeedback
+        .mockResolvedValueOnce(4) // negativeFeedback
+        .mockResolvedValueOnce(12); // reviewDetected
+      mockPrisma.campaign.findFirst.mockResolvedValue({ id: 'qr-campaign-1' });
+      mockPrisma.scanEvent.count.mockResolvedValue(90);
+
+      const result = await service.getConversionFunnel(BUSINESS_ID, 7, 'qr');
+
+      expect(mockPrisma.campaign.findFirst).toHaveBeenCalledWith({
+        where: {
+          businessId: BUSINESS_ID,
+          status: 'ACTIVE',
+          templateKind: 'qr_capture',
+        },
+        select: { id: true },
+        orderBy: { createdAt: 'asc' },
+      });
+      expect(mockPrisma.scanEvent.count).toHaveBeenCalledWith({
+        where: { businessId: BUSINESS_ID, campaignId: 'qr-campaign-1' },
+      });
+      expect(result.steps[0]).toEqual({
+        key: 'scanned',
+        label: 'Escanearon el QR',
+        count: 90,
+      });
+      expect(result.steps.map((s) => s.key)).toEqual([
+        'scanned',
+        'sent',
+        'clicked',
+        'positive_feedback',
+        'negative_feedback_filtered',
+        'review_detected',
+      ]);
+    });
+
+    it('returns 0 scans for origin=qr when there is no active qr_capture campaign', async () => {
+      mockPrisma.message.count.mockResolvedValue(0);
+      mockPrisma.campaign.findFirst.mockResolvedValue(null);
+
+      const result = await service.getConversionFunnel(BUSINESS_ID, 7, 'qr');
+
+      expect(mockPrisma.scanEvent.count).not.toHaveBeenCalled();
+      expect(result.steps[0]).toEqual({
+        key: 'scanned',
+        label: 'Escanearon el QR',
+        count: 0,
+      });
+    });
+
+    it('does not add a "scanned" step for other origins', async () => {
+      mockPrisma.message.count.mockResolvedValue(0);
+
+      const result = await service.getConversionFunnel(
+        BUSINESS_ID,
+        7,
+        'manual',
+      );
+
+      expect(mockPrisma.campaign.findFirst).not.toHaveBeenCalled();
+      expect(result.steps.map((s) => s.key)).not.toContain('scanned');
+    });
+
+    it('does not add a "scanned" step when no origin is given', async () => {
+      mockPrisma.message.count.mockResolvedValue(0);
+
+      const result = await service.getConversionFunnel(BUSINESS_ID, 7);
+
+      expect(result.steps.map((s) => s.key)).not.toContain('scanned');
     });
   });
 });

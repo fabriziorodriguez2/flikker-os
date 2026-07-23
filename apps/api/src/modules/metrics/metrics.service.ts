@@ -310,7 +310,10 @@ export class MetricsService {
         where: { ...baseWhere, clickedAt: { not: null } },
       }),
       this.prisma.message.count({
-        where: { ...baseWhere, feedbackResponses: { some: { score: { gte: 4 } } } },
+        where: {
+          ...baseWhere,
+          feedbackResponses: { some: { score: { gte: 4 } } },
+        },
       }),
       this.prisma.message.count({
         where: { ...notSentBase, status: MessageStatus.queued },
@@ -330,7 +333,9 @@ export class MetricsService {
       attributionWindowDays,
       sentMessages,
       attributedReviews,
-      conversionRate: insufficientData ? null : roundRate(attributedReviews, sentMessages),
+      conversionRate: insufficientData
+        ? null
+        : roundRate(attributedReviews, sentMessages),
       insufficientData,
       clickedMessages,
       clickRate: roundRate(clickedMessages, sentMessages),
@@ -350,40 +355,92 @@ export class MetricsService {
     const cutoff = new Date(Date.now() - attributionWindowDays * 86_400_000);
     const baseWhere = this.sentMessageWhere(businessId, null, cutoff, origin);
 
-    const [sent, clicked, positiveFeedback, negativeFeedback, reviewDetected] =
-      await Promise.all([
-        this.prisma.message.count({ where: baseWhere }),
-        this.prisma.message.count({
-          where: { ...baseWhere, clickedAt: { not: null } },
-        }),
-        this.prisma.message.count({
-          where: { ...baseWhere, feedbackResponses: { some: { score: { gte: 4 } } } },
-        }),
-        this.prisma.message.count({
-          where: { ...baseWhere, feedbackResponses: { some: { score: { lt: 4 } } } },
-        }),
-        this.prisma.message.count({
-          where: { ...baseWhere, attributedGoogleReviews: { some: {} } },
-        }),
-      ]);
+    const [
+      sent,
+      clicked,
+      positiveFeedback,
+      negativeFeedback,
+      reviewDetected,
+      scanned,
+    ] = await Promise.all([
+      this.prisma.message.count({ where: baseWhere }),
+      this.prisma.message.count({
+        where: { ...baseWhere, clickedAt: { not: null } },
+      }),
+      this.prisma.message.count({
+        where: {
+          ...baseWhere,
+          feedbackResponses: { some: { score: { gte: 4 } } },
+        },
+      }),
+      this.prisma.message.count({
+        where: {
+          ...baseWhere,
+          feedbackResponses: { some: { score: { lt: 4 } } },
+        },
+      }),
+      this.prisma.message.count({
+        where: { ...baseWhere, attributedGoogleReviews: { some: {} } },
+      }),
+      origin === 'qr' ? this.countQrScans(businessId) : Promise.resolve(null),
+    ]);
 
-    const steps: FunnelStep[] = [
+    const steps: FunnelStep[] = [];
+    // Scanning is the QR-only entry point of the funnel — a scan doesn't need
+    // to "wait" like a review does, so it's counted all-time, no cutoff.
+    if (scanned !== null) {
+      steps.push({ key: 'scanned', label: 'Escanearon el QR', count: scanned });
+    }
+    steps.push(
       { key: 'sent', label: 'Mensajes enviados', count: sent },
       { key: 'clicked', label: 'Abrieron el link', count: clicked },
-      { key: 'positive_feedback', label: 'Dieron 4-5 estrellas', count: positiveFeedback },
+      {
+        key: 'positive_feedback',
+        label: 'Dieron 4-5 estrellas',
+        count: positiveFeedback,
+      },
       {
         key: 'negative_feedback_filtered',
         label: 'Filtrados antes de Google (feedback negativo)',
         count: negativeFeedback,
       },
-      { key: 'review_detected', label: 'Dejaron reseña en Google', count: reviewDetected },
-    ];
+      {
+        key: 'review_detected',
+        label: 'Dejaron reseña en Google',
+        count: reviewDetected,
+      },
+    );
 
     return {
       attributionWindowDays,
       steps,
-      topDropOffStep: computeTopDropOffStep(sent, clicked, positiveFeedback, reviewDetected),
+      topDropOffStep: computeTopDropOffStep(
+        sent,
+        clicked,
+        positiveFeedback,
+        reviewDetected,
+      ),
     };
+  }
+
+  /**
+   * Scans of the business's QR capture campaign (the one behind /dashboard/qr
+   * and the public /qr/:businessId landing) — all-time, not cutoff-bound.
+   * Other campaign channels (QR_TABLE, QR_COUNTER, etc.) also produce
+   * ScanEvent rows, so this must be scoped to the specific campaign, not just
+   * the business.
+   */
+  private async countQrScans(businessId: string): Promise<number> {
+    const campaign = await this.prisma.campaign.findFirst({
+      where: { businessId, status: 'ACTIVE', templateKind: 'qr_capture' },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!campaign) return 0;
+
+    return this.prisma.scanEvent.count({
+      where: { businessId, campaignId: campaign.id },
+    });
   }
 
   async getConversionTimeSeries(
@@ -396,18 +453,33 @@ export class MetricsService {
     const gran = granularity === 'week' ? 'week' : 'month';
 
     const windowFrom =
-      gran === 'month' ? addMonths(startOfMonth(now), -5) : addWeeks(startOfWeek(now), -7);
-    const windowTo = gran === 'month' ? addMonths(startOfMonth(now), 1) : addWeeks(startOfWeek(now), 1);
+      gran === 'month'
+        ? addMonths(startOfMonth(now), -5)
+        : addWeeks(startOfWeek(now), -7);
+    const windowTo =
+      gran === 'month'
+        ? addMonths(startOfMonth(now), 1)
+        : addWeeks(startOfWeek(now), 1);
     const windows = buildWindows(windowFrom, windowTo, gran);
 
     const series = await Promise.all(
       windows.map(async ({ start, end, label }) => {
         // Skip windows entirely within the attribution window — no data yet
         if (start >= cutoff) {
-          return { label, start: start.toISOString(), sent: 0, attributed: 0, rate: null };
+          return {
+            label,
+            start: start.toISOString(),
+            sent: 0,
+            attributed: 0,
+            rate: null,
+          };
         }
         const effectiveEnd = end > cutoff ? cutoff : end;
-        const baseWhere = this.sentMessageWhere(businessId, start, effectiveEnd);
+        const baseWhere = this.sentMessageWhere(
+          businessId,
+          start,
+          effectiveEnd,
+        );
 
         const [sent, attributed] = await Promise.all([
           this.prisma.message.count({ where: baseWhere }),
@@ -421,7 +493,8 @@ export class MetricsService {
           start: start.toISOString(),
           sent,
           attributed,
-          rate: sent < CONVERSION_MIN_SAMPLE ? null : roundRate(attributed, sent),
+          rate:
+            sent < CONVERSION_MIN_SAMPLE ? null : roundRate(attributed, sent),
         };
       }),
     );
@@ -431,7 +504,12 @@ export class MetricsService {
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
-  private sentMessageWhere(businessId: string, from: Date | null, cutoff: Date, origin?: string) {
+  private sentMessageWhere(
+    businessId: string,
+    from: Date | null,
+    cutoff: Date,
+    origin?: string,
+  ) {
     return {
       businessId,
       status: { in: SENT_STATUSES },
@@ -467,7 +545,11 @@ export class MetricsService {
 
     const deltas = reviews
       .filter((r) => r.attributedMessage?.sentAt != null)
-      .map((r) => (r.postedAt.getTime() - r.attributedMessage!.sentAt!.getTime()) / 3_600_000)
+      .map(
+        (r) =>
+          (r.postedAt.getTime() - r.attributedMessage!.sentAt!.getTime()) /
+          3_600_000,
+      )
       .filter((h) => h >= 0)
       .sort((a, b) => a - b);
 
@@ -476,8 +558,8 @@ export class MetricsService {
     const mid = Math.floor(deltas.length / 2);
     const median =
       deltas.length % 2 === 0
-        ? (deltas[mid - 1]! + deltas[mid]!) / 2
-        : deltas[mid]!;
+        ? (deltas[mid - 1] + deltas[mid]) / 2
+        : deltas[mid];
 
     return Math.round(median * 10) / 10;
   }
@@ -604,15 +686,26 @@ export class MetricsService {
     const rawAvg = googleRatingAgg._avg.stars;
     const ratingTotal = googleRatingAgg._count.id;
     type RatingData = {
-      current: number; rawAverage: number; total: number;
-      goal: number; reviewsNeeded: number; fiveStarThisMonth: number;
+      current: number;
+      rawAverage: number;
+      total: number;
+      goal: number;
+      reviewsNeeded: number;
+      fiveStarThisMonth: number;
     };
     let ratingData: RatingData | null = null;
     if (rawAvg !== null && ratingTotal > 0) {
       const currentTenths = Math.round(rawAvg * 10);
       const current = currentTenths / 10;
       if (current >= 5.0) {
-        ratingData = { current: 5.0, rawAverage: rawAvg, total: ratingTotal, goal: 5.0, reviewsNeeded: 0, fiveStarThisMonth };
+        ratingData = {
+          current: 5.0,
+          rawAverage: rawAvg,
+          total: ratingTotal,
+          goal: 5.0,
+          reviewsNeeded: 0,
+          fiveStarThisMonth,
+        };
       } else {
         const goal = (currentTenths + 1) / 10;
         const sumaActual = current * ratingTotal;
@@ -620,11 +713,24 @@ export class MetricsService {
         if (goal >= 5.0) {
           // Threshold 4.95 avoids division by zero when goal === 5.0
           const thr = 4.95;
-          reviewsNeeded = Math.max(0, Math.ceil((thr * ratingTotal - sumaActual) / (5 - thr)));
+          reviewsNeeded = Math.max(
+            0,
+            Math.ceil((thr * ratingTotal - sumaActual) / (5 - thr)),
+          );
         } else {
-          reviewsNeeded = Math.max(0, Math.ceil((goal * ratingTotal - sumaActual) / (5 - goal)));
+          reviewsNeeded = Math.max(
+            0,
+            Math.ceil((goal * ratingTotal - sumaActual) / (5 - goal)),
+          );
         }
-        ratingData = { current, rawAverage: rawAvg, total: ratingTotal, goal, reviewsNeeded, fiveStarThisMonth };
+        ratingData = {
+          current,
+          rawAverage: rawAvg,
+          total: ratingTotal,
+          goal,
+          reviewsNeeded,
+          fiveStarThisMonth,
+        };
       }
     }
 
@@ -1042,13 +1148,17 @@ function buildWindows(
 // ── Conversion helpers ─────────────────────────────────────────────────────
 
 function buildRangeFrom(range: string, now: Date): Date | null {
-  if (range === 'last_30_days') return new Date(now.getTime() - 30 * 86_400_000);
-  if (range === 'last_90_days') return new Date(now.getTime() - 90 * 86_400_000);
+  if (range === 'last_30_days')
+    return new Date(now.getTime() - 30 * 86_400_000);
+  if (range === 'last_90_days')
+    return new Date(now.getTime() - 90 * 86_400_000);
   return null; // all_time
 }
 
 function normalizeRange(range: string): string {
-  return range === 'last_30_days' || range === 'last_90_days' || range === 'all_time'
+  return range === 'last_30_days' ||
+    range === 'last_90_days' ||
+    range === 'all_time'
     ? range
     : 'last_30_days';
 }
@@ -1078,9 +1188,15 @@ function computeTopDropOffStep(
     { step: 'positive_to_review', a: positiveFeedback, b: reviewDetected },
   ]
     .filter(({ a }) => a > 0)
-    .map(({ step, a, b }) => ({ step, ratio: Math.round((b / a) * 100) / 100 }));
+    .map(({ step, a, b }) => ({
+      step,
+      ratio: Math.round((b / a) * 100) / 100,
+    }));
 
   if (!transitions.length) return null;
 
-  return transitions.reduce((min, t) => (t.ratio < min.ratio ? t : min), transitions[0]!);
+  return transitions.reduce(
+    (min, t) => (t.ratio < min.ratio ? t : min),
+    transitions[0],
+  );
 }

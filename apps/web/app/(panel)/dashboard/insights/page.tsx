@@ -66,6 +66,16 @@ interface ConversionSummary {
   insufficientData: boolean;
 }
 
+interface FunnelStep {
+  key: string;
+  label: string;
+  count: number;
+}
+
+interface ConversionFunnel {
+  steps: FunnelStep[];
+}
+
 interface InsightsPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
@@ -198,6 +208,97 @@ function ConversionCard({ conversion }: { conversion: ConversionSummary | null }
   );
 }
 
+// ── QR funnel — scan → capture → review, all in one glance ─────────────────────
+
+function stepCount(steps: FunnelStep[], key: string): number {
+  return steps.find((s) => s.key === key)?.count ?? 0;
+}
+
+function QrStat({
+  label,
+  value,
+  sub,
+}: {
+  label: string;
+  value: number;
+  sub?: string;
+}) {
+  return (
+    <div className="rounded-[10px] border border-[#E8EAF0] bg-[#F9F9FB] px-4 py-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+        {label}
+      </p>
+      <p className="mt-1.5 text-2xl font-bold leading-none text-[#1A202C]">
+        {value.toLocaleString("es-UY")}
+      </p>
+      {sub ? <p className="mt-1 text-xs text-[#8891A4]">{sub}</p> : null}
+    </div>
+  );
+}
+
+function pct(part: number, total: number): string | undefined {
+  if (total <= 0) return undefined;
+  return `${Math.round((part / total) * 100)}% de los que escanearon`;
+}
+
+function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
+  if (!funnel) return null;
+
+  const scanned = stepCount(funnel.steps, "scanned");
+  const captured = stepCount(funnel.steps, "sent");
+  const reviewed = stepCount(funnel.steps, "review_detected");
+  const noData = captured - reviewed;
+  const notCaptured = Math.max(0, scanned - captured);
+
+  if (scanned === 0) {
+    return (
+      <SectionCard
+        title="Tu QR"
+        description="Cómo se comportan las personas que escanean tu QR de captación."
+      >
+        <p className="text-sm text-[#8891A4]">
+          Todavía no registramos escaneos. Compartí tu QR con tus clientes para
+          empezar a ver estos números.
+        </p>
+      </SectionCard>
+    );
+  }
+
+  return (
+    <SectionCard
+      title="Tu QR"
+      description="Cómo se comportan las personas que escanean tu QR de captación."
+    >
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <QrStat label="Escanearon" value={scanned} />
+        <QrStat
+          label="Dejaron sus datos"
+          value={captured}
+          sub={pct(captured, scanned)}
+        />
+        <QrStat
+          label="Escanearon y no dejaron datos"
+          value={notCaptured}
+          sub={pct(notCaptured, scanned)}
+        />
+        <QrStat
+          label="Dejaron datos, sin reseña"
+          value={Math.max(0, noData)}
+          sub={
+            captured > 0
+              ? `${Math.round((Math.max(0, noData) / captured) * 100)}% de los que dejaron datos`
+              : undefined
+          }
+        />
+      </div>
+      <p className="mt-3 text-xs text-[#B0B8C9]">
+        No incluye escaneos de la última semana — todavía no dio tiempo a que
+        llegue la reseña.
+      </p>
+    </SectionCard>
+  );
+}
+
 export default async function InsightsPage({ searchParams }: InsightsPageProps) {
   const session = await getSession();
   if (!session?.activeBusinessId) redirect("/login");
@@ -248,6 +349,17 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
   try {
     conversion = await apiFetch<ConversionSummary>(
       "/metrics/conversion?range=last_30_days&attribution_window_days=7",
+      accessToken,
+      { businessId },
+    );
+  } catch {
+    // card omitted below
+  }
+
+  let qrFunnel: ConversionFunnel | null = null;
+  try {
+    qrFunnel = await apiFetch<ConversionFunnel>(
+      "/metrics/conversion/funnel?attribution_window_days=7&origin=qr",
       accessToken,
       { businessId },
     );
@@ -318,6 +430,9 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
 
       {/* Conversion rate */}
       <ConversionCard conversion={conversion} />
+
+      {/* QR funnel: scan → capture → review */}
+      <QrFunnelCard funnel={qrFunnel} />
 
       {/* Activity chart */}
       <SectionCard
