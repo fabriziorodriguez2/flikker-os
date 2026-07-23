@@ -3,16 +3,26 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { BenefitType } from '@prisma/client';
 import { BenefitsRepository, type BenefitData } from './benefits.repository';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { UpdateBenefitDto } from './dto/update-benefit.dto';
+
+export interface LastDrawView {
+  winnerName: string | null;
+  winnerPhone: string | null;
+  participantsCount: number;
+  periodKey: string;
+  drawnAt: Date;
+}
 
 @Injectable()
 export class BenefitsService {
   constructor(private readonly repository: BenefitsRepository) {}
 
-  list(businessId: string) {
-    return this.repository.findMany(businessId);
+  async list(businessId: string) {
+    const benefits = await this.repository.findMany(businessId);
+    return this.attachLastDraws(benefits);
   }
 
   getActive(businessId: string) {
@@ -22,7 +32,8 @@ export class BenefitsService {
   async getOne(businessId: string, id: string) {
     const benefit = await this.repository.findOne(businessId, id);
     if (!benefit) throw new NotFoundException('Benefit not found');
-    return benefit;
+    const [withDraw] = await this.attachLastDraws([benefit]);
+    return withDraw;
   }
 
   async create(businessId: string, dto: CreateBenefitDto) {
@@ -113,5 +124,31 @@ export class BenefitsService {
     }
 
     return { startDate, endDate };
+  }
+
+  /** Attaches `lastDraw` to raffle-type benefits; other types get `lastDraw: null`. */
+  private async attachLastDraws<T extends { id: string; type: BenefitType }>(
+    benefits: T[],
+  ): Promise<(T & { lastDraw: LastDrawView | null })[]> {
+    return Promise.all(
+      benefits.map(async (benefit) => {
+        if (benefit.type !== BenefitType.raffle) {
+          return { ...benefit, lastDraw: null };
+        }
+        const draw = await this.repository.findLatestDraw(benefit.id);
+        return {
+          ...benefit,
+          lastDraw: draw
+            ? {
+                winnerName: draw.winner?.name ?? null,
+                winnerPhone: draw.winner?.phoneE164 ?? null,
+                participantsCount: draw.participantsCount,
+                periodKey: draw.periodKey,
+                drawnAt: draw.drawnAt,
+              }
+            : null,
+        };
+      }),
+    );
   }
 }

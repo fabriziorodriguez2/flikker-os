@@ -328,6 +328,7 @@ model Business {
   retentionSequences        RetentionSequence[]
   retentionSteps            RetentionStep[]
   retentionSends            RetentionSend[]
+  raffleDraws               RaffleDraw[]
 }
 
 // ---------------------------------------------------------------------------
@@ -554,6 +555,7 @@ model Customer {
   appointmentNotifications AppointmentNotification[]
   benefitParticipations  BenefitParticipation[]
   retentionSends         RetentionSend[]
+  raffleDrawsWon         RaffleDraw[]
 
   @@index([businessId])
   @@index([businessId, isActive])
@@ -1175,6 +1177,7 @@ model Benefit {
 
   business       Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
   participations BenefitParticipation[]
+  raffleDraws    RaffleDraw[]
 
   @@index([businessId])
   @@index([businessId, active])
@@ -1186,21 +1189,57 @@ model Benefit {
 // ---------------------------------------------------------------------------
 
 model BenefitParticipation {
-  id         String   @id @default(uuid())
-  benefitId  String   @map("benefit_id")
-  businessId String   @map("business_id")
-  customerId String   @map("customer_id")
-  createdAt  DateTime @default(now()) @map("created_at")
+  id          String   @id @default(uuid())
+  benefitId   String   @map("benefit_id")
+  businessId  String   @map("business_id")
+  customerId  String   @map("customer_id")
+  // Set when this entry is "closed" by a monthly raffle draw. Null means the
+  // entry belongs to the currently open (not-yet-drawn) cycle. This is how the
+  // participant list resets month to month without deleting any data.
+  raffleDrawId String? @map("raffle_draw_id")
+  createdAt   DateTime @default(now()) @map("created_at")
 
-  benefit  Benefit  @relation(fields: [benefitId], references: [id], onDelete: Cascade)
-  business Business @relation(fields: [businessId], references: [id])
-  customer Customer @relation(fields: [customerId], references: [id])
+  benefit    Benefit     @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+  business   Business    @relation(fields: [businessId], references: [id])
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  raffleDraw RaffleDraw? @relation(fields: [raffleDrawId], references: [id], onDelete: SetNull)
 
   @@unique([benefitId, customerId])
   @@index([businessId])
   @@index([benefitId])
   @@index([customerId])
+  @@index([raffleDrawId])
   @@map("benefit_participations")
+}
+
+// ---------------------------------------------------------------------------
+// RaffleDraw (monthly winner draw for a raffle-type benefit)
+// ---------------------------------------------------------------------------
+// One row per (benefit, calendar month). Drawing closes the current cycle by
+// stamping every open BenefitParticipation with this draw's id — that's the
+// "reset": next month's entrants start out unclosed (raffleDrawId = null)
+// again, with no data deleted.
+
+model RaffleDraw {
+  id                String    @id @default(uuid())
+  benefitId         String    @map("benefit_id")
+  businessId        String    @map("business_id")
+  /// Local calendar month being closed, e.g. "2026-07".
+  periodKey         String    @map("period_key")
+  winnerCustomerId  String?   @map("winner_customer_id")
+  participantsCount Int       @map("participants_count")
+  drawnAt           DateTime  @default(now()) @map("drawn_at")
+  notifiedAt        DateTime? @map("notified_at")
+
+  benefit        Benefit                @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+  business       Business               @relation(fields: [businessId], references: [id])
+  winner         Customer?              @relation(fields: [winnerCustomerId], references: [id])
+  participations BenefitParticipation[]
+
+  @@unique([benefitId, periodKey])
+  @@index([businessId])
+  @@index([benefitId])
+  @@map("raffle_draws")
 }
 
 // ---------------------------------------------------------------------------

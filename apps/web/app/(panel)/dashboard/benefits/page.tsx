@@ -9,6 +9,7 @@ import {
   Pencil,
   Plus,
   Trash2,
+  Trophy,
   Users,
   X,
 } from "lucide-react";
@@ -17,6 +18,14 @@ import { useCanMutate } from "../../role-context";
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 type BenefitType = "discount" | "gift" | "raffle" | "promotion" | "other";
+
+interface LastDraw {
+  winnerName: string | null;
+  winnerPhone: string | null;
+  participantsCount: number;
+  periodKey: string;
+  drawnAt: string;
+}
 
 interface Benefit {
   id: string;
@@ -30,6 +39,7 @@ interface Benefit {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  lastDraw: LastDraw | null;
 }
 
 const TYPE_OPTIONS: { value: BenefitType; label: string }[] = [
@@ -245,6 +255,14 @@ function formatDate(iso: string | null): string | null {
   });
 }
 
+/** "2026-07" -> "julio 2026" */
+function formatPeriodKey(periodKey: string): string {
+  const [year, month] = periodKey.split("-").map(Number);
+  if (!year || !month) return periodKey;
+  const d = new Date(year, month - 1, 1);
+  return d.toLocaleDateString("es-UY", { month: "long", year: "numeric" });
+}
+
 function BenefitCard({
   benefit,
   canMutate,
@@ -349,7 +367,28 @@ function BenefitCard({
       </div>
 
       {benefit.type === "raffle" ? (
-        <div className="mt-4 border-t border-[#F0F2FA] pt-3">
+        <div className="mt-4 space-y-3 border-t border-[#F0F2FA] pt-3">
+          {benefit.lastDraw ? (
+            <div className="flex items-start gap-3 rounded-[10px] border border-[#FAAB4B]/30 bg-[#FFF9F0] px-3 py-2.5">
+              <span className="mt-0.5 shrink-0 text-[#D4600A]">
+                <Trophy className="h-4 w-4" />
+              </span>
+              <p className="text-xs leading-relaxed text-[#8A520D]">
+                <span className="font-semibold">
+                  Último ganador ({formatPeriodKey(benefit.lastDraw.periodKey)}):
+                </span>{" "}
+                {benefit.lastDraw.winnerName ?? "Sin nombre"}
+                {benefit.lastDraw.winnerPhone
+                  ? ` (${benefit.lastDraw.winnerPhone})`
+                  : ""}
+                {" — "}
+                {benefit.lastDraw.participantsCount}{" "}
+                {benefit.lastDraw.participantsCount === 1
+                  ? "participante"
+                  : "participantes"}
+              </p>
+            </div>
+          ) : null}
           <button
             type="button"
             onClick={onViewParticipants}
@@ -405,9 +444,11 @@ function downloadParticipantsCsv(benefitTitle: string, rows: Participant[]) {
 
 function ParticipantsModal({
   benefit,
+  isRaffle,
   onClose,
 }: {
   benefit: Benefit;
+  isRaffle: boolean;
   onClose: () => void;
 }) {
   const [participants, setParticipants] = useState<Participant[]>([]);
@@ -456,6 +497,12 @@ function ParticipantsModal({
             <h2 className="mt-1 truncate text-lg font-bold text-[#1A202C]">
               {benefit.title}
             </h2>
+            {isRaffle ? (
+              <p className="mt-1 text-xs text-[#8891A4]">
+                Muestra solo el mes en curso. La lista se reinicia sola al
+                sortear el ganador.
+              </p>
+            ) : null}
           </div>
           <button
             type="button"
@@ -739,6 +786,7 @@ export default function BenefitsPage() {
       {participantsFor ? (
         <ParticipantsModal
           benefit={participantsFor}
+          isRaffle={participantsFor.type === "raffle"}
           onClose={() => setParticipantsFor(null)}
         />
       ) : null}

@@ -16,6 +16,7 @@ function makeRepo() {
     remove: jest.fn(),
     findParticipants: jest.fn(),
     registerParticipation: jest.fn(),
+    findLatestDraw: jest.fn(),
   };
 }
 
@@ -116,5 +117,44 @@ describe('BenefitsService', () => {
       service.getParticipants('biz-1', 'foreign'),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(repo.findParticipants).not.toHaveBeenCalled();
+  });
+
+  it('list attaches lastDraw only to raffle-type benefits', async () => {
+    const repo = makeRepo();
+    repo.findMany.mockResolvedValue([
+      { id: 'b1', type: BenefitType.raffle },
+      { id: 'b2', type: BenefitType.discount },
+    ]);
+    repo.findLatestDraw.mockResolvedValue({
+      periodKey: '2026-07',
+      participantsCount: 4,
+      drawnAt: new Date('2026-07-31T23:50:00Z'),
+      winner: { name: 'Igor', phoneE164: '+59892180837' },
+    });
+    const service = makeService(repo);
+
+    const result = await service.list('biz-1');
+
+    expect(repo.findLatestDraw).toHaveBeenCalledWith('b1');
+    expect(repo.findLatestDraw).not.toHaveBeenCalledWith('b2');
+    expect(result[0].lastDraw).toEqual({
+      winnerName: 'Igor',
+      winnerPhone: '+59892180837',
+      participantsCount: 4,
+      periodKey: '2026-07',
+      drawnAt: new Date('2026-07-31T23:50:00Z'),
+    });
+    expect(result[1].lastDraw).toBeNull();
+  });
+
+  it('list sets lastDraw to null for a raffle with no draws yet', async () => {
+    const repo = makeRepo();
+    repo.findMany.mockResolvedValue([{ id: 'b1', type: BenefitType.raffle }]);
+    repo.findLatestDraw.mockResolvedValue(null);
+    const service = makeService(repo);
+
+    const result = await service.list('biz-1');
+
+    expect(result[0].lastDraw).toBeNull();
   });
 });

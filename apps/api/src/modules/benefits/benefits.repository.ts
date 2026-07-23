@@ -91,9 +91,10 @@ export class BenefitsRepository {
     return result.count > 0;
   }
 
+  /** Only the currently open cycle — closed (already-drawn) entries are excluded. */
   findParticipants(businessId: string, benefitId: string) {
     return this.prisma.benefitParticipation.findMany({
-      where: { benefitId, businessId },
+      where: { benefitId, businessId, raffleDrawId: null },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
@@ -105,7 +106,11 @@ export class BenefitsRepository {
     });
   }
 
-  /** Idempotent: a customer participates in a benefit at most once. */
+  /**
+   * Idempotent per open cycle: a customer participates at most once per
+   * cycle. If their prior entry was already closed by a raffle draw, this
+   * re-opens it for the new cycle instead of leaving them stuck out of it.
+   */
   registerParticipation(
     businessId: string,
     benefitId: string,
@@ -114,7 +119,22 @@ export class BenefitsRepository {
     return this.prisma.benefitParticipation.upsert({
       where: { benefitId_customerId: { benefitId, customerId } },
       create: { businessId, benefitId, customerId },
-      update: {},
+      update: { raffleDrawId: null, createdAt: new Date() },
+    });
+  }
+
+  /** Most recent draw for a benefit, with the winner's basic contact info. */
+  findLatestDraw(benefitId: string) {
+    return this.prisma.raffleDraw.findFirst({
+      where: { benefitId },
+      orderBy: { drawnAt: 'desc' },
+      select: {
+        id: true,
+        periodKey: true,
+        participantsCount: true,
+        drawnAt: true,
+        winner: { select: { name: true, phoneE164: true } },
+      },
     });
   }
 
