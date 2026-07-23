@@ -150,11 +150,9 @@ function statusBadgeClass(status: string) {
 // Campañas basadas en visitas (ServiceEvent) que quedaron reemplazadas por el
 // sistema nuevo de Retención por tiempo (/dashboard/retention). Se ocultan de la
 // UI pero no se borran: la lógica de backend sigue intacta si se reactivan.
-const HIDDEN_TEMPLATE_KINDS = new Set([
-  "reactivation",
-  "post_service",
-  "birthday",
-]);
+// "birthday" queda visible: no depende de visitas (usa la fecha de cumpleaños
+// del cliente) y los negocios pueden editar su mensaje.
+const HIDDEN_TEMPLATE_KINDS = new Set(["reactivation", "post_service"]);
 
 export default function RepeatCampaignsSection({
   initialCampaigns,
