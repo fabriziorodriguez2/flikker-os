@@ -52,6 +52,10 @@ interface CreateForm {
   notes: string;
 }
 
+// Mirrors the backend's email.util validation: requires a real TLD, unlike the
+// browser's type="email" which happily accepts "usuario@gmail".
+const EMAIL_REGEX = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[A-Za-z]{2,}$/;
+
 function todayIsoDate() {
   return new Date().toISOString().slice(0, 10);
 }
@@ -218,6 +222,17 @@ export default function PlatformPage() {
         return;
       }
 
+      // The browser's type="email" accepts TLD-less values like "usuario@gmail",
+      // which produces an account nobody can log into. Require a real TLD.
+      const ownerEmail = createForm.ownerEmail.trim().toLowerCase();
+      if (!EMAIL_REGEX.test(ownerEmail)) {
+        setCreateError(
+          "El email del dueño no es válido. Revisá que incluya el dominio completo (ej: nombre@dominio.com).",
+        );
+        setCreating(false);
+        return;
+      }
+
       const initialPlan = isTrial
         ? {
             plan: createForm.plan,
@@ -234,7 +249,7 @@ export default function PlatformPage() {
 
       const payload = {
         name: createForm.name,
-        ownerEmail: createForm.ownerEmail,
+        ownerEmail,
         ownerFirstName: createForm.ownerFirstName,
         ownerLastName: createForm.ownerLastName,
         vertical: createForm.vertical,

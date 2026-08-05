@@ -25,6 +25,7 @@ import { SetBusinessPlanDto } from './dto/set-business-plan.dto';
 import { PlatformRepository } from './platform.repository';
 import { AuditService } from '../../common/services/audit.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
+import { parseEmail } from '../../common/utils/email.util';
 import { CustomersService } from '../customers/customers.service';
 import { CampaignsService } from '../campaigns/campaigns.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
@@ -165,12 +166,17 @@ export class PlatformService {
     },
   ) {
     const name = dto.name?.trim();
-    const ownerEmail = dto.ownerEmail?.trim().toLowerCase();
     const ownerFirstName = dto.ownerFirstName?.trim();
     const ownerLastName = dto.ownerLastName?.trim();
 
     if (!name) throw new BadRequestException('Business name is required');
-    if (!ownerEmail) throw new BadRequestException('Owner email is required');
+    if (!dto.ownerEmail?.trim()) {
+      throw new BadRequestException('Owner email is required');
+    }
+    // Validates the format (not just trim/lowercase): this endpoint takes a
+    // plain body with no DTO, so without this an owner could be created with a
+    // typo'd address like "usuario@gmail" and never be able to log in.
+    const ownerEmail = parseEmail(dto.ownerEmail);
     if (!ownerFirstName) {
       throw new BadRequestException('Owner first name is required');
     }
@@ -964,15 +970,23 @@ export class PlatformService {
 
   async changeUserPassword(email: string, newPassword: string) {
     const user = await this.prisma.user.findUnique({
-      where: { email: email.toLowerCase().trim() },
+      where: { email: parseEmail(email) },
       select: { id: true, email: true },
     });
     if (!user) throw new NotFoundException('Usuario no encontrado');
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: { passwordHash },
-    });
+    // Revoke active sessions alongside the change, same policy as the
+    // reset-by-token and self-service flows.
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash },
+      }),
+      this.prisma.session.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
     this.logger.log(`[platform] Password changed for user ${user.email}`);
     return { ok: true, email: user.email };
   }

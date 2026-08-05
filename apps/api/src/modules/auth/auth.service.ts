@@ -17,7 +17,9 @@ import { LogoutDto } from './dto/logout.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SignupDto } from './dto/signup.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { EmailService } from '../../jobs/email.service';
+import { normalizeEmail } from '../../common/utils/email.util';
 
 const BCRYPT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_MINUTES = 30;
@@ -34,7 +36,7 @@ export class AuthService {
   ) {}
 
   async signup(dto: SignupDto, userAgent?: string, ip?: string) {
-    const email = dto.email.toLowerCase();
+    const email = normalizeEmail(dto.email);
     const existingUser = await this.repository.findUserByEmail(email);
 
     if (existingUser) {
@@ -83,7 +85,9 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, userAgent?: string, ip?: string) {
-    const user = await this.repository.findUserByEmail(dto.email.toLowerCase());
+    const user = await this.repository.findUserByEmail(
+      normalizeEmail(dto.email),
+    );
 
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Invalid credentials');
@@ -179,12 +183,13 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
-    const user = await this.repository.findUserByEmail(dto.email.toLowerCase());
+    const email = normalizeEmail(dto.email);
+    const user = await this.repository.findUserByEmail(email);
 
     // Always return 200 to avoid email enumeration
     if (!user || !user.isActive) {
       this.logger.warn(
-        `Password reset requested for unknown or inactive email: ${dto.email.toLowerCase()}`,
+        `Password reset requested for unknown or inactive email: ${email}`,
       );
       return { message: PASSWORD_RESET_MESSAGE };
     }
@@ -228,7 +233,7 @@ export class AuthService {
 
   async resetPassword(dto: ResetPasswordDto) {
     const tokenHash = this.hashToken(dto.token);
-    const email = dto.email.toLowerCase();
+    const email = normalizeEmail(dto.email);
 
     const resetToken = await this.repository.findResetToken(tokenHash);
 
@@ -246,6 +251,44 @@ export class AuthService {
       passwordHash,
       resetToken.id,
     );
+
+    return { message: 'Password updated successfully' };
+  }
+
+  /**
+   * Self-service password change for a logged-in user. The user picks their own
+   * password — nothing is generated. Requires the current password so a stolen
+   * session cannot lock the owner out, and revokes every session afterwards
+   * (same policy as the reset-by-token flow), so the user re-logs in.
+   */
+  async changePassword(userId: string, dto: ChangePasswordDto) {
+    const user = await this.repository.findUserCredentials(userId);
+    if (!user || !user.isActive) {
+      throw new UnauthorizedException();
+    }
+
+    const currentValid = await bcrypt.compare(
+      dto.currentPassword,
+      user.passwordHash,
+    );
+    if (!currentValid) {
+      throw new BadRequestException('La contraseña actual no es correcta');
+    }
+
+    const sameAsCurrent = await bcrypt.compare(
+      dto.newPassword,
+      user.passwordHash,
+    );
+    if (sameAsCurrent) {
+      throw new BadRequestException(
+        'La nueva contraseña debe ser distinta de la actual',
+      );
+    }
+
+    const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
+    await this.repository.updatePasswordAndRevokeSessions(userId, passwordHash);
+
+    this.logger.log(`Password changed by user ${userId}`);
 
     return { message: 'Password updated successfully' };
   }

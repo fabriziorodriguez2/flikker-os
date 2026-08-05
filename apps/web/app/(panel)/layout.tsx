@@ -1,6 +1,7 @@
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import Sidebar from "./sidebar";
 import MobileNav from "./mobile-nav";
 import LogoutButton from "./logout-button";
@@ -175,6 +176,14 @@ export default async function PanelLayout({
                   )}
                 </div>
               ) : null}
+              <Link
+                href="/dashboard/settings"
+                aria-label="Cuenta y seguridad"
+                title="Cuenta y seguridad"
+                className="inline-flex h-9 items-center rounded-lg border border-[#E8EAF0] bg-white px-3 text-sm font-semibold text-[#1A202C] transition-colors hover:bg-[#F5F6FA]"
+              >
+                Cuenta
+              </Link>
               <LogoutButton />
             </div>
           </div>

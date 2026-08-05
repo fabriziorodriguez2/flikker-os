@@ -8,6 +8,7 @@ import { LogoutDto } from './dto/logout.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SignupDto } from './dto/signup.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtGuard } from './guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 
@@ -49,6 +50,16 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 3600000 } })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  @UseGuards(JwtGuard, ThrottlerGuard)
+  @Throttle({ default: { limit: 5, ttl: 3600000 } })
+  @Post('change-password')
+  changePassword(
+    @CurrentUser() user: { id: string },
+    @Body() dto: ChangePasswordDto,
+  ) {
+    return this.authService.changePassword(user.id, dto);
   }
 
   @UseGuards(JwtGuard)

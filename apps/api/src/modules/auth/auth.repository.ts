@@ -47,6 +47,31 @@ export class AuthRepository {
     });
   }
 
+  /** Password hash of a user — only for verifying their current password. */
+  findUserCredentials(id: string) {
+    return this.prisma.user.findUnique({
+      where: { id },
+      select: { id: true, passwordHash: true, isActive: true },
+    });
+  }
+
+  /**
+   * Sets a new password and revokes every active session, matching what
+   * `executePasswordReset` already does for the reset-by-token flow.
+   */
+  updatePasswordAndRevokeSessions(userId: string, passwordHash: string) {
+    return this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: userId },
+        data: { passwordHash },
+      }),
+      this.prisma.session.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+  }
+
   markUserOnboardingComplete(id: string) {
     return this.prisma.user.update({
       where: { id },
