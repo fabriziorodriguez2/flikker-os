@@ -213,9 +213,11 @@ export class AuthService {
 
     await this.repository.createResetToken(user.id, tokenHash, expiresAt);
 
+    // Token only: the email is PII and would leak into browser history, server
+    // logs and Referer headers. The token already identifies the account.
     const resetUrl = `${getAppPublicUrl()}/reset-password?token=${encodeURIComponent(
       rawToken,
-    )}&email=${encodeURIComponent(user.email)}`;
+    )}`;
 
     try {
       await this.emailService.send({
@@ -245,15 +247,21 @@ export class AuthService {
 
   async resetPassword(dto: ResetPasswordDto) {
     const tokenHash = this.hashToken(dto.token);
-    const email = normalizeEmail(dto.email);
 
     const resetToken = await this.repository.findResetToken(tokenHash);
 
+    // One single generic error for unknown / already-used / expired tokens, so
+    // the response never reveals which of the three it was.
     if (!resetToken || resetToken.usedAt || resetToken.expiresAt < new Date()) {
       throw new BadRequestException('Invalid or expired token');
     }
-    if (resetToken.user.email.toLowerCase() !== email) {
-      throw new BadRequestException('Email does not match reset token');
+    // Legacy links still carry the email; when present it must match the
+    // token's owner. New links send the token only.
+    if (
+      dto.email !== undefined &&
+      resetToken.user.email.toLowerCase() !== normalizeEmail(dto.email)
+    ) {
+      throw new BadRequestException('Invalid or expired token');
     }
 
     const passwordHash = await bcrypt.hash(dto.newPassword, BCRYPT_ROUNDS);
