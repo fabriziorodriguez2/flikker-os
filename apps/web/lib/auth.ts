@@ -2,6 +2,14 @@ import { cookies } from "next/headers";
 
 export const SESSION_COOKIE = "flikker_session";
 
+/**
+ * Lifetime of the session cookie. A persistent (non-session) cookie so it
+ * survives closing the browser. It is rewritten on every token refresh, so the
+ * window slides forward for anyone who keeps using Flikker — matches
+ * SESSION_TTL_DAYS on the API.
+ */
+export const SESSION_COOKIE_MAX_AGE = 60 * 60 * 24 * 90; // 90 días
+
 export interface SessionUser {
   id: string;
   email: string;
@@ -73,7 +81,7 @@ export async function setSession(session: Session): Promise<void> {
     httpOnly: true,
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: SESSION_COOKIE_MAX_AGE,
     secure: process.env.NODE_ENV === "production",
   });
 }

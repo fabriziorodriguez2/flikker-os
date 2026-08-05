@@ -25,6 +25,21 @@ const BCRYPT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_MINUTES = 30;
 const PASSWORD_RESET_MESSAGE = 'Email enviado';
 
+/**
+ * How long a refresh session stays usable without activity. The window slides:
+ * every refresh rotates the token and pushes the expiry forward, so an owner
+ * who keeps using Flikker stays logged in indefinitely, while an abandoned or
+ * stolen token still dies on its own. Must stay aligned with
+ * JWT_REFRESH_EXPIRES_IN — the JWT is verified before the DB row is looked up.
+ */
+const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS ?? 90);
+
+function buildSessionExpiry(): Date {
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + SESSION_TTL_DAYS);
+  return expiresAt;
+}
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -57,8 +72,7 @@ export class AuthService {
       user.id,
     );
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    const expiresAt = buildSessionExpiry();
 
     await this.repository.createSession({
       userId: user.id,
@@ -102,8 +116,7 @@ export class AuthService {
       user.id,
     );
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    const expiresAt = buildSessionExpiry();
 
     await this.repository.createSession({
       userId: user.id,
@@ -163,8 +176,7 @@ export class AuthService {
       refreshTokenHash: newHash,
     } = this.generateTokens(payload.sub);
 
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7);
+    const expiresAt = buildSessionExpiry();
 
     await this.repository.rotateSession(session.id, {
       userId: payload.sub,
@@ -322,7 +334,8 @@ export class AuthService {
 
     const refreshToken = this.jwt.sign(payload, {
       secret,
-      expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN ?? '7d') as StringValue,
+      expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN ??
+        `${SESSION_TTL_DAYS}d`) as StringValue,
     });
 
     const refreshTokenHash = this.hashToken(refreshToken);
