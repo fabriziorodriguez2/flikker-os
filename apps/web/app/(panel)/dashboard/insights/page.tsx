@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
+import { QrCode, Star, UserRoundCheck } from "lucide-react";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import SectionCard from "@/components/ui/section-card";
+import PageHeader from "@/components/ui/page-header";
 import ActivityEvolutionChart from "../activity-evolution-chart";
 import ActivityFilters, { type ActivityGranularity } from "../activity-filters";
 import { ACTIVITY_SERIES } from "../activity-series";
@@ -103,20 +105,47 @@ function MiniKpiCard({
   label,
   value,
   sub,
+  tone,
 }: {
   label: string;
   value: string;
   sub: string;
+  tone: "violet" | "warm";
 }) {
+  const toneClasses =
+    tone === "violet"
+      ? {
+          card: "border-[#5C6BC0]/20 bg-[linear-gradient(135deg,#F8F8FF_0%,#ECEEFC_100%)]",
+          glow: "bg-[#9188F5]/22",
+          label: "text-[#5C6BC0]",
+          value: "text-[#1A202C]",
+          sub: "text-[#777F96]",
+        }
+      : {
+          card: "border-[#F9A148]/30 bg-gradient-to-br from-[#FBB25A] to-[#F5842A] shadow-[0_12px_30px_rgba(245,132,42,0.22)]",
+          glow: "bg-white/22",
+          label: "text-white/85",
+          value: "text-white",
+          sub: "text-white/80",
+        };
+
   return (
-    <article className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8891A4]">
+    <article
+      className={`group relative overflow-hidden rounded-[16px] border p-5 shadow-[0_8px_24px_rgba(56,45,125,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(56,45,125,0.13)] ${toneClasses.card}`}
+    >
+      <span
+        aria-hidden="true"
+        className={`absolute -right-8 -top-10 h-28 w-28 rounded-full blur-2xl transition-transform duration-500 group-hover:translate-x-2 group-hover:translate-y-2 group-hover:scale-110 ${toneClasses.glow}`}
+      />
+      <p
+        className={`relative text-[11px] font-semibold uppercase tracking-[0.14em] ${toneClasses.label}`}
+      >
         {label}
       </p>
-      <p className="mt-3 text-[32px] font-bold leading-none text-[#1A202C]">
+      <p className={`relative mt-3 text-[32px] font-bold leading-none ${toneClasses.value}`}>
         {value}
       </p>
-      <p className="mt-3 text-xs text-[#8891A4]">{sub}</p>
+      <p className={`relative mt-3 text-xs ${toneClasses.sub}`}>{sub}</p>
     </article>
   );
 }
@@ -137,7 +166,7 @@ function ConversionRing({ pct, muted }: { pct: number; muted: boolean }) {
   const color = muted ? "#D0D5DD" : conversionRingColor(clamped);
 
   return (
-    <div className="relative mx-auto h-[150px] w-[150px] shrink-0">
+    <div className="relative mx-auto h-[150px] w-[150px] shrink-0 transition-transform duration-300 group-hover/conversion:scale-[1.04]">
       <svg viewBox="0 0 150 150" className="h-full w-full -rotate-90">
         <circle cx="75" cy="75" r={r} fill="none" stroke="#EEF0FB" strokeWidth="12" />
         {!muted && (
@@ -176,10 +205,12 @@ function ConversionCard({ conversion }: { conversion: ConversionSummary | null }
 
   return (
     <SectionCard
+      tone="tinted"
+      interactive
       title="Conversión a reseñas"
       description="Cuántos de tus mensajes de los últimos 30 días terminaron en una reseña ⭐"
     >
-      <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-center sm:gap-8">
+      <div className="group/conversion flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-center sm:gap-8">
         <ConversionRing pct={conversion.conversionRate ?? 0} muted={muted} />
         <div className="max-w-xs text-center sm:text-left">
           {muted ? (
@@ -238,33 +269,6 @@ function stepCount(steps: FunnelStep[], key: string): number {
   return steps.find((s) => s.key === key)?.count ?? 0;
 }
 
-function QrStat({
-  label,
-  value,
-  sub,
-}: {
-  label: string;
-  value: number;
-  sub?: string;
-}) {
-  return (
-    <div className="rounded-[10px] border border-[#E8EAF0] bg-[#F9F9FB] px-4 py-3">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-        {label}
-      </p>
-      <p className="mt-1.5 text-2xl font-bold leading-none text-[#1A202C]">
-        {value.toLocaleString("es-UY")}
-      </p>
-      {sub ? <p className="mt-1 text-xs text-[#8891A4]">{sub}</p> : null}
-    </div>
-  );
-}
-
-function pct(part: number, total: number): string | undefined {
-  if (total <= 0) return undefined;
-  return `${Math.round((part / total) * 100)}% de los que escanearon`;
-}
-
 function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
   if (!funnel) return null;
 
@@ -273,11 +277,14 @@ function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
   // the follow-up WhatsApp review-request later succeeded — do not use "sent"
   // here, it undercounts whenever that message stays queued/failed.
   const captured = stepCount(funnel.steps, "captured");
-  const capturedMature = stepCount(funnel.steps, "captured_mature");
-  const reviewed = stepCount(funnel.steps, "review_detected");
-  // Only counted among captures old enough to have had time to convert.
-  const noData = Math.max(0, capturedMature - reviewed);
+  // Google reviews received since the business started using Flikker. It is a
+  // period metric, not a causal one: Flikker cannot prove it produced them, so
+  // it must never be presented as "reseñas generadas por Flikker" — and for the
+  // same reason there is no contacts→reseñas conversion rate here, since these
+  // reviews are not tied to those specific contacts.
+  const reviewed = stepCount(funnel.steps, "reviews_since_flikker");
   const notCaptured = Math.max(0, scanned - captured);
+  const captureRate = Math.round((captured / scanned) * 100);
 
   if (scanned === 0) {
     return (
@@ -295,36 +302,79 @@ function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
 
   return (
     <SectionCard
+      interactive
       title="Tu QR"
       description="Cómo se comportan las personas que escanean tu QR de captación."
     >
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <QrStat label="Escanearon" value={scanned} />
-        <QrStat
-          label="Dejaron sus datos"
-          value={captured}
-          sub={pct(captured, scanned)}
-        />
-        <QrStat
-          label="Escanearon y no dejaron datos"
-          value={notCaptured}
-          sub={pct(notCaptured, scanned)}
-        />
-        <QrStat
-          label="Dejaron datos, sin reseña"
-          value={noData}
-          sub={
-            capturedMature > 0
-              ? `${Math.round((noData / capturedMature) * 100)}% de los que dejaron datos hace 7+ días`
-              : undefined
-          }
-        />
+      <div className="rounded-[18px] border border-[#E3E5F0] bg-[#F9FAFD]/85 p-3 sm:p-5">
+        <div className="grid items-center gap-2 sm:grid-cols-[1fr_82px_1fr_82px_1fr]">
+          <div className="group/step flex items-center gap-3 rounded-[14px] p-3 transition-colors duration-300 hover:bg-white hover:shadow-[0_8px_22px_rgba(56,45,125,0.08)]">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-[#EEF0FB] text-[#5C6BC0] transition-transform duration-300 group-hover/step:scale-105 group-hover/step:-rotate-3">
+              <QrCode className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+                Escaneos
+              </p>
+              <p className="mt-1 text-[28px] font-bold leading-none text-[#1A202C]">
+                {scanned.toLocaleString("es-UY")}
+              </p>
+            </div>
+          </div>
+
+          <div className="hidden flex-col items-center gap-1.5 sm:flex">
+            <span className="text-[10px] font-semibold text-[#5C6BC0]">
+              {captureRate}%
+            </span>
+            <span className="h-px w-full bg-gradient-to-r from-[#5C6BC0]/20 via-[#5C6BC0] to-[#5C6BC0]/20" />
+          </div>
+
+          <div className="group/step flex items-center gap-3 rounded-[14px] p-3 transition-colors duration-300 hover:bg-white hover:shadow-[0_8px_22px_rgba(56,45,125,0.08)]">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-[#EAF6FB] text-[#4B98C8] transition-transform duration-300 group-hover/step:scale-105 group-hover/step:rotate-3">
+              <UserRoundCheck className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+                Contactos
+              </p>
+              <p className="mt-1 text-[28px] font-bold leading-none text-[#1A202C]">
+                {captured.toLocaleString("es-UY")}
+              </p>
+            </div>
+          </div>
+
+          {/* No percentage between contacts and reviews on purpose: these
+              reviews are not attributed to those specific contacts. */}
+          <div className="hidden flex-col items-center gap-1.5 sm:flex">
+            <span className="h-px w-full bg-gradient-to-r from-[#FFAB76]/20 via-[#EF9156] to-[#FFAB76]/20" />
+          </div>
+
+          <div className="group/step flex items-center gap-3 rounded-[14px] p-3 transition-colors duration-300 hover:bg-white hover:shadow-[0_8px_22px_rgba(56,45,125,0.08)]">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-[#FFF0E5] text-[#E07C3E] transition-transform duration-300 group-hover/step:scale-105 group-hover/step:rotate-6">
+              <Star className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <div>
+              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+                Reseñas desde Flikker
+              </p>
+              <p className="mt-1 text-[28px] font-bold leading-none text-[#1A202C]">
+                {reviewed.toLocaleString("es-UY")}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-x-6 gap-y-2 border-t border-[#E5E7F0] px-3 pt-3 text-xs text-[#777F96]">
+          <span className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#B0B8C9]" />
+            {notCaptured.toLocaleString("es-UY")} escaneos no dejaron datos
+          </span>
+          <span className="flex items-center gap-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#FFAB76]" />
+            Reseñas de Google recibidas desde que empezaste a usar Flikker
+          </span>
+        </div>
       </div>
-      <p className="mt-3 text-xs text-[#B0B8C9]">
-        &ldquo;Sin reseña&rdquo; solo cuenta a quienes dejaron sus datos hace
-        más de una semana — a los más recientes todavía no les dio tiempo de
-        reseñar.
-      </p>
     </SectionCard>
   );
 }
@@ -410,21 +460,16 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-[#1A202C]">
-          Tu resumen
-        </h1>
-        <p className="mt-1 text-sm text-[#8891A4]">
-          Mirá cómo evoluciona tu reputación y qué te está trayendo reseñas 📈
-        </p>
-      </div>
+      <PageHeader
+        title="Tu resumen"
+        subtitle="Mirá cómo evoluciona tu reputación y qué te está trayendo reseñas 📈"
+      />
 
-      {/* Friendly trend summary */}
       <div
-        className={`rounded-[14px] border px-5 py-4 text-sm font-semibold ${
+        className={`rounded-[14px] border px-5 py-4 text-sm font-semibold shadow-[0_6px_18px_rgba(56,45,125,0.05)] ${
           revUp
-            ? "border-[#1D9E75]/20 bg-[#1D9E75]/10 text-[#12795A]"
-            : "border-[#E8EAF0] bg-[#F9F9FB] text-[#4A5568]"
+            ? "border-[#1D9E75]/18 bg-[#EFF9F5] text-[#12795A]"
+            : "border-[#5C6BC0]/16 bg-[#F3F4FC] text-[#4F5EAD]"
         }`}
       >
         {revSummary}
@@ -434,6 +479,7 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
       <div className="grid gap-4 sm:grid-cols-2">
         <MiniKpiCard
           label="Contactos"
+          tone="violet"
           value={(contactsStats?.total ?? 0).toLocaleString("es-UY")}
           sub={
             contactsStats
@@ -445,6 +491,7 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
         />
         <MiniKpiCard
           label="Tu rating en Google"
+          tone="warm"
           value={
             googleStats
               ? `${googleStats.avgStars.toLocaleString("es-UY", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ★`
@@ -466,6 +513,7 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
 
       {/* Activity chart */}
       <SectionCard
+        interactive
         title="Tu actividad"
         description="Cómo se mueven tus mensajes y reseñas con el tiempo."
         action={

@@ -6,6 +6,7 @@ interface SectionCardProps {
   action?: ReactNode;
   children: ReactNode;
   tone?: "default" | "tinted";
+  interactive?: boolean;
 }
 
 export default function SectionCard({
@@ -14,13 +15,18 @@ export default function SectionCard({
   action,
   children,
   tone = "default",
+  interactive = false,
 }: SectionCardProps) {
   return (
     <section
       className={`rounded-[16px] border p-5 md:p-6 ${
         tone === "tinted"
-          ? "border-[color:rgba(145,136,245,0.14)] bg-[color:rgba(145,136,245,0.04)]"
+          ? "border-[#5C6BC0]/18 bg-white/82 shadow-[0_10px_28px_rgba(92,107,192,0.07)] backdrop-blur-sm"
           : "flikker-card"
+      } ${
+        interactive
+          ? "transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_38px_rgba(56,45,125,0.11)]"
+          : ""
       }`}
     >
       <div className="flex flex-wrap items-start justify-between gap-3">
