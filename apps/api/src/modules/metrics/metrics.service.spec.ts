@@ -22,6 +22,9 @@ const mockPrisma = {
   business: {
     findUnique: jest.fn(),
   },
+  businessPlan: {
+    findFirst: jest.fn(),
+  },
   campaign: {
     findFirst: jest.fn(),
   },
@@ -30,8 +33,19 @@ const mockPrisma = {
   },
   customer: {
     count: jest.fn(),
+    findMany: jest.fn(),
   },
 };
+
+/** Start of the Flikker era used by the QR funnel tests. */
+const FLIKKER_START = new Date('2026-04-17T00:00:00.000Z');
+
+/** Builds `n` distinct contacts, so unique-people counting yields exactly `n`. */
+function distinctContacts(n: number) {
+  return Array.from({ length: n }, (_, i) => ({
+    phoneE164: `+5989${String(i).padStart(7, '0')}`,
+  }));
+}
 
 describe('MetricsService', () => {
   let service: MetricsService;
@@ -235,9 +249,17 @@ describe('MetricsService', () => {
         .mockResolvedValueOnce(12); // reviewDetected
       mockPrisma.campaign.findFirst.mockResolvedValue({ id: 'qr-campaign-1' });
       mockPrisma.scanEvent.count.mockResolvedValue(90);
-      mockPrisma.customer.count
-        .mockResolvedValueOnce(60) // captured (all-time)
-        .mockResolvedValueOnce(50); // capturedMature (7+ days old)
+      mockPrisma.business.findUnique.mockResolvedValue({
+        createdAt: FLIKKER_START,
+      });
+      mockPrisma.businessPlan.findFirst.mockResolvedValue({
+        trialStart: FLIKKER_START,
+        startDate: null,
+      });
+      mockPrisma.customer.findMany
+        .mockResolvedValueOnce(distinctContacts(60)) // captured
+        .mockResolvedValueOnce(distinctContacts(50)); // capturedMature
+      mockPrisma.googleReview.count.mockResolvedValue(8); // reviews since Flikker
 
       const result = await service.getConversionFunnel(BUSINESS_ID, 7, 'qr');
 
@@ -250,15 +272,26 @@ describe('MetricsService', () => {
         select: { id: true },
         orderBy: { createdAt: 'asc' },
       });
+      // Scans are bounded by the Flikker start date so pre-existing activity is
+      // never counted as a Flikker result.
       expect(mockPrisma.scanEvent.count).toHaveBeenCalledWith({
-        where: { businessId: BUSINESS_ID, campaignId: 'qr-campaign-1' },
+        where: {
+          businessId: BUSINESS_ID,
+          campaignId: 'qr-campaign-1',
+          scannedAt: { gte: FLIKKER_START },
+        },
       });
-      // Captured is a direct Customer count — decoupled from whether the
-      // follow-up WhatsApp message ("sent") actually went out. This is the
-      // fix for the bug where captures showed as 0 whenever messages were
-      // stuck queued/failed (e.g. quota exceeded) despite real signups.
-      expect(mockPrisma.customer.count).toHaveBeenNthCalledWith(1, {
-        where: { businessId: BUSINESS_ID, origin: 'qr' },
+      // Captured = UNIQUE PEOPLE, read as rows and de-duplicated by phone —
+      // the Customer table has no unique constraint on (businessId, phone), so
+      // counting rows inflated this metric. Soft-deleted contacts are excluded.
+      expect(mockPrisma.customer.findMany).toHaveBeenNthCalledWith(1, {
+        where: {
+          businessId: BUSINESS_ID,
+          origin: 'qr',
+          isActive: true,
+          createdAt: { gte: FLIKKER_START },
+        },
+        select: { phoneE164: true },
       });
       expect(result.steps[0]).toEqual({
         key: 'scanned',
@@ -284,13 +317,19 @@ describe('MetricsService', () => {
         'positive_feedback',
         'negative_feedback_filtered',
         'review_detected',
+        'reviews_since_flikker',
       ]);
     });
 
     it('returns 0 scans and captures for origin=qr when there is no active qr_capture campaign', async () => {
       mockPrisma.message.count.mockResolvedValue(0);
       mockPrisma.campaign.findFirst.mockResolvedValue(null);
-      mockPrisma.customer.count.mockResolvedValue(0);
+      mockPrisma.business.findUnique.mockResolvedValue({
+        createdAt: FLIKKER_START,
+      });
+      mockPrisma.businessPlan.findFirst.mockResolvedValue(null);
+      mockPrisma.customer.findMany.mockResolvedValue([]);
+      mockPrisma.googleReview.count.mockResolvedValue(0);
 
       const result = await service.getConversionFunnel(BUSINESS_ID, 7, 'qr');
 

@@ -22,6 +22,8 @@ export type GoalType = "REVIEWS" | "CONTACTS";
 export interface GoalView {
   source: "trial" | "user";
   type: GoalType;
+  /** What the number actually counts — drives the honest label in the UI. */
+  metric?: "google_reviews_since_start" | "unique_contacts";
   target: number;
   current: number;
   deadline: string | null;

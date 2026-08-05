@@ -1,6 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CampaignExecutionStatus, MessageStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  countUniquePeople,
+  flikkerContactsWhere,
+  resolveFlikkerStartAt,
+  reviewsSinceFlikkerWhere,
+} from './flikker-metrics';
 
 interface KpiMetric {
   current: number;
@@ -372,6 +378,10 @@ export class MetricsService {
   ): Promise<ConversionFunnel> {
     const cutoff = new Date(Date.now() - attributionWindowDays * 86_400_000);
     const baseWhere = this.sentMessageWhere(businessId, null, cutoff, origin);
+    // Everything QR-related is measured from the day the business started using
+    // Flikker, so pre-existing history is never counted as a Flikker result.
+    const flikkerStartAt =
+      origin === 'qr' ? await this.getFlikkerStartAt(businessId) : null;
 
     const [
       sent,
@@ -382,6 +392,7 @@ export class MetricsService {
       scanned,
       captured,
       capturedMature,
+      reviewsSinceFlikker,
     ] = await Promise.all([
       this.prisma.message.count({ where: baseWhere }),
       this.prisma.message.count({
@@ -402,18 +413,23 @@ export class MetricsService {
       this.prisma.message.count({
         where: { ...baseWhere, attributedGoogleReviews: { some: {} } },
       }),
-      origin === 'qr' ? this.countQrScans(businessId) : Promise.resolve(null),
+      flikkerStartAt
+        ? this.countQrScans(businessId, flikkerStartAt)
+        : Promise.resolve(null),
       // Captured = the contact form was submitted (Customer row exists), which
       // is independent of whether the follow-up WhatsApp review-request later
-      // succeeded. "sent" below only reflects that downstream message pipeline
-      // — it undercounts captures whenever a message stays queued/failed (e.g.
-      // quota exceeded), so it must NOT be used as a proxy for "left their data".
-      origin === 'qr'
-        ? this.prisma.customer.count({ where: { businessId, origin: 'qr' } })
+      // succeeded. Counted as UNIQUE PEOPLE, not rows.
+      flikkerStartAt
+        ? this.countUniqueContacts(businessId, flikkerStartAt)
         : Promise.resolve(null),
-      origin === 'qr'
-        ? this.prisma.customer.count({
-            where: { businessId, origin: 'qr', createdAt: { lt: cutoff } },
+      flikkerStartAt
+        ? this.countUniqueContacts(businessId, flikkerStartAt, cutoff)
+        : Promise.resolve(null),
+      // Google reviews posted since Flikker started. Period context — NOT proof
+      // Flikker generated them, so it is labelled accordingly.
+      flikkerStartAt
+        ? this.prisma.googleReview.count({
+            where: reviewsSinceFlikkerWhere(businessId, flikkerStartAt),
           })
         : Promise.resolve(null),
     ]);
@@ -460,6 +476,15 @@ export class MetricsService {
         count: reviewDetected,
       },
     );
+    // QR view: reviews received since Flikker started. Deliberately named after
+    // the period and not after a cause — Flikker cannot prove it produced them.
+    if (reviewsSinceFlikker !== null) {
+      steps.push({
+        key: 'reviews_since_flikker',
+        label: 'Reseñas desde que usás Flikker',
+        count: reviewsSinceFlikker,
+      });
+    }
 
     return {
       attributionWindowDays,
@@ -475,12 +500,15 @@ export class MetricsService {
 
   /**
    * Scans of the business's QR capture campaign (the one behind /dashboard/qr
-   * and the public /qr/:businessId landing) — all-time, not cutoff-bound.
+   * and the public /qr/:businessId landing), from the Flikker start date on.
    * Other campaign channels (QR_TABLE, QR_COUNTER, etc.) also produce
    * ScanEvent rows, so this must be scoped to the specific campaign, not just
    * the business.
    */
-  private async countQrScans(businessId: string): Promise<number> {
+  private async countQrScans(
+    businessId: string,
+    flikkerStartAt: Date,
+  ): Promise<number> {
     const campaign = await this.prisma.campaign.findFirst({
       where: { businessId, status: 'ACTIVE', templateKind: 'qr_capture' },
       select: { id: true },
@@ -489,8 +517,55 @@ export class MetricsService {
     if (!campaign) return 0;
 
     return this.prisma.scanEvent.count({
-      where: { businessId, campaignId: campaign.id },
+      where: {
+        businessId,
+        campaignId: campaign.id,
+        scannedAt: { gte: flikkerStartAt },
+      },
     });
+  }
+
+  /**
+   * When this business started using Flikker. Shared by every metric so the
+   * panel, "Tu QR" and analytics all cut history at the exact same instant.
+   */
+  private async getFlikkerStartAt(businessId: string): Promise<Date> {
+    const [business, firstPlan] = await Promise.all([
+      this.prisma.business.findUnique({
+        where: { id: businessId },
+        select: { createdAt: true },
+      }),
+      this.prisma.businessPlan.findFirst({
+        where: { businessId },
+        orderBy: { createdAt: 'asc' },
+        select: { trialStart: true, startDate: true },
+      }),
+    ]);
+
+    return resolveFlikkerStartAt({
+      businessCreatedAt: business?.createdAt ?? new Date(0),
+      firstPlan,
+    });
+  }
+
+  /**
+   * Unique PEOPLE captured through the QR — not rows. The Customer table has no
+   * unique constraint on (businessId, phoneE164), so the same person can hold
+   * several rows; counting rows inflated this metric.
+   */
+  private async countUniqueContacts(
+    businessId: string,
+    flikkerStartAt: Date,
+    before?: Date,
+  ): Promise<number> {
+    const where = flikkerContactsWhere(businessId, flikkerStartAt);
+    const contacts = await this.prisma.customer.findMany({
+      where: before
+        ? { ...where, createdAt: { gte: flikkerStartAt, lt: before } }
+        : where,
+      select: { phoneE164: true },
+    });
+    return countUniquePeople(contacts);
   }
 
   async getConversionTimeSeries(
@@ -833,11 +908,14 @@ export class MetricsService {
     if (plan?.plan === 'FREE_TRIAL' && plan.trialGoal && plan.trialGoal > 0) {
       const startedAt = plan.trialStart ?? plan.createdAt;
       const current = await this.prisma.googleReview.count({
-        where: { businessId, postedAt: { gte: startedAt } },
+        where: reviewsSinceFlikkerWhere(businessId, startedAt),
       });
       return {
         source: 'trial' as const,
         type: 'REVIEWS' as const,
+        // Every Google review received in the period — NOT a count of reviews
+        // Flikker can prove it generated. The UI must label it accordingly.
+        metric: 'google_reviews_since_start' as const,
         target: plan.trialGoal,
         current,
         deadline: null as string | null,
@@ -850,20 +928,19 @@ export class MetricsService {
       let current = 0;
       if (goal.type === 'REVIEWS') {
         current = await this.prisma.googleReview.count({
-          where: { businessId, postedAt: { gte: goal.createdAt } },
+          where: reviewsSinceFlikkerWhere(businessId, goal.createdAt),
         });
       } else {
-        current = await this.prisma.customer.count({
-          where: {
-            businessId,
-            origin: 'qr',
-            createdAt: { gte: goal.createdAt },
-          },
-        });
+        // Unique people, not rows — same definition the QR card uses.
+        current = await this.countUniqueContacts(businessId, goal.createdAt);
       }
       return {
         source: 'user' as const,
         type: goal.type,
+        metric:
+          goal.type === 'REVIEWS'
+            ? ('google_reviews_since_start' as const)
+            : ('unique_contacts' as const),
         target: goal.target,
         current,
         deadline: goal.deadline.toISOString(),

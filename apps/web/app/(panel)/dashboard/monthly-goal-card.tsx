@@ -14,10 +14,12 @@ function GoalRing({
   current,
   target,
   noun,
+  periodLabel,
 }: {
   current: number;
   target: number;
   noun: string;
+  periodLabel: string;
 }) {
   const pct = target > 0 ? Math.min(100, Math.round((current / target) * 100)) : 0;
   const r = 70;
@@ -54,7 +56,9 @@ function GoalRing({
           <span className="text-4xl font-bold text-[#1A202C]">{current}</span>
           <span className="text-lg font-semibold text-[#B0B8C9]">/{target}</span>
         </p>
-        <p className="mt-1 text-xs font-medium text-[#8891A4]">{noun} del mes</p>
+        <p className="mt-1 text-xs font-medium text-[#8891A4]">
+          {noun} {periodLabel}
+        </p>
       </div>
     </div>
   );
@@ -92,6 +96,10 @@ export default function MonthlyGoalCard({
   }
 
   const noun = goalView.type === "REVIEWS" ? "reseñas" : "contactos";
+  // The count runs from the Flikker start date (trial) or from the day the goal
+  // was set — never a calendar month, so don't say "del mes".
+  const periodLabel =
+    goalView.source === "trial" ? "desde que usás Flikker" : "desde tu meta";
   const pct =
     goalView.target > 0
       ? Math.min(100, Math.round((goalView.current / goalView.target) * 100))
@@ -109,11 +117,22 @@ export default function MonthlyGoalCard({
 
   return (
     <article className="flex flex-col rounded-[16px] border border-[#E8EAF0] bg-white p-6">
-      <GoalRing current={goalView.current} target={goalView.target} noun={noun} />
+      <GoalRing
+        current={goalView.current}
+        target={goalView.target}
+        noun={noun}
+        periodLabel={periodLabel}
+      />
 
       <div className="mt-4 text-center">
-        <p className="text-base font-bold text-[#1A202C]">Objetivo del mes</p>
+        <p className="text-base font-bold text-[#1A202C]">Tu objetivo</p>
         <p className="mt-1 text-sm text-[#8891A4]">{hint}</p>
+        {goalView.metric === "google_reviews_since_start" ? (
+          <p className="mt-2 text-xs leading-relaxed text-[#A0A6B8]">
+            Cuenta todas las reseñas de Google recibidas en el período, no solo
+            las que haya generado Flikker.
+          </p>
+        ) : null}
       </div>
 
       {showTrialCta && (
