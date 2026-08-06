@@ -1,6 +1,32 @@
 import { Injectable } from '@nestjs/common';
+import { randomInt } from 'crypto';
 import { BenefitType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+
+// Unambiguous alphabet for redemption codes (no 0/O/1/I/L) — easy to read/type.
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+const CODE_LENGTH = 8;
+
+function generateRedemptionCode(): string {
+  let code = '';
+  for (let i = 0; i < CODE_LENGTH; i++) {
+    code += CODE_ALPHABET[randomInt(0, CODE_ALPHABET.length)];
+  }
+  return code;
+}
+
+export type ConsumeRedemptionResult =
+  | { status: 'not_found' }
+  | { status: 'already' }
+  | {
+      status: 'ok';
+      participationId: string;
+      benefitId: string;
+      customerId: string;
+      benefitTitle: string;
+      benefitType: BenefitType;
+      customerName: string;
+    };
 
 export interface BenefitData {
   type: BenefitType;
@@ -120,6 +146,105 @@ export class BenefitsRepository {
       where: { benefitId_customerId: { benefitId, customerId } },
       create: { businessId, benefitId, customerId },
       update: { raffleDrawId: null, createdAt: new Date() },
+    });
+  }
+
+  /**
+   * Ensures the (benefit, customer) participation has a redemption code, issuing
+   * one if missing. Idempotent: if a code already exists (even if redeemed) it is
+   * returned unchanged. Retries on the rare code collision.
+   */
+  async ensureRedemptionCode(
+    businessId: string,
+    benefitId: string,
+    customerId: string,
+  ) {
+    const existing = await this.prisma.benefitParticipation.findUnique({
+      where: { benefitId_customerId: { benefitId, customerId } },
+    });
+    if (existing?.redemptionCode) return existing;
+
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        if (existing) {
+          return await this.prisma.benefitParticipation.update({
+            where: { id: existing.id },
+            data: { redemptionCode: generateRedemptionCode() },
+          });
+        }
+        return await this.prisma.benefitParticipation.create({
+          data: {
+            businessId,
+            benefitId,
+            customerId,
+            redemptionCode: generateRedemptionCode(),
+          },
+        });
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          continue; // code collision → regenerate
+        }
+        throw error;
+      }
+    }
+    throw new Error('Could not allocate a unique redemption code');
+  }
+
+  findRedemption(businessId: string, benefitId: string, customerId: string) {
+    return this.prisma.benefitParticipation.findFirst({
+      where: { businessId, benefitId, customerId },
+      select: { redemptionCode: true, redeemedAt: true },
+    });
+  }
+
+  /**
+   * Atomically consumes a redemption code. The double-canje guard is the
+   * conditional `updateMany ... where redeemedAt IS NULL`: under concurrency the
+   * row lock lets only one transaction flip it, so a code is redeemed at most
+   * once. Runs in a transaction so the read + guarded update are consistent.
+   */
+  async consumeRedemption(
+    businessId: string,
+    code: string,
+    userId: string,
+    now: Date = new Date(),
+  ): Promise<ConsumeRedemptionResult> {
+    return this.prisma.$transaction(async (tx) => {
+      const found = await tx.benefitParticipation.findFirst({
+        where: { businessId, redemptionCode: code },
+        include: {
+          benefit: { select: { title: true, type: true } },
+          customer: { select: { name: true } },
+        },
+      });
+      if (!found) return { status: 'not_found' };
+      if (found.redeemedAt) return { status: 'already' };
+
+      const updated = await tx.benefitParticipation.updateMany({
+        where: { id: found.id, redeemedAt: null },
+        data: { redeemedAt: now, redeemedByUserId: userId },
+      });
+      if (updated.count === 0) return { status: 'already' };
+
+      return {
+        status: 'ok',
+        participationId: found.id,
+        benefitId: found.benefitId,
+        customerId: found.customerId,
+        benefitTitle: found.benefit.title,
+        benefitType: found.benefit.type,
+        customerName: found.customer.name,
+      };
+    });
+  }
+
+  attachRedeemedVisit(participationId: string, visitId: string) {
+    return this.prisma.benefitParticipation.update({
+      where: { id: participationId },
+      data: { redeemedVisitId: visitId },
     });
   }
 

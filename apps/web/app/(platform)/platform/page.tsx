@@ -18,6 +18,11 @@ import {
   Trash2,
 } from "lucide-react";
 
+import ExperienceModal, {
+  type ExperienceTarget,
+  type ExperienceVersion,
+} from "./experience-modal";
+
 interface PlatformBusiness {
   id: string;
   name: string;
@@ -34,6 +39,8 @@ interface PlatformBusiness {
   memberCount: number;
   customerCount: number;
   reviewCount: number;
+  experienceVersion: ExperienceVersion;
+  retentionEngineV2Enabled: boolean;
 }
 
 type InitialPlanType = "FREE_TRIAL" | "BASE" | "PRO";
@@ -96,6 +103,7 @@ export default function PlatformPage() {
   const [syncedId, setSyncedId] = useState<string | null>(null);
   const [backfillingId, setBackfillingId] = useState<string | null>(null);
   const [backfilledId, setBackfilledId] = useState<string | null>(null);
+  const [experienceTarget, setExperienceTarget] = useState<ExperienceTarget | null>(null);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [passwordForm, setPasswordForm] = useState({ email: "", newPassword: "", confirmPassword: "" });
   const [passwordChanging, setPasswordChanging] = useState(false);
@@ -487,6 +495,31 @@ export default function PlatformPage() {
                     </td>
                     <td className="px-4 py-4 text-right">
                       <div className="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExperienceTarget({
+                              id: business.id,
+                              name: business.name,
+                              experienceVersion: business.experienceVersion,
+                              retentionEngineV2Enabled:
+                                business.retentionEngineV2Enabled,
+                            })
+                          }
+                          title={
+                            business.experienceVersion === "CHECKIN_V2"
+                              ? "Experiencia: Check-in V2"
+                              : "Experiencia: Legacy"
+                          }
+                          aria-label={`Cambiar experiencia de ${business.name}`}
+                          className={`inline-flex h-9 items-center justify-center rounded-lg border px-2 text-[11px] font-semibold transition-colors ${
+                            business.experienceVersion === "CHECKIN_V2"
+                              ? "border-[#5C6BC0]/30 bg-[#EEF0FB] text-[#5C6BC0]"
+                              : "border-[#E8EAF0] bg-white text-[#8891A4] hover:bg-[#F5F6FA]"
+                          }`}
+                        >
+                          {business.experienceVersion === "CHECKIN_V2" ? "V2" : "Legacy"}
+                        </button>
                         <button
                           type="button"
                           onClick={() => void syncReviews(business)}
@@ -883,6 +916,17 @@ export default function PlatformPage() {
             </div>
           </div>
         </div>
+      ) : null}
+
+      {experienceTarget ? (
+        <ExperienceModal
+          business={experienceTarget}
+          onClose={() => setExperienceTarget(null)}
+          onSaved={() => {
+            setExperienceTarget(null);
+            void loadBusinesses();
+          }}
+        />
       ) : null}
 
       {showPasswordForm ? (

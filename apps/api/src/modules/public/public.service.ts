@@ -1,18 +1,14 @@
-import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
-import { randomBytes } from 'crypto';
 import {
-  Benefit,
-  BenefitType,
-  MessageChannel,
-  MessageStatus,
-} from '@prisma/client';
+  Injectable,
+  NotFoundException,
+  BadRequestException,
+  Logger,
+} from '@nestjs/common';
+import { BenefitType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
-import { ReviewRequestQueue } from '../../jobs/review-request.queue';
-import { BenefitsRepository } from '../benefits/benefits.repository';
+import { BenefitsService } from '../benefits/benefits.service';
+import { PublicMessagingService } from './public-messaging.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
-
-const QR_REVIEW_DELAY_MS = 2 * 60 * 1000; // 2 minutos
 
 @Injectable()
 export class PublicService {
@@ -20,9 +16,8 @@ export class PublicService {
 
   constructor(
     private readonly prisma: PrismaService,
-    private readonly whatsApp: WhatsAppBspService,
-    private readonly reviewRequestQueue: ReviewRequestQueue,
-    private readonly benefits: BenefitsRepository,
+    private readonly benefits: BenefitsService,
+    private readonly messaging: PublicMessagingService,
   ) {}
 
   async getQrInfo(businessId: string, userAgent?: string) {
@@ -52,7 +47,7 @@ export class PublicService {
       userAgent,
     );
 
-    const benefit = await this.resolveActiveBenefit(businessId);
+    const benefit = await this.benefits.resolveActiveBenefit(businessId);
     const fallbackOffer = business.campaigns[0]?.offerText ?? null;
 
     return {
@@ -142,7 +137,7 @@ export class PublicService {
       customerId = created.id;
     }
 
-    const benefit = await this.resolveActiveBenefit(businessId);
+    const benefit = await this.benefits.resolveActiveBenefit(businessId);
 
     // If the active benefit is a raffle, record this customer as a participant.
     if (benefit && benefit.type === BenefitType.raffle) {
@@ -154,7 +149,7 @@ export class PublicService {
     }
 
     // Send WhatsApp welcome — never throw
-    void this.trySendWelcome(
+    void this.messaging.sendWelcome(
       phoneE164,
       name,
       business.name,
@@ -162,10 +157,15 @@ export class PublicService {
       benefit?.type ?? null,
     );
 
-    void this.trySendOwnerNotification(business.id, business.name, business.phone ?? null, name);
+    void this.messaging.sendOwnerNotification(
+      business.id,
+      business.name,
+      business.phone ?? null,
+      name,
+    );
 
-    // Enqueue review request with 2-minute delay — never throw
-    void this.tryEnqueueQrReviewRequest(
+    // Enqueue review request — never throw
+    void this.messaging.enqueueReviewRequest(
       businessId,
       customerId,
       business.campaigns[0]?.id ?? null,
@@ -175,23 +175,6 @@ export class PublicService {
   }
 
   // ── Private helpers ────────────────────────────────────────────────────────
-
-  /**
-   * Returns the business's active benefit, but only when it is currently valid:
-   * type is not `none` and (if set) the current date is within its window.
-   * Falls back to null so callers use the legacy offer text.
-   */
-  private async resolveActiveBenefit(
-    businessId: string,
-    now = new Date(),
-  ): Promise<Benefit | null> {
-    const benefit = await this.benefits.findActive(businessId);
-    if (!benefit) return null;
-    if (benefit.type === BenefitType.none) return null;
-    if (benefit.startDate && benefit.startDate > now) return null;
-    if (benefit.endDate && benefit.endDate < now) return null;
-    return benefit;
-  }
 
   private async tryRegisterRaffleParticipation(
     businessId: string,
@@ -270,98 +253,6 @@ export class PublicService {
     } catch (error) {
       this.logger.warn(
         `Scan tracking failed for business ${businessId}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-
-  private async trySendWelcome(
-    phoneE164: string,
-    customerName: string,
-    businessName: string,
-    benefitText: string | null,
-    benefitType: BenefitType | null = null,
-  ) {
-    try {
-      const registered = `Hola ${customerName}! 🎉 Quedaste registrado en *${businessName}*.`;
-      let body: string;
-      if (benefitText && benefitType === BenefitType.raffle) {
-        // Raffle: the customer is entered into a draw, they didn't win a benefit.
-        body = `${registered}\n🎟️ Ya estás participando del sorteo: ${benefitText}\n¡Mucha suerte! Te avisamos si ganás.`;
-      } else if (benefitText) {
-        const noun =
-          benefitType === BenefitType.discount
-            ? 'descuento'
-            : benefitType === BenefitType.gift
-              ? 'regalo'
-              : 'beneficio';
-        body = `${registered}\nTu ${noun}: ${benefitText}\nMostrá este mensaje en el local para usarlo. ¡Te esperamos!`;
-      } else {
-        // No benefit: warm thank-you sent right at visit time.
-        body = `Hola ${customerName}! 🎉 Gracias por pasar por *${businessName}*. ¡Fue un gusto tenerte y te esperamos pronto de nuevo!`;
-      }
-
-      await this.whatsApp.sendText({ phone: phoneE164, text: body });
-    } catch (error) {
-      this.logger.warn(
-        `WhatsApp welcome failed for ${phoneE164}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-
-  private async trySendOwnerNotification(
-    businessId: string,
-    businessName: string,
-    phone: string | null,
-    customerName: string,
-  ) {
-    if (!phone) return;
-    try {
-      const baseUrl =
-        process.env.APP_PUBLIC_URL ??
-        process.env.WEB_BASE_URL ??
-        'https://app.flikker.com';
-      const contactsUrl = `${baseUrl.replace(/\/$/, '')}/dashboard/customers`;
-      const text = [
-        `📱 *Nuevo contacto en ${businessName}*`,
-        '',
-        `${customerName} escaneó tu QR y quedó en tu base.`,
-        'Ya le enviamos el pedido de reseña por WhatsApp.',
-        '',
-        `👉 Ver contactos: ${contactsUrl}`,
-      ].join('\n');
-      await this.whatsApp.sendText({ phone, text });
-    } catch (error) {
-      this.logger.warn(
-        `Owner QR notification failed for business ${businessId}: ${error instanceof Error ? error.message : String(error)}`,
-      );
-    }
-  }
-
-  private async tryEnqueueQrReviewRequest(
-    businessId: string,
-    customerId: string,
-    campaignId: string | null,
-  ) {
-    try {
-      const trackingToken = randomBytes(8).toString('base64url');
-      const message = await this.prisma.message.create({
-        data: {
-          businessId,
-          customerId,
-          campaignId: campaignId ?? undefined,
-          channel: MessageChannel.whatsapp,
-          trackingToken,
-          status: MessageStatus.queued,
-        },
-        select: { id: true },
-      });
-      await this.reviewRequestQueue.enqueue(
-        { messageId: message.id, customerId, businessId },
-        QR_REVIEW_DELAY_MS,
-      );
-    } catch (error) {
-      this.logger.warn(
-        `QR review request enqueue failed for customer ${customerId}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

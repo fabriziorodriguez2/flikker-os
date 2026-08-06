@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { Clock, Loader2, Plus, Trash2 } from "lucide-react";
 import Switch from "@/components/ui/switch";
 import { useCanMutate } from "../../role-context";
+import RetentionMetrics from "./retention-metrics";
+import PageHeader from "@/components/ui/page-header";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -223,10 +225,17 @@ export default function RetentionPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-[#1A202C]">
-          Retención
-        </h1>
+      <PageHeader
+        title="Retención"
+        subtitle="Cómo vuelven tus clientes y qué podés hacer para que vuelvan más."
+      />
+
+      <RetentionMetrics />
+
+      <div className="border-t border-[#E8EAF0] pt-5">
+        <h2 className="font-display text-lg font-bold text-[#1A202C]">
+          Secuencia automática
+        </h2>
         <p className="mt-1 text-sm text-[#8891A4]">
           Enviá mensajes automáticos por WhatsApp con el paso del tiempo. Los
           días se cuentan desde que el cliente se registró. Usá{" "}

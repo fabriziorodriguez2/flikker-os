@@ -1,10 +1,12 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
+import { MessageSquareText, Star, TrendingUp } from "lucide-react";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import ReviewsFilters from "./reviews-filters";
 import ReviewsPaginator from "./reviews-paginator";
 import ExpandableText from "./expandable-text";
+import PageHeader from "@/components/ui/page-header";
 
 const PAGE_SIZE = 10;
 
@@ -147,39 +149,56 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <h1 className="font-display text-[22px] font-bold text-[#1A202C]">
-        Reseñas
-      </h1>
+      <PageHeader
+        title="Reseñas"
+        subtitle="Lo que tus clientes dicen de tu negocio."
+      />
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-3">
-        <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+        <article className="group relative overflow-hidden rounded-[16px] border border-[#5C6BC0]/20 bg-[linear-gradient(135deg,#F8F8FF_0%,#ECEEFC_100%)] p-5 shadow-[0_8px_24px_rgba(56,45,125,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(56,45,125,0.13)]">
+          <span className="absolute -right-5 -top-6 flex h-20 w-20 items-end justify-start rounded-full bg-[#5C6BC0]/10 p-4 text-[#5C6BC0] transition-transform duration-500 group-hover:scale-110 group-hover:-rotate-6">
+            <MessageSquareText className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <p className="relative text-[11px] font-bold uppercase tracking-[0.1em] text-[#5C6BC0]">
             Total de Reseñas
           </p>
-          <p className="mt-2 text-3xl font-bold text-[#1A202C]">{stats.total}</p>
-        </div>
-        <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+          <p className="relative mt-3 text-[34px] font-bold leading-none text-[#1A202C]">
+            {stats.total}
+          </p>
+          <p className="relative mt-3 text-xs text-[#777F96]">Histórico detectado</p>
+        </article>
+
+        <article className="group relative overflow-hidden rounded-[16px] border border-[#F9A148]/30 bg-gradient-to-br from-[#FBB25A] to-[#F5842A] p-5 text-white shadow-[0_12px_30px_rgba(245,132,42,0.22)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_18px_38px_rgba(245,132,42,0.3)]">
+          <Star className="absolute right-5 top-5 h-6 w-6 fill-white/20 text-white/75 transition-transform duration-500 group-hover:scale-110 group-hover:rotate-12" aria-hidden="true" />
+          <p className="relative text-[11px] font-bold uppercase tracking-[0.1em] text-white/85">
             Calificación Promedio
           </p>
-          <p className="mt-2 text-3xl font-bold text-[#1A202C]">
+          <p className="relative mt-3 text-[34px] font-bold leading-none text-white">
             {stats.avgStars > 0 ? (
               <>
                 {stats.avgStars.toFixed(1)}{" "}
-                <span className="text-xl text-amber-400">★</span>
+                <span className="text-xl text-white/90">★</span>
               </>
             ) : (
               "—"
             )}
           </p>
-        </div>
-        <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
-          <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#8891A4]">
+          <p className="relative mt-3 text-xs text-white/80">Rating actual en Google</p>
+        </article>
+
+        <article className="group relative overflow-hidden rounded-[16px] border border-[#1D9E75]/18 bg-[linear-gradient(135deg,#F5FCF9_0%,#E8F7F1_100%)] p-5 shadow-[0_8px_24px_rgba(29,158,117,0.07)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(29,158,117,0.14)]">
+          <span className="absolute -right-5 -top-6 flex h-20 w-20 items-end justify-start rounded-full bg-[#1D9E75]/10 p-4 text-[#178460] transition-transform duration-500 group-hover:scale-110 group-hover:rotate-6">
+            <TrendingUp className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <p className="relative text-[11px] font-bold uppercase tracking-[0.1em] text-[#178460]">
             Reseñas Este Mes
           </p>
-          <p className="mt-2 text-3xl font-bold text-[#1A202C]">{stats.thisMonth}</p>
-        </div>
+          <p className="relative mt-3 text-[34px] font-bold leading-none text-[#1A202C]">
+            {stats.thisMonth}
+          </p>
+          <p className="relative mt-3 text-xs text-[#66877C]">Nuevas este mes</p>
+        </article>
       </div>
 
       {/* Filters */}

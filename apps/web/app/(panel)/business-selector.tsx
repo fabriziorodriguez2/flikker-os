@@ -58,10 +58,10 @@ export default function BusinessSelector({
         onClick={() => setOpen(!open)}
         disabled={loading}
         title={collapsed ? label : undefined}
-        className={`flikker-focus-ring flex items-center justify-between gap-2 rounded-xl text-left font-semibold text-[color:var(--foreground)] disabled:opacity-50 ${
+        className={`flikker-focus-ring flex items-center justify-between gap-2 rounded-xl text-left font-semibold text-[#29243D] disabled:opacity-50 ${
           collapsed
             ? 'h-9 w-9 justify-center border border-[color:var(--border)] bg-[color:var(--surface)] text-sm'
-            : 'text-sm hover:opacity-80'
+            : 'text-sm hover:text-[#5C6BC0]'
         }`}
       >
         {collapsed ? (
@@ -72,14 +72,14 @@ export default function BusinessSelector({
         ) : (
           <>
             <span className="max-w-[180px] truncate">{label}</span>
-            <span className="text-xs text-[color:var(--text-soft)]">▾</span>
+            <span className={`text-xs text-[#8A849B] transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
           </>
         )}
       </button>
 
       {open && (
         <div
-          className={`absolute top-full z-50 mt-2 overflow-hidden rounded-[18px] border border-[color:var(--border)] bg-[color:var(--surface)] shadow-[var(--shadow-soft)] ${
+          className={`absolute top-full z-50 mt-3 overflow-hidden rounded-[18px] border border-white/80 bg-white/72 p-1.5 shadow-[0_18px_45px_rgba(56,45,125,0.18)] backdrop-blur-[24px] backdrop-saturate-[170%] ${
             collapsed ? 'left-full ml-3 w-60' : 'right-0 min-w-[240px]'
           }`}
         >
@@ -88,10 +88,10 @@ export default function BusinessSelector({
               key={m.businessId}
               onClick={() => selectBusiness(m.businessId)}
               disabled={loading}
-              className={`w-full px-4 py-3 text-left text-sm transition-colors ${
+              className={`w-full rounded-[13px] px-4 py-3 text-left text-sm transition-colors ${
                 m.businessId === activeBusinessId
-                  ? 'bg-[color:var(--brand-soft)] text-[color:var(--brand-primary)]'
-                  : 'text-[color:var(--text-muted)] hover:bg-[color:var(--surface-muted)]'
+                  ? 'bg-[#EEF0FB] text-[#5C6BC0]'
+                  : 'text-[#777187] hover:bg-white/80 hover:text-[#302A48]'
               }`}
             >
               <div className="font-medium">{m.business.name}</div>

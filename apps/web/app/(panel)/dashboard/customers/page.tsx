@@ -21,6 +21,7 @@ import PhoneInput, {
   isValidNationalPhone,
   toNationalDigits,
 } from "@/components/ui/phone-input";
+import PageHeader from "@/components/ui/page-header";
 import { useQueryClient } from "@tanstack/react-query";
 import { isClinicVertical } from "@/lib/verticals";
 import { useCanMutate } from "../../role-context";
@@ -75,11 +76,11 @@ const IMPORT_FIELD_OPTIONS: Array<{ value: ImportField; label: string }> = [
 ];
 
 const inputClass =
-  "h-10 w-full rounded-[8px] border border-[#E8EAF0] bg-white px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]";
+  "h-10 w-full rounded-[12px] border border-[#E8EAF0] bg-white px-3 text-sm text-[#1A202C] outline-none placeholder:text-[#8891A4] focus:border-[#5C6BC0]";
 const buttonBase =
-  "inline-flex h-10 items-center justify-center gap-2 rounded-[8px] px-4 text-sm font-semibold transition-colors disabled:opacity-50";
+  "inline-flex h-10 items-center justify-center gap-2 rounded-[12px] px-4 text-sm font-semibold transition-all disabled:opacity-50";
 const secondaryButton = `${buttonBase} border border-[#E8EAF0] bg-white text-[#1A202C] hover:bg-[#F5F6FA]`;
-const primaryButton = `${buttonBase} bg-[#5C6BC0] text-white hover:bg-[#4f5eb0]`;
+const primaryButton = `${buttonBase} bg-[#5C6BC0] text-white shadow-[0_6px_16px_rgba(92,107,192,0.2)] hover:-translate-y-px hover:bg-[#5261B4]`;
 
 const ORIGIN_LABELS: Record<string, string> = {
   qr: "QR",
@@ -905,11 +906,10 @@ export default function CustomersPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="font-display text-[22px] font-bold text-[#1A202C]">
-          Clientes
-        </h1>
-      </div>
+      <PageHeader
+        title="Clientes"
+        subtitle="Gestioná tus contactos, su origen y la relación con tu negocio."
+      />
 
       {error || message ? (
         <div

@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import { MembershipRole } from '@prisma/client';
+import { ExperienceVersion, MembershipRole } from '@prisma/client';
 
 export interface AuthenticatedUser {
   id: string;
@@ -16,4 +16,6 @@ export interface AuthenticatedRequest extends Request {
   user: AuthenticatedUser;
   currentBusinessId?: string;
   currentMembershipRole?: MembershipRole;
+  /** Cached by CheckinV2Guard so one request never re-queries the rollout flag. */
+  currentExperienceVersion?: ExperienceVersion;
 }

@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { MessageChannel, MessageStatus } from '@prisma/client';
+import {
+  ExperienceVersion,
+  MessageChannel,
+  MessageStatus,
+} from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RetentionQueue } from './retention.queue';
 
@@ -53,9 +57,30 @@ export class RetentionProcessor {
     return { queued, sequences: sequences.length, ms };
   }
 
+  /**
+   * Sequences this (legacy) engine still owns.
+   *
+   * Ownership rule for retention automation — there is exactly one owner per
+   * business, so a customer can never be contacted by both engines:
+   *   LEGACY                              → this worker
+   *   CHECKIN_V2 + engine disabled        → this worker
+   *   CHECKIN_V2 + engine enabled         → Retention Engine V2, excluded here
+   *
+   * The exclusion is expressed as NOT(v2 AND enabled) rather than a positive
+   * match so a business missing its flags can never silently fall out of every
+   * engine and stop receiving retention altogether.
+   */
   private findEnabledSequences() {
     return this.prisma.retentionSequence.findMany({
-      where: { enabled: true },
+      where: {
+        enabled: true,
+        NOT: {
+          business: {
+            experienceVersion: ExperienceVersion.CHECKIN_V2,
+            retentionEngineV2Enabled: true,
+          },
+        },
+      },
       select: {
         businessId: true,
         steps: { select: { id: true, offsetDays: true } },

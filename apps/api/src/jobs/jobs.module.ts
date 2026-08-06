@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
+import { RetentionV2Module } from '../modules/retention-v2/retention-v2.module';
 import { OwnerNotificationsQueue } from './owner-notifications.queue';
 import { GoogleReviewDetectionQueue } from './google-review-detection.queue';
 import { GoogleReviewsProvider } from './google-reviews.provider';
 import { RepeatsQueue } from './repeats.queue';
 import { RetentionQueue } from './retention.queue';
+import { RetentionV2Queue } from './retention-v2.queue';
 import { RaffleQueue } from './raffle.queue';
 import { ReviewRequestQueue } from './review-request.queue';
 import { WhatsAppInboundQueue } from './whatsapp-inbound.queue';
@@ -15,6 +17,7 @@ import { WhatsAppInboundWorker } from './workers/whatsapp-inbound.worker';
 import { OwnerNotificationsWorker } from './workers/owner-notifications.worker';
 import { RepeatsWorker } from './workers/repeats.worker';
 import { RetentionWorker } from './workers/retention.worker';
+import { RetentionV2Worker } from './workers/retention-v2.worker';
 import { RaffleWorker } from './workers/raffle.worker';
 import { ReviewRequestWorker } from './workers/review-request.worker';
 import { WhatsAppBspService } from './whatsapp-bsp.service';
@@ -24,11 +27,12 @@ import { RetentionProcessor } from './retention.processor';
 import { RaffleProcessor } from './raffle.processor';
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, RetentionV2Module],
   providers: [
     ReviewRequestQueue,
     RepeatsQueue,
     RetentionQueue,
+    RetentionV2Queue,
     RaffleQueue,
     GoogleReviewDetectionQueue,
     OwnerNotificationsQueue,
@@ -42,6 +46,7 @@ import { RaffleProcessor } from './raffle.processor';
     RepeatsWorker,
     RetentionProcessor,
     RetentionWorker,
+    RetentionV2Worker,
     RaffleProcessor,
     RaffleWorker,
     WhatsAppInboundWorker,

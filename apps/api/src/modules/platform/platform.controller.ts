@@ -17,6 +17,8 @@ import type { AuthenticatedRequest } from '../../common/types/request.types';
 import { PlatformService } from './platform.service';
 import { ShopifyConfigService } from '../integrations/shopify/shopify-config.service';
 import { SetBusinessPlanDto } from './dto/set-business-plan.dto';
+import { UpdateExperienceDto } from './dto/update-experience.dto';
+import { ExperienceVersion } from '@prisma/client';
 
 @Controller('platform')
 @UseGuards(JwtGuard, PlatformAdminGuard)
@@ -50,9 +52,29 @@ export class PlatformController {
       ownerLastName?: string;
       whatsappPhone?: string;
       initialPlan?: SetBusinessPlanDto;
+      /**
+       * Admin-only. Omitted → LEGACY. This is the only creation path allowed to
+       * start a business on Check-in V2; public signup and POST /businesses
+       * always use the LEGACY default.
+       */
+      experienceVersion?: ExperienceVersion;
     },
   ) {
     return this.platformService.createBusiness(req.user.id, body);
+  }
+
+  /**
+   * Switches a business between the legacy experience and Check-in V2, and
+   * persists the (not yet implemented) retention-engine flag. Reversible and
+   * non-destructive: no V2 data is deleted when turning it off.
+   */
+  @Patch('businesses/:businessId/experience')
+  setExperience(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+    @Body() dto: UpdateExperienceDto,
+  ) {
+    return this.platformService.setExperience(req.user.id, businessId, dto);
   }
 
   @Delete('businesses/:businessId')

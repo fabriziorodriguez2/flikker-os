@@ -22,10 +22,7 @@ function makePrisma(overrides: Record<string, unknown> = {}) {
 
 async function buildService(prisma: PrismaService) {
   const module = await Test.createTestingModule({
-    providers: [
-      MetricsService,
-      { provide: PrismaService, useValue: prisma },
-    ],
+    providers: [MetricsService, { provide: PrismaService, useValue: prisma }],
   }).compile();
   return module.get(MetricsService);
 }
@@ -51,8 +48,8 @@ describe('MetricsService — conversion', () => {
       // First call = sentMessages (100), second = attributedReviews (30), rest = 0
       (prisma.message.count as jest.Mock)
         .mockResolvedValueOnce(100) // sentMessages
-        .mockResolvedValueOnce(30)  // attributedReviews
-        .mockResolvedValue(0);      // clickedMessages, positiveFeedback, queued, failed
+        .mockResolvedValueOnce(30) // attributedReviews
+        .mockResolvedValue(0); // clickedMessages, positiveFeedback, queued, failed
 
       const svc = await buildService(prisma);
       const result = await svc.getConversionSummary(BIZ, 'last_30_days', 7);
@@ -132,8 +129,8 @@ describe('MetricsService — conversion', () => {
       (prisma.message.count as jest.Mock)
         .mockResolvedValueOnce(200) // sent
         .mockResolvedValueOnce(120) // clicked
-        .mockResolvedValueOnce(90)  // positive_feedback
-        .mockResolvedValueOnce(30)  // negative_feedback_filtered
+        .mockResolvedValueOnce(90) // positive_feedback
+        .mockResolvedValueOnce(30) // negative_feedback_filtered
         .mockResolvedValueOnce(45); // review_detected
 
       const svc = await buildService(prisma);
@@ -147,7 +144,9 @@ describe('MetricsService — conversion', () => {
         'negative_feedback_filtered',
         'review_detected',
       ]);
-      expect(result.steps[3]!.label).toBe('Filtrados antes de Google (feedback negativo)');
+      expect(result.steps[3].label).toBe(
+        'Filtrados antes de Google (feedback negativo)',
+      );
     });
 
     it('topDropOffStep points to the transition with lowest ratio', async () => {
@@ -165,7 +164,7 @@ describe('MetricsService — conversion', () => {
       const result = await svc.getConversionFunnel(BIZ, 7);
 
       expect(result.topDropOffStep?.step).toBe('positive_to_review');
-      expect(result.topDropOffStep?.ratio).toBe(0.40);
+      expect(result.topDropOffStep?.ratio).toBe(0.4);
     });
 
     it('returns topDropOffStep: null when all counts are 0', async () => {
@@ -215,7 +214,7 @@ describe('MetricsService — conversion', () => {
       const svc = await buildService(prisma);
       const result = await svc.getConversionTimeSeries(BIZ, 'month', 7);
 
-      expect(result.series[0]!.rate).toBeNull();
+      expect(result.series[0].rate).toBeNull();
     });
 
     it('calculates rate when sent >= 30', async () => {
@@ -233,7 +232,7 @@ describe('MetricsService — conversion', () => {
       const result = await svc.getConversionTimeSeries(BIZ, 'month', 7);
 
       // 15/50 = 30.0%
-      expect(result.series[0]!.rate).toBe(30.0);
+      expect(result.series[0].rate).toBe(30.0);
     });
   });
 
@@ -248,7 +247,9 @@ describe('MetricsService — conversion', () => {
       // Deltas: 2h, 10h, 100h → sorted [2, 10, 100] → median = 10
       const mkReview = (hoursAgo: number) => ({
         postedAt: now,
-        attributedMessage: { sentAt: new Date(now.getTime() - hoursAgo * 3_600_000) },
+        attributedMessage: {
+          sentAt: new Date(now.getTime() - hoursAgo * 3_600_000),
+        },
       });
       (prisma.googleReview.findMany as jest.Mock).mockResolvedValue([
         mkReview(2),
@@ -281,7 +282,9 @@ describe('MetricsService — conversion', () => {
       // Deltas: 4h, 6h → median = (4+6)/2 = 5
       const mkReview = (hoursAgo: number) => ({
         postedAt: now,
-        attributedMessage: { sentAt: new Date(now.getTime() - hoursAgo * 3_600_000) },
+        attributedMessage: {
+          sentAt: new Date(now.getTime() - hoursAgo * 3_600_000),
+        },
       });
       (prisma.googleReview.findMany as jest.Mock).mockResolvedValue([
         mkReview(4),

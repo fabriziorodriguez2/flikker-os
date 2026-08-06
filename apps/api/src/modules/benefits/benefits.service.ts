@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BenefitType } from '@prisma/client';
+import { Benefit, BenefitType } from '@prisma/client';
 import { BenefitsRepository, type BenefitData } from './benefits.repository';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { UpdateBenefitDto } from './dto/update-benefit.dto';
@@ -88,6 +88,47 @@ export class BenefitsService {
     // Ensure the benefit belongs to the tenant before listing participants.
     await this.getOne(businessId, id);
     return this.repository.findParticipants(businessId, id);
+  }
+
+  /**
+   * Returns the business's active benefit, but only when it is currently valid:
+   * type is not `none` and (if set) the current date is within its window.
+   * Returns null otherwise so callers fall back to the legacy offer text.
+   * Shared by the legacy QR capture flow and the new check-in flow.
+   */
+  async resolveActiveBenefit(
+    businessId: string,
+    now: Date = new Date(),
+  ): Promise<Benefit | null> {
+    const benefit = await this.repository.findActive(businessId);
+    if (!benefit) return null;
+    if (benefit.type === BenefitType.none) return null;
+    if (benefit.startDate && benefit.startDate > now) return null;
+    if (benefit.endDate && benefit.endDate < now) return null;
+    return benefit;
+  }
+
+  /** A benefit that can be redeemed at the counter (has a code): not raffle/none. */
+  isRedeemable(type: BenefitType): boolean {
+    return type !== BenefitType.none && type !== BenefitType.raffle;
+  }
+
+  /** Ensures the customer holds a redemption code for the benefit. */
+  ensureRedemptionCode(
+    businessId: string,
+    benefitId: string,
+    customerId: string,
+  ) {
+    return this.repository.ensureRedemptionCode(
+      businessId,
+      benefitId,
+      customerId,
+    );
+  }
+
+  /** Reads the customer's redemption state for a benefit (code + redeemed). */
+  findRedemption(businessId: string, benefitId: string, customerId: string) {
+    return this.repository.findRedemption(businessId, benefitId, customerId);
   }
 
   /**

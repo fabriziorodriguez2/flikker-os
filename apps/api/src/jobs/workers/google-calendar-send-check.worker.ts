@@ -180,7 +180,7 @@ export class GoogleCalendarSendCheckWorker
         const event = await tx.serviceEvent.create({
           data: {
             businessId: data.businessId,
-            customerId: customer!.id,
+            customerId: customer.id,
             serviceType: calendarEvent.title.slice(0, 120),
             eventAt: calendarEvent.startAt,
             createdVia: ServiceEventCreatedVia.google_calendar,
@@ -191,7 +191,7 @@ export class GoogleCalendarSendCheckWorker
         const msg = await tx.message.create({
           data: {
             businessId: data.businessId,
-            customerId: customer!.id,
+            customerId: customer.id,
             serviceEventId: event.id,
             trackingToken,
             channel: MessageChannel.whatsapp,

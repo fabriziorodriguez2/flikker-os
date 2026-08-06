@@ -5,6 +5,7 @@ import RepeatCampaignsSection, {
   type RepeatCampaign,
 } from "./repeat-campaigns-section";
 import NewCampaignButton from "./new-campaign-button";
+import PageHeader from "@/components/ui/page-header";
 
 // ---------------------------------------------------------------------------
 // Types matching the backend responses
@@ -105,12 +106,11 @@ export default async function CampaignsPage() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="font-display text-[24px] font-bold text-[#1A202C]">
-          Campañas
-        </h1>
-        <NewCampaignButton />
-      </div>
+      <PageHeader
+        title="Campañas"
+        subtitle="Automatizá mensajes y mantené el vínculo con tus clientes."
+        actions={<NewCampaignButton />}
+      />
 
       <RepeatCampaignsSection initialCampaigns={campaigns} />
 

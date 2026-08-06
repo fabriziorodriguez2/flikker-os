@@ -12,6 +12,7 @@ interface SidebarProps {
   activeBusinessId: string | null;
   userName: string;
   isImpersonating: boolean;
+  isCheckinV2: boolean;
 }
 
 function Icon({ children }: { children: ReactNode }) {
@@ -84,6 +85,14 @@ const RetentionIcon = () => (
   </Icon>
 );
 
+const RetentionV2Icon = () => (
+  <Icon>
+    <path d="M9 3h6" />
+    <path d="M10 3v5.2L5.5 16a2 2 0 0 0 1.7 3h9.6a2 2 0 0 0 1.7-3L14 8.2V3" />
+    <path d="M8.5 14h7" />
+  </Icon>
+);
+
 const QrIcon = () => (
   <Icon>
     <rect x="3" y="3" width="7" height="7" rx="1" />
@@ -106,12 +115,20 @@ const InsightsIcon = () => (
   </Icon>
 );
 
+const CheckinIcon = () => (
+  <Icon>
+    <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />
+    <path d="m9 11 3 3 8-8" />
+  </Icon>
+);
+
 const MAIN_NAV_ITEMS: Array<{
   href: string;
   label: string;
   icon: ReactNode;
   onboardingKey?: string;
   impersonatorOnly?: boolean;
+  checkinV2Only?: boolean;
 }> = [
   { href: "/dashboard", label: "Panel", icon: <HomeIcon />, onboardingKey: "panel" },
   { href: "/dashboard/insights", label: "Insights", icon: <InsightsIcon /> },
@@ -120,6 +137,8 @@ const MAIN_NAV_ITEMS: Array<{
   { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
   { href: "/dashboard/benefits", label: "Beneficios", icon: <BenefitsIcon /> },
   { href: "/dashboard/retention", label: "Retención", icon: <RetentionIcon /> },
+  { href: "/dashboard/retention-v2", label: "Retención V2", icon: <RetentionV2Icon />, checkinV2Only: true },
+  { href: "/dashboard/checkins", label: "Check-ins", icon: <CheckinIcon />, checkinV2Only: true },
   { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon />, impersonatorOnly: true },
   { href: "/dashboard/qr", label: "QR", icon: <QrIcon />, onboardingKey: "qr", impersonatorOnly: true },
 ];
@@ -151,18 +170,13 @@ export default function Sidebar(props: SidebarProps) {
       window.removeEventListener("flikker:mobile-menu-toggle", handleToggle);
   }, []);
 
-  // Close drawer on navigation
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
-
   return (
     <>
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
           aria-hidden="true"
-          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+          className="fixed inset-0 z-40 bg-[#18142E]/25 backdrop-blur-sm lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
@@ -176,35 +190,51 @@ export default function Sidebar(props: SidebarProps) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       className={`
-        fixed top-0 left-0 z-50 flex h-full w-[min(280px,80vw)] flex-col
-        border-r border-[#223247] bg-[#0D1B2A]
+        fixed top-0 left-0 z-50 flex h-full w-[min(280px,80vw)] flex-col overflow-hidden
+        border-r border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.78),rgba(235,237,255,0.52))]
+        shadow-[12px_0_45px_rgba(56,45,125,0.16),inset_-1px_0_0_rgba(255,255,255,0.65)]
+        backdrop-blur-[30px] backdrop-saturate-[175%]
         transition-transform duration-[250ms] ease-in-out
         ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
         lg:z-40 lg:h-screen lg:translate-x-0 lg:transition-[width] lg:duration-200
-        ${hovered ? "lg:w-[250px] lg:shadow-[8px_0_30px_rgba(0,0,0,0.35)]" : "lg:w-[88px]"}
+        ${hovered ? "lg:w-[250px] lg:shadow-[16px_0_55px_rgba(56,45,125,0.22),inset_-1px_0_0_rgba(255,255,255,0.72)]" : "lg:w-[88px]"}
       `}
     >
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-[#BDEEFF]/55 blur-[52px]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -bottom-28 -right-24 h-72 w-72 rounded-full bg-[#BCAEFF]/45 blur-[58px]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-3 top-2 h-px bg-gradient-to-r from-transparent via-white to-transparent opacity-90"
+      />
+
       {/* Mobile close button */}
-      <div className="flex items-center justify-end px-4 pt-4 lg:hidden">
+      <div className="relative flex items-center justify-end px-4 pt-4 lg:hidden">
         <button
           type="button"
           onClick={() => setMobileOpen(false)}
           aria-label="Cerrar menú"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#A7B0C1] hover:text-white"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-[#716C82] hover:bg-white/55 hover:text-[#252037]"
         >
           <X aria-hidden="true" className="h-5 w-5" />
         </button>
       </div>
 
-      <div className={showFull ? "px-7 pt-4 lg:pt-6" : "px-5 pt-4 lg:pt-6"}>
+      <div className={`relative ${showFull ? "px-7 pt-4 lg:pt-6" : "px-5 pt-4 lg:pt-6"}`}>
         <div className={`flex items-center ${showFull ? "justify-start" : "justify-center"}`}>
           <Link
             href="/dashboard"
             aria-label="Ir al panel"
+            onClick={() => setMobileOpen(false)}
             className="inline-flex min-w-0 items-center"
           >
             <Image
-              src={showFull ? "/flikker-wordmark-white.svg" : "/flikker-mark-white.svg"}
+              src={showFull ? "/flikker-wordmark.svg" : "/flikker-mark.svg"}
               alt="Flikker"
               width={showFull ? 148 : 44}
               height={44}
@@ -215,24 +245,25 @@ export default function Sidebar(props: SidebarProps) {
         </div>
       </div>
 
-      <nav className={`mt-8 flex flex-col gap-2 ${showFull ? "px-5" : "px-4"}`}>
-        {MAIN_NAV_ITEMS.filter((item) => !item.impersonatorOnly || props.isImpersonating).map((item) => {
+      <nav className={`relative mt-8 flex flex-col gap-2 ${showFull ? "px-5" : "px-4"}`}>
+        {MAIN_NAV_ITEMS.filter((item) => (!item.impersonatorOnly || props.isImpersonating) && (!item.checkinV2Only || props.isCheckinV2)).map((item) => {
           const active = isItemActive(pathname, item.href);
           return (
             <Link
               key={item.href}
               href={item.href}
               data-onboarding={item.onboardingKey}
+              onClick={() => setMobileOpen(false)}
               onMouseEnter={() => router.prefetch(item.href)}
-              className={`flex min-h-11 items-center rounded-[8px] py-3 text-[15px] font-semibold transition-colors ${
+              className={`flex min-h-11 items-center rounded-[12px] border py-3 text-[15px] font-semibold transition-all duration-200 ${
                 showFull ? "gap-3.5 px-4" : "justify-center px-2"
               } ${
                 active
-                  ? "bg-[#EEF0FB] text-[#5C6BC0]"
-                  : "text-[#A7B0C1] hover:bg-[#16263A] hover:text-white"
+                  ? "border-[#5C6BC0]/25 bg-[#5C6BC0] text-white shadow-[0_8px_22px_rgba(92,107,192,0.25),inset_0_1px_0_rgba(255,255,255,0.24)]"
+                  : "border-transparent text-[#6F6A80] hover:border-white/70 hover:bg-white/55 hover:text-[#302A48] hover:shadow-[0_6px_18px_rgba(69,57,128,0.08)]"
               }`}
             >
-              <span className={active ? "text-[#5C6BC0]" : "text-[#A7B0C1]"}>
+              <span className={active ? "text-white" : "text-[#817B94]"}>
                 {item.icon}
               </span>
               {showFull ? (

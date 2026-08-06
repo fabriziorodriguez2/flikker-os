@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import {
   BusinessPlanType,
   BusinessStatus,
+  ExperienceVersion,
   MembershipRole,
   MembershipStatus,
   MessageChannel,
@@ -46,6 +47,8 @@ export class PlatformRepository {
         industry: true,
         country: true,
         createdAt: true,
+        experienceVersion: true,
+        retentionEngineV2Enabled: true,
         subscription: {
           select: {
             status: true,
@@ -88,6 +91,7 @@ export class PlatformRepository {
     ownerFirstName: string;
     ownerLastName: string;
     passwordHash: string;
+    experienceVersion?: ExperienceVersion;
   }) {
     return this.prisma.$transaction(async (tx) => {
       const slug = await this.buildUniqueSlug(input.name);
@@ -121,6 +125,10 @@ export class PlatformRepository {
           phone: input.phone,
           messageQuotaMonthly: 600,
           messageCountCurrentMonth: 0,
+          // Falls back to the schema default (LEGACY) when not supplied.
+          ...(input.experienceVersion
+            ? { experienceVersion: input.experienceVersion }
+            : {}),
         },
       });
 

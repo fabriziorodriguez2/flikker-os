@@ -126,7 +126,13 @@ export class OwnerNotificationsWorker implements OnModuleInit, OnModuleDestroy {
   async processWeeklySummary(data: WeeklyKpiSummaryJobData) {
     const business = await this.prisma.business.findUnique({
       where: { id: data.businessId },
-      select: { id: true, name: true, timezone: true, isActive: true, phone: true },
+      select: {
+        id: true,
+        name: true,
+        timezone: true,
+        isActive: true,
+        phone: true,
+      },
     });
     if (!business?.isActive) return;
 
@@ -177,7 +183,12 @@ export class OwnerNotificationsWorker implements OnModuleInit, OnModuleDestroy {
       try {
         await this.whatsAppBspService.sendText({
           phone,
-          text: buildWeeklyWhatsAppText(business.name, current, previous, panelUrl),
+          text: buildWeeklyWhatsAppText(
+            business.name,
+            current,
+            previous,
+            panelUrl,
+          ),
         });
       } catch (error) {
         this.logger.warn(
@@ -327,7 +338,8 @@ function buildWeeklyWhatsAppText(
         ? `${qrDelta} vs semana anterior`
         : 'igual que la semana anterior';
 
-  const rating = current.averageRating > 0 ? current.averageRating.toFixed(1) : '—';
+  const rating =
+    current.averageRating > 0 ? current.averageRating.toFixed(1) : '—';
 
   return [
     `📊 *Resumen semanal de ${businessName}*`,
@@ -368,7 +380,8 @@ export function renderWeeklySummaryEmail(input: {
   panelUrl: string;
 }) {
   const name = escapeHtml(input.businessName);
-  const allZero = input.current.reviewsGenerated === 0 && input.current.qrScans === 0;
+  const allZero =
+    input.current.reviewsGenerated === 0 && input.current.qrScans === 0;
   const insight = escapeHtml(renderInsightText(input.current));
   const unsubscribeUrl = `mailto:soporte@flikker.com?subject=${encodeURIComponent('Dar de baja resumen semanal')}`;
 

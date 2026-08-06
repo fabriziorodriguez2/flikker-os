@@ -49,3 +49,9 @@ export function localPeriodKey(date: Date, timezone: string): string {
   const { year, month } = getLocalDateTimeParts(date, timezone);
   return `${year}-${String(month).padStart(2, '0')}`;
 }
+
+/** "YYYY-MM-DD" for the local calendar day of `date` in `timezone`. */
+export function localDayKey(date: Date, timezone: string): string {
+  const { year, month, day } = getLocalDateTimeParts(date, timezone);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}

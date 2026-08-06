@@ -15,6 +15,7 @@ import {
   CampaignStatus,
   CampaignTemplateKind,
   DestinationType,
+  ExperienceVersion,
   SubscriptionStatus,
   WidgetMode,
   WidgetPosition,
@@ -87,6 +88,9 @@ export class PlatformService {
       memberCount: b._count.memberships,
       customerCount: b._count.customers,
       reviewCount: b._count.googleReviews,
+      // Rollout flags, so the admin table can show and change them.
+      experienceVersion: b.experienceVersion,
+      retentionEngineV2Enabled: b.retentionEngineV2Enabled,
     }));
   }
 
@@ -163,6 +167,8 @@ export class PlatformService {
       ownerLastName?: string;
       whatsappPhone?: string;
       initialPlan?: SetBusinessPlanDto;
+      /** Admin-only opt-in. Omitted → LEGACY, like every other creation path. */
+      experienceVersion?: ExperienceVersion;
     },
   ) {
     const name = dto.name?.trim();
@@ -203,6 +209,9 @@ export class PlatformService {
       ownerFirstName,
       ownerLastName,
       passwordHash,
+      // Only this admin flow may opt a brand-new business into Check-in V2.
+      // Signup and POST /businesses always fall back to the LEGACY default.
+      experienceVersion: dto.experienceVersion ?? ExperienceVersion.LEGACY,
     });
 
     this.logPlatformWrite(
@@ -989,6 +998,75 @@ export class PlatformService {
     ]);
     this.logger.log(`[platform] Password changed for user ${user.email}`);
     return { ok: true, email: user.email };
+  }
+
+  /**
+   * Flips a business between the legacy experience and Check-in V2.
+   *
+   * Fully reversible and non-destructive in both directions: turning V2 off
+   * only stops the V2 endpoints and panel from answering — Visits,
+   * VisitSources, CustomerSessions and V2 metrics are all kept, so turning it
+   * back on restores the business exactly where it left off. Turning V2 on
+   * creates nothing up front either: the default VisitSource is still
+   * materialized lazily the first time the sources view is opened.
+   */
+  async setExperience(
+    adminId: string,
+    businessId: string,
+    dto: {
+      experienceVersion?: ExperienceVersion;
+      retentionEngineV2Enabled?: boolean;
+    },
+  ) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: {
+        id: true,
+        name: true,
+        experienceVersion: true,
+        retentionEngineV2Enabled: true,
+      },
+    });
+    if (!business) throw new NotFoundException('Business not found');
+
+    if (
+      dto.experienceVersion === undefined &&
+      dto.retentionEngineV2Enabled === undefined
+    ) {
+      throw new BadRequestException('Nothing to update');
+    }
+
+    const updated = await this.prisma.business.update({
+      where: { id: businessId },
+      data: {
+        ...(dto.experienceVersion !== undefined
+          ? { experienceVersion: dto.experienceVersion }
+          : {}),
+        ...(dto.retentionEngineV2Enabled !== undefined
+          ? { retentionEngineV2Enabled: dto.retentionEngineV2Enabled }
+          : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        experienceVersion: true,
+        retentionEngineV2Enabled: true,
+      },
+    });
+
+    this.logPlatformWrite(adminId, businessId, 'PLATFORM_EXPERIENCE_CHANGED', {
+      from: {
+        experienceVersion: business.experienceVersion,
+        retentionEngineV2Enabled: business.retentionEngineV2Enabled,
+      },
+      to: {
+        experienceVersion: updated.experienceVersion,
+        retentionEngineV2Enabled: updated.retentionEngineV2Enabled,
+      },
+    });
+
+    return updated;
   }
 
   async resetOnboardingForBusiness(adminId: string, businessId: string) {

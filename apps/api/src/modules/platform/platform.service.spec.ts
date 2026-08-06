@@ -6,6 +6,7 @@ import { AuditService } from '../../common/services/audit.service';
 import { CustomersService } from '../customers/customers.service';
 import { CampaignsService } from '../campaigns/campaigns.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { PrismaService } from '../../prisma/prisma.service';
 import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.queue';
 
 const mockRepo = {
@@ -30,6 +31,9 @@ const mockWhatsAppBspService = {};
 const mockGoogleReviewDetectionQueue = {
   enqueueInitialScrape: jest.fn(),
 };
+// Only the experience-version flows reach Prisma directly; the cases in this
+// suite do not, so an empty stub is enough to satisfy the constructor.
+const mockPrisma = {};
 
 describe('PlatformService', () => {
   let service: PlatformService;
@@ -49,6 +53,7 @@ describe('PlatformService', () => {
           provide: GoogleReviewDetectionQueue,
           useValue: mockGoogleReviewDetectionQueue,
         },
+        { provide: PrismaService, useValue: mockPrisma },
       ],
     }).compile();
     service = module.get<PlatformService>(PlatformService);

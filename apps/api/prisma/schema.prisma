@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider  = "postgresql"
+  provider = "postgresql"
 }
 
 // ---------------------------------------------------------------------------
@@ -186,6 +186,70 @@ enum ShopifyOrderStatus {
   failed
 }
 
+// Which public experience a business is on. Rollout is per business so Legacy
+// and Check-in V2 can coexist in a single deployment.
+//   LEGACY     → /qr/{businessId}: capture + review request. No Visit, no
+//                VisitSource, no CustomerSession. The behaviour that existed
+//                before Check-in V2.
+//   CHECKIN_V2 → /check-in/{token}: persistent session, visits, attribution.
+// Switching is reversible and never deletes data (see PATCH
+// /platform/businesses/:id/experience).
+enum ExperienceVersion {
+  LEGACY
+  CHECKIN_V2
+}
+
+// ---------------------------------------------------------------------------
+// Retention Engine V2 enums
+// ---------------------------------------------------------------------------
+
+// Behavioural segment, derived from real Visit history. Always computed from
+// visits — never hand-assigned — so it cannot go stale silently.
+enum CustomerSegment {
+  NEW
+  REPEAT
+  FREQUENT
+  AT_RISK
+  INACTIVE
+  RECOVERED
+}
+
+// What a retention campaign is trying to achieve. Winning back a once-frequent
+// customer is a different problem from getting a first-timer to come back.
+enum RetentionObjective {
+  SECOND_VISIT
+  AT_RISK_RECOVERY
+  INACTIVE_RECOVERY
+}
+
+// Strategy of an experiment variant. CONTROL receives nothing at all — it is
+// what makes "how many would have returned anyway?" answerable.
+enum RetentionStrategyType {
+  CONTROL
+  REMINDER
+  SOFT_BENEFIT
+  STRONG_BENEFIT
+}
+
+enum RetentionExperimentStatus {
+  DRAFT
+  RUNNING
+  PAUSED
+  COMPLETED
+}
+
+// Lifecycle of one participant inside an experiment.
+//   PENDING    → recruited, the send worker has not processed it yet
+//   OBSERVING  → CONTROL: deliberately receives nothing, we only watch
+//   SENT       → a message went out (and a reward was issued if applicable)
+//   SKIPPED    → re-validation failed right before sending; skipReason says why
+enum RetentionAssignmentStatus {
+  PENDING
+  OBSERVING
+  SENT
+  SKIPPED
+}
+
 // Benefit types. `none` = business explicitly offers no benefit. New types can be
 // added here as the offering grows (coupons, points, stamps, cashback, etc.).
 enum BenefitType {
@@ -198,35 +262,84 @@ enum BenefitType {
 }
 
 // ---------------------------------------------------------------------------
+// Check-in / retention enums
+// ---------------------------------------------------------------------------
+
+// Physical/logical origin of a check-in point. Each source has its own opaque
+// token and powers the public /check-in/{token} entry.
+enum VisitSourceType {
+  qr
+  nfc
+  link
+  manual
+}
+
+// How a visit was verified. Drives trust: a persistent-session or staff-
+// confirmed visit is stronger evidence than an anonymous scan.
+enum VisitVerificationType {
+  persistent_session
+  campaign_link
+  benefit_redemption
+  staff_confirmation
+  manual
+}
+
+// What (if anything) a visit is attributed to. A visit can exist WITHOUT
+// attribution (`organic`). `unknown` means we saw evidence of a campaign but
+// not enough to attribute confidently. A visit is never attributed to more
+// than one campaign.
+enum VisitAttributionType {
+  organic
+  post_campaign_checkin
+  confirmed_redemption
+  unknown
+}
+
+// Append-only customer timeline vocabulary. Message delivery events
+// (sent/delivered/read/clicked) are NOT mirrored here — they already live on
+// Message and the timeline composes them from there; these are the events with
+// no other home.
+enum CustomerEventType {
+  customer_registered
+  customer_session_restored
+  visit_created
+  visit_duplicate_prevented
+  benefit_viewed
+  benefit_redeemed
+  review_prompt_shown
+  review_link_clicked
+}
+
+// ---------------------------------------------------------------------------
 // User
 // ---------------------------------------------------------------------------
 
 model User {
-  id                   String   @id @default(uuid())
-  email                String   @unique
-  notificationEmail    String?  @map("notification_email")
-  notificationWhatsapp String?  @map("notification_whatsapp")
-  passwordHash         String
-  firstName            String
-  lastName             String
-  isPlatformAdmin      Boolean   @default(false)
-  isActive             Boolean   @default(true)
+  id                    String    @id @default(uuid())
+  email                 String    @unique
+  notificationEmail     String?   @map("notification_email")
+  notificationWhatsapp  String?   @map("notification_whatsapp")
+  passwordHash          String
+  firstName             String
+  lastName              String
+  isPlatformAdmin       Boolean   @default(false)
+  isActive              Boolean   @default(true)
   onboardingCompletedAt DateTime? @map("onboarding_completed_at")
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  memberships         Membership[]          @relation("UserMemberships")
-  invitedMemberships  Membership[]          @relation("InvitedByUser")
-  sessions            Session[]
-  passwordResetTokens PasswordResetToken[]
-  impersonationLogs   ImpersonationLog[]
-  auditLogs           AuditLog[]
-  createdCampaigns    Campaign[]            @relation("CampaignCreator")
-  createdReviews      Review[]              @relation("ReviewCreator")
-  respondedReviews    Review[]              @relation("ReviewResponder")
-  authoredResponses   Response[]            @relation("ResponseAuthor")
-  statusChanges       ReviewStatusHistory[] @relation("StatusChanger")
-  businessPlansCreated BusinessPlan[]       @relation("BusinessPlanCreator")
+  memberships          Membership[]          @relation("UserMemberships")
+  invitedMemberships   Membership[]          @relation("InvitedByUser")
+  sessions             Session[]
+  passwordResetTokens  PasswordResetToken[]
+  impersonationLogs    ImpersonationLog[]
+  auditLogs            AuditLog[]
+  createdCampaigns     Campaign[]            @relation("CampaignCreator")
+  createdReviews       Review[]              @relation("ReviewCreator")
+  respondedReviews     Review[]              @relation("ReviewResponder")
+  authoredResponses    Response[]            @relation("ResponseAuthor")
+  statusChanges        ReviewStatusHistory[] @relation("StatusChanger")
+  businessPlansCreated BusinessPlan[]        @relation("BusinessPlanCreator")
 }
 
 // ---------------------------------------------------------------------------
@@ -255,80 +368,455 @@ model Session {
 // ---------------------------------------------------------------------------
 
 model Business {
-  id                        String         @id @default(uuid())
-  name                      String
-  legalName                 String?
-  slug                      String         @unique
-  status                    BusinessStatus @default(DRAFT)
-  industry                  String?
-  vertical                  String?
-  description               String?
-  website                   String?
-  phone                     String?
-  email                     String?
-  country                   String
-  timezone                  String
-  currency                  String
-  logoUrl                   String?
-  primaryColor              String?
-  secondaryColor            String?
-  toneOfVoice               String?
-  whatsappUrl               String?
-  shortBio                  String?
-  signatureText             String?
-  benefitText               String?        @map("benefit_text")
-  qrA4Title                 String?        @map("qr_a4_title")
-  qrA4Subtitle              String?        @map("qr_a4_subtitle")
-  qrA4BgColor               String?        @map("qr_a4_bg_color")
-  googleBusinessProfileUrl  String?
-  googlePlaceId             String?        @map("google_place_id")
-  googleRefreshToken        String?        @map("google_refresh_token")
-  googleReviewsLastSyncAt   DateTime?      @map("google_reviews_last_sync_at")
-  whatsappPhoneId           String?        @map("whatsapp_phone_id")
-  messageQuotaMonthly       Int            @default(600) @map("message_quota_monthly")
-  messageCountCurrentMonth  Int            @default(0) @map("message_count_current_month")
-  reviewGoalMonthly         Int            @default(0) @map("review_goal_monthly")
-  reviewRequestsPausedUntil DateTime?      @map("review_requests_paused_until")
-  defaultReviewRedirectUrl  String?
-  isActive                  Boolean        @default(true)
-  createdAt                 DateTime       @default(now())
-  updatedAt                 DateTime       @updatedAt
-  archivedAt                DateTime?
+  id                           String            @id @default(uuid())
+  name                         String
+  legalName                    String?
+  slug                         String            @unique
+  status                       BusinessStatus    @default(DRAFT)
+  industry                     String?
+  vertical                     String?
+  description                  String?
+  website                      String?
+  phone                        String?
+  email                        String?
+  country                      String
+  timezone                     String
+  currency                     String
+  logoUrl                      String?
+  primaryColor                 String?
+  secondaryColor               String?
+  toneOfVoice                  String?
+  whatsappUrl                  String?
+  shortBio                     String?
+  signatureText                String?
+  benefitText                  String?           @map("benefit_text")
+  qrA4Title                    String?           @map("qr_a4_title")
+  qrA4Subtitle                 String?           @map("qr_a4_subtitle")
+  qrA4BgColor                  String?           @map("qr_a4_bg_color")
+  googleBusinessProfileUrl     String?
+  googlePlaceId                String?           @map("google_place_id")
+  googleRefreshToken           String?           @map("google_refresh_token")
+  googleReviewsLastSyncAt      DateTime?         @map("google_reviews_last_sync_at")
+  whatsappPhoneId              String?           @map("whatsapp_phone_id")
+  messageQuotaMonthly          Int               @default(600) @map("message_quota_monthly")
+  messageCountCurrentMonth     Int               @default(0) @map("message_count_current_month")
+  reviewGoalMonthly            Int               @default(0) @map("review_goal_monthly")
+  reviewRequestsPausedUntil    DateTime?         @map("review_requests_paused_until")
+  defaultReviewRedirectUrl     String?
+  // Check-in dedup + review re-prompt policy. Configurable per business (no
+  // panel yet — defaults encode the product rules). The 8h rule is enforced
+  // transactionally via an advisory lock, not a static index.
+  checkinMinHoursBetweenVisits Int               @default(8) @map("checkin_min_hours_between_visits")
+  checkinMaxVisitsPerDay       Int               @default(1) @map("checkin_max_visits_per_day")
+  checkinReviewPromptEveryDays Int               @default(30) @map("checkin_review_prompt_every_days")
+  // Per-business rollout. Default LEGACY on purpose: every existing business and
+  // every new signup stays on the legacy experience unless an admin opts it in.
+  experienceVersion            ExperienceVersion @default(LEGACY) @map("experience_version")
+  // Reserved for the future retention engine. Persisted only — nothing reads it
+  // yet, so toggling it changes no behaviour.
+  retentionEngineV2Enabled     Boolean           @default(false) @map("retention_engine_v2_enabled")
+  isActive                     Boolean           @default(true)
+  createdAt                    DateTime          @default(now())
+  updatedAt                    DateTime          @updatedAt
+  archivedAt                   DateTime?
 
-  memberships        Membership[]
-  branches           Branch[]
-  subscription       Subscription?
-  auditLogs          AuditLog[]
-  campaigns          Campaign[]
-  campaignExecutions CampaignExecution[]
-  qrCodes            QrCode[]
-  scanEvents         ScanEvent[]
-  reviews            Review[]
-  responses          Response[]
-  widgets            Widget[]
-  customers          Customer[]
-  serviceEvents      ServiceEvent[]
-  messages           Message[]
-  feedbackResponses  FeedbackResponse[]
-  googleReviews      GoogleReview[]
-  impersonationLogs  ImpersonationLog[]
-  widgetEvents       WidgetEvent[]
-  reviewTags         ReviewTag[]
-  shopifyIntegration        ShopifyIntegration?
-  shopifyOrders             ShopifyOrder[]
-  googleCalendarIntegration GoogleCalendarIntegration?
-  calendarEvents            CalendarEvent[]
-  manualCampaigns           ManualCampaign[]
-  businessPlans             BusinessPlan[]
-  businessGoals             BusinessGoal[]
-  appointmentNotifications  AppointmentNotification[]
-  messageTemplates          MessageTemplate[]
-  benefits                  Benefit[]
-  benefitParticipations     BenefitParticipation[]
-  retentionSequences        RetentionSequence[]
-  retentionSteps            RetentionStep[]
-  retentionSends            RetentionSend[]
-  raffleDraws               RaffleDraw[]
+  memberships                   Membership[]
+  branches                      Branch[]
+  subscription                  Subscription?
+  auditLogs                     AuditLog[]
+  campaigns                     Campaign[]
+  campaignExecutions            CampaignExecution[]
+  qrCodes                       QrCode[]
+  scanEvents                    ScanEvent[]
+  reviews                       Review[]
+  responses                     Response[]
+  widgets                       Widget[]
+  customers                     Customer[]
+  serviceEvents                 ServiceEvent[]
+  messages                      Message[]
+  feedbackResponses             FeedbackResponse[]
+  googleReviews                 GoogleReview[]
+  impersonationLogs             ImpersonationLog[]
+  widgetEvents                  WidgetEvent[]
+  reviewTags                    ReviewTag[]
+  shopifyIntegration            ShopifyIntegration?
+  shopifyOrders                 ShopifyOrder[]
+  googleCalendarIntegration     GoogleCalendarIntegration?
+  calendarEvents                CalendarEvent[]
+  manualCampaigns               ManualCampaign[]
+  businessPlans                 BusinessPlan[]
+  businessGoals                 BusinessGoal[]
+  appointmentNotifications      AppointmentNotification[]
+  messageTemplates              MessageTemplate[]
+  benefits                      Benefit[]
+  benefitParticipations         BenefitParticipation[]
+  retentionSequences            RetentionSequence[]
+  retentionSteps                RetentionStep[]
+  retentionSends                RetentionSend[]
+  raffleDraws                   RaffleDraw[]
+  visitSources                  VisitSource[]
+  visits                        Visit[]
+  customerSessions              CustomerSession[]
+  customerVerifications         CustomerVerification[]
+  customerEvents                CustomerEvent[]
+  retentionSettings             RetentionSettings?
+  retentionIncentiveDefinitions RetentionIncentiveDefinition[]
+  retentionExperiments          RetentionExperiment[]
+  retentionVariants             RetentionVariant[]
+  retentionAssignments          RetentionAssignment[]
+  retentionDecisionLogs         RetentionDecisionLog[]
+  retentionOutcomes             RetentionOutcome[]
+}
+
+// ---------------------------------------------------------------------------
+// RetentionSettings (Retention Engine V2 — per-business configuration)
+// ---------------------------------------------------------------------------
+// Deliberately small: the owner configures a handful of business facts, not
+// statistical parameters. Every field has a sensible default so the engine can
+// run with no configuration at all (REMINDER + CONTROL only, no economics).
+//
+// The kill switch lives on Business.retentionEngineV2Enabled, not here, so it
+// stays next to experienceVersion and can be flipped by a platform admin.
+
+model RetentionSettings {
+  id         String @id @default(uuid())
+  businessId String @unique @map("business_id")
+
+  /// Declared by the owner — an ESTIMATE, not real sales. Kept nullable so the
+  /// engine works without it (economics are simply not shown).
+  averageTicketAmount    Decimal? @map("average_ticket_amount") @db.Decimal(12, 2)
+  /// 0-100. Also a declared estimate.
+  estimatedMarginPercent Int?     @map("estimated_margin_percent")
+
+  /// When false the engine still evaluates and reports, but sends nothing.
+  automaticCampaignsEnabled Boolean @default(true) @map("automatic_campaigns_enabled")
+
+  // Contact pressure limits — the owner's protection against over-messaging.
+  minimumDaysBetweenRetentionMessages Int @default(14) @map("minimum_days_between_retention_messages")
+  maximumRetentionMessagesPer30Days   Int @default(2) @map("maximum_retention_messages_per_30_days")
+
+  /// Local sending window, evaluated in the business timezone.
+  sendingHourStart   Int   @default(10) @map("sending_hour_start")
+  sendingHourEnd     Int   @default(20) @map("sending_hour_end")
+  /// ISO weekdays allowed to send (1 = Monday … 7 = Sunday).
+  allowedSendingDays Int[] @default([1, 2, 3, 4, 5, 6]) @map("allowed_sending_days")
+
+  /// Share of eligible customers held back as control. Never allowed to reach
+  /// 0 by the optimizer — without control there is no causal read.
+  controlGroupPercent                 Int @default(15) @map("control_group_percent")
+  /// Below this many participants a variant is reported as INSUFFICIENT_DATA.
+  minimumSampleSizeForRecommendations Int @default(30) @map("minimum_sample_size_for_recommendations")
+
+  // Economic safety caps (Fase C.5) — the owner's protection against an
+  // experiment misconfiguration issuing unlimited benefits. Both nullable:
+  // null means "not configured", which the send path treats as "no incentive
+  // may be issued automatically" rather than as "unlimited" — see
+  // RetentionBudgetService. A UI must warn the owner while either is unset and
+  // automation with incentive-bearing variants is on.
+  maxAutomatedIncentivesPerMonth    Int?     @map("max_automated_incentives_per_month")
+  maxEstimatedIncentiveCostPerMonth Decimal? @map("max_estimated_incentive_cost_per_month") @db.Decimal(12, 2)
+
+  /// Pilot mode: the engine recruits and decides as usual but never creates a
+  /// sendable Message, issues a benefit, or calls WhatsApp. Meant to let an
+  /// owner observe a few days of decisions before trusting live sending.
+  dryRunEnabled Boolean @default(false) @map("dry_run_enabled")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("retention_settings")
+}
+
+// ---------------------------------------------------------------------------
+// RetentionIncentiveDefinition (catalogue of incentives Flikker MAY offer)
+// ---------------------------------------------------------------------------
+// A catalogue of AUTHORIZED STRATEGIES — deliberately NOT a second benefits
+// system. When a variant actually has to hand something to a customer, the
+// definition is translated into the existing Benefit / BenefitParticipation
+// reward and redeemed through the existing flow. There is one redemption path,
+// not two.
+//
+// It cannot reuse `Benefit` directly: that table enforces
+// `benefits_one_active_per_business` (at most one active benefit per business,
+// which the QR/check-in flow relies on), whereas a catalogue needs several
+// authorized options active simultaneously. It also lacks cost, usage limits
+// and automation-eligibility.
+//
+// Nothing may ever be offered that is not a row here: no invented discount, no
+// raised percentage, no new commercial terms.
+
+model RetentionIncentiveDefinition {
+  id         String      @id @default(uuid())
+  businessId String      @map("business_id")
+  name       String
+  type       BenefitType
+
+  /// Percentage off, for "10% OFF"-style incentives.
+  percentageValue Int?     @map("percentage_value")
+  /// Fixed amount off, for "$100 OFF"-style incentives.
+  fixedValue      Decimal? @map("fixed_value") @db.Decimal(12, 2)
+  /// What one redemption costs the business. For percentage discounts it can be
+  /// derived from the average ticket; this is the override for things like a
+  /// free upgrade whose real cost only the owner knows.
+  estimatedCost   Decimal? @map("estimated_cost") @db.Decimal(12, 2)
+
+  description   String?
+  conditions    String?
+  /// Days the issued reward stays valid. Short windows drive urgency.
+  expiresInDays Int     @default(7) @map("expires_in_days")
+
+  active             Boolean @default(true)
+  /// Explicit owner consent for the engine to use this automatically. Off by
+  /// default: authorizing automation is always an opt-in.
+  automationEligible Boolean @default(false) @map("automation_eligible")
+
+  maxRedemptionsPerCustomer Int?  @map("max_redemptions_per_customer")
+  maxTotalRedemptions       Int?  @map("max_total_redemptions")
+  /// ISO weekdays this incentive may be offered on (1 = Monday … 7 = Sunday).
+  /// Empty means "no day restriction".
+  validDays                 Int[] @default([]) @map("valid_days")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  business Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  variants RetentionVariant[]
+
+  @@index([businessId])
+  @@index([businessId, active, automationEligible])
+  @@map("retention_incentive_definitions")
+}
+
+// ---------------------------------------------------------------------------
+// RetentionExperiment / RetentionVariant / RetentionAssignment (Phase B)
+// ---------------------------------------------------------------------------
+// The experiment is what makes causality readable: a share of eligible
+// customers is held back as CONTROL and receives nothing, so "how many would
+// have come back anyway?" has an answer.
+
+model RetentionExperiment {
+  id         String                    @id @default(uuid())
+  businessId String                    @map("business_id")
+  name       String
+  objective  RetentionObjective
+  /// Segment this experiment recruits from. Null = any eligible segment.
+  segment    CustomerSegment?
+  status     RetentionExperimentStatus @default(DRAFT)
+
+  startAt DateTime  @default(now()) @map("start_at")
+  endAt   DateTime? @map("end_at")
+
+  /// Days after assignment during which a return counts for this experiment.
+  attributionWindowDays Int @default(30) @map("attribution_window_days")
+  /// Below this many participants per variant, results stay INSUFFICIENT_DATA.
+  minimumSampleSize     Int @default(30) @map("minimum_sample_size")
+  /// Share held back as control. Snapshotted here so changing the business
+  /// setting later does not silently rewrite a running experiment.
+  controlPercent        Int @default(15) @map("control_percent")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  business    Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  variants    RetentionVariant[]
+  assignments RetentionAssignment[]
+  outcomes    RetentionOutcome[]
+
+  @@index([businessId])
+  @@index([businessId, status])
+  @@map("retention_experiments")
+}
+
+model RetentionVariant {
+  id           String                @id @default(uuid())
+  experimentId String                @map("experiment_id")
+  businessId   String                @map("business_id")
+  name         String
+  strategyType RetentionStrategyType
+
+  /// Only set for benefit-bearing strategies, and only ever pointing at an
+  /// authorized catalogue row.
+  incentiveDefinitionId String? @map("incentive_definition_id")
+  /// The Benefit row this variant issues through, created lazily and kept
+  /// `active: false` so it never competes for the single-active-benefit slot
+  /// the QR flow relies on. Individual rewards hang off it as
+  /// BenefitParticipation rows, reusing the existing redemption flow.
+  issuedBenefitId       String? @unique @map("issued_benefit_id")
+
+  /// Share of participants routed here. Validated to sum to 100 with control.
+  allocationPercent Int     @map("allocation_percent")
+  active            Boolean @default(true)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  experiment          RetentionExperiment           @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  business            Business                      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  incentiveDefinition RetentionIncentiveDefinition? @relation(fields: [incentiveDefinitionId], references: [id], onDelete: SetNull)
+  issuedBenefit       Benefit?                      @relation(fields: [issuedBenefitId], references: [id], onDelete: SetNull)
+  assignments         RetentionAssignment[]
+  outcomes            RetentionOutcome[]
+
+  @@index([experimentId])
+  @@index([businessId])
+  @@map("retention_variants")
+}
+
+// One row per (experiment, customer). The unique constraint is what makes
+// assignment idempotent under concurrent worker runs: a customer can never end
+// up in two variants of the same experiment.
+
+model RetentionAssignment {
+  id           String @id @default(uuid())
+  experimentId String @map("experiment_id")
+  variantId    String @map("variant_id")
+  businessId   String @map("business_id")
+  customerId   String @map("customer_id")
+
+  /// Snapshot of the behaviour that justified recruiting this customer. Kept on
+  /// the row because the live values keep moving and reports must stay
+  /// reproducible.
+  segmentAtAssignment    CustomerSegment @map("segment_at_assignment")
+  visitCountAtAssignment Int             @map("visit_count_at_assignment")
+  daysSinceLastVisit     Int             @map("days_since_last_visit")
+  /// Median days between visits when there was enough history, else null.
+  typicalIntervalDays    Int?            @map("typical_interval_days")
+
+  assignedAt DateTime @default(now()) @map("assigned_at")
+
+  status     RetentionAssignmentStatus @default(PENDING)
+  sentAt     DateTime?                 @map("sent_at")
+  /// The moment this assignment was actually exposed to its arm — the message
+  /// was created (SENT) or the customer was confirmed into the control group
+  /// (OBSERVING). This, not `assignedAt`, is what an outcome's observation
+  /// window is measured from: recruitment and exposure can be hours or days
+  /// apart (the sending window, a paused experiment, a retry). A separate
+  /// column rather than overloading `sentAt` for CONTROL keeps the existing
+  /// cooldown/`lastRetentionMessageAt` semantics (which key off `sentAt`
+  /// meaning "a message was actually sent") untouched.
+  exposedAt  DateTime?                 @map("exposed_at")
+  /// Eligibility rejection code from the re-check just before sending.
+  skipReason String?                   @map("skip_reason")
+
+  /// The one message this assignment produced. Unique: it is what makes the
+  /// send worker idempotent — a retry cannot attach a second message.
+  messageId              String? @unique @map("message_id")
+  /// The one individual reward issued for this assignment, when the variant
+  /// carries an incentive. Unique for the same reason.
+  benefitParticipationId String? @unique @map("benefit_participation_id")
+
+  business             Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer             Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  experiment           RetentionExperiment    @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  variant              RetentionVariant       @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  message              Message?               @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  benefitParticipation BenefitParticipation?  @relation(fields: [benefitParticipationId], references: [id], onDelete: SetNull)
+  decisions            RetentionDecisionLog[]
+  outcome              RetentionOutcome?
+
+  @@unique([experimentId, customerId])
+  @@index([businessId, status])
+  @@index([businessId])
+  @@index([customerId])
+  @@index([variantId])
+  @@index([status, exposedAt])
+  @@map("retention_assignments")
+}
+
+// ---------------------------------------------------------------------------
+// RetentionOutcome (Fase D — closing the experimental loop)
+// ---------------------------------------------------------------------------
+// The observable result of one exposed assignment: did this customer come
+// back within the experiment's attribution window? This is what turns "we
+// sent messages" into "control returned 8%, the benefit variant returned
+// 22%" — the causal read the whole CONTROL group exists to make possible.
+//
+// At most one FINAL outcome per assignment (`@unique` on assignmentId), and it
+// is written at most twice: once when a qualifying return is found (`returned:
+// true`, as soon as it happens — never waiting for the window to close), and
+// once when the window closes with nothing found (`returned: false`). A
+// `returned: true` outcome may still be updated in place while its window is
+// open, ONLY to upgrade `confirmedByRedemption`/`attributionType` if a
+// redemption becomes visible later — never to flip `returned` itself.
+//
+// Deliberately reuses `Visit.attributionType` instead of re-deriving
+// attribution: the check-in flow has already done that work when the return
+// visit was created (see `VisitsRepository.resolveVisitAttribution`).
+model RetentionOutcome {
+  id           String @id @default(uuid())
+  businessId   String @map("business_id")
+  experimentId String @map("experiment_id")
+  variantId    String @map("variant_id")
+  assignmentId String @unique @map("assignment_id")
+  customerId   String @map("customer_id")
+
+  returned      Boolean   @map("returned")
+  returnVisitId String?   @map("return_visit_id")
+  returnedAt    DateTime? @map("returned_at")
+  /// Days between exposure (`RetentionAssignment.exposedAt`) and the return
+  /// visit. Null when there was no return.
+  daysToReturn  Int?      @map("days_to_return")
+
+  /// Copied from the return Visit — `null` when there was no return. Left as
+  /// `organic` for a CONTROL return: nothing was sent to attribute it to.
+  attributionType        VisitAttributionType? @map("attribution_type")
+  /// True when `RetentionAssignment.benefitParticipationId`'s own redemption
+  /// happened by the time this outcome was (last) computed. The single
+  /// source of truth is `BenefitParticipation.redeemedAt`, not a guess from
+  /// Visit metadata.
+  confirmedByRedemption  Boolean               @default(false) @map("confirmed_by_redemption")
+  /// Denormalized copy of `RetentionAssignment.benefitParticipationId`, kept
+  /// here so a metrics query never has to join through the assignment.
+  benefitParticipationId String?               @map("benefit_participation_id")
+
+  /// True exactly when `returned` is true — kept as its own column because it
+  /// is the field the schema in Fase D's spec calls out, and because a return
+  /// discovered by other means in a later phase would not automatically imply
+  /// "within window".
+  observedWithinWindow Boolean @map("observed_within_window")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  business    Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  experiment  RetentionExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  variant     RetentionVariant    @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  assignment  RetentionAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  customer    Customer            @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  returnVisit Visit?              @relation(fields: [returnVisitId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([experimentId, variantId])
+  @@index([variantId, returned])
+  @@map("retention_outcomes")
+}
+
+// ---------------------------------------------------------------------------
+// RetentionDecisionLog (why the engine did what it did)
+// ---------------------------------------------------------------------------
+// Append-only audit trail of automatic decisions. Stores structured decision
+// codes and the inputs behind them — never free-form reasoning.
+
+model RetentionDecisionLog {
+  id           String   @id @default(uuid())
+  businessId   String   @map("business_id")
+  customerId   String?  @map("customer_id")
+  assignmentId String?  @map("assignment_id")
+  /// Stable code: ELIGIBLE, CONTROL, ASSIGNED, SKIPPED_RETURNED,
+  /// SKIPPED_OPT_OUT, SKIPPED_COOLDOWN, SKIPPED_ENGINE_DISABLED,
+  /// SKIPPED_EXPERIMENT_PAUSED, MESSAGE_QUEUED, MESSAGE_FAILED, BENEFIT_ISSUED.
+  decisionCode String   @map("decision_code")
+  metadata     Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  business   Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  assignment RetentionAssignment? @relation(fields: [assignmentId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@index([assignmentId])
+  @@map("retention_decision_logs")
 }
 
 // ---------------------------------------------------------------------------
@@ -490,28 +978,28 @@ model AuditLog {
 // ---------------------------------------------------------------------------
 
 model Campaign {
-  id                String                @id @default(uuid())
-  businessId        String
-  branchId          String?
-  name              String
-  slug              String
-  description       String?
-  channel           CampaignChannel
-  templateKind      CampaignTemplateKind? @map("template_kind")
-  triggerOffsetDays          Int?                  @map("trigger_offset_days")
-  reviewRequestDelayHours    Int?                  @default(24) @map("review_request_delay_hours")
-  messageBody       String?               @map("message_body")
-  offerText         String?               @map("offer_text")
-  status            CampaignStatus        @default(DRAFT)
-  destinationType   DestinationType
-  destinationUrl    String?
-  enableLanding     Boolean               @default(false)
-  startsAt          DateTime?
-  endsAt            DateTime?
-  createdByUserId   String
-  createdAt         DateTime              @default(now())
-  updatedAt         DateTime              @updatedAt
-  archivedAt        DateTime?
+  id                      String                @id @default(uuid())
+  businessId              String
+  branchId                String?
+  name                    String
+  slug                    String
+  description             String?
+  channel                 CampaignChannel
+  templateKind            CampaignTemplateKind? @map("template_kind")
+  triggerOffsetDays       Int?                  @map("trigger_offset_days")
+  reviewRequestDelayHours Int?                  @default(24) @map("review_request_delay_hours")
+  messageBody             String?               @map("message_body")
+  offerText               String?               @map("offer_text")
+  status                  CampaignStatus        @default(DRAFT)
+  destinationType         DestinationType
+  destinationUrl          String?
+  enableLanding           Boolean               @default(false)
+  startsAt                DateTime?
+  endsAt                  DateTime?
+  createdByUserId         String
+  createdAt               DateTime              @default(now())
+  updatedAt               DateTime              @updatedAt
+  archivedAt              DateTime?
 
   business   Business            @relation(fields: [businessId], references: [id])
   branch     Branch?             @relation(fields: [branchId], references: [id])
@@ -521,6 +1009,7 @@ model Campaign {
   reviews    Review[]
   messages   Message[]
   executions CampaignExecution[]
+  visits     Visit[]
 
   @@unique([businessId, slug])
   @@index([businessId])
@@ -546,16 +1035,22 @@ model Customer {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
-  business               Business               @relation(fields: [businessId], references: [id])
-  serviceEvents          ServiceEvent[]
-  messages               Message[]
-  campaignExecutions     CampaignExecution[]
-  feedbackResponses      FeedbackResponse[]
-  manualCampaignContacts ManualCampaignContact[]
+  business                 Business                  @relation(fields: [businessId], references: [id])
+  serviceEvents            ServiceEvent[]
+  messages                 Message[]
+  campaignExecutions       CampaignExecution[]
+  feedbackResponses        FeedbackResponse[]
+  manualCampaignContacts   ManualCampaignContact[]
   appointmentNotifications AppointmentNotification[]
-  benefitParticipations  BenefitParticipation[]
-  retentionSends         RetentionSend[]
-  raffleDrawsWon         RaffleDraw[]
+  benefitParticipations    BenefitParticipation[]
+  retentionSends           RetentionSend[]
+  raffleDrawsWon           RaffleDraw[]
+  visits                   Visit[]
+  sessions                 CustomerSession[]
+  verifications            CustomerVerification[]
+  events                   CustomerEvent[]
+  retentionAssignments     RetentionAssignment[]
+  retentionOutcomes        RetentionOutcome[]
 
   @@index([businessId])
   @@index([businessId, isActive])
@@ -624,14 +1119,18 @@ model Message {
   clickedAt      DateTime?
   createdAt      DateTime       @default(now())
 
-  business                Business            @relation(fields: [businessId], references: [id])
-  customer                Customer            @relation(fields: [customerId], references: [id])
-  campaign                Campaign?           @relation(fields: [campaignId], references: [id])
-  serviceEvent            ServiceEvent?       @relation(fields: [serviceEventId], references: [id])
+  business                Business             @relation(fields: [businessId], references: [id])
+  customer                Customer             @relation(fields: [customerId], references: [id])
+  campaign                Campaign?            @relation(fields: [campaignId], references: [id])
+  serviceEvent            ServiceEvent?        @relation(fields: [serviceEventId], references: [id])
   feedbackResponses       FeedbackResponse[]
   campaignExecutions      CampaignExecution[]
   attributedGoogleReviews GoogleReview[]
   retentionSends          RetentionSend[]
+  visits                  Visit[]
+  /// Present only on messages sent by Retention Engine V2 — this FK is what
+  /// identifies a V2 message unambiguously, with no opaque metadata.
+  retentionAssignment     RetentionAssignment?
 
   @@index([businessId])
   @@index([customerId])
@@ -1071,7 +1570,7 @@ model ManualCampaign {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  business Business               @relation(fields: [businessId], references: [id])
+  business Business                @relation(fields: [businessId], references: [id])
   contacts ManualCampaignContact[]
 
   @@index([businessId])
@@ -1175,9 +1674,11 @@ model Benefit {
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  business       Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  participations BenefitParticipation[]
-  raffleDraws    RaffleDraw[]
+  business         Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  participations   BenefitParticipation[]
+  raffleDraws      RaffleDraw[]
+  /// Set only on the inert Benefit rows Retention V2 issues through.
+  retentionVariant RetentionVariant?
 
   @@index([businessId])
   @@index([businessId, active])
@@ -1189,20 +1690,32 @@ model Benefit {
 // ---------------------------------------------------------------------------
 
 model BenefitParticipation {
-  id          String   @id @default(uuid())
-  benefitId   String   @map("benefit_id")
-  businessId  String   @map("business_id")
-  customerId  String   @map("customer_id")
+  id               String    @id @default(uuid())
+  benefitId        String    @map("benefit_id")
+  businessId       String    @map("business_id")
+  customerId       String    @map("customer_id")
   // Set when this entry is "closed" by a monthly raffle draw. Null means the
   // entry belongs to the currently open (not-yet-drawn) cycle. This is how the
   // participant list resets month to month without deleting any data.
-  raffleDrawId String? @map("raffle_draw_id")
-  createdAt   DateTime @default(now()) @map("created_at")
+  raffleDrawId     String?   @map("raffle_draw_id")
+  // Redemption (non-raffle benefits): a unique opaque code the customer shows to
+  // staff. `redeemedAt` != null means it was used — atomically guarded so a
+  // benefit can never be redeemed twice.
+  redemptionCode   String?   @unique @map("redemption_code")
+  redeemedAt       DateTime? @map("redeemed_at")
+  redeemedByUserId String?   @map("redeemed_by_user_id")
+  redeemedVisitId  String?   @map("redeemed_visit_id")
+  /// Per-issue expiry. The QR flow leaves this null (validity comes from the
+  /// Benefit's own window); Retention V2 sets it because each customer's reward
+  /// expires a fixed number of days after it was issued to them.
+  expiresAt        DateTime? @map("expires_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
 
-  benefit    Benefit     @relation(fields: [benefitId], references: [id], onDelete: Cascade)
-  business   Business    @relation(fields: [businessId], references: [id])
-  customer   Customer    @relation(fields: [customerId], references: [id])
-  raffleDraw RaffleDraw? @relation(fields: [raffleDrawId], references: [id], onDelete: SetNull)
+  benefit             Benefit              @relation(fields: [benefitId], references: [id], onDelete: Cascade)
+  business            Business             @relation(fields: [businessId], references: [id])
+  customer            Customer             @relation(fields: [customerId], references: [id])
+  raffleDraw          RaffleDraw?          @relation(fields: [raffleDrawId], references: [id], onDelete: SetNull)
+  retentionAssignment RetentionAssignment?
 
   @@unique([benefitId, customerId])
   @@index([businessId])
@@ -1233,7 +1746,7 @@ model RaffleDraw {
 
   benefit        Benefit                @relation(fields: [benefitId], references: [id], onDelete: Cascade)
   business       Business               @relation(fields: [businessId], references: [id])
-  winner         Customer?              @relation(fields: [winnerCustomerId], references: [id])
+  winner         Customer?              @relation(fields: [winnerCustomerId], references: [id], onDelete: Restrict)
   participations BenefitParticipation[]
 
   @@unique([benefitId, periodKey])
@@ -1307,3 +1820,157 @@ model RetentionSend {
   @@map("retention_sends")
 }
 
+// ---------------------------------------------------------------------------
+// VisitSource (a named QR/NFC/link check-in point with its own opaque token)
+// ---------------------------------------------------------------------------
+// The public entry is /check-in/{token}. Each business has exactly one default
+// source (enforced by a partial unique index in the migration) that the legacy
+// /qr/{businessId} flow resolves to, so existing QRs keep working unchanged.
+
+model VisitSource {
+  id            String          @id @default(uuid())
+  businessId    String          @map("business_id")
+  name          String
+  type          VisitSourceType @default(qr)
+  token         String          @unique
+  isDefault     Boolean         @default(false) @map("is_default")
+  isActive      Boolean         @default(true) @map("is_active")
+  scannedCount  Int             @default(0) @map("scanned_count")
+  lastScannedAt DateTime?       @map("last_scanned_at")
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+
+  business Business        @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  visits   Visit[]
+  events   CustomerEvent[]
+
+  @@index([businessId])
+  @@index([businessId, isActive])
+  @@map("visit_sources")
+}
+
+// ---------------------------------------------------------------------------
+// Visit (a check-in — first visit or return — of a customer to a business)
+// ---------------------------------------------------------------------------
+// Created only on a REAL signal (registration, check-in, redemption). Never
+// backfilled historically. Dedup is transactional (advisory lock on
+// business+customer) using configurable Business rules; `visitDayKey` (local
+// calendar day in the business timezone) enables fast same-day counting.
+
+model Visit {
+  id               String                @id @default(uuid())
+  businessId       String                @map("business_id")
+  customerId       String                @map("customer_id")
+  sourceId         String?               @map("source_id")
+  campaignId       String?               @map("campaign_id")
+  messageId        String?               @map("message_id")
+  occurredAt       DateTime              @default(now()) @map("occurred_at")
+  visitDayKey      String                @map("visit_day_key")
+  verificationType VisitVerificationType @map("verification_type")
+  attributionType  VisitAttributionType  @default(organic) @map("attribution_type")
+  isReturn         Boolean               @default(false) @map("is_return")
+  metadata         Json?
+  createdAt        DateTime              @default(now()) @map("created_at")
+
+  business          Business           @relation(fields: [businessId], references: [id])
+  customer          Customer           @relation(fields: [customerId], references: [id])
+  source            VisitSource?       @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  campaign          Campaign?          @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  message           Message?           @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  events            CustomerEvent[]
+  retentionOutcomes RetentionOutcome[]
+
+  @@index([businessId])
+  @@index([businessId, occurredAt])
+  @@index([customerId])
+  @@index([customerId, occurredAt])
+  @@index([businessId, customerId, visitDayKey])
+  @@index([campaignId])
+  @@index([sourceId])
+  @@map("visits")
+}
+
+// ---------------------------------------------------------------------------
+// CustomerSession (persistent recognition token for the public check-in)
+// ---------------------------------------------------------------------------
+// The raw opaque token lives ONLY in an httpOnly cookie. We store just its
+// SHA-256 hash — never the raw token, never the phone or customer id in the
+// browser. Recognition = hash the cookie token, look up a live (not revoked,
+// not expired) session.
+
+model CustomerSession {
+  id         String    @id @default(uuid())
+  businessId String    @map("business_id")
+  customerId String    @map("customer_id")
+  tokenHash  String    @unique @map("token_hash")
+  userAgent  String?   @map("user_agent")
+  lastSeenAt DateTime  @default(now()) @map("last_seen_at")
+  expiresAt  DateTime  @map("expires_at")
+  revokedAt  DateTime? @map("revoked_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([expiresAt])
+  @@map("customer_sessions")
+}
+
+// ---------------------------------------------------------------------------
+// CustomerVerification (one-time WhatsApp code to recover a profile safely)
+// ---------------------------------------------------------------------------
+// A phone number alone must NOT grant access. Recovering a profile on a new
+// device requires a one-time code sent by WhatsApp. Only the code's hash is
+// stored. Until consumed: no session, no private benefits, no history.
+
+model CustomerVerification {
+  id         String    @id @default(uuid())
+  businessId String    @map("business_id")
+  customerId String    @map("customer_id")
+  codeHash   String    @map("code_hash")
+  purpose    String    @default("session_recovery")
+  attempts   Int       @default(0)
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@index([customerId])
+  @@index([expiresAt])
+  @@map("customer_verifications")
+}
+
+// ---------------------------------------------------------------------------
+// CustomerEvent (append-only timeline backbone)
+// ---------------------------------------------------------------------------
+// The single source of truth for events that have no other home. Message
+// delivery events are read from Message, not duplicated here. messageId /
+// benefitId are carried in `metadata` to avoid over-coupling existing models.
+
+model CustomerEvent {
+  id         String            @id @default(uuid())
+  businessId String            @map("business_id")
+  customerId String            @map("customer_id")
+  type       CustomerEventType
+  visitId    String?           @map("visit_id")
+  sourceId   String?           @map("source_id")
+  metadata   Json?
+  createdAt  DateTime          @default(now()) @map("created_at")
+
+  business Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  visit    Visit?       @relation(fields: [visitId], references: [id], onDelete: SetNull)
+  source   VisitSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+
+  @@index([businessId])
+  @@index([businessId, createdAt])
+  @@index([customerId])
+  @@index([customerId, createdAt])
+  @@index([businessId, type])
+  @@map("customer_events")
+}

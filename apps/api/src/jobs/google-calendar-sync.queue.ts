@@ -24,8 +24,7 @@ export class GoogleCalendarSyncQueue implements OnModuleInit, OnModuleDestroy {
       {
         jobId: GOOGLE_CALENDAR_SYNC_JOB,
         repeat: {
-          pattern:
-            process.env.GOOGLE_CALENDAR_SYNC_CRON ?? '*/30 * * * *',
+          pattern: process.env.GOOGLE_CALENDAR_SYNC_CRON ?? '*/30 * * * *',
         },
         removeOnComplete: 30,
         removeOnFail: false,

@@ -88,9 +88,10 @@ export default function LogoutButton() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="inline-flex h-9 items-center rounded-lg border border-[#0D1B2A] bg-[#0D1B2A] px-4 text-sm font-semibold text-white transition-colors hover:bg-[#16263A]"
+        className="inline-flex h-10 items-center gap-2 rounded-[13px] border border-[#5C6BC0]/20 bg-[#5C6BC0] px-3.5 text-sm font-semibold text-white shadow-[0_6px_16px_rgba(92,107,192,0.22),inset_0_1px_0_rgba(255,255,255,0.22)] transition-all hover:-translate-y-px hover:bg-[#5261B4] hover:shadow-[0_9px_20px_rgba(92,107,192,0.27)]"
       >
-        Salir
+        <LogOut aria-hidden="true" className="h-4 w-4" />
+        <span className="hidden sm:inline">Salir</span>
       </button>
       {typeof document !== 'undefined' && modal
         ? createPortal(modal, document.body)

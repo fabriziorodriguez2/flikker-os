@@ -28,6 +28,9 @@ import { PublicModule } from './modules/public/public.module';
 import { MessageTemplatesModule } from './modules/message-templates/message-templates.module';
 import { BenefitsModule } from './modules/benefits/benefits.module';
 import { RetentionModule } from './modules/retention/retention.module';
+import { VisitSourcesModule } from './modules/visit-sources/visit-sources.module';
+import { CheckinModule } from './modules/checkin/checkin.module';
+import { CheckinMetricsModule } from './modules/checkin-metrics/checkin-metrics.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -60,6 +63,9 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     MessageTemplatesModule,
     BenefitsModule,
     RetentionModule,
+    VisitSourcesModule,
+    CheckinModule,
+    CheckinMetricsModule,
   ],
   controllers: [AppController],
 })

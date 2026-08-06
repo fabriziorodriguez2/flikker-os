@@ -51,13 +51,16 @@ function GoalRing({
           className="transition-all duration-700"
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <p className="leading-none">
+      <div className="absolute inset-0 flex flex-col items-center justify-center px-7 text-center">
+        <p className="flex items-baseline justify-center leading-none">
           <span className="text-4xl font-bold text-[#1A202C]">{current}</span>
           <span className="text-lg font-semibold text-[#B0B8C9]">/{target}</span>
         </p>
-        <p className="mt-1 text-xs font-medium text-[#8891A4]">
-          {noun} {periodLabel}
+        <p className="mt-2 flex w-[118px] flex-col items-center text-[#8891A4]">
+          <span className="text-xs font-semibold leading-4">{noun}</span>
+          <span className="text-[10px] font-medium leading-3.5">
+            {periodLabel}
+          </span>
         </p>
       </div>
     </div>

@@ -14,6 +14,9 @@ import {
   X,
 } from "lucide-react";
 import { useCanMutate } from "../../role-context";
+import RedeemValidator from "./redeem-validator";
+import { useIsCheckinV2 } from "../../experience-context";
+import PageHeader from "@/components/ui/page-header";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -603,6 +606,7 @@ function buildPayload(form: FormState) {
 
 export default function BenefitsPage() {
   const canMutate = useCanMutate();
+  const isCheckinV2 = useIsCheckinV2();
   const [benefits, setBenefits] = useState<Benefit[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -698,27 +702,23 @@ export default function BenefitsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-[#1A202C]">
-            Beneficios
-          </h1>
-          <p className="mt-1 text-sm text-[#8891A4]">
-            Son opcionales. Ofrecé un beneficio para incentivar que tus clientes
-            vuelvan. Solo uno puede estar activo a la vez.
-          </p>
-        </div>
-        {canMutate && !showForm ? (
+      <PageHeader
+        title="Beneficios"
+        subtitle="Ofrecé un incentivo para que tus clientes vuelvan. Solo uno puede estar activo a la vez."
+        actions={canMutate && !showForm ? (
           <button
             type="button"
             onClick={openCreate}
-            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
+            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[12px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white shadow-[0_6px_16px_rgba(92,107,192,0.2)] transition-all hover:-translate-y-px hover:bg-[#5261B4]"
           >
             <Plus className="h-4 w-4" />
             Nuevo beneficio
           </button>
-        ) : null}
-      </div>
+        ) : undefined}
+      />
+
+      {/* Redemption codes only exist in Check-in V2. */}
+      {canMutate && isCheckinV2 ? <RedeemValidator /> : null}
 
       {showForm ? (
         <BenefitForm

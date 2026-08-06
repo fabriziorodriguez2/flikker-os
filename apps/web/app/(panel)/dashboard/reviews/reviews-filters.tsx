@@ -44,9 +44,9 @@ export default function ReviewsFilters() {
   );
 
   return (
-    <div className="flex flex-wrap items-center gap-3">
+    <div className="flex flex-wrap items-center gap-3 rounded-[16px] border border-white/75 bg-white/48 p-2.5 shadow-[0_8px_24px_rgba(56,45,125,0.06)] backdrop-blur-sm">
       {/* Stars filter */}
-      <div className="inline-flex overflow-hidden rounded-[8px] border border-[#E8EAF0] bg-white text-xs font-semibold">
+      <div className="inline-flex overflow-hidden rounded-[11px] border border-[#E8EAF0] bg-white text-xs font-semibold">
         {STAR_OPTIONS.map((opt, i) => (
           <button
             key={opt.value}
@@ -64,7 +64,7 @@ export default function ReviewsFilters() {
       </div>
 
       {/* Period filter */}
-      <div className="inline-flex overflow-hidden rounded-[8px] border border-[#E8EAF0] bg-white text-xs font-semibold">
+      <div className="inline-flex overflow-hidden rounded-[11px] border border-[#E8EAF0] bg-white text-xs font-semibold">
         {PERIOD_OPTIONS.map((opt, i) => (
           <button
             key={opt.value}
@@ -98,7 +98,7 @@ export default function ReviewsFilters() {
               push({ search: e.target.value });
             }
           }}
-          className="w-full rounded-[8px] border border-[#E8EAF0] bg-white py-1.5 pl-8 pr-3 text-xs text-[#1A202C] placeholder-[#8891A4] outline-none focus:border-[#5C6BC0]"
+          className="w-full rounded-[11px] border border-[#E8EAF0] bg-white py-1.5 pl-8 pr-3 text-xs text-[#1A202C] placeholder-[#8891A4] outline-none focus:border-[#5C6BC0]"
         />
       </div>
     </div>

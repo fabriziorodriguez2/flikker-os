@@ -8,16 +8,24 @@ import LogoutButton from "./logout-button";
 import SelectBusiness from "./select-business";
 import BusinessSelector from "./business-selector";
 import { RoleProvider } from "./role-context";
+import {
+  ExperienceProvider,
+  type ExperienceVersion,
+} from "./experience-context";
 import BrandLogo from "@/components/brand/brand-logo";
 import BusinessLogo from "@/components/business/business-logo";
 import SessionExpiryHandler from "@/components/auth/session-expiry-handler";
 import ImpersonationBanner from "./impersonation-banner";
 import QueryProvider from "@/components/providers/query-provider";
 import MobileMenuButton from "./mobile-menu-button";
+import ElasticScrollBoundary from "@/components/ui/elastic-scroll-boundary";
 
 interface CurrentBusiness {
   name: string;
   logoUrl: string | null;
+  /** Per-business rollout flags. Absent on older API builds → treated as LEGACY. */
+  experienceVersion?: ExperienceVersion;
+  retentionEngineV2Enabled?: boolean;
 }
 
 export default async function PanelLayout({
@@ -77,6 +85,15 @@ export default async function PanelLayout({
     activeMembership?.business?.name;
   const businessLogoUrl =
     currentBusiness?.logoUrl ?? activeMembership?.business?.logoUrl ?? null;
+  // Default to LEGACY: if /businesses/current could not be reached we must not
+  // light up V2 surfaces on a guess.
+  const experienceVersion: ExperienceVersion =
+    currentBusiness?.experienceVersion === "CHECKIN_V2"
+      ? "CHECKIN_V2"
+      : "LEGACY";
+  const retentionEngineV2Enabled =
+    currentBusiness?.retentionEngineV2Enabled ?? false;
+  const isCheckinV2 = experienceVersion === "CHECKIN_V2";
 
   return (
     <>
@@ -136,14 +153,23 @@ export default async function PanelLayout({
         activeBusinessId={activeBusinessId}
         userName={`${user.firstName} ${user.lastName}`}
         isImpersonating={!!session.impersonation}
+        isCheckinV2={isCheckinV2}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
         {session.impersonation ? (
           <ImpersonationBanner impersonation={session.impersonation} />
         ) : null}
-        <header className="sticky top-0 z-10 bg-[color:var(--background)]/96 backdrop-blur supports-[backdrop-filter]:bg-[color:var(--background)]/92">
-          <div className="flex items-center justify-between gap-4 px-4 py-3.5 md:px-6">
+        <header
+          className={`sticky z-30 mx-3 mt-3 rounded-[20px] border border-white/75 bg-white/58 shadow-[0_12px_36px_rgba(56,45,125,0.11),inset_0_1px_0_rgba(255,255,255,0.88)] backdrop-blur-[26px] backdrop-saturate-[175%] ${
+            session.impersonation ? "top-14" : "top-3"
+          }`}
+        >
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent"
+          />
+          <div className="relative flex items-center justify-between gap-4 px-3 py-2.5 md:px-4">
             <div className="flex items-center gap-1 lg:hidden">
               <MobileMenuButton />
               <BrandLogo
@@ -155,7 +181,7 @@ export default async function PanelLayout({
 
             <div className="ml-auto flex items-center gap-2.5">
               {businessDisplayName ? (
-                <div className="hidden items-center gap-2 text-sm font-medium text-[#1A202C] sm:flex">
+                <div className="hidden min-h-10 items-center gap-2.5 rounded-[13px] border border-white/80 bg-white/48 px-3 text-sm font-semibold text-[#29243D] shadow-[0_4px_14px_rgba(56,45,125,0.07)] sm:flex">
                   {businessLogoUrl ? (
                     <BusinessLogo
                       logoUrl={businessLogoUrl}
@@ -180,7 +206,7 @@ export default async function PanelLayout({
                 href="/dashboard/settings"
                 aria-label="Cuenta y seguridad"
                 title="Cuenta y seguridad"
-                className="inline-flex h-9 items-center rounded-lg border border-[#E8EAF0] bg-white px-3 text-sm font-semibold text-[#1A202C] transition-colors hover:bg-[#F5F6FA]"
+                className="inline-flex h-10 items-center rounded-[13px] border border-white/80 bg-white/48 px-3.5 text-sm font-semibold text-[#4A445C] shadow-[0_4px_14px_rgba(56,45,125,0.07)] transition-all hover:-translate-y-px hover:bg-white/80 hover:text-[#5C6BC0]"
               >
                 Cuenta
               </Link>
@@ -189,12 +215,21 @@ export default async function PanelLayout({
           </div>
         </header>
 
-        <MobileNav isImpersonating={!!session.impersonation} />
+        <MobileNav isImpersonating={!!session.impersonation} isCheckinV2={isCheckinV2} />
 
         <main className="flex-1 overflow-auto px-4 py-6 md:px-6 md:py-8">
-          <QueryProvider>
-            <RoleProvider role={currentRole}>{children}</RoleProvider>
-          </QueryProvider>
+          <ElasticScrollBoundary>
+            <QueryProvider>
+              <RoleProvider role={currentRole}>
+                <ExperienceProvider
+                  experienceVersion={experienceVersion}
+                  retentionEngineV2Enabled={retentionEngineV2Enabled}
+                >
+                  {children}
+                </ExperienceProvider>
+              </RoleProvider>
+            </QueryProvider>
+          </ElasticScrollBoundary>
         </main>
       </div>
     </div>
