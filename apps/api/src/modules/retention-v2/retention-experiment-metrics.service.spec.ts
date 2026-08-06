@@ -230,3 +230,53 @@ describe('RetentionExperimentMetricsService — an experiment with no CONTROL', 
     });
   });
 });
+
+describe('RetentionExperimentMetricsService — PROGRESS_REMINDER (Fase E §26)', () => {
+  it('is measured exactly like any other variant — no parallel metrics path', async () => {
+    const prisma = makePrisma({
+      experiment: experiment({
+        variants: [
+          variant({
+            id: 'var-control',
+            strategyType: RetentionStrategyType.CONTROL,
+          }),
+          variant({
+            id: 'var-progress',
+            strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+          }),
+        ],
+      }),
+      assignedByVariant: { 'var-control': 10, 'var-progress': 10 },
+      exposedByVariant: { 'var-control': 10, 'var-progress': 10 },
+      outcomesByVariant: {
+        'var-control': [
+          { returned: true, confirmedByRedemption: false, daysToReturn: 3 },
+        ],
+        'var-progress': Array.from({ length: 4 }, () => ({
+          returned: true,
+          confirmedByRedemption: false,
+          daysToReturn: 3,
+        })),
+      },
+      settings: {
+        minimumSampleSizeForRecommendations: 5,
+        averageTicketAmount: null,
+        estimatedMarginPercent: null,
+      },
+    });
+    const service = new RetentionExperimentMetricsService(prisma as never);
+
+    const result = await service.forExperiment('biz-1', 'exp-1');
+    const progress = result.variants.find(
+      (v) => v.variantId === 'var-progress',
+    )!;
+
+    // 4/10 vs control's 1/10 — a real, comparable uplift, computed by the
+    // exact same code path as REMINDER or SOFT_BENEFIT.
+    expect(progress.stats.returnRate).toBeCloseTo(0.4);
+    expect(progress.upliftPercentagePoints).toBeCloseTo(0.3);
+    // No incentive is attached, so there is nothing to cost.
+    expect(progress.economics.knownPromotionalCost).toBe(0);
+    expect(progress.economics.estimatedPromotionalCost).toBe(0);
+  });
+});

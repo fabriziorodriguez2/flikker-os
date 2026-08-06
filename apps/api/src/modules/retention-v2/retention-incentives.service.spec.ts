@@ -62,7 +62,29 @@ describe('RetentionIncentivesService.create', () => {
       }
     ).data;
     expect(data.automationEligible).toBe(false);
+    expect(data.rewardGoalEligible).toBe(false);
     expect(data.businessId).toBe('biz-1');
+  });
+
+  it('accepts rewardGoalEligible independently of automationEligible (Fase E §1)', async () => {
+    const prisma = makePrisma();
+    const service = new RetentionIncentivesService(prisma as never);
+
+    await service.create('biz-1', {
+      name: 'Café gratis',
+      type: BenefitType.gift,
+      rewardGoalEligible: true,
+      // No percentage/fixed value, and automation stays off — a gift reward
+      // goal never needs one, unlike a retention campaign incentive.
+    });
+
+    const data = (
+      prisma.retentionIncentiveDefinition.create.mock.calls[0][0] as {
+        data: Record<string, unknown>;
+      }
+    ).data;
+    expect(data.rewardGoalEligible).toBe(true);
+    expect(data.automationEligible).toBe(false);
   });
 
   it('rejects automation without a concrete value to grant', async () => {

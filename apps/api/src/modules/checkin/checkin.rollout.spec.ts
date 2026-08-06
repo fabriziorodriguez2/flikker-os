@@ -66,6 +66,14 @@ function makeDeps(experienceVersion: ExperienceVersion) {
     enqueueReviewRequest: jest.fn(),
     sendVerificationCode: jest.fn(),
   };
+  const rewardGoals = {
+    afterVisit: jest
+      .fn()
+      .mockResolvedValue({ goal: null, unlockedNow: false, benefit: null }),
+    currentView: jest
+      .fn()
+      .mockResolvedValue({ goal: null, unlockedNow: false, benefit: null }),
+  };
   return {
     prisma,
     sources,
@@ -75,6 +83,7 @@ function makeDeps(experienceVersion: ExperienceVersion) {
     events,
     benefits,
     messaging,
+    rewardGoals,
   };
 }
 
@@ -88,6 +97,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.events as never,
     deps.benefits as never,
     deps.messaging as never,
+    deps.rewardGoals as never,
   );
 }
 

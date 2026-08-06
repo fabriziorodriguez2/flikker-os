@@ -18,6 +18,9 @@ export interface DryRunReport {
   wouldControl: number;
   wouldSend: number;
   wouldOfferIncentive: number;
+  /** Fase E §32 — reward goals the engine would have created today, by reason. */
+  wouldCreateRewardGoals: number;
+  rewardGoalsByReason: Record<string, number>;
 }
 
 @Injectable()
@@ -42,7 +45,12 @@ export class RetentionDryRunReportService {
 
     const logs = await this.prisma.retentionDecisionLog.findMany({
       where: { businessId, createdAt: { gte: windowStart } },
-      select: { decisionCode: true, customerId: true, createdAt: true },
+      select: {
+        decisionCode: true,
+        customerId: true,
+        createdAt: true,
+        metadata: true,
+      },
     });
     const today = logs.filter(
       (log) => localDayKey(log.createdAt, business.timezone) === dayKey,
@@ -64,6 +72,21 @@ export class RetentionDryRunReportService {
       countOf(DECISION_CODES.DRY_RUN_WOULD_OFFER_INCENTIVE) +
       countOf(DECISION_CODES.ASSIGNED);
 
+    const rewardGoalLogs = today.filter(
+      (l) => l.decisionCode === DECISION_CODES.DRY_RUN_WOULD_CREATE_REWARD_GOAL,
+    );
+    const rewardGoalsByReason: Record<string, number> = {};
+    for (const log of rewardGoalLogs) {
+      const reasonCode =
+        log.metadata &&
+        typeof log.metadata === 'object' &&
+        'reasonCode' in log.metadata
+          ? String((log.metadata as Record<string, unknown>).reasonCode)
+          : 'UNKNOWN';
+      rewardGoalsByReason[reasonCode] =
+        (rewardGoalsByReason[reasonCode] ?? 0) + 1;
+    }
+
     return {
       date: dayKey,
       analyzed,
@@ -73,6 +96,8 @@ export class RetentionDryRunReportService {
       wouldOfferIncentive: countOf(
         DECISION_CODES.DRY_RUN_WOULD_OFFER_INCENTIVE,
       ),
+      wouldCreateRewardGoals: rewardGoalLogs.length,
+      rewardGoalsByReason,
     };
   }
 }

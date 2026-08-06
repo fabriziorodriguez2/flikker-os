@@ -1,19 +1,14 @@
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import Link from "next/link";
 import Sidebar from "./sidebar";
 import MobileNav from "./mobile-nav";
-import LogoutButton from "./logout-button";
 import SelectBusiness from "./select-business";
-import BusinessSelector from "./business-selector";
 import { RoleProvider } from "./role-context";
 import {
   ExperienceProvider,
   type ExperienceVersion,
 } from "./experience-context";
-import BrandLogo from "@/components/brand/brand-logo";
-import BusinessLogo from "@/components/business/business-logo";
 import SessionExpiryHandler from "@/components/auth/session-expiry-handler";
 import ImpersonationBanner from "./impersonation-banner";
 import QueryProvider from "@/components/providers/query-provider";
@@ -152,6 +147,8 @@ export default async function PanelLayout({
         memberships={memberships}
         activeBusinessId={activeBusinessId}
         userName={`${user.firstName} ${user.lastName}`}
+        businessDisplayName={businessDisplayName ?? null}
+        businessLogoUrl={businessLogoUrl}
         isImpersonating={!!session.impersonation}
         isCheckinV2={isCheckinV2}
       />
@@ -160,62 +157,12 @@ export default async function PanelLayout({
         {session.impersonation ? (
           <ImpersonationBanner impersonation={session.impersonation} />
         ) : null}
-        <header
-          className={`sticky z-30 mx-3 mt-3 rounded-[20px] border border-white/75 bg-white/58 shadow-[0_12px_36px_rgba(56,45,125,0.11),inset_0_1px_0_rgba(255,255,255,0.88)] backdrop-blur-[26px] backdrop-saturate-[175%] ${
-            session.impersonation ? "top-14" : "top-3"
-          }`}
-        >
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent"
-          />
-          <div className="relative flex items-center justify-between gap-4 px-3 py-2.5 md:px-4">
-            <div className="flex items-center gap-1 lg:hidden">
-              <MobileMenuButton />
-              <BrandLogo
-                width={126}
-                height={107}
-                className="h-auto w-[96px]"
-              />
-            </div>
-
-            <div className="ml-auto flex items-center gap-2.5">
-              {businessDisplayName ? (
-                <div className="hidden min-h-10 items-center gap-2.5 rounded-[13px] border border-white/80 bg-white/48 px-3 text-sm font-semibold text-[#29243D] shadow-[0_4px_14px_rgba(56,45,125,0.07)] sm:flex">
-                  {businessLogoUrl ? (
-                    <BusinessLogo
-                      logoUrl={businessLogoUrl}
-                      name={businessDisplayName}
-                      size="sm"
-                    />
-                  ) : null}
-                  {session.impersonation ? (
-                    // Impersonating: keep the business name fixed — switching
-                    // is disabled while an admin is operating as a business.
-                    <span className="max-w-[200px] truncate">{businessDisplayName}</span>
-                  ) : (
-                    <BusinessSelector
-                      memberships={memberships}
-                      activeBusinessId={activeBusinessId}
-                      activeBusinessName={businessDisplayName}
-                    />
-                  )}
-                </div>
-              ) : null}
-              <Link
-                href="/dashboard/settings"
-                aria-label="Cuenta y seguridad"
-                title="Cuenta y seguridad"
-                className="inline-flex h-10 items-center rounded-[13px] border border-white/80 bg-white/48 px-3.5 text-sm font-semibold text-[#4A445C] shadow-[0_4px_14px_rgba(56,45,125,0.07)] transition-all hover:-translate-y-px hover:bg-white/80 hover:text-[#5C6BC0]"
-              >
-                Cuenta
-              </Link>
-              <LogoutButton />
-            </div>
+        <div className="relative z-20 flex items-center gap-2 px-3 pt-3 lg:hidden">
+          <MobileMenuButton />
+          <div className="min-w-0 flex-1">
+            <MobileNav isImpersonating={!!session.impersonation} isCheckinV2={isCheckinV2} />
           </div>
-        </header>
-
-        <MobileNav isImpersonating={!!session.impersonation} isCheckinV2={isCheckinV2} />
+        </div>
 
         <main className="flex-1 overflow-auto px-4 py-6 md:px-6 md:py-8">
           <ElasticScrollBoundary>

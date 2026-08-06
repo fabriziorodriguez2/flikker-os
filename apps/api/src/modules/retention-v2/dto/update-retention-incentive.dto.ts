@@ -69,6 +69,10 @@ export class UpdateRetentionIncentiveDto {
   automationEligible?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  rewardGoalEligible?: boolean;
+
+  @IsOptional()
   @IsInt()
   @Min(1)
   maxRedemptionsPerCustomer?: number;

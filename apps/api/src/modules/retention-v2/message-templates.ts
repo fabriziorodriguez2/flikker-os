@@ -18,6 +18,13 @@ export interface MessageContext {
   incentiveLabel: string | null;
   /** Days the reward stays valid, when there is one. */
   expiresInDays: number | null;
+  /**
+   * Required (and only meaningful) for PROGRESS_REMINDER (Fase E §25/§28):
+   * reminds the customer of a Reward Goal that already existed — this never
+   * issues a new incentive, so there is no `incentiveLabel`/`expiresInDays`
+   * for it.
+   */
+  progressReminder?: { remainingVisits: number; rewardName: string };
 }
 
 /** First name only — friendlier, and avoids echoing a full record back. */
@@ -76,6 +83,17 @@ export function buildRetentionMessage(context: MessageContext): string {
     throw new Error('CONTROL assignments must never produce a message');
   }
 
+  if (context.strategyType === RetentionStrategyType.PROGRESS_REMINDER) {
+    if (!context.progressReminder) {
+      throw new Error('PROGRESS_REMINDER requires progress data');
+    }
+    return buildProgressReminderMessage(
+      context.customerName,
+      context.businessName,
+      context.progressReminder,
+    );
+  }
+
   const hasIncentive =
     context.strategyType !== RetentionStrategyType.REMINDER &&
     Boolean(context.incentiveLabel);
@@ -100,4 +118,29 @@ export function buildRetentionMessage(context: MessageContext): string {
   parts.push(checkinNudge(hasIncentive));
 
   return parts.join('\n');
+}
+
+/**
+ * Fase E §25/§28: reminds the customer of progress that already existed —
+ * never issues anything, never invents urgency (§29: no "última oportunidad",
+ * no manufactured scarcity — only what is literally true about the goal).
+ */
+function buildProgressReminderMessage(
+  customerName: string | null,
+  businessName: string,
+  progress: { remainingVisits: number; rewardName: string },
+): string {
+  const { remainingVisits, rewardName } = progress;
+  const visitsClause =
+    remainingVisits === 1
+      ? 'Te falta una visita'
+      : remainingVisits === 2
+        ? 'Estás a dos visitas'
+        : `Te faltan ${remainingVisits} visitas`;
+
+  return [
+    `${greeting(customerName)},`,
+    `${visitsClause} para desbloquear *${rewardName}* en *${businessName}*.`,
+    'Cuando vuelvas, escaneá el QR/NFC para avanzar.',
+  ].join('\n');
 }

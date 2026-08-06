@@ -71,6 +71,20 @@ export class RetentionSettingsService {
       );
     }
 
+    const nextMinVisits =
+      patch.rewardGoalMinVisits ?? current.rewardGoalMinVisits;
+    const nextMaxVisits =
+      patch.rewardGoalMaxVisits ?? current.rewardGoalMaxVisits;
+    if (
+      nextMinVisits !== null &&
+      nextMaxVisits !== null &&
+      nextMinVisits > nextMaxVisits
+    ) {
+      throw new BadRequestException(
+        'rewardGoalMinVisits must not be greater than rewardGoalMaxVisits',
+      );
+    }
+
     return this.prisma.retentionSettings.update({
       where: { businessId },
       data: patch,

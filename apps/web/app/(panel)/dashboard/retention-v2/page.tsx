@@ -6,6 +6,7 @@ import PageHeader from "@/components/ui/page-header";
 import { useCanMutate } from "../../role-context";
 import { useIsCheckinV2 } from "../../experience-context";
 import SettingsSection from "./settings-section";
+import RewardGoalsSettingsSection from "./reward-goals-settings-section";
 import IncentivesSection from "./incentives-section";
 import ExperimentsSection from "./experiments-section";
 import DryRunPanel from "./dry-run-panel";
@@ -184,6 +185,16 @@ export default function RetentionV2Page() {
           <ResultsSection />
 
           <SettingsSection settings={settings} canMutate={canMutate} onSave={saveSettings} />
+
+          <RewardGoalsSettingsSection
+            settings={settings}
+            incentives={incentives}
+            canMutate={canMutate}
+            onSaveSettings={saveSettings}
+            onToggleIncentiveEligible={(id, value) =>
+              updateIncentive(id, { rewardGoalEligible: value })
+            }
+          />
 
           <DryRunPanel
             report={dryRunReport}

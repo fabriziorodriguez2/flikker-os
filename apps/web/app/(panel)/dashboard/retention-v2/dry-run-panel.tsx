@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Eye, Loader2 } from "lucide-react";
 import type { DryRunReport } from "./types";
+import { REWARD_GOAL_REASON_LABEL } from "./types";
 
 export default function DryRunPanel({
   report,
@@ -50,6 +51,27 @@ export default function DryRunPanel({
           <p className="mt-1 text-sm font-semibold text-[#5C6BC0]">
             Pero no se envió ningún mensaje ni se otorgó ningún beneficio.
           </p>
+
+          {report.wouldCreateRewardGoals > 0 ? (
+            <div className="mt-3 rounded-[10px] bg-white/60 px-4 py-3">
+              <p className="text-sm text-[#3B4252]">
+                Hoy Flikker habría creado{" "}
+                <strong>{report.wouldCreateRewardGoals}</strong> metas de
+                recompensa:
+              </p>
+              <ul className="mt-1 space-y-0.5 text-sm text-[#3B4252]">
+                {Object.entries(report.rewardGoalsByReason).map(([reason, count]) => (
+                  <li key={reason}>
+                    · <strong>{count}</strong>{" "}
+                    {REWARD_GOAL_REASON_LABEL[reason] ?? reason}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-1 text-xs text-[#8891A4]">
+                Ninguna meta real fue creada ni se reservó ningún beneficio.
+              </p>
+            </div>
+          ) : null}
         </>
       ) : (
         <p className="mt-2 text-sm text-[#8891A4]">

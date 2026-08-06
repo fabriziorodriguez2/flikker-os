@@ -3,14 +3,20 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { Settings, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { SessionMembership } from "@/lib/auth";
+import BusinessLogo from "@/components/business/business-logo";
+import GoogleLogo from "@/components/icons/google-logo";
+import BusinessSelector from "./business-selector";
+import LogoutButton from "./logout-button";
 
 interface SidebarProps {
   memberships: SessionMembership[];
   activeBusinessId: string | null;
   userName: string;
+  businessDisplayName: string | null;
+  businessLogoUrl: string | null;
   isImpersonating: boolean;
   isCheckinV2: boolean;
 }
@@ -52,12 +58,6 @@ const CampaignsIcon = () => (
   <Icon>
     <path d="M4 15.5V8.5" />
     <path d="M4 9h8l5-3v12l-5-3H4" />
-  </Icon>
-);
-
-const ReviewsIcon = () => (
-  <Icon>
-    <path d="M12 17.3 6.1 20l1.1-6.3L2.5 9.1l6.4-.9L12 2.5l3.1 5.7 6.4.9-4.7 4.6 1.1 6.3z" />
   </Icon>
 );
 
@@ -134,7 +134,7 @@ const MAIN_NAV_ITEMS: Array<{
   { href: "/dashboard/insights", label: "Insights", icon: <InsightsIcon /> },
   { href: "/dashboard/customers", label: "Clientes", icon: <CustomersIcon />, onboardingKey: "clientes" },
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon />, onboardingKey: "campaigns" },
-  { href: "/dashboard/reviews", label: "Reseñas", icon: <ReviewsIcon /> },
+  { href: "/dashboard/reviews", label: "Reseñas", icon: <GoogleLogo className="h-[18px] w-[18px]" /> },
   { href: "/dashboard/benefits", label: "Beneficios", icon: <BenefitsIcon /> },
   { href: "/dashboard/retention", label: "Retención", icon: <RetentionIcon /> },
   { href: "/dashboard/retention-v2", label: "Retención V2", icon: <RetentionV2Icon />, checkinV2Only: true },
@@ -245,7 +245,7 @@ export default function Sidebar(props: SidebarProps) {
         </div>
       </div>
 
-      <nav className={`relative mt-8 flex flex-col gap-2 ${showFull ? "px-5" : "px-4"}`}>
+      <nav className={`relative mt-8 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-3 ${showFull ? "px-5" : "px-4"}`}>
         {MAIN_NAV_ITEMS.filter((item) => (!item.impersonatorOnly || props.isImpersonating) && (!item.checkinV2Only || props.isCheckinV2)).map((item) => {
           const active = isItemActive(pathname, item.href);
           return (
@@ -273,6 +273,65 @@ export default function Sidebar(props: SidebarProps) {
           );
         })}
       </nav>
+
+      <div
+        className={`relative mt-auto border-t border-white/65 pb-5 pt-4 ${
+          showFull ? "px-4" : "px-3"
+        }`}
+      >
+        {props.businessDisplayName ? (
+          <div
+            className={`mb-2.5 flex min-h-12 items-center ${
+              showFull ? "gap-3 px-3 py-2" : "justify-center px-1 py-2"
+            }`}
+          >
+            <BusinessLogo
+              logoUrl={props.businessLogoUrl}
+              name={props.businessDisplayName}
+              size="sm"
+              className="border-white/80 bg-white/75"
+            />
+            {showFull ? (
+              <div className="min-w-0 flex-1">
+                {props.isImpersonating ? (
+                  <p className="truncate text-sm font-semibold text-[#29243D]">
+                    {props.businessDisplayName}
+                  </p>
+                ) : (
+                  <BusinessSelector
+                    memberships={props.memberships}
+                    activeBusinessId={props.activeBusinessId}
+                    activeBusinessName={props.businessDisplayName}
+                    placement="top"
+                  />
+                )}
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+
+        <div className="flex flex-col gap-1.5">
+          <Link
+            href="/dashboard/settings"
+            aria-label="Cuenta y seguridad"
+            title="Cuenta y seguridad"
+            onClick={() => setMobileOpen(false)}
+            className={`flex h-11 items-center rounded-[13px] text-sm font-semibold text-[#5F5972] transition-all hover:bg-white/62 hover:text-[#5C6BC0] ${
+              showFull ? "gap-3 px-3" : "justify-center px-2"
+            }`}
+          >
+            <Settings className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
+            {showFull ? <span>Cuenta</span> : null}
+          </Link>
+          <LogoutButton compact={!showFull} sidebar />
+        </div>
+
+        {showFull ? (
+          <p className="mt-3 truncate px-3 text-[11px] text-[#9690A5]">
+            {props.userName}
+          </p>
+        ) : null}
+      </div>
     </aside>
     </>
   );

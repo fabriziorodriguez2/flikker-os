@@ -5,6 +5,7 @@ interface PageHeaderProps {
   title: string;
   subtitle?: string;
   logoUrl?: string | null;
+  icon?: ReactNode;
   actions?: ReactNode;
 }
 
@@ -13,23 +14,29 @@ export default function PageHeader({
   title,
   subtitle,
   logoUrl,
+  icon,
   actions,
 }: PageHeaderProps) {
+  const visibleEyebrow =
+    eyebrow && eyebrow.trim().toLocaleLowerCase() !== title.trim().toLocaleLowerCase()
+      ? eyebrow
+      : null;
+
   return (
-    <header className="relative flex flex-wrap items-center justify-between gap-4 overflow-hidden rounded-[18px] border border-white/75 bg-white/48 px-5 py-4 shadow-[0_10px_30px_rgba(56,45,125,0.08),inset_0_1px_0_rgba(255,255,255,0.86)] backdrop-blur-[20px] backdrop-saturate-[165%]">
-      <span
-        aria-hidden="true"
-        className="absolute inset-y-4 left-0 w-1 rounded-r-full bg-[#5C6BC0]"
-      />
-      <div className="relative max-w-3xl">
-        {eyebrow ? (
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
-            {eyebrow}
+    <header className="flex flex-wrap items-end justify-between gap-x-8 gap-y-4 border-b border-[#DDE1EC]/80 pb-5">
+      <div className="max-w-3xl">
+        {visibleEyebrow ? (
+          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#78738A]">
+            {visibleEyebrow}
           </p>
         ) : null}
-        <div className={`${eyebrow ? "mt-1.5" : ""} flex items-center gap-3`}>
-          {logoUrl ? (
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-[10px] border border-[color:var(--border)] bg-[color:var(--surface)]">
+        <div className="flex items-center gap-3">
+          {icon ? (
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center">
+              {icon}
+            </span>
+          ) : logoUrl ? (
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-[9px] border border-[#DDE1EC] bg-white">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={logoUrl}
@@ -40,22 +47,22 @@ export default function PageHeader({
           ) : logoUrl === null ? (
             <span
               aria-hidden="true"
-              className="h-10 w-10 shrink-0 rounded-[10px] border border-[color:var(--border)] bg-[color:var(--surface-muted)]"
+              className="h-9 w-9 shrink-0 rounded-[9px] border border-[#DDE1EC] bg-white/60"
             />
           ) : null}
-          <h1 className="font-display text-[24px] font-bold leading-tight text-[color:var(--foreground)] md:text-[26px]">
+          <h1 className="font-display text-[27px] font-semibold leading-tight tracking-[-0.025em] text-[#202333] md:text-[30px]">
             {title}
           </h1>
         </div>
         {subtitle ? (
-          <p className="mt-2 max-w-2xl text-sm leading-5 text-[color:var(--text-muted)]">
+          <p className="mt-1.5 max-w-2xl text-sm leading-5 text-[#7F879C]">
             {subtitle}
           </p>
         ) : null}
       </div>
 
       {actions ? (
-        <div className="relative flex flex-wrap items-center gap-2">{actions}</div>
+        <div className="flex flex-wrap items-center gap-2">{actions}</div>
       ) : null}
     </header>
   );

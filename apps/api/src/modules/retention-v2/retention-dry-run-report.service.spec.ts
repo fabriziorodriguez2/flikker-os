@@ -9,8 +9,13 @@ function makePrisma(logs: unknown[] = [], timezone = 'America/Montevideo') {
   };
 }
 
-function log(decisionCode: string, customerId: string, createdAt = NOW) {
-  return { decisionCode, customerId, createdAt };
+function log(
+  decisionCode: string,
+  customerId: string,
+  createdAt = NOW,
+  metadata: Record<string, unknown> | null = null,
+) {
+  return { decisionCode, customerId, createdAt, metadata };
 }
 
 describe('RetentionDryRunReportService.today — Fase C.5 §9', () => {
@@ -25,6 +30,8 @@ describe('RetentionDryRunReportService.today — Fase C.5 §9', () => {
       analyzed: 0,
       detectedAtRisk: 0,
       wouldControl: 0,
+      wouldCreateRewardGoals: 0,
+      rewardGoalsByReason: {},
       wouldSend: 0,
       wouldOfferIncentive: 0,
     });
@@ -99,5 +106,47 @@ describe('RetentionDryRunReportService.today — Fase C.5 §9', () => {
     await expect(service.today('ghost', NOW)).rejects.toThrow(
       'Business not found',
     );
+  });
+});
+
+describe('RetentionDryRunReportService — reward goals (Fase E §32)', () => {
+  it('breaks down today’s would-create reward goals by reason code', async () => {
+    const prisma = makePrisma([
+      ...Array.from({ length: 8 }, (_, i) =>
+        log('DRY_RUN_WOULD_CREATE_REWARD_GOAL', `new-${i}`, NOW, {
+          reasonCode: 'NEW_SECOND_VISIT',
+        }),
+      ),
+      ...Array.from({ length: 4 }, (_, i) =>
+        log('DRY_RUN_WOULD_CREATE_REWARD_GOAL', `repeat-${i}`, NOW, {
+          reasonCode: 'REPEAT_HABIT_BUILDING',
+        }),
+      ),
+      ...Array.from({ length: 3 }, (_, i) =>
+        log('DRY_RUN_WOULD_CREATE_REWARD_GOAL', `recovered-${i}`, NOW, {
+          reasonCode: 'RECOVERED_REINFORCEMENT',
+        }),
+      ),
+    ]);
+    const service = new RetentionDryRunReportService(prisma as never);
+
+    const report = await service.today('biz-1', NOW);
+
+    expect(report.wouldCreateRewardGoals).toBe(15);
+    expect(report.rewardGoalsByReason).toEqual({
+      NEW_SECOND_VISIT: 8,
+      REPEAT_HABIT_BUILDING: 4,
+      RECOVERED_REINFORCEMENT: 3,
+    });
+  });
+
+  it('reports zero when reward goals have nothing to show', async () => {
+    const prisma = makePrisma([log('DRY_RUN_WOULD_SEND', 'c1')]);
+    const service = new RetentionDryRunReportService(prisma as never);
+
+    const report = await service.today('biz-1', NOW);
+
+    expect(report.wouldCreateRewardGoals).toBe(0);
+    expect(report.rewardGoalsByReason).toEqual({});
   });
 });

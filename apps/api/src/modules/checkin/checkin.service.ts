@@ -21,6 +21,7 @@ import { CustomerSessionsRepository } from './customer-sessions.repository';
 import { CustomerVerificationsRepository } from './customer-verifications.repository';
 import { CustomerEventsRepository } from './customer-events.repository';
 import { isCheckinV2 } from '../../common/experience/experience.util';
+import { RewardGoalOrchestratorService } from '../reward-goals/reward-goal-orchestrator.service';
 
 // Client-emittable timeline events (whitelist — never trust an arbitrary type).
 const CLIENT_EVENTS: Record<string, CustomerEventType> = {
@@ -55,6 +56,7 @@ export class CheckinService {
     private readonly events: CustomerEventsRepository,
     private readonly benefits: BenefitsService,
     private readonly messaging: PublicMessagingService,
+    private readonly rewardGoals: RewardGoalOrchestratorService,
   ) {}
 
   // ── Landing (GET) ──────────────────────────────────────────────────────────
@@ -179,6 +181,7 @@ export class CheckinService {
       // First visit always asks for the review — it's the primary action.
       forceReviewPrompt: true,
       ensureCode: true,
+      justVisited: result.created,
     });
 
     return {
@@ -221,6 +224,7 @@ export class CheckinService {
 
     const personal = await this.buildPersonalSpace(business, customer.id, {
       ensureCode: true,
+      justVisited: result.created,
     });
 
     return {
@@ -336,6 +340,7 @@ export class CheckinService {
 
     const personal = await this.buildPersonalSpace(business, customer.id, {
       ensureCode: true,
+      justVisited: result.created,
     });
 
     return {
@@ -487,14 +492,30 @@ export class CheckinService {
   private async buildPersonalSpace(
     business: BusinessForCheckin,
     customerId: string,
-    opts: { forceReviewPrompt?: boolean; ensureCode?: boolean },
+    opts: {
+      forceReviewPrompt?: boolean;
+      ensureCode?: boolean;
+      /**
+       * True only right after a real, newly-created Visit — the Reward Goal
+       * engine only ever evaluates unlock/creation from here, never from a
+       * plain read (`me`) or a dedup-prevented duplicate scan (Fase E §27).
+       */
+      justVisited?: boolean;
+    },
   ) {
     const customer = await this.getCustomerOrThrow(business.id, customerId);
 
-    const [total, lastVisit, benefit] = await Promise.all([
+    const [total, lastVisit, benefit, rewardGoal] = await Promise.all([
       this.visits.countByCustomer(business.id, customerId),
       this.visits.findLastByCustomer(business.id, customerId),
       this.benefits.resolveActiveBenefit(business.id),
+      opts.justVisited
+        ? this.rewardGoals.afterVisit(
+            business.id,
+            customerId,
+            business.timezone,
+          )
+        : this.rewardGoals.currentView(business.id, customerId),
     ]);
 
     // For redeemable benefits (not raffle/none), issue the code on write paths
@@ -538,6 +559,7 @@ export class CheckinService {
         lastAt: lastVisit?.occurredAt.toISOString() ?? null,
       },
       benefit: publicBenefit ? { ...publicBenefit, redemption } : null,
+      rewardGoal,
       reviewPrompt: {
         show: showReview,
         googleUrl: business.googleBusinessProfileUrl,

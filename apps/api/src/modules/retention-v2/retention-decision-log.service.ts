@@ -43,6 +43,22 @@ export const DECISION_CODES = {
   OUTCOME_CONFIRMED: 'OUTCOME_CONFIRMED',
   OUTCOME_NO_RETURN: 'OUTCOME_NO_RETURN',
   OUTCOME_WINDOW_CLOSED: 'OUTCOME_WINDOW_CLOSED',
+  // Fase E — Reward Goals. REWARD_GOAL_SKIPPED covers every NO_GOAL reason
+  // except the steady-state "already has one" (see RewardGoalEngineService,
+  // which deliberately does not log that one every day).
+  REWARD_GOAL_CREATED: 'REWARD_GOAL_CREATED',
+  REWARD_GOAL_SKIPPED: 'REWARD_GOAL_SKIPPED',
+  REWARD_GOAL_UNLOCKED: 'REWARD_GOAL_UNLOCKED',
+  REWARD_GOAL_REDEEMED: 'REWARD_GOAL_REDEEMED',
+  REWARD_GOAL_EXPIRED: 'REWARD_GOAL_EXPIRED',
+  // Dry run for the Reward Goal engine (Fase E §32) — mirrors the live codes
+  // one-to-one, exactly like Retention V2's own DRY_RUN_* codes.
+  DRY_RUN_WOULD_CREATE_REWARD_GOAL: 'DRY_RUN_WOULD_CREATE_REWARD_GOAL',
+  // PROGRESS_REMINDER (Fase E §25-27): the one strategy-specific skip reason —
+  // the goal that justified the assignment no longer exists as ACTIVE by send
+  // time (unlocked/expired/cancelled on its own), so there is nothing left to
+  // remind the customer of.
+  SKIPPED_NO_ACTIVE_REWARD_GOAL: 'SKIPPED_NO_ACTIVE_REWARD_GOAL',
 } as const;
 
 export type DecisionCode = (typeof DECISION_CODES)[keyof typeof DECISION_CODES];

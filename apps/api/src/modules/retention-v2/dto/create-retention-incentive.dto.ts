@@ -65,6 +65,11 @@ export class CreateRetentionIncentiveDto {
   @IsBoolean()
   automationEligible?: boolean;
 
+  /** Fase E §1 — separate opt-in for the Reward Goal engine specifically. */
+  @IsOptional()
+  @IsBoolean()
+  rewardGoalEligible?: boolean;
+
   @IsOptional()
   @IsInt()
   @Min(1)

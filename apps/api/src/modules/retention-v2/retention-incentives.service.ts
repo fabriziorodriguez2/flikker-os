@@ -58,6 +58,7 @@ export class RetentionIncentivesService {
         // automation-eligible until the owner explicitly opts in.
         active: dto.active ?? true,
         automationEligible: dto.automationEligible ?? false,
+        rewardGoalEligible: dto.rewardGoalEligible ?? false,
         maxRedemptionsPerCustomer: dto.maxRedemptionsPerCustomer,
         maxTotalRedemptions: dto.maxTotalRedemptions,
         validDays: dto.validDays ?? [],

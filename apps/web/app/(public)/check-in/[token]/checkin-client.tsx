@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   BadgePercent,
@@ -23,10 +24,24 @@ interface PersonalBenefit extends PublicBenefit {
   redemption: { code: string; redeemed: boolean } | null;
 }
 
+interface RewardGoalView {
+  goal: {
+    incentiveName: string;
+    progressVisits: number;
+    targetAdditionalVisits: number;
+    remainingVisits: number;
+  } | null;
+  unlockedNow: boolean;
+  benefit: { name: string; code: string; expiresAt: string | null } | null;
+}
+
 interface PersonalSpace {
   customer: { name: string };
   visits: { total: number; lastAt: string | null };
   benefit: PersonalBenefit | null;
+  // Optional defensively: every real response includes it, but the card must
+  // never crash the whole personal space if it's ever missing.
+  rewardGoal?: RewardGoalView | null;
   reviewPrompt: { show: boolean; googleUrl: string | null };
 }
 
@@ -273,10 +288,10 @@ function RegisterScreen({
 
   return (
     <Shell landing={landing}>
-      <h1 className="text-center text-2xl font-bold leading-tight text-[#101828]">
+      <h1 className="text-center text-2xl font-bold leading-tight text-white">
         {title}
       </h1>
-      <p className="mt-3 text-center text-sm text-[#475467]">{subtitle}</p>
+      <p className="mt-3 text-center text-sm text-white/70">{subtitle}</p>
 
       {landing.benefit &&
         (landing.benefit.description || landing.benefit.terms) && (
@@ -327,7 +342,7 @@ function RegisterScreen({
         </div>
 
         <div>
-          <p className="mb-1.5 text-xs font-medium text-[#475467]">
+          <p className="mb-1.5 text-xs font-medium text-white/70">
             Fecha de nacimiento (opcional)
           </p>
           <div className="grid grid-cols-3 gap-2">
@@ -392,7 +407,7 @@ function RegisterScreen({
       <button
         type="button"
         onClick={() => onRecoverInstead(phone)}
-        className="mt-5 text-xs font-medium text-[#667085] underline underline-offset-2"
+        className="mt-5 text-xs font-medium text-white/70 underline underline-offset-2 hover:text-white"
       >
         Ya soy cliente
       </button>
@@ -463,10 +478,10 @@ function RecoverScreen({
 
   return (
     <Shell landing={landing}>
-      <h1 className="text-center text-2xl font-bold leading-tight text-[#101828]">
+      <h1 className="text-center text-2xl font-bold leading-tight text-white">
         Recuperá tu perfil
       </h1>
-      <p className="mt-3 max-w-sm text-center text-sm text-[#475467]">
+      <p className="mt-3 max-w-sm text-center text-sm text-white/70">
         {codeSent
           ? "Te enviamos un código por WhatsApp. Ingresalo para continuar."
           : "Ingresá tu WhatsApp y te enviamos un código para confirmar que sos vos."}
@@ -529,7 +544,7 @@ function RecoverScreen({
               type="button"
               disabled={busy}
               onClick={() => void sendCode(phone)}
-              className="w-full text-xs font-medium text-[#667085] underline underline-offset-2"
+              className="w-full text-xs font-medium text-white/70 underline underline-offset-2 hover:text-white"
             >
               Reenviar código
             </button>
@@ -546,7 +561,7 @@ function RecoverScreen({
       <button
         type="button"
         onClick={onBack}
-        className="mt-5 text-xs font-medium text-[#667085] underline underline-offset-2"
+        className="mt-5 text-xs font-medium text-white/70 underline underline-offset-2 hover:text-white"
       >
         Volver
       </button>
@@ -638,10 +653,10 @@ function SlideToReveal({
         <div className="checkin-unlock-icon mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#343B68] shadow-[0_6px_16px_rgba(21,25,46,0.18)]">
           <Check className="h-4 w-4 stroke-[3]" aria-hidden="true" />
         </div>
-        <div className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/72">
-          Beneficio desbloqueado
+        <div className="text-sm font-bold text-white">
+          ¡Premio desbloqueado!
         </div>
-        <p className="mt-1 text-[10px] text-white/58">
+        <p className="mt-1 text-[11px] text-white/65">
           Mostrá este código en el local
         </p>
         <p className="mt-2 font-mono text-[26px] font-bold tracking-[0.2em] text-white">
@@ -658,9 +673,7 @@ function SlideToReveal({
         <div className="checkin-seal-piece checkin-seal-piece-right absolute inset-y-0 right-0 w-[52%] rounded-r-full border border-white/30 bg-black/12 backdrop-blur-sm" />
         <div className="checkin-seal-burst absolute inset-0 z-10 flex items-center justify-center gap-2 text-white">
           <Sparkles className="h-4 w-4" aria-hidden="true" />
-          <span className="text-[11px] font-bold uppercase tracking-[0.12em]">
-            Precinto abierto
-          </span>
+          <span className="text-xs font-bold">¡Listo!</span>
         </div>
       </div>
     );
@@ -786,7 +799,7 @@ function PersonalScreen({
     <Shell landing={landing}>
       <div className="flex w-full max-w-md flex-col items-center">
         <div
-          className="checkin-success-pop checkin-success-halo relative mb-4 flex h-14 w-14 items-center justify-center rounded-full"
+          className="checkin-success-pop checkin-success-halo relative mb-3 flex h-12 w-12 items-center justify-center rounded-full"
           style={{
             backgroundColor: colorWithAlpha(
               brand,
@@ -796,25 +809,22 @@ function PersonalScreen({
           }}
         >
           <CheckCircle2
-            className="relative h-8 w-8"
+            className="relative h-7 w-7"
             style={{ color: brand }}
           />
         </div>
-        <p className="checkin-enter mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[#8A91A3]">
-          Visita registrada
-        </p>
-        <h1 className="checkin-enter text-center text-[28px] font-bold tracking-[-0.035em] text-[#171A2B]">
-          Hola, {firstName}
+        <h1 className="checkin-enter text-center text-[30px] font-bold tracking-[-0.04em] text-white">
+          ¡Hola, {firstName}! <span aria-hidden="true">👋</span>
         </h1>
-        <p className="checkin-enter mt-1.5 flex items-center gap-1.5 text-center text-sm font-semibold text-[#15966D]">
-          <Check className="h-4 w-4" aria-hidden="true" />
+        <p className="checkin-enter mt-3 flex items-center gap-1.5 rounded-full border border-[#BCEAD9] bg-[#EAF9F3]/85 px-3.5 py-2 text-center text-[13px] font-semibold text-[#138563] shadow-[0_5px_14px_rgba(19,133,99,0.08)]">
+          <Check className="h-3.5 w-3.5 stroke-[2.5]" aria-hidden="true" />
           {checkinStatus === "duplicate"
-            ? "Tu check-in de hoy ya fue registrado"
-            : "Check-in realizado"}
+            ? "Tu visita de hoy ya estaba guardada"
+            : "¡Tu visita quedó guardada!"}
         </p>
 
-        <div className="mt-7 grid w-full grid-cols-1 gap-4">
-          <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[22px] border border-white/80 bg-white/72 px-5 py-4 shadow-[0_14px_36px_rgba(31,35,58,0.09)] backdrop-blur-md">
+        <div className="mt-6 grid w-full grid-cols-1 gap-4">
+          <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[26px] border border-white/85 bg-white/68 px-5 py-4 shadow-[0_14px_34px_rgba(66,61,105,0.08)] backdrop-blur-md">
             <span
               aria-hidden="true"
               className="absolute -right-8 -top-10 h-28 w-28 rounded-full opacity-10 blur-xl"
@@ -836,9 +846,9 @@ function PersonalScreen({
                   <Footprints className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div>
-                  <p className="text-sm font-bold text-[#24283A]">Tus visitas</p>
+                    <p className="text-sm font-bold text-[#24283A]">¡Seguís sumando!</p>
                   <p className="mt-0.5 text-xs text-[#8A91A3]">
-                    Cada visita cuenta
+                      Cada visita te acerca a algo lindo
                   </p>
                 </div>
               </div>
@@ -853,11 +863,13 @@ function PersonalScreen({
             </div>
           </div>
 
+          <RewardGoalCard rewardGoal={personal.rewardGoal} brand={brand} />
+
           {personal.benefit && (
             <div
-              className="checkin-enter-delay checkin-benefit-shine relative overflow-hidden rounded-[24px] p-5 text-left text-white shadow-[0_18px_42px_rgba(31,35,58,0.2)]"
+              className="checkin-enter-delay checkin-benefit-shine relative overflow-hidden rounded-[28px] p-5 text-left text-white shadow-[0_18px_42px_rgba(70,65,130,0.2)]"
               style={{
-                background: `linear-gradient(135deg, #343B68 0%, ${brand} 100%)`,
+                background: `linear-gradient(145deg, ${brand} 0%, #8B82ED 100%)`,
               }}
             >
               <span
@@ -866,15 +878,17 @@ function PersonalScreen({
               />
               <span
                 aria-hidden="true"
-                className="absolute -bottom-20 -left-12 h-40 w-40 rounded-full bg-black/12 blur-2xl"
+                className="absolute -bottom-20 -left-12 h-40 w-40 rounded-full bg-[#FFB36B]/25 blur-2xl"
               />
+              <span aria-hidden="true" className="absolute right-8 top-5 h-2.5 w-2.5 rotate-12 rounded-[3px] bg-[#FFD66B]/80" />
+              <span aria-hidden="true" className="absolute right-16 top-12 h-2 w-2 rounded-full bg-white/45" />
               <div className="relative flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] border border-white/22 bg-white/14 backdrop-blur-sm">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/35 bg-white/20 backdrop-blur-sm">
                   <BenefitIcon type={personal.benefit.type} />
                 </span>
                 <div className="min-w-0 pt-0.5">
-                  <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/68">
-                    Tu beneficio
+                  <p className="text-xs font-semibold text-white/75">
+                    Un regalo para vos
                   </p>
                   <p className="mt-1 text-lg font-bold leading-tight text-white">
                     {personal.benefit.title}
@@ -905,8 +919,8 @@ function PersonalScreen({
                       brand={brand}
                       onReveal={onBenefitReveal}
                     />
-                    <p className="mt-2 text-center text-[10px] text-white/50">
-                      El personal confirma el canje en el local
+                    <p className="mt-2 text-center text-[10px] text-white/60">
+                      Mostralo al personal cuando quieras disfrutarlo
                     </p>
                   </div>
                 ))}
@@ -934,17 +948,88 @@ function PersonalScreen({
           </button>
         )}
 
+        <Link
+          href="/mi-flikker"
+          className="checkin-enter-delay mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/75 bg-white/65 py-3.5 text-sm font-semibold text-[#4A4960] shadow-[0_8px_22px_rgba(66,61,105,0.06)] transition-all hover:-translate-y-0.5 hover:bg-white/85"
+        >
+          Mis lugares y premios
+        </Link>
+
         <button
           type="button"
           onClick={() => void switchAccount()}
           disabled={loggingOut}
-          className="mt-4 rounded-full px-4 py-2 text-xs font-semibold text-[#697084] transition-colors hover:bg-white/65 hover:text-[#34394D] disabled:opacity-60"
+          className="mt-4 rounded-full px-4 py-2 text-xs font-semibold text-white/65 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-60"
         >
           {loggingOut ? "Cerrando…" : "Cambiar de cuenta"}
         </button>
       </div>
     </Shell>
   );
+}
+
+/**
+ * Fase E §14/§15: the reason to scan is the customer's own progress, never
+ * "for our metrics". Three states: unlocked just now, still in progress, or
+ * nothing active — the last one still explains what scanning is for.
+ */
+function RewardGoalCard({
+  rewardGoal,
+  brand,
+}: {
+  rewardGoal: RewardGoalView | null | undefined;
+  brand: string;
+}) {
+  if (!rewardGoal) return null;
+
+  if (rewardGoal.unlockedNow && rewardGoal.benefit) {
+    return (
+      <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[22px] border border-white/80 bg-white/72 px-5 py-4 shadow-[0_14px_36px_rgba(31,35,58,0.09)] backdrop-blur-md">
+        <p className="text-sm font-bold" style={{ color: brand }}>
+          🎉 ¡Recompensa desbloqueada!
+        </p>
+        <p className="mt-1 text-base font-bold text-[#171A2B]">
+          {rewardGoal.benefit.name}
+        </p>
+        <p className="mt-1 text-xs text-[#8A91A3]">
+          Ya la tenés disponible en tu cuenta Flikker.
+        </p>
+      </div>
+    );
+  }
+
+  if (rewardGoal.goal) {
+    const { progressVisits, targetAdditionalVisits, remainingVisits, incentiveName } =
+      rewardGoal.goal;
+    const pct = Math.min(
+      100,
+      Math.round((progressVisits / Math.max(1, targetAdditionalVisits)) * 100),
+    );
+    return (
+      <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[22px] border border-white/80 bg-white/72 px-5 py-4 shadow-[0_14px_36px_rgba(31,35,58,0.09)] backdrop-blur-md">
+        <p className="text-sm font-bold text-[#24283A]">
+          {remainingVisits === 1
+            ? `Te falta 1 visita para desbloquear:`
+            : `Te faltan ${remainingVisits} visitas para desbloquear:`}
+        </p>
+        <p className="mt-0.5 text-base font-bold" style={{ color: brand }}>
+          {incentiveName}
+        </p>
+        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[#EDEFF5]">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{ width: `${pct}%`, backgroundColor: brand }}
+          />
+        </div>
+        <p className="mt-1.5 text-[11px] font-semibold text-[#8A91A3]">
+          {progressVisits}/{targetAdditionalVisits} visitas · Escaneá cada vez que
+          vengas para avanzar.
+        </p>
+      </div>
+    );
+  }
+
+  return null;
 }
 
 // ── Layout primitives ────────────────────────────────────────────────────────
@@ -962,97 +1047,21 @@ function Shell({
     <div
       className="relative flex min-h-screen flex-col overflow-hidden bg-[#F5F6FB]"
       style={{
-        backgroundImage: `radial-gradient(circle at 8% 2%, ${colorWithAlpha(brand, "28", "rgba(92,107,192,0.16)")} 0, transparent 34%), radial-gradient(circle at 94% 78%, rgba(255,171,118,0.2) 0, transparent 31%), linear-gradient(160deg, #FAFBFF 0%, #F3F4FA 58%, #F8F4F2 100%)`,
+        backgroundImage:
+          "linear-gradient(155deg, #17132D 0%, #241B49 52%, #120F26 100%)",
       }}
     >
       <div
         aria-hidden="true"
-        className="checkin-backdrop-grid pointer-events-none absolute inset-0"
-        style={{ color: brand }}
+        className="checkin-aurora checkin-aurora-primary pointer-events-none absolute -left-24 -top-20 h-[460px] w-[460px] rounded-full bg-[#7059E8]/65 blur-[68px]"
       />
       <div
         aria-hidden="true"
-        className="checkin-starfall pointer-events-none absolute inset-0 overflow-hidden"
-        style={{ color: brand }}
-      >
-        {[
-          { left: "6%", size: 10, duration: 18, delay: -3 },
-          { left: "15%", size: 8, duration: 22, delay: -16 },
-          { left: "24%", size: 14, duration: 26, delay: -8 },
-          { left: "34%", size: 9, duration: 20, delay: -18 },
-          { left: "44%", size: 11, duration: 24, delay: -12 },
-          { left: "55%", size: 8, duration: 19, delay: -5 },
-          { left: "64%", size: 15, duration: 27, delay: -21 },
-          { left: "73%", size: 9, duration: 21, delay: -10 },
-          { left: "82%", size: 12, duration: 25, delay: -24 },
-          { left: "91%", size: 8, duration: 18, delay: -7 },
-          { left: "29%", size: 10, duration: 23, delay: -14 },
-          { left: "68%", size: 13, duration: 28, delay: -1 },
-        ].map((star, index) => (
-          <Star
-            key={`${star.left}-${index}`}
-            className="checkin-falling-star absolute fill-current"
-            style={{
-              left: star.left,
-              top: "-6vh",
-              width: star.size,
-              height: star.size,
-              opacity: 0,
-              animation: `checkin-starfall ${star.duration}s ${star.delay}s linear infinite`,
-              filter: "drop-shadow(0 0 5px currentColor)",
-              willChange: "transform, opacity",
-            }}
-          />
-        ))}
-      </div>
-      <svg
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 h-full w-full"
-        viewBox="0 0 430 900"
-        preserveAspectRatio="none"
-      >
-        <path
-          d="M-52 176C45 98 109 116 180 175C256 238 330 228 482 124"
-          fill="none"
-          stroke={brand}
-          strokeOpacity="0.09"
-          strokeWidth="1.2"
-        />
-        <path
-          d="M-40 194C44 130 107 140 174 194C255 259 350 241 473 151"
-          fill="none"
-          stroke={brand}
-          strokeOpacity="0.055"
-          strokeWidth="1"
-        />
-        <path
-          d="M-70 724C50 651 126 667 205 734C278 795 357 794 486 699"
-          fill="none"
-          stroke="#FF9A4D"
-          strokeOpacity="0.08"
-          strokeWidth="1.2"
-        />
-      </svg>
-      <div
-        aria-hidden="true"
-        className="checkin-orbit checkin-ambient-delayed pointer-events-none absolute -right-24 top-14 h-64 w-64 rounded-full"
-        style={{ color: brand }}
-      >
-        <span className="absolute left-6 top-1/2 h-2 w-2 rounded-full bg-current shadow-[0_0_16px_currentColor]" />
-      </div>
-      <div
-        aria-hidden="true"
-        className="checkin-orbit checkin-orbit-small checkin-ambient pointer-events-none absolute -bottom-20 -left-20 h-52 w-52 rounded-full text-[#FF9A4D]"
-      >
-        <span className="absolute right-8 top-5 h-1.5 w-1.5 rounded-full bg-current shadow-[0_0_14px_currentColor]" />
-      </div>
-      <div
-        aria-hidden="true"
-        className="checkin-ambient pointer-events-none absolute -left-24 top-[38%] h-64 w-64 rounded-full border border-white/60 bg-white/18 blur-sm"
+        className="checkin-aurora checkin-aurora-warm pointer-events-none absolute -bottom-24 -right-24 h-[500px] w-[500px] rounded-full bg-[#51368F]/60 blur-[72px]"
       />
       <div
         aria-hidden="true"
-        className="checkin-ambient-delayed pointer-events-none absolute -right-20 top-20 h-48 w-48 rounded-full border border-white/50 bg-white/14"
+        className="checkin-aurora checkin-aurora-soft pointer-events-none absolute left-[34%] top-[34%] h-[360px] w-[360px] rounded-full bg-[#9A82F5]/38 blur-[70px]"
       />
       <div className="relative flex flex-1 flex-col items-center justify-center px-5 py-10 sm:px-6 sm:py-12">
         {landing.business.logoUrl && (
@@ -1072,7 +1081,7 @@ function Shell({
         )}
         {children}
       </div>
-      <p className="relative pb-5 text-center text-xs text-[#9ca3af]">
+      <p className="relative pb-5 text-center text-xs text-white/45">
         <PoweredByFlikker />
       </p>
     </div>

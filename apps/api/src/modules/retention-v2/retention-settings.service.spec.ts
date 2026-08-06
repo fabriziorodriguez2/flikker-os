@@ -175,6 +175,52 @@ describe('RetentionSettingsService.update — Fase C.5 §2', () => {
       service.update('biz-1', { sendingHourStart: 21 }),
     ).rejects.toThrow('sendingHourStart must be before sendingHourEnd');
   });
+
+  it('rejects a reward goal visit range with min above max (Fase E §31)', async () => {
+    const prisma = makePrisma({ ...WINDOW, businessId: 'biz-1' });
+    const service = new RetentionSettingsService(prisma as never);
+
+    await expect(
+      service.update('biz-1', {
+        rewardGoalMinVisits: 5,
+        rewardGoalMaxVisits: 2,
+      }),
+    ).rejects.toThrow(
+      'rewardGoalMinVisits must not be greater than rewardGoalMaxVisits',
+    );
+    expect(prisma.retentionSettings.update).not.toHaveBeenCalled();
+  });
+
+  it('validates the new reward goal minimum against the existing maximum', async () => {
+    const prisma = makePrisma({
+      ...WINDOW,
+      businessId: 'biz-1',
+      rewardGoalMinVisits: 1,
+      rewardGoalMaxVisits: 3,
+    });
+    const service = new RetentionSettingsService(prisma as never);
+
+    await expect(
+      service.update('biz-1', { rewardGoalMinVisits: 5 }),
+    ).rejects.toThrow(
+      'rewardGoalMinVisits must not be greater than rewardGoalMaxVisits',
+    );
+  });
+
+  it('accepts a valid reward goal visit range', async () => {
+    const prisma = makePrisma({ ...WINDOW, businessId: 'biz-1' });
+    const service = new RetentionSettingsService(prisma as never);
+
+    await service.update('biz-1', {
+      rewardGoalMinVisits: 1,
+      rewardGoalMaxVisits: 5,
+    });
+
+    expect(prisma.retentionSettings.update).toHaveBeenCalledWith({
+      where: { businessId: 'biz-1' },
+      data: { rewardGoalMinVisits: 1, rewardGoalMaxVisits: 5 },
+    });
+  });
 });
 
 describe('RetentionSettingsService.budgetWarning — Fase C.5 §6', () => {

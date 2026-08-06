@@ -461,8 +461,8 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader
-        title="Tu resumen"
-        subtitle="Mirá cómo evoluciona tu reputación y qué te está trayendo reseñas 📈"
+        title="Insights"
+        subtitle="Evolución de tu reputación y rendimiento de las reseñas."
       />
 
       <div

@@ -34,6 +34,14 @@ function makeDeps() {
     enqueueReviewRequest: jest.fn(),
     sendVerificationCode: jest.fn(),
   };
+  const rewardGoals = {
+    afterVisit: jest
+      .fn()
+      .mockResolvedValue({ goal: null, unlockedNow: false, benefit: null }),
+    currentView: jest
+      .fn()
+      .mockResolvedValue({ goal: null, unlockedNow: false, benefit: null }),
+  };
   return {
     prisma,
     sources,
@@ -43,6 +51,7 @@ function makeDeps() {
     events,
     benefits,
     messaging,
+    rewardGoals,
   };
 }
 
@@ -56,6 +65,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.events as never,
     deps.benefits as never,
     deps.messaging as never,
+    deps.rewardGoals as never,
   );
 }
 
@@ -148,6 +158,89 @@ describe('CheckinService', () => {
     });
     if (result.status !== 'registered') throw new Error('expected registered');
     expect(result.personal.reviewPrompt.show).toBe(true);
+  });
+
+  it('register: evaluates reward goals after a real first visit, and the review prompt is unaffected (Fase E §16)', async () => {
+    const deps = makeDeps();
+    deps.sources.findByToken.mockResolvedValue(activeSource);
+    deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+    deps.prisma.customer.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue({ id: 'cust-1', name: 'Ana' });
+    deps.prisma.customer.create.mockResolvedValue({
+      id: 'cust-1',
+      name: 'Ana',
+    });
+    deps.visits.registerVisit.mockResolvedValue({
+      created: true,
+      isReturn: false,
+      visit: { id: 'v-1', attributionType: VisitAttributionType.organic },
+    });
+    deps.sessions.issue.mockResolvedValue({
+      rawToken: 'raw-token',
+      expiresAt: new Date('2027-01-01T00:00:00Z'),
+    });
+    deps.rewardGoals.afterVisit.mockResolvedValue({
+      goal: {
+        incentiveName: 'Upgrade gratis',
+        progressVisits: 0,
+        targetAdditionalVisits: 1,
+        remainingVisits: 1,
+      },
+      unlockedNow: false,
+      benefit: null,
+    });
+    const service = makeService(deps);
+
+    const result = await service.register(
+      'tok',
+      { name: 'Ana', phone: '099111222' },
+      'ua',
+    );
+
+    expect(deps.rewardGoals.afterVisit).toHaveBeenCalledWith(
+      'biz-1',
+      'cust-1',
+      'America/Montevideo',
+    );
+    expect(deps.rewardGoals.currentView).not.toHaveBeenCalled();
+    if (result.status !== 'registered') throw new Error('expected registered');
+    expect(result.personal.rewardGoal.goal?.remainingVisits).toBe(1);
+    // The review request is untouched by the presence of a reward goal.
+    expect(result.personal.reviewPrompt.show).toBe(true);
+    expect(deps.messaging.enqueueReviewRequest).toHaveBeenCalledWith(
+      'biz-1',
+      'cust-1',
+      null,
+    );
+  });
+
+  it('checkin: a dedup-prevented duplicate reads current reward progress, never re-evaluates unlock/creation', async () => {
+    const deps = makeDeps();
+    deps.sources.findByToken.mockResolvedValue(activeSource);
+    deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+    deps.sessions.resolveLive.mockResolvedValue({
+      businessId: 'biz-1',
+      customerId: 'cust-1',
+    });
+    deps.prisma.customer.findFirst.mockResolvedValue({
+      id: 'cust-1',
+      name: 'Ana',
+    });
+    deps.visits.registerVisit.mockResolvedValue({
+      created: false,
+      reason: 'min_hours',
+      lastVisitAt: new Date('2026-08-01T12:00:00Z'),
+    });
+    const service = makeService(deps);
+
+    await service.checkin('tok', 'session-token');
+
+    expect(deps.rewardGoals.currentView).toHaveBeenCalledWith(
+      'biz-1',
+      'cust-1',
+    );
+    expect(deps.rewardGoals.afterVisit).not.toHaveBeenCalled();
   });
 
   it('checkin: without a valid session throws Unauthorized (web shows the form)', async () => {

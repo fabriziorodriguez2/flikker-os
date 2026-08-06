@@ -229,6 +229,22 @@ enum RetentionStrategyType {
   REMINDER
   SOFT_BENEFIT
   STRONG_BENEFIT
+  /// Fase E §25 — reminds the customer of progress toward an ALREADY-existing
+  /// CustomerRewardGoal. Never emits a benefit and never creates a goal; if no
+  /// ACTIVE goal exists for the customer, this strategy is simply not
+  /// applicable (see eligibility.ts).
+  PROGRESS_REMINDER
+}
+
+/// Fase E — lifecycle of a CustomerRewardGoal. ACTIVE (accumulating) → UNLOCKED
+/// (target visits reached, reward available) → REDEEMED (claimed, terminal).
+/// EXPIRED and CANCELLED are terminal exits before REDEEMED.
+enum RewardGoalStatus {
+  ACTIVE
+  UNLOCKED
+  REDEEMED
+  EXPIRED
+  CANCELLED
 }
 
 enum RetentionExperimentStatus {
@@ -466,6 +482,7 @@ model Business {
   retentionAssignments          RetentionAssignment[]
   retentionDecisionLogs         RetentionDecisionLog[]
   retentionOutcomes             RetentionOutcome[]
+  rewardGoals                   CustomerRewardGoal[]
 }
 
 // ---------------------------------------------------------------------------
@@ -521,6 +538,25 @@ model RetentionSettings {
   /// owner observe a few days of decisions before trusting live sending.
   dryRunEnabled Boolean @default(false) @map("dry_run_enabled")
 
+  // Fase E — Reward Goals ("te faltan N visitas para X"). Off by default: an
+  // owner opts in explicitly, same philosophy as automation above.
+  rewardGoalsEnabled                 Boolean @default(false) @map("reward_goals_enabled")
+  /// Optional override range for how many additional visits a goal may ask
+  /// for. Null means "the engine's own per-segment defaults apply" — the
+  /// owner is never required to configure this (Fase E §30/§31).
+  rewardGoalMinVisits                Int?    @map("reward_goal_min_visits")
+  rewardGoalMaxVisits                Int?    @map("reward_goal_max_visits")
+  /// Days after a goal is UNLOCKED (or CANCELLED/EXPIRED) before the engine
+  /// will consider creating another one for the same customer — the guard
+  /// against "immediately after unlocking, infinite new goals" (Fase E §33).
+  rewardGoalCooldownDays             Int     @default(3) @map("reward_goal_cooldown_days")
+  /// Ceiling on how many goals may be simultaneously promised (ACTIVE or
+  /// UNLOCKED-not-yet-redeemed) against ANY single incentive definition —
+  /// the minimal capacity guard from Fase E §10. Null keeps today's
+  /// per-incentive `maxTotalRedemptions`/`maxRedemptionsPerCustomer` as the
+  /// only ceiling.
+  maxPromisedRewardGoalsPerIncentive Int?    @map("max_promised_reward_goals_per_incentive")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -571,6 +607,12 @@ model RetentionIncentiveDefinition {
   /// Explicit owner consent for the engine to use this automatically. Off by
   /// default: authorizing automation is always an opt-in.
   automationEligible Boolean @default(false) @map("automation_eligible")
+  /// Fase E §1 — separate opt-in for the Reward Goal engine. Deliberately its
+  /// own flag rather than reusing `automationEligible`: a business may want an
+  /// incentive available for AT_RISK recovery campaigns but not as a visible
+  /// "N visits away" reward goal, or vice-versa. Same catalogue, two
+  /// independent authorizations.
+  rewardGoalEligible Boolean @default(false) @map("reward_goal_eligible")
 
   maxRedemptionsPerCustomer Int?  @map("max_redemptions_per_customer")
   maxTotalRedemptions       Int?  @map("max_total_redemptions")
@@ -581,11 +623,13 @@ model RetentionIncentiveDefinition {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  business Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  variants RetentionVariant[]
+  business    Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  variants    RetentionVariant[]
+  rewardGoals CustomerRewardGoal[]
 
   @@index([businessId])
   @@index([businessId, active, automationEligible])
+  @@index([businessId, active, rewardGoalEligible])
   @@map("retention_incentive_definitions")
 }
 
@@ -791,6 +835,70 @@ model RetentionOutcome {
   @@index([experimentId, variantId])
   @@index([variantId, returned])
   @@map("retention_outcomes")
+}
+
+// ---------------------------------------------------------------------------
+// CustomerRewardGoal (Fase E — "te faltan N visitas para X")
+// ---------------------------------------------------------------------------
+// Visible, per-business progress toward an authorized reward. Deliberately
+// NOT a points/currency ledger (Fase E §2): `progressVisits` is always
+// derived from real `Visit` rows created after `activatedAt`, never a balance
+// that could drift out of sync or be spent independently of an actual visit.
+//
+// At most one ACTIVE goal per (businessId, customerId) — enforced by a
+// hand-authored partial unique index in the migration (Prisma has no native
+// "unique where" attribute), the same technique already used for
+// `benefits_one_active_per_business`. A customer may still have any number of
+// REDEEMED/EXPIRED/CANCELLED goals in their history.
+model CustomerRewardGoal {
+  id                    String           @id @default(uuid())
+  businessId            String           @map("business_id")
+  customerId            String           @map("customer_id")
+  incentiveDefinitionId String           @map("incentive_definition_id")
+  status                RewardGoalStatus @default(ACTIVE)
+
+  /// Visit count the customer already had when this goal was created — never
+  /// recount visits from before the goal existed.
+  startingVisitCount     Int @map("starting_visit_count")
+  /// How many NEW visits (beyond startingVisitCount) unlock the reward.
+  targetAdditionalVisits Int @map("target_additional_visits")
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  /// Bumped on every write — used as "when did this goal last change status",
+  /// which is what the post-close cooldown (Fase E §33) measures from.
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  /// Equal to createdAt today (goals are created already active) — kept as
+  /// its own column because it is the field visit-counting is measured from,
+  /// so it stays correct even if a future "queued, not yet active" state is
+  /// introduced.
+  activatedAt DateTime  @default(now()) @map("activated_at")
+  expiresAt   DateTime? @map("expires_at")
+  unlockedAt  DateTime? @map("unlocked_at")
+  redeemedAt  DateTime? @map("redeemed_at")
+  cancelledAt DateTime? @map("cancelled_at")
+
+  /// Always 'reward_goal_engine' for now — kept as a column (not hardcoded)
+  /// because a future manual override belongs here, not as a second model.
+  source            String          @default("reward_goal_engine")
+  /// Stable machine-readable reason, mirroring how segmentation/eligibility
+  /// already justify their decisions (e.g. 'NEW_SECOND_VISIT').
+  reasonCode        String          @map("reason_code")
+  segmentAtCreation CustomerSegment @map("segment_at_creation")
+
+  /// Set once, on unlock, by the existing IncentiveIssuer — never created
+  /// directly by this model. Unique: the second line of defence (besides the
+  /// transaction) against a double unlock.
+  benefitParticipationId String? @unique @map("benefit_participation_id")
+
+  business             Business                     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer             Customer                     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  incentiveDefinition  RetentionIncentiveDefinition @relation(fields: [incentiveDefinitionId], references: [id], onDelete: Cascade)
+  benefitParticipation BenefitParticipation?        @relation(fields: [benefitParticipationId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, customerId])
+  @@index([businessId, status])
+  @@index([incentiveDefinitionId, status])
+  @@map("customer_reward_goals")
 }
 
 // ---------------------------------------------------------------------------
@@ -1022,20 +1130,27 @@ model Campaign {
 // ---------------------------------------------------------------------------
 
 model Customer {
-  id         String    @id @default(uuid())
-  businessId String
-  name       String
-  phoneE164  String    @map("phone_e164")
-  email      String?
-  birthday   DateTime?
-  optedOut   Boolean   @default(false) @map("opted_out")
-  isActive   Boolean   @default(true)
-  tags       Json?
-  origin     String    @default("manual")
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id               String    @id @default(uuid())
+  businessId       String
+  name             String
+  phoneE164        String    @map("phone_e164")
+  email            String?
+  birthday         DateTime?
+  optedOut         Boolean   @default(false) @map("opted_out")
+  isActive         Boolean   @default(true)
+  tags             Json?
+  origin           String    @default("manual")
+  /// Fase E — the global Flikker identity this tenant-scoped Customer belongs
+  /// to, once proven. Null until the customer's phone is verified by OTP
+  /// (never on a plain, unverified registration — see FlikkerAccount's own
+  /// comment for why). Nullable and unbackfilled by design: linking is lazy
+  /// and progressive, never a bulk migration of existing rows.
+  flikkerAccountId String?   @map("flikker_account_id")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
 
   business                 Business                  @relation(fields: [businessId], references: [id])
+  flikkerAccount           FlikkerAccount?           @relation(fields: [flikkerAccountId], references: [id], onDelete: SetNull)
   serviceEvents            ServiceEvent[]
   messages                 Message[]
   campaignExecutions       CampaignExecution[]
@@ -1051,12 +1166,91 @@ model Customer {
   events                   CustomerEvent[]
   retentionAssignments     RetentionAssignment[]
   retentionOutcomes        RetentionOutcome[]
+  rewardGoals              CustomerRewardGoal[]
 
   @@index([businessId])
   @@index([businessId, isActive])
   @@index([businessId, phoneE164])
   @@index([businessId, birthday])
   @@index([businessId, origin])
+  @@index([flikkerAccountId])
+}
+
+// ---------------------------------------------------------------------------
+// FlikkerAccount (Fase E — the customer's global identity, across businesses)
+// ---------------------------------------------------------------------------
+// A `Customer` row is, and stays, tenant-scoped — that model is untouched.
+// This is the seam that lets ONE real person be recognized across several
+// businesses, without merging or duplicating any tenant data.
+//
+// Deliberately requires OTP-verified phone possession before a `Customer` is
+// ever linked here (see FlikkerAccountVerification) — a phone typed into a
+// plain registration form is NOT proof of ownership (anyone can type anyone
+// else's number), and trusting it would let one person's visits/rewards leak
+// into a stranger's global account. Linking is lazy and progressive: existing
+// Customers are never bulk-migrated, only linked the next time their phone is
+// actually verified.
+//
+// No business-facing endpoint ever reads this table. It exists only for the
+// customer-facing "Mi Flikker" surface, authenticated by its own
+// FlikkerAccountSession — never by a business's CustomerSession.
+model FlikkerAccount {
+  id        String   @id @default(uuid())
+  phoneE164 String   @unique @map("phone_e164")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  customers Customer[]
+  sessions  FlikkerAccountSession[]
+
+  @@map("flikker_accounts")
+}
+
+// ---------------------------------------------------------------------------
+// FlikkerAccountVerification (Fase E — proves phone ownership before linking)
+// ---------------------------------------------------------------------------
+// Deliberately a separate, parallel mechanism from `CustomerVerification`
+// rather than a modification of it: `CustomerVerification` is keyed by
+// `(businessId, customerId)`, which does not exist yet at this point — this
+// flow is account-first, phone-first, and runs before any FlikkerAccount is
+// known to exist. Copies the exact same proven mechanics (hashed code, TTL,
+// max attempts, resend cooldown) instead of inventing a weaker one.
+model FlikkerAccountVerification {
+  id         String    @id @default(uuid())
+  phoneE164  String    @map("phone_e164")
+  codeHash   String    @map("code_hash")
+  attempts   Int       @default(0)
+  expiresAt  DateTime  @map("expires_at")
+  consumedAt DateTime? @map("consumed_at")
+  createdAt  DateTime  @default(now()) @map("created_at")
+
+  @@index([phoneE164])
+  @@index([expiresAt])
+  @@map("flikker_account_verifications")
+}
+
+// ---------------------------------------------------------------------------
+// FlikkerAccountSession (Fase E — the global "Mi Flikker" session)
+// ---------------------------------------------------------------------------
+// Mirrors `CustomerSession` exactly (hashed token, expiry, revocation) but is
+// a completely separate cookie/session — the check-in cookie (`flk_cs`) and
+// its business-scoped semantics are untouched. Only "Mi Flikker" ever reads
+// this table.
+model FlikkerAccountSession {
+  id               String    @id @default(uuid())
+  flikkerAccountId String    @map("flikker_account_id")
+  tokenHash        String    @unique @map("token_hash")
+  userAgent        String?   @map("user_agent")
+  lastSeenAt       DateTime  @default(now()) @map("last_seen_at")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  flikkerAccount FlikkerAccount @relation(fields: [flikkerAccountId], references: [id], onDelete: Cascade)
+
+  @@index([flikkerAccountId])
+  @@index([expiresAt])
+  @@map("flikker_account_sessions")
 }
 
 model AppointmentNotification {
@@ -1716,6 +1910,7 @@ model BenefitParticipation {
   customer            Customer             @relation(fields: [customerId], references: [id])
   raffleDraw          RaffleDraw?          @relation(fields: [raffleDrawId], references: [id], onDelete: SetNull)
   retentionAssignment RetentionAssignment?
+  rewardGoal          CustomerRewardGoal?
 
   @@unique([benefitId, customerId])
   @@index([businessId])

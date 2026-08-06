@@ -55,6 +55,9 @@ import { RetentionResultsController } from './retention-results.controller';
     RetentionV2EvaluateService,
     RetentionV2SendService,
     RetentionOutcomeService,
+    RetentionDecisionLogService,
+    RetentionSettingsService,
+    IncentiveIssuerService,
   ],
 })
 export class RetentionV2Module {}

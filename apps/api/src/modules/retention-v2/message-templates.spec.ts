@@ -159,4 +159,66 @@ describe('buildRetentionMessage', () => {
       expect(inactive).toContain('hace bastante');
     });
   });
+
+  describe('PROGRESS_REMINDER (Fase E §25/§28)', () => {
+    it('requires progress data — a missing goal is a programming error, not sendable copy', () => {
+      expect(() =>
+        buildRetentionMessage(
+          ctx({ strategyType: RetentionStrategyType.PROGRESS_REMINDER }),
+        ),
+      ).toThrow('PROGRESS_REMINDER requires progress data');
+    });
+
+    it('remaining=1 uses the singular phrasing', () => {
+      const body = buildRetentionMessage(
+        ctx({
+          strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+          progressReminder: {
+            remainingVisits: 1,
+            rewardName: 'Upgrade gratis',
+          },
+        }),
+      );
+      expect(body).toContain('Te falta una visita');
+      expect(body).toContain('*Upgrade gratis*');
+      expect(body).toContain('*Café Uno*');
+    });
+
+    it('remaining=2 uses its own phrasing', () => {
+      const body = buildRetentionMessage(
+        ctx({
+          strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+          progressReminder: { remainingVisits: 2, rewardName: 'Café gratis' },
+        }),
+      );
+      expect(body).toContain('Estás a dos visitas');
+    });
+
+    it('remaining>2 generalizes without inventing urgency (Fase E §29)', () => {
+      const body = buildRetentionMessage(
+        ctx({
+          strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+          progressReminder: { remainingVisits: 4, rewardName: '2x1' },
+        }),
+      );
+      expect(body).toContain('Te faltan 4 visitas');
+      expect(body).not.toMatch(/última oportunidad|apurate|te vas a perder/i);
+    });
+
+    it('never mentions an incentiveLabel/expiry — it issues nothing new', () => {
+      const body = buildRetentionMessage(
+        ctx({
+          strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+          incentiveLabel: '10% OFF', // deliberately set, must be ignored
+          expiresInDays: 7,
+          progressReminder: {
+            remainingVisits: 1,
+            rewardName: 'Upgrade gratis',
+          },
+        }),
+      );
+      expect(body).not.toContain('10% OFF');
+      expect(body).not.toContain('días');
+    });
+  });
 });

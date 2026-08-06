@@ -3,6 +3,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { BenefitsModule } from '../benefits/benefits.module';
 import { PublicModule } from '../public/public.module';
 import { VisitSourcesModule } from '../visit-sources/visit-sources.module';
+import { RewardGoalsModule } from '../reward-goals/reward-goals.module';
 import { CheckinController } from './checkin.controller';
 import { CheckinService } from './checkin.service';
 import { RedemptionController } from './redemption.controller';
@@ -13,7 +14,13 @@ import { CustomerVerificationsRepository } from './customer-verifications.reposi
 import { CustomerEventsRepository } from './customer-events.repository';
 
 @Module({
-  imports: [PrismaModule, BenefitsModule, PublicModule, VisitSourcesModule],
+  imports: [
+    PrismaModule,
+    BenefitsModule,
+    PublicModule,
+    VisitSourcesModule,
+    RewardGoalsModule,
+  ],
   controllers: [CheckinController, RedemptionController],
   providers: [
     CheckinService,

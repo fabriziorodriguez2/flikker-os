@@ -5,7 +5,9 @@ import {
   MessageStatus,
   Prisma,
   RetentionAssignmentStatus,
+  RetentionObjective,
   RetentionStrategyType,
+  RewardGoalStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { evaluateEligibility } from './eligibility';
@@ -160,6 +162,17 @@ export class RetentionV2SendService {
       return { status: 'skipped', reasonCode: 'OUTSIDE_SENDING_WINDOW' };
     }
 
+    // ── PROGRESS_REMINDER: reminds progress that already existed ─────────────
+    // Never issues anything and never consumes the incentive budget (Fase E
+    // §25) — it is a read of a goal the Reward Goal engine created from an
+    // actual Visit, never manufactured here to justify sending (Fase E §27).
+    if (
+      assignment.variant.strategyType ===
+      RetentionStrategyType.PROGRESS_REMINDER
+    ) {
+      return this.sendProgressReminder(assignment, now);
+    }
+
     // ── Incentive, when the variant carries one ──────────────────────────────
     const carriesIncentive =
       assignment.variant.strategyType === RetentionStrategyType.SOFT_BENEFIT ||
@@ -212,6 +225,101 @@ export class RetentionV2SendService {
       expiresInDays,
     });
 
+    return this.sendMessageBody(assignment, body, now, benefitIssued);
+  }
+
+  /**
+   * The PROGRESS_REMINDER branch: reads the customer's current ACTIVE
+   * CustomerRewardGoal — never creating or modifying one — and sends a
+   * message about it exactly like any other variant. If no ACTIVE goal
+   * exists (it was unlocked, expired or cancelled on its own between
+   * recruitment and send), there is nothing left to remind the customer of,
+   * so this skips rather than sending a stale "you're 1 away" about a goal
+   * that no longer applies.
+   */
+  private async sendProgressReminder(
+    assignment: {
+      id: string;
+      businessId: string;
+      customerId: string;
+      variantId: string;
+      experimentId: string;
+      business: { name: string; timezone: string };
+      customer: { name: string | null };
+      variant: { strategyType: RetentionStrategyType };
+    },
+    now: Date,
+  ): Promise<SendOutcome> {
+    const goal = await this.prisma.customerRewardGoal.findFirst({
+      where: {
+        businessId: assignment.businessId,
+        customerId: assignment.customerId,
+        status: RewardGoalStatus.ACTIVE,
+      },
+      select: {
+        activatedAt: true,
+        targetAdditionalVisits: true,
+        incentiveDefinition: { select: { name: true } },
+      },
+    });
+    if (!goal) {
+      return this.skip(
+        assignment,
+        'NO_ACTIVE_REWARD_GOAL',
+        DECISION_CODES.SKIPPED_NO_ACTIVE_REWARD_GOAL,
+      );
+    }
+
+    const progressVisits = await this.prisma.visit.count({
+      where: {
+        businessId: assignment.businessId,
+        customerId: assignment.customerId,
+        occurredAt: { gt: goal.activatedAt },
+      },
+    });
+    // Floored at 1: if progress had already reached target, the goal would
+    // no longer be ACTIVE (see RewardGoalUnlockService) — this only guards
+    // against a narrow race with a concurrent check-in.
+    const remainingVisits = Math.max(
+      1,
+      goal.targetAdditionalVisits - progressVisits,
+    );
+
+    const body = buildRetentionMessage({
+      customerName: assignment.customer.name,
+      businessName: assignment.business.name,
+      objective: RetentionObjective.AT_RISK_RECOVERY, // unused by this branch's copy
+      strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+      incentiveLabel: null,
+      expiresInDays: null,
+      progressReminder: {
+        remainingVisits,
+        rewardName: goal.incentiveDefinition.name,
+      },
+    });
+
+    return this.sendMessageBody(assignment, body, now, false);
+  }
+
+  /**
+   * Common tail of every sendable variant (REMINDER, SOFT/STRONG_BENEFIT,
+   * PROGRESS_REMINDER): create the Message, log MESSAGE_QUEUED, or log
+   * MESSAGE_FAILED and skip without throwing — a delivery failure must never
+   * take down the worker.
+   */
+  private async sendMessageBody(
+    assignment: {
+      id: string;
+      businessId: string;
+      customerId: string;
+      variantId: string;
+      experimentId: string;
+      variant: { strategyType: RetentionStrategyType };
+    },
+    body: string,
+    now: Date,
+    benefitIssued: boolean,
+  ): Promise<SendOutcome> {
     try {
       const messageId = await this.createMessage(assignment.id, {
         businessId: assignment.businessId,

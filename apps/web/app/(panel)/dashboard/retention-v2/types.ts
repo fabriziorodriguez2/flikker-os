@@ -47,6 +47,12 @@ export interface RetentionSettingsView {
   dryRunEnabled: boolean;
   hasIncentiveBearingVariants: boolean;
   budgetConfigured: boolean;
+  // Fase E — Reward Goals.
+  rewardGoalsEnabled: boolean;
+  rewardGoalMinVisits: number | null;
+  rewardGoalMaxVisits: number | null;
+  rewardGoalCooldownDays: number;
+  maxPromisedRewardGoalsPerIncentive: number | null;
 }
 
 export interface RetentionIncentive {
@@ -61,6 +67,7 @@ export interface RetentionIncentive {
   expiresInDays: number;
   active: boolean;
   automationEligible: boolean;
+  rewardGoalEligible: boolean;
   maxRedemptionsPerCustomer: number | null;
   maxTotalRedemptions: number | null;
   validDays: number[];
@@ -92,7 +99,17 @@ export interface DryRunReport {
   wouldControl: number;
   wouldSend: number;
   wouldOfferIncentive: number;
+  /** Fase E §32 — reward goals the engine would have created today. */
+  wouldCreateRewardGoals: number;
+  rewardGoalsByReason: Record<string, number>;
 }
+
+export const REWARD_GOAL_REASON_LABEL: Record<string, string> = {
+  NEW_SECOND_VISIT: "de segunda visita",
+  REPEAT_HABIT_BUILDING: "de recurrencia",
+  FREQUENT_LOW_FREQUENCY_REWARD: "de frecuencia alta",
+  RECOVERED_REINFORCEMENT: "post-recuperación",
+};
 
 // ─── Results (Fase D) ───────────────────────────────────────────────────────
 

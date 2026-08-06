@@ -86,11 +86,24 @@
       "Bash(echo \"BUILD_EXIT=$?\")",
       "Bash(echo \"LINT_EXIT=$?\")",
       "Bash(echo \"WEB_TSC=$?\")",
-      "Bash(xargs cat)"
+      "Bash(xargs cat)",
+      "Bash(grep -n \"business Business.*@relation\\(fields: \\\\[businessId\\\\], references: \\\\[id\\\\], onDelete: Cascade\\)$\" prisma/schema.prisma)",
+      "Bash(mkdir -p \"c:/Users/fabri/OneDrive/Desktop/flikker system/flikker-os/apps/web/app/\\(public\\)/mi-flikker/[businessId]\")",
+      "Bash(node -e \"const d=new Date\\('2026-08-12T15:00:00.000Z'\\); console.log\\(new Intl.DateTimeFormat\\('en-US',{timeZone:'America/Montevideo',hour:'2-digit',weekday:'short',hourCycle:'h23'}\\).formatToParts\\(d\\)\\);\")",
+      "Bash(node -e \"require\\('dotenv'\\).config\\(\\); console.log\\(JSON.stringify\\(process.env.DATABASE_URL\\)\\)\")",
+      "Bash(export DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\")",
+      "Bash(xargs -I{} echo {})",
+      "Bash(curl -s -o /tmp/resp.txt -w \"HTTP_STATUS:%{http_code}\\\\n\" -X POST \"http://localhost:3000/public/flikker-account/verify/start\" -H \"Content-Type: application/json\" -d '{\"phone\":\"091624988\"}')",
+      "Read(//tmp/**)",
+      "Bash(curl -s -o /dev/null -w \"HTTP_STATUS:%{http_code}\\\\n\" \"http://localhost:3000/health\")",
+      "Bash(curl -s -o /dev/null -w \"HTTP_STATUS:%{http_code}\\\\n\" \"http://localhost:3000/public/checkin/does-not-exist\")",
+      "Bash(curl -s -X POST \"http://localhost:3000/public/flikker-account/verify/start\" -H \"Content-Type: application/json\" -d '{\"phone\":\"091624988\"}')",
+      "Bash(curl -s -w \"\\\\nHTTP_STATUS:%{http_code}\\\\n\" -X POST \"http://localhost:3000/public/flikker-account/verify/start\" -H \"Content-Type: application/json\" -d '{\"phone\":\"x\"}')"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",
-      "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\api\\qr\\[businessId]"
+      "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\api\\qr\\[businessId]",
+      "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\mi-flikker"
     ]
   }
 }

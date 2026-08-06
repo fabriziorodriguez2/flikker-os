@@ -7,6 +7,7 @@ import ReviewsFilters from "./reviews-filters";
 import ReviewsPaginator from "./reviews-paginator";
 import ExpandableText from "./expandable-text";
 import PageHeader from "@/components/ui/page-header";
+import GoogleLogo from "@/components/icons/google-logo";
 
 const PAGE_SIZE = 10;
 
@@ -150,8 +151,9 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
   return (
     <div className="mx-auto max-w-6xl space-y-4">
       <PageHeader
-        title="Reseñas"
+        title="Reseñas de Google"
         subtitle="Lo que tus clientes dicen de tu negocio."
+        icon={<GoogleLogo className="h-7 w-7" />}
       />
 
       {/* KPI cards */}

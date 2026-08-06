@@ -67,7 +67,11 @@ function makeDeps(assignment: unknown = assignmentFixture()) {
       count: jest.fn().mockResolvedValue(0),
       update: jest.fn().mockResolvedValue({}),
     },
-    visit: { findFirst: jest.fn().mockResolvedValue(null) },
+    visit: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      count: jest.fn().mockResolvedValue(0),
+    },
+    customerRewardGoal: { findFirst: jest.fn().mockResolvedValue(null) },
     $transaction: jest.fn((cb: (t: typeof tx) => unknown): unknown =>
       cb(tx),
     ) as jest.Mock,
@@ -514,6 +518,98 @@ describe('RetentionV2SendService — idempotency', () => {
     expect(await service.processAssignment('ghost', NOW)).toEqual({
       status: 'skipped',
       reasonCode: 'NOT_FOUND',
+    });
+  });
+});
+
+describe('RetentionV2SendService — PROGRESS_REMINDER (Fase E §25-27)', () => {
+  const progressReminderAssignment = assignmentFixture({
+    variant: {
+      id: 'var-progress',
+      strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+      incentiveDefinitionId: null,
+      incentiveDefinition: null,
+    },
+  });
+
+  it('skips when no ACTIVE reward goal exists — never sends a stale reminder', async () => {
+    const deps = makeDeps(progressReminderAssignment);
+    deps.prisma.customerRewardGoal.findFirst.mockResolvedValue(null);
+    const service = makeService(deps);
+
+    const result = await service.processAssignment('assign-1', NOW);
+
+    expect(result).toEqual({
+      status: 'skipped',
+      reasonCode: 'NO_ACTIVE_REWARD_GOAL',
+    });
+    expect(loggedCodes(deps)).toContain('SKIPPED_NO_ACTIVE_REWARD_GOAL');
+    expect(deps.prisma.tx.message.create).not.toHaveBeenCalled();
+  });
+
+  it('sends the progress message and never touches the incentive issuer or budget', async () => {
+    const deps = makeDeps(progressReminderAssignment);
+    deps.prisma.customerRewardGoal.findFirst.mockResolvedValue({
+      activatedAt: new Date('2026-08-25T00:00:00.000Z'),
+      targetAdditionalVisits: 3,
+      incentiveDefinition: { name: 'Upgrade gratis' },
+    });
+    deps.prisma.visit.count.mockResolvedValue(2); // 1 remaining
+    const service = makeService(deps);
+
+    const result = await service.processAssignment('assign-1', NOW);
+
+    expect(result).toEqual({
+      status: 'sent',
+      messageId: 'msg-1',
+      benefitIssued: false,
+    });
+    expect(deps.issuer.issueForAssignment).not.toHaveBeenCalled();
+    expect(deps.prisma.tx.message.create).toHaveBeenCalledTimes(1);
+    expect(loggedCodes(deps)).toContain('MESSAGE_QUEUED');
+  });
+
+  it('never checks the sending window differently — still respects it', async () => {
+    const deps = makeDeps(progressReminderAssignment);
+    deps.settings.isWithinSendingWindow.mockReturnValue(false);
+    deps.prisma.customerRewardGoal.findFirst.mockResolvedValue({
+      activatedAt: new Date('2026-08-25T00:00:00.000Z'),
+      targetAdditionalVisits: 1,
+      incentiveDefinition: { name: 'Upgrade gratis' },
+    });
+    const service = makeService(deps);
+
+    const result = await service.processAssignment('assign-1', NOW);
+
+    expect(result).toEqual({
+      status: 'skipped',
+      reasonCode: 'OUTSIDE_SENDING_WINDOW',
+    });
+  });
+
+  it('still re-validates the same eligibility rules (opt-out, cooldown, etc.)', async () => {
+    const deps = makeDeps(
+      assignmentFixture({
+        variant: {
+          id: 'var-progress',
+          strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+          incentiveDefinitionId: null,
+          incentiveDefinition: null,
+        },
+        customer: {
+          id: 'cust-1',
+          name: 'Ana',
+          isActive: true,
+          optedOut: true,
+          phoneE164: '+59891111111',
+        },
+      }),
+    );
+    const service = makeService(deps);
+
+    expect(await service.processAssignment('assign-1', NOW)).toEqual({
+      status: 'skipped',
+      reasonCode: 'OPTED_OUT',
     });
   });
 });

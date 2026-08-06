@@ -9,6 +9,7 @@ interface BusinessSelectorProps {
   activeBusinessId: string | null;
   activeBusinessName: string | null;
   collapsed?: boolean;
+  placement?: 'top' | 'bottom';
 }
 
 export default function BusinessSelector({
@@ -16,6 +17,7 @@ export default function BusinessSelector({
   activeBusinessId,
   activeBusinessName,
   collapsed = false,
+  placement = 'bottom',
 }: BusinessSelectorProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -79,7 +81,9 @@ export default function BusinessSelector({
 
       {open && (
         <div
-          className={`absolute top-full z-50 mt-3 overflow-hidden rounded-[18px] border border-white/80 bg-white/72 p-1.5 shadow-[0_18px_45px_rgba(56,45,125,0.18)] backdrop-blur-[24px] backdrop-saturate-[170%] ${
+          className={`absolute z-50 overflow-hidden rounded-[18px] border border-white/80 bg-white/72 p-1.5 shadow-[0_18px_45px_rgba(56,45,125,0.18)] backdrop-blur-[24px] backdrop-saturate-[170%] ${
+            placement === 'top' ? 'bottom-full mb-3' : 'top-full mt-3'
+          } ${
             collapsed ? 'left-full ml-3 w-60' : 'right-0 min-w-[240px]'
           }`}
         >

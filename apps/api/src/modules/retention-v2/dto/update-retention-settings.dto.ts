@@ -90,4 +90,32 @@ export class UpdateRetentionSettingsDto {
   @IsOptional()
   @IsBoolean()
   dryRunEnabled?: boolean;
+
+  // Fase E — Reward Goals.
+  @IsOptional()
+  @IsBoolean()
+  rewardGoalsEnabled?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  rewardGoalMinVisits?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(20)
+  rewardGoalMaxVisits?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(90)
+  rewardGoalCooldownDays?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  maxPromisedRewardGoalsPerIncentive?: number;
 }

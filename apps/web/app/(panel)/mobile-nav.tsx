@@ -28,7 +28,7 @@ export default function MobileNav({ isImpersonating, isCheckinV2 }: { isImperson
   const items = MAIN_NAV_ITEMS.filter((item) => (!item.impersonatorOnly || isImpersonating) && (!item.checkinV2Only || isCheckinV2));
 
   return (
-    <nav className="relative z-20 mx-3 mt-2 overflow-hidden rounded-[18px] border border-white/75 bg-white/58 px-2.5 py-2 shadow-[0_10px_28px_rgba(56,45,125,0.10),inset_0_1px_0_rgba(255,255,255,0.86)] backdrop-blur-[24px] backdrop-saturate-[175%] lg:hidden">
+    <nav className="relative z-20 overflow-hidden rounded-[18px] border border-white/75 bg-white/58 px-2.5 py-2 shadow-[0_10px_28px_rgba(56,45,125,0.10),inset_0_1px_0_rgba(255,255,255,0.86)] backdrop-blur-[24px] backdrop-saturate-[175%] lg:hidden">
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent"

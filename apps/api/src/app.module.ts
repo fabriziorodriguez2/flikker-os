@@ -31,6 +31,8 @@ import { RetentionModule } from './modules/retention/retention.module';
 import { VisitSourcesModule } from './modules/visit-sources/visit-sources.module';
 import { CheckinModule } from './modules/checkin/checkin.module';
 import { CheckinMetricsModule } from './modules/checkin-metrics/checkin-metrics.module';
+import { FlikkerAccountModule } from './modules/flikker-account/flikker-account.module';
+import { RewardGoalsModule } from './modules/reward-goals/reward-goals.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -66,6 +68,8 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     VisitSourcesModule,
     CheckinModule,
     CheckinMetricsModule,
+    FlikkerAccountModule,
+    RewardGoalsModule,
   ],
   controllers: [AppController],
 })
