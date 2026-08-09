@@ -1,0 +1,196 @@
+
+=== RUN D2C seed 1 (1/6) — REWARD_PROGRESS — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=215648
+Cleaned isolated business 76035557-a6bb-48db-ad69-ef55f8296998 from the simulation database.
+
+=== RUN D2C seed 2 (2/6) — REWARD_PROGRESS — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=192948
+Cleaned isolated business 43f1e8fb-1a99-4918-bbd5-5f8f7cd9f46e from the simulation database.
+
+=== RUN D2C seed 3 (3/6) — REWARD_PROGRESS — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=177840
+Cleaned isolated business db25ce72-d7b5-49b4-a77f-08707a63c457 from the simulation database.
+
+=== RUN D2C seed 4 (4/6) — REWARD_PROGRESS — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=217517
+Cleaned isolated business b91350f4-20f0-4081-afc1-4d8b85c2db0f from the simulation database.
+
+=== RUN D2C seed 5 (5/6) — REWARD_PROGRESS — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=221547
+Cleaned isolated business 700f7a46-8553-4ef1-9470-d205c395f11b from the simulation database.
+
+=== RUN D2C seed 6 (6/6) — REWARD_PROGRESS — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=231038
+Cleaned isolated business 55294876-5bfd-438f-8b1a-356a7dee2a0d from the simulation database.
+
+
+=== PER-SEED RESULTS ===
+[
+  {
+    "seed": 1,
+    "simulationRunId": "76c964c6-45be-4271-864b-90ab0e651147",
+    "winnerAccuracy": "CORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6944990176817288,
+    "estimationErrorPercent": 64.7304153583746,
+    "estimatedIncrementalRevenue": 4179.310344827583,
+    "promotionalCost": 0,
+    "anyCriticalInvariantFailed": false,
+    "clearWinner": null,
+    "automaticApplied": false,
+    "exposedByStrategyType": {
+      "PROGRESS_REMINDER": 355,
+      "CONTROL": 145
+    },
+    "progress": {
+      "activeGoalEligible": 87,
+      "progressAssignments": 355,
+      "progressMessagesSent": 355,
+      "progressSkippedNoGoal": 0
+    }
+  },
+  {
+    "seed": 2,
+    "simulationRunId": "63fd3be0-c71f-428f-9497-f6406ffd035d",
+    "winnerAccuracy": "CORRECT",
+    "overallStatus": "PASS",
+    "pilotReadiness": "PILOT_READY",
+    "checkinVisibilityRate": 0.6879466412577417,
+    "estimationErrorPercent": 18.456122810780126,
+    "estimatedIncrementalRevenue": 10912.195121951205,
+    "promotionalCost": 0,
+    "anyCriticalInvariantFailed": false,
+    "clearWinner": null,
+    "automaticApplied": false,
+    "exposedByStrategyType": {
+      "PROGRESS_REMINDER": 377,
+      "CONTROL": 123
+    },
+    "progress": {
+      "activeGoalEligible": 91,
+      "progressAssignments": 377,
+      "progressMessagesSent": 377,
+      "progressSkippedNoGoal": 0
+    }
+  },
+  {
+    "seed": 3,
+    "simulationRunId": "18effdc4-77c5-40d3-a158-75d11cb638db",
+    "winnerAccuracy": "CORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6945646945646946,
+    "estimationErrorPercent": 317.64990022923075,
+    "estimatedIncrementalRevenue": -27176.97841726619,
+    "promotionalCost": 0,
+    "anyCriticalInvariantFailed": false,
+    "clearWinner": null,
+    "automaticApplied": false,
+    "exposedByStrategyType": {
+      "PROGRESS_REMINDER": 361,
+      "CONTROL": 139
+    },
+    "progress": {
+      "activeGoalEligible": 85,
+      "progressAssignments": 361,
+      "progressMessagesSent": 361,
+      "progressSkippedNoGoal": 0
+    }
+  },
+  {
+    "seed": 4,
+    "simulationRunId": "a743f0bb-8d40-4db4-8668-32b7680b3a0a",
+    "winnerAccuracy": "CORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6915038618809632,
+    "estimationErrorPercent": 145.4364411714892,
+    "estimatedIncrementalRevenue": -5414.814814814814,
+    "promotionalCost": 0,
+    "anyCriticalInvariantFailed": false,
+    "clearWinner": null,
+    "automaticApplied": false,
+    "exposedByStrategyType": {
+      "CONTROL": 162,
+      "PROGRESS_REMINDER": 338
+    },
+    "progress": {
+      "activeGoalEligible": 85,
+      "progressAssignments": 338,
+      "progressMessagesSent": 338,
+      "progressSkippedNoGoal": 0
+    }
+  },
+  {
+    "seed": 5,
+    "simulationRunId": "8e61815b-7305-43e4-a03a-ab2d5828f2ae",
+    "winnerAccuracy": "CORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6811175337186898,
+    "estimationErrorPercent": 175.25650082801226,
+    "estimatedIncrementalRevenue": -8364.705882352939,
+    "promotionalCost": 0,
+    "anyCriticalInvariantFailed": false,
+    "clearWinner": null,
+    "automaticApplied": false,
+    "exposedByStrategyType": {
+      "PROGRESS_REMINDER": 330,
+      "CONTROL": 170
+    },
+    "progress": {
+      "activeGoalEligible": 86,
+      "progressAssignments": 330,
+      "progressMessagesSent": 330,
+      "progressSkippedNoGoal": 0
+    }
+  },
+  {
+    "seed": 6,
+    "simulationRunId": "54061e31-b371-4a7d-b652-c411b1b572f6",
+    "winnerAccuracy": "CORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.7130559540889526,
+    "estimationErrorPercent": 30.753676430175837,
+    "estimatedIncrementalRevenue": 9038.848920863322,
+    "promotionalCost": 0,
+    "anyCriticalInvariantFailed": false,
+    "clearWinner": null,
+    "automaticApplied": false,
+    "exposedByStrategyType": {
+      "PROGRESS_REMINDER": 361,
+      "CONTROL": 139
+    },
+    "progress": {
+      "activeGoalEligible": 88,
+      "progressAssignments": 361,
+      "progressMessagesSent": 361,
+      "progressSkippedNoGoal": 0
+    }
+  }
+]
+
+=== BATCH AGGREGATE (§19/§24) ===
+{
+  "n": 6,
+  "correctWinnerRate": 1,
+  "noConclusionRate": 0,
+  "incorrectWinnerRate": 0,
+  "clearWinnerRate": null,
+  "automaticAppliedRate": 0,
+  "meanExposedControl": 146.33333333333334,
+  "meanExposedChallenger": 353.6666666666667,
+  "meanVisibility": 0.6937812838654618,
+  "meanEstimationError": 125.38050947134379,
+  "estimationErrorSampleCount": 6,
+  "safetyFailureRate": 0,
+  "meanNetValue": -2804.357454465305,
+  "progress": {
+    "meanActiveGoalEligible": 87,
+    "meanProgressAssignments": 353.6666666666667,
+    "meanProgressMessagesSent": 353.6666666666667,
+    "totalProgressSkippedNoGoal": 0
+  }
+}

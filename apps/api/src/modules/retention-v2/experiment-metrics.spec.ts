@@ -1,6 +1,8 @@
 import {
   computeVariantStats,
   determineWinner,
+  determineWinnerByEconomics,
+  determineWinnerByReturnRate,
   estimatedIncrementalReturns,
   evidenceState,
   twoProportionZTest,
@@ -223,5 +225,87 @@ describe('determineWinner — Fase D §23', () => {
       kind: 'BEST_RETURN_RATE',
       variantId: 'var-solid',
     });
+  });
+});
+
+describe('determineWinnerByReturnRate / determineWinnerByEconomics — ajuste pre-piloto §1: kept strictly separate', () => {
+  // The exact Fase D §23 example above, split: `discount-20` has the higher
+  // RETURN rate; `upgrade` has the higher NET VALUE. `determineWinner` picks
+  // `upgrade` (prefers economics) — the two functions below must each pick
+  // their OWN answer regardless of what the other objective would say.
+  const control = stats({ returnRate: 0.08 });
+  const higherReturnCheaperMargin = {
+    stats: stats({ variantId: 'discount-20', returnRate: 0.24 }),
+    netIncrementalValue: 300,
+  };
+  const lowerReturnBetterMargin = {
+    stats: stats({ variantId: 'upgrade', returnRate: 0.22 }),
+    netIncrementalValue: 450,
+  };
+
+  it('determineWinnerByReturnRate always picks the higher return rate, even when economics disagree', () => {
+    expect(
+      determineWinnerByReturnRate(control, [
+        higherReturnCheaperMargin,
+        lowerReturnBetterMargin,
+      ]),
+    ).toEqual({ kind: 'BEST_RETURN_RATE', variantId: 'discount-20' });
+  });
+
+  it('determineWinnerByEconomics always picks the higher net value, even though it has the lower return rate', () => {
+    expect(
+      determineWinnerByEconomics(control, [
+        higherReturnCheaperMargin,
+        lowerReturnBetterMargin,
+      ]),
+    ).toEqual({ kind: 'BEST_INCREMENTAL_VALUE', variantId: 'upgrade' });
+  });
+
+  it('determineWinnerByReturnRate ignores economics entirely — same answer whether or not any candidate has a known net value', () => {
+    const noEconomicsAtAll = [
+      {
+        stats: stats({ variantId: 'a', returnRate: 0.24 }),
+        netIncrementalValue: null,
+      },
+      {
+        stats: stats({ variantId: 'b', returnRate: 0.22 }),
+        netIncrementalValue: null,
+      },
+    ];
+    expect(determineWinnerByReturnRate(control, noEconomicsAtAll)).toEqual({
+      kind: 'BEST_RETURN_RATE',
+      variantId: 'a',
+    });
+  });
+
+  it('determineWinnerByEconomics is NO_CONCLUSION when even one comparable candidate lacks known economics — never picks from a partial set', () => {
+    const partial = [
+      higherReturnCheaperMargin,
+      {
+        stats: stats({ variantId: 'unknown-cost', returnRate: 0.3 }),
+        netIncrementalValue: null,
+      },
+    ];
+    expect(determineWinnerByEconomics(control, partial)).toEqual({
+      kind: 'NO_CONCLUSION',
+      reason: 'ECONOMICS_UNKNOWN',
+    });
+  });
+
+  it('both are NO_CONCLUSION under the same gates as determineWinner (no control, control insufficient, all candidates insufficient)', () => {
+    expect(determineWinnerByReturnRate(undefined, [])).toEqual({
+      kind: 'NO_CONCLUSION',
+      reason: 'NO_CONTROL',
+    });
+    expect(determineWinnerByEconomics(undefined, [])).toEqual({
+      kind: 'NO_CONCLUSION',
+      reason: 'NO_CONTROL',
+    });
+    const insufficientControl = stats({ evidenceState: 'INSUFFICIENT_DATA' });
+    expect(
+      determineWinnerByReturnRate(insufficientControl, [
+        higherReturnCheaperMargin,
+      ]),
+    ).toEqual({ kind: 'NO_CONCLUSION', reason: 'CONTROL_INSUFFICIENT_DATA' });
   });
 });

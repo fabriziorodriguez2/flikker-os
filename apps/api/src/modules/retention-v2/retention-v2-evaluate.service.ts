@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import {
   CustomerSegment,
   ExperienceVersion,
+  RetentionObjective,
+  RetentionSettings,
   RetentionStrategyType,
+  RewardGoalStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { computeVisitFrequency } from './visit-frequency';
@@ -68,9 +71,28 @@ export class RetentionV2EvaluateService {
 
     for (const business of businesses) {
       try {
-        const result = await this.evaluateBusiness(business, now);
+        // Fetched once and shared with both recruitment passes below — this
+        // is the same business's settings row either way, and fetching it
+        // twice per business, every day, would be pure waste.
+        const settings = await this.settings.getOrCreate(business.id);
+
+        const result = await this.evaluateBusiness(business, settings, now);
         assigned += result.assigned;
         dryRunCandidates += result.dryRunCandidates;
+
+        // Pre-piloto fix — a second, independent recruitment pass for
+        // REWARD_GOAL_PROGRESS experiments. Deliberately NOT folded into
+        // `evaluateBusiness`'s segment-based loop above: this objective's
+        // population ("has an ACTIVE reward goal") is orthogonal to
+        // CustomerSegment, so it needs its own resolution, not an extension
+        // of `objectiveForSegment`. See `evaluateBusinessForRewardGoalProgress`.
+        const progressResult = await this.evaluateBusinessForRewardGoalProgress(
+          business,
+          settings,
+          now,
+        );
+        assigned += progressResult.assigned;
+        dryRunCandidates += progressResult.dryRunCandidates;
       } catch (error) {
         // One broken business must not stop the sweep for the others.
         this.logger.error(
@@ -95,9 +117,9 @@ export class RetentionV2EvaluateService {
       experienceVersion: ExperienceVersion;
       retentionEngineV2Enabled: boolean;
     },
+    settings: RetentionSettings,
     now: Date,
   ): Promise<{ assigned: number; dryRunCandidates: number }> {
-    const settings = await this.settings.getOrCreate(business.id);
     const none = { assigned: 0, dryRunCandidates: 0 };
     if (!settings.automaticCampaignsEnabled) return none;
 
@@ -221,6 +243,184 @@ export class RetentionV2EvaluateService {
           assignmentId: outcome.assignmentId,
           decisionCode: DECISION_CODES.ASSIGNED,
           metadata: {
+            segment,
+            experimentId: experiment.id,
+            strategyType: outcome.strategyType,
+            daysSinceLastVisit: frequency.daysSinceLastVisit,
+            typicalIntervalDays: frequency.typicalIntervalDays,
+          },
+        });
+      }
+    }
+
+    return { assigned, dryRunCandidates };
+  }
+
+  /**
+   * Pre-piloto fix — recruitment for the REWARD_GOAL_PROGRESS objective.
+   *
+   * The population is "customers with an ACTIVE, unexpired CustomerRewardGoal
+   * and pending progress" — resolved directly by the DB query below, not via
+   * `segmentCustomer`/`objectiveForSegment`/`resolveApplicable` (those are
+   * segment-based, and this population is orthogonal to segment: Reward
+   * Goals are never created for AT_RISK/INACTIVE customers in the first
+   * place — see `reward-goal-rules.ts`'s `REWARD_GOAL_TARGET_RANGE`).
+   *
+   * This is what makes CONTROL and PROGRESS_REMINDER causally comparable for
+   * this objective: BOTH variants are allocated (via the same `pickVariant`
+   * call, from the same query result below) from one identical pool. Nothing
+   * here creates a `CustomerRewardGoal` — the goal must already exist,
+   * created by the unrelated, unchanged `RewardGoalEngineService`/
+   * `RewardGoalSweepService`. "Remaining progress > 0" is not recomputed here:
+   * `status: ACTIVE` already guarantees it structurally (see
+   * `RewardGoalUnlockService` — a goal transitions away from ACTIVE the
+   * moment its target is reached), and `sendProgressReminder` re-checks for
+   * an ACTIVE goal again immediately before sending regardless.
+   */
+  private async evaluateBusinessForRewardGoalProgress(
+    business: {
+      id: string;
+      isActive: boolean;
+      experienceVersion: ExperienceVersion;
+      retentionEngineV2Enabled: boolean;
+    },
+    settings: RetentionSettings,
+    now: Date,
+  ): Promise<{ assigned: number; dryRunCandidates: number }> {
+    const none = { assigned: 0, dryRunCandidates: 0 };
+    if (!settings.automaticCampaignsEnabled) return none;
+
+    const running = await this.experiments.findUsableRunning(business.id);
+    const experiment = running.find(
+      (e) => e.objective === RetentionObjective.REWARD_GOAL_PROGRESS,
+    );
+    if (!experiment) return none; // No progress experiment running — nothing to do.
+
+    // The population itself: has an ACTIVE, unexpired goal. `expiresAt: null`
+    // means "never expires" (mirrors `RewardGoalSweepService.expireOverdue`'s
+    // own `not: null` guard — a null expiry is never auto-expired).
+    const customers = await this.prisma.customer.findMany({
+      where: {
+        businessId: business.id,
+        isActive: true,
+        optedOut: false,
+        rewardGoals: {
+          some: {
+            status: RewardGoalStatus.ACTIVE,
+            OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+          },
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        isActive: true,
+        optedOut: true,
+        phoneE164: true,
+        visits: { select: { occurredAt: true } },
+      },
+    });
+
+    let assigned = 0;
+    let dryRunCandidates = 0;
+
+    for (const customer of customers) {
+      // Segment/frequency are computed only as an audit snapshot on the
+      // resulting RetentionAssignment row (segmentAtAssignment) — never used
+      // to gate this population. A customer with an active goal is typically
+      // NEW/REPEAT/FREQUENT/RECOVERED; whichever it is gets recorded as-is.
+      const frequency = computeVisitFrequency(
+        customer.visits.map((v) => v.occurredAt),
+        now,
+      );
+      const lastInterventionAt = await this.lastInterventionAt(customer.id);
+      const { segment } = segmentCustomer({
+        frequency,
+        lastInterventionAt,
+        now,
+      });
+
+      const [alreadyAssigned, messagesLast30Days] = await Promise.all([
+        this.isAssigned(experiment.id, customer.id),
+        this.retentionMessagesLast30Days(customer.id, now),
+      ]);
+
+      // Same generic contact-pressure/consent gate every other recruitment
+      // path uses — `segment: null` skips the segment-targetability check
+      // (population eligibility was already resolved by the query above),
+      // reusing the existing cooldown/monthly-limit/already-assigned rules
+      // rather than a second frequency engine.
+      const eligibility = evaluateEligibility({
+        business,
+        settings,
+        customer,
+        segment: null,
+        lastRetentionMessageAt: lastInterventionAt,
+        retentionMessagesLast30Days: messagesLast30Days,
+        alreadyAssigned,
+        returnedSinceEvaluation: false,
+        now,
+      });
+
+      if (!eligibility.eligible) {
+        if (eligibility.reasonCode !== 'ALREADY_ASSIGNED') {
+          await this.decisions.record({
+            businessId: business.id,
+            customerId: customer.id,
+            decisionCode: decisionCodeForRejection(eligibility.reasonCode),
+            metadata: {
+              objective: RetentionObjective.REWARD_GOAL_PROGRESS,
+              reasonCode: eligibility.reasonCode,
+            },
+          });
+        }
+        continue;
+      }
+
+      if (settings.dryRunEnabled) {
+        const variant = pickVariant(
+          experiment.id,
+          customer.id,
+          experiment.variants,
+        );
+        if (!variant) continue;
+
+        dryRunCandidates += 1;
+        const isControl =
+          variant.strategyType === RetentionStrategyType.CONTROL;
+        await this.decisions.record({
+          businessId: business.id,
+          customerId: customer.id,
+          decisionCode: isControl
+            ? DECISION_CODES.DRY_RUN_WOULD_CONTROL
+            : DECISION_CODES.DRY_RUN_WOULD_SEND,
+          metadata: {
+            objective: RetentionObjective.REWARD_GOAL_PROGRESS,
+            experimentId: experiment.id,
+            variantId: variant.id,
+            strategyType: variant.strategyType,
+          },
+        });
+        continue;
+      }
+
+      const outcome = await this.assignments.assign({
+        experimentId: experiment.id,
+        businessId: business.id,
+        customerId: customer.id,
+        segment,
+        frequency,
+      });
+
+      if (outcome.status === 'assigned') {
+        assigned += 1;
+        await this.decisions.record({
+          businessId: business.id,
+          customerId: customer.id,
+          assignmentId: outcome.assignmentId,
+          decisionCode: DECISION_CODES.ASSIGNED,
+          metadata: {
+            objective: RetentionObjective.REWARD_GOAL_PROGRESS,
             segment,
             experimentId: experiment.id,
             strategyType: outcome.strategyType,

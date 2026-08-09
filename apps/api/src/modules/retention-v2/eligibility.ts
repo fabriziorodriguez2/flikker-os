@@ -26,7 +26,15 @@ export interface EligibilityFacts {
     optedOut: boolean;
     phoneE164: string | null;
   };
-  segment: CustomerSegment;
+  /**
+   * `null` means the caller already resolved population eligibility upstream
+   * by some other means (Fase pre-piloto: `RetentionV2EvaluateService`'s
+   * reward-goal-progress recruitment resolves its population by "has an
+   * ACTIVE CustomerRewardGoal", not by segment) — the segment-targetability
+   * check below is skipped entirely in that case. Every existing caller
+   * keeps passing a real segment and keeps the exact original behavior.
+   */
+  segment: CustomerSegment | null;
   /** Last Retention V2 message sent to this customer, if any. */
   lastRetentionMessageAt: Date | null;
   /** Retention V2 messages sent to this customer in the last 30 days. */
@@ -96,7 +104,7 @@ export function evaluateEligibility(
     return { eligible: false, reasonCode: 'NO_CONTACT_CHANNEL' };
   }
 
-  if (!TARGETABLE_SEGMENTS.includes(facts.segment)) {
+  if (facts.segment !== null && !TARGETABLE_SEGMENTS.includes(facts.segment)) {
     return { eligible: false, reasonCode: 'SEGMENT_NOT_TARGETABLE' };
   }
 

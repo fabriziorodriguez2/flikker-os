@@ -68,6 +68,16 @@ function openingLine(
       return `hace unos días que no te vemos por *${businessName}*.`;
     case RetentionObjective.INACTIVE_RECOVERY:
       return `hace bastante que no pasás por *${businessName}*.`;
+    case RetentionObjective.REWARD_GOAL_PROGRESS:
+      // Unreachable in practice: a REWARD_GOAL_PROGRESS experiment only ever
+      // allows CONTROL (throws above, before this is called) or
+      // PROGRESS_REMINDER (returns via buildProgressReminderMessage before
+      // this is called) — see RetentionExperimentsAdminService's
+      // validateStrategyForObjective. Kept explicit rather than a silent
+      // fallthrough, same as CONTROL above.
+      throw new Error(
+        'openingLine is never used for REWARD_GOAL_PROGRESS — PROGRESS_REMINDER and CONTROL both short-circuit before this call',
+      );
   }
 }
 

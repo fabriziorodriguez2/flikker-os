@@ -1,0 +1,163 @@
+
+=== RUN D — HIGH_CHECKIN_COMPLIANCE — days=60 customers=500 seed=42 withAi=false optMode=AUTOMATIC ===
+SimulationRun id: 29064785-259d-4008-a4a9-d52507b1f8f1
+status=COMPLETED progress=100 elapsedMs=135012 failureReason=none
+
+--- RESULTS ---
+{
+  "aiCalls": 0,
+  "durationMs": 134979,
+  "trueWinner": "SOFT_BENEFIT",
+  "messagesRead": 87,
+  "messagesSent": 153,
+  "reviewClicks": 331,
+  "reviewPrompts": 1649,
+  "detectedWinner": {
+    "kind": "BEST_INCREMENTAL_VALUE",
+    "variantId": "1f51c445-de5b-4799-a688-faf37e07521c"
+  },
+  "messagesFailed": 6,
+  "visibleReturns": 1649,
+  "winnerAccuracy": "INCORRECT",
+  "finalAllocation": {
+    "CONTROL": 15,
+    "REMINDER": 30,
+    "SOFT_BENEFIT": 25,
+    "PROGRESS_REMINDER": 30
+  },
+  "physicalReturns": 1952,
+  "promotionalCost": 2580,
+  "customersCreated": 500,
+  "invariantResults": [
+    {
+      "code": "SIMULATION_DATABASE_ISOLATED",
+      "status": "PASS",
+      "message": "Connected to the isolated simulation database (flikker_simulation).",
+      "critical": true
+    },
+    {
+      "code": "NO_LEGACY_BUSINESS_PROCESSED_BY_V2",
+      "status": "PASS",
+      "message": "The simulated business is CHECKIN_V2 with Retention V2 enabled.",
+      "critical": true
+    },
+    {
+      "code": "ALLOCATION_SUMS_TO_100",
+      "status": "PASS",
+      "message": "Active variant allocation sums to exactly 100%.",
+      "critical": true
+    },
+    {
+      "code": "CONTROL_FLOOR_RESPECTED",
+      "status": "PASS",
+      "message": "CONTROL holds 15%, at or above the 10% floor.",
+      "critical": true
+    },
+    {
+      "code": "EXPLORATION_FLOOR_RESPECTED",
+      "status": "PASS",
+      "message": "Combined non-winning exploration is 55 points, at or above the 15-point floor.",
+      "critical": true
+    },
+    {
+      "code": "MONTHLY_INCENTIVE_COUNT_WITHIN_LIMIT",
+      "status": "PASS",
+      "message": "0 automated incentives issued this month, within the 300 cap.",
+      "critical": true
+    },
+    {
+      "code": "MONTHLY_INCENTIVE_COST_WITHIN_LIMIT",
+      "status": "PASS",
+      "message": "Estimated 0.00 spent this month, within the 50000 cap.",
+      "critical": true
+    },
+    {
+      "code": "NO_DUPLICATE_MESSAGE_PER_ASSIGNMENT",
+      "status": "PASS",
+      "message": "Every Message is attached to at most one assignment.",
+      "critical": true
+    },
+    {
+      "code": "NO_DUPLICATE_BENEFIT_PARTICIPATION",
+      "status": "PASS",
+      "message": "Every BenefitParticipation is owned by at most one assignment/goal.",
+      "critical": true
+    },
+    {
+      "code": "MAX_ONE_ACTIVE_REWARD_GOAL_PER_CUSTOMER",
+      "status": "PASS",
+      "message": "No customer has more than one ACTIVE Reward Goal at a time.",
+      "critical": false
+    },
+    {
+      "code": "NO_ASSIGNMENT_MULTIPLE_VARIANT",
+      "status": "PASS",
+      "message": "No customer was assigned more than once to this experiment.",
+      "critical": true
+    },
+    {
+      "code": "AI_USAGE_WITHIN_MAX_CALLS",
+      "status": "PASS",
+      "message": "0 AI call(s) recorded, within the 20 cap.",
+      "critical": true
+    }
+  ],
+  "initialAllocation": {
+    "CONTROL": 15,
+    "REMINDER": 30,
+    "SOFT_BENEFIT": 25,
+    "PROGRESS_REMINDER": 30
+  },
+  "messagesDelivered": 48,
+  "controlAssignments": 46,
+  "rewardGoalsCreated": 500,
+  "returnRateByVariant": {
+    "REMINDER": 0.6352941176470588,
+    "SOFT_BENEFIT": 0.6515151515151515,
+    "PROGRESS_REMINDER": 1
+  },
+  "rewardGoalsRedeemed": 406,
+  "rewardGoalsUnlocked": 408,
+  "trueEffectByVariant": {
+    "REMINDER": 0.0693800000000001,
+    "SOFT_BENEFIT": 0.08181999999999975,
+    "PROGRESS_REMINDER": 0.07352000000000004
+  },
+  "retentionAssignments": 280,
+  "checkinVisibilityRate": 0.8447745901639344,
+  "estimationErrorPercent": 260.91128656211805,
+  "trueIncrementalRevenue": 4120.005599999997,
+  "optimizationRunsApplied": 0,
+  "optimizationRunsSkipped": 60,
+  "estimatedEffectByVariant": {
+    "REMINDER": 0.15703324808184138,
+    "SOFT_BENEFIT": 0.17325428194993409,
+    "PROGRESS_REMINDER": null
+  },
+  "estimatedIncrementalRevenue": 14869.5652173913
+}
+
+--- SUMMARY (diagnosis) ---
+{
+  "failures": [],
+  "warnings": [
+    {
+      "code": "HIGH_ESTIMATION_ERROR",
+      "message": "El error de estimación de revenue incremental es del 260.9%."
+    },
+    {
+      "code": "INCORRECT_WINNER_DETECTED",
+      "message": "Flikker detectó un ganador distinto al verdadero en esta simulación."
+    }
+  ],
+  "overallStatus": "PASS_WITH_WARNINGS",
+  "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+  "recommendations": [
+    "Tratar las proyecciones económicas de este experimento como orientativas, no exactas, hasta acumular más muestra.",
+    "Revisar el tamaño de muestra mínimo y el umbral de significancia antes de confiar en la optimización automática para este tipo de negocio/escenario."
+  ]
+}
+
+SIMULATION_RUN_ID=29064785-259d-4008-a4a9-d52507b1f8f1
+THROWAWAY_USER_ID=666a003e-002b-4671-ad60-1b01f862219d
+Cleaned isolated business 3febc9a5-c485-43a6-9943-969185936515 from the simulation database.

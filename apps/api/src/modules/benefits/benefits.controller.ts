@@ -18,6 +18,7 @@ import { JwtGuard } from '../auth/guards/jwt.guard';
 import { BenefitsService } from './benefits.service';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { UpdateBenefitDto } from './dto/update-benefit.dto';
+import { UpdateBenefitRetentionBridgeDto } from './dto/update-benefit-retention-bridge.dto';
 
 @Controller('benefits')
 @UseGuards(JwtGuard, TenantGuard)
@@ -75,6 +76,19 @@ export class BenefitsController {
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
   deactivate(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.service.deactivate(req.currentBusinessId!, id);
+  }
+
+  // Piloto V2 — the only place a Benefit gets authorized for Retention V2
+  // recovery / reward-goal automation. Retention V2's own UI never creates.
+  @Patch(':id/retention-bridge')
+  @UseGuards(RolesGuard)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
+  setRetentionBridge(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Body() dto: UpdateBenefitRetentionBridgeDto,
+  ) {
+    return this.service.setRetentionBridge(req.currentBusinessId!, id, dto);
   }
 
   @Delete(':id')

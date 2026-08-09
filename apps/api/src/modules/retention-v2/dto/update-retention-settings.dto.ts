@@ -3,12 +3,14 @@ import {
   ArrayUnique,
   IsArray,
   IsBoolean,
+  IsEnum,
   IsInt,
   IsNumber,
   IsOptional,
   Max,
   Min,
 } from 'class-validator';
+import { OptimizationMode } from '@prisma/client';
 
 /**
  * Every field optional and independently settable — this is a PATCH, not a
@@ -118,4 +120,52 @@ export class UpdateRetentionSettingsDto {
   @IsInt()
   @Min(0)
   maxPromisedRewardGoalsPerIncentive?: number;
+
+  // Fase F — AI Layer per-business opt-in.
+  @IsOptional()
+  @IsBoolean()
+  aiCopyEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  aiInsightsEnabled?: boolean;
+
+  // Fase G — Safe Auto-Optimization.
+  @IsOptional()
+  @IsEnum(OptimizationMode)
+  optimizationMode?: OptimizationMode;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  minimumControlPercent?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  minimumExplorationPercent?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  @Max(100)
+  maxAllocationChangePerOptimization?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  optimizationCooldownHours?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  minimumExposedPerVariantForOptimization?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  minimumMeaningfulUpliftPoints?: number;
 }

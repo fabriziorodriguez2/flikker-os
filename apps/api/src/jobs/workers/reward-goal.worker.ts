@@ -32,7 +32,28 @@ export class RewardGoalWorker implements OnModuleInit, OnModuleDestroy {
 
   async process(job: Job) {
     if (job.name === RUN_REWARD_GOAL_SWEEP_JOB) {
-      return this.sweep.runDaily(new Date(), false);
+      const now = new Date();
+      // Same daily cron drives both reconciliations (Fase F §0.1): creation
+      // sweep and expiry sweep are independent concerns but need no separate
+      // queue/schedule — a failure in one must not skip the other.
+      const [sweep, expiry] = await Promise.allSettled([
+        this.sweep.runDaily(now, false),
+        this.sweep.expireOverdue(now),
+      ]);
+      if (sweep.status === 'rejected') {
+        this.logger.error(
+          `Reward goal creation sweep failed: ${String(sweep.reason)}`,
+        );
+      }
+      if (expiry.status === 'rejected') {
+        this.logger.error(
+          `Reward goal expiry sweep failed: ${String(expiry.reason)}`,
+        );
+      }
+      return {
+        sweep: sweep.status === 'fulfilled' ? sweep.value : null,
+        expiry: expiry.status === 'fulfilled' ? expiry.value : null,
+      };
     }
     this.logger.warn(`Unknown reward-goal job: ${job.name}`);
     return null;

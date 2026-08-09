@@ -196,6 +196,84 @@ describe('RetentionExperimentsAdminService — variant/incentive consistency', (
   });
 });
 
+describe('RetentionExperimentsAdminService — PROGRESS_REMINDER/REWARD_GOAL_PROGRESS pairing (pre-piloto fix)', () => {
+  it('rejects PROGRESS_REMINDER on a non-REWARD_GOAL_PROGRESS experiment', async () => {
+    const prisma = makePrisma({
+      experiment: experiment({
+        objective: RetentionObjective.AT_RISK_RECOVERY,
+      }),
+    });
+    const service = new RetentionExperimentsAdminService(prisma as never);
+
+    await expect(
+      service.addVariant('biz-1', 'exp-1', {
+        name: 'Progress',
+        strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+        allocationPercent: 70,
+      }),
+    ).rejects.toThrow('only allowed in a REWARD_GOAL_PROGRESS experiment');
+  });
+
+  it('rejects a SOFT_BENEFIT variant on a REWARD_GOAL_PROGRESS experiment', async () => {
+    const prisma = makePrisma({
+      experiment: experiment({
+        objective: RetentionObjective.REWARD_GOAL_PROGRESS,
+      }),
+    });
+    const service = new RetentionExperimentsAdminService(prisma as never);
+
+    await expect(
+      service.addVariant('biz-1', 'exp-1', {
+        name: 'Soft benefit',
+        strategyType: RetentionStrategyType.SOFT_BENEFIT,
+        incentiveDefinitionId: 'inc-1',
+        allocationPercent: 40,
+      }),
+    ).rejects.toThrow('only allows CONTROL and PROGRESS_REMINDER variants');
+  });
+
+  it('accepts CONTROL and PROGRESS_REMINDER on a REWARD_GOAL_PROGRESS experiment', async () => {
+    const prisma = makePrisma({
+      experiment: experiment({
+        objective: RetentionObjective.REWARD_GOAL_PROGRESS,
+      }),
+    });
+    const service = new RetentionExperimentsAdminService(prisma as never);
+
+    await service.addVariant('biz-1', 'exp-1', {
+      name: 'Progress',
+      strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+      allocationPercent: 70,
+    });
+
+    expect(prisma.retentionVariant.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not retroactively break an existing PROGRESS_REMINDER variant under AT_RISK_RECOVERY when updating an unrelated field', async () => {
+    // Historical/Simulation Center experiments may already have this
+    // combination (§5 — never migrated destructively). The check only fires
+    // when the STRATEGY itself is (re)written to something inconsistent; an
+    // update that leaves strategyType untouched must not be blocked by it.
+    const prisma = makePrisma({
+      experiment: experiment({
+        objective: RetentionObjective.AT_RISK_RECOVERY,
+      }),
+    });
+    prisma.retentionVariant.findFirst.mockResolvedValue({
+      id: 'var-1',
+      strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+      incentiveDefinitionId: null,
+    });
+    const service = new RetentionExperimentsAdminService(prisma as never);
+
+    await service.updateVariant('biz-1', 'exp-1', 'var-1', {
+      allocationPercent: 50,
+    });
+
+    expect(prisma.retentionVariant.update).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('RetentionExperimentsAdminService.start — Fase C.5 §4 checklist', () => {
   it('starts a well-formed DRAFT experiment', async () => {
     const prisma = makePrisma();

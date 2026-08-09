@@ -178,6 +178,12 @@ describe('evaluateEligibility — targeting', () => {
       });
     },
   );
+
+  it('skips the segment-targetability check entirely when segment is null (population already resolved upstream, e.g. reward-goal-progress recruitment)', () => {
+    expect(evaluateEligibility(facts({ segment: null }))).toEqual({
+      eligible: true,
+    });
+  });
 });
 
 describe('evaluateEligibility — contact pressure', () => {

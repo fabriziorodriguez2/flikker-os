@@ -49,6 +49,12 @@ export default async function PlatformLayout({
             >
               Test Lab
             </Link>
+            <Link
+              href="/platform/simulations"
+              className="hidden h-9 items-center justify-center rounded-lg border border-[#DCE2F0]/20 px-4 text-sm font-semibold text-[#DCE2F0] transition-colors hover:bg-white/10 hover:text-white sm:inline-flex"
+            >
+              Simulaciones
+            </Link>
             <span className="hidden text-sm font-semibold text-[#DCE2F0] sm:inline">
               {fullName || session.user.email}
             </span>

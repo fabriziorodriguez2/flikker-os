@@ -19,6 +19,9 @@ import { RetentionOutcomeService } from './retention-outcome.service';
 import { RetentionExperimentMetricsService } from './retention-experiment-metrics.service';
 import { RetentionResultsOverviewService } from './retention-results-overview.service';
 import { RetentionResultsController } from './retention-results.controller';
+import { AiModule } from '../ai/ai.module';
+import { AiRecommendationExplanationService } from '../ai/recommendation-explanation.service';
+import { RetentionOptimizationService } from './retention-optimization.service';
 
 /**
  * Retention Engine V2 runtime, plus the Fase C.5 configuration surface
@@ -27,7 +30,7 @@ import { RetentionResultsController } from './retention-results.controller';
  * controllers only let the owner configure what the workers read.
  */
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AiModule],
   controllers: [
     RetentionSettingsController,
     RetentionIncentivesController,
@@ -50,6 +53,8 @@ import { RetentionResultsController } from './retention-results.controller';
     RetentionOutcomeService,
     RetentionExperimentMetricsService,
     RetentionResultsOverviewService,
+    AiRecommendationExplanationService,
+    RetentionOptimizationService,
   ],
   exports: [
     RetentionV2EvaluateService,
@@ -58,6 +63,8 @@ import { RetentionResultsController } from './retention-results.controller';
     RetentionDecisionLogService,
     RetentionSettingsService,
     IncentiveIssuerService,
+    AiRecommendationExplanationService,
+    RetentionOptimizationService,
   ],
 })
 export class RetentionV2Module {}

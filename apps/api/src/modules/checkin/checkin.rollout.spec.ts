@@ -236,6 +236,10 @@ describe('Benefit redemption rollout', () => {
             experienceVersion,
           }),
         },
+        customerRewardGoal: {
+          findFirst: jest.fn().mockResolvedValue(null),
+          updateMany: jest.fn(),
+        },
       },
       benefits: {
         consumeRedemption: jest.fn(),
@@ -243,6 +247,7 @@ describe('Benefit redemption rollout', () => {
       },
       visits: { registerRedemptionVisit: jest.fn() },
       events: { emit: jest.fn() },
+      decisions: { record: jest.fn() },
     };
   }
 
@@ -253,6 +258,7 @@ describe('Benefit redemption rollout', () => {
       deps.benefits as never,
       deps.visits as never,
       deps.events as never,
+      deps.decisions as never,
     );
 
     await expect(
@@ -279,6 +285,7 @@ describe('Benefit redemption rollout', () => {
       deps.benefits as never,
       deps.visits as never,
       deps.events as never,
+      deps.decisions as never,
     );
 
     await expect(

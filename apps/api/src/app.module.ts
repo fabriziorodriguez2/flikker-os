@@ -33,6 +33,7 @@ import { CheckinModule } from './modules/checkin/checkin.module';
 import { CheckinMetricsModule } from './modules/checkin-metrics/checkin-metrics.module';
 import { FlikkerAccountModule } from './modules/flikker-account/flikker-account.module';
 import { RewardGoalsModule } from './modules/reward-goals/reward-goals.module';
+import { SimulationModule } from './modules/simulation/simulation.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -70,6 +71,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     CheckinMetricsModule,
     FlikkerAccountModule,
     RewardGoalsModule,
+    SimulationModule,
   ],
   controllers: [AppController],
 })

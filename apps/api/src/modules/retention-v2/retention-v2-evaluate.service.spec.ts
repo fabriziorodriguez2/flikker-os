@@ -218,6 +218,9 @@ describe('RetentionV2EvaluateService — business selection', () => {
     const result = await service.runDaily(NOW);
 
     expect(result.businesses).toBe(2);
+    // Once per business, shared between the segment-based and the
+    // reward-goal-progress recruitment passes — never fetched twice for the
+    // same business in the same sweep.
     expect(deps.settings.getOrCreate).toHaveBeenCalledTimes(2);
   });
 });
@@ -429,5 +432,128 @@ describe('RetentionV2EvaluateService — dry run (Fase C.5 §8)', () => {
 
     expect(result.assigned).toBe(1);
     expect(deps.assignments.assign).toHaveBeenCalledTimes(1);
+  });
+});
+
+const PROGRESS_EXPERIMENT = {
+  id: 'exp-progress',
+  objective: RetentionObjective.REWARD_GOAL_PROGRESS,
+  segment: null,
+  variants: [
+    {
+      id: 'v-pc',
+      strategyType: RetentionStrategyType.CONTROL,
+      allocationPercent: 30,
+      active: true,
+    },
+    {
+      id: 'v-pr',
+      strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+      allocationPercent: 70,
+      active: true,
+    },
+  ],
+};
+
+describe('RetentionV2EvaluateService — REWARD_GOAL_PROGRESS recruitment (pre-piloto fix)', () => {
+  it('queries the population by active reward goal, not by segment', async () => {
+    const deps = makeDeps({
+      experiments: [PROGRESS_EXPERIMENT],
+      customers: [customer('c1', [])],
+    });
+    const service = makeService(deps);
+
+    await service.runDaily(NOW);
+
+    expect(deps.prisma.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          rewardGoals: {
+            some: expect.objectContaining({ status: 'ACTIVE' }),
+          },
+        }),
+      }),
+    );
+  });
+
+  it("recruits into the REWARD_GOAL_PROGRESS experiment regardless of the customer's actual segment", async () => {
+    // A brand-new customer with zero visits (segment NEW, not AT_RISK) — the
+    // segment-based path would never touch this experiment (objectiveForSegment
+    // maps AT_RISK_RECOVERY, not REWARD_GOAL_PROGRESS), but this recruitment
+    // pass does not go through objectiveForSegment at all.
+    const deps = makeDeps({
+      experiments: [PROGRESS_EXPERIMENT],
+      customers: [customer('c1', [])],
+    });
+    const service = makeService(deps);
+
+    const result = await service.runDaily(NOW);
+
+    expect(result.assigned).toBe(1);
+    expect(deps.assignments.assign).toHaveBeenCalledWith(
+      expect.objectContaining({
+        experimentId: 'exp-progress',
+        customerId: 'c1',
+      }),
+    );
+  });
+
+  it('is a no-op when no REWARD_GOAL_PROGRESS experiment is running, even if an AT_RISK_RECOVERY one is', async () => {
+    const deps = makeDeps({
+      experiments: [AT_RISK_EXPERIMENT],
+      customers: [customer('c1', [])],
+    });
+    const service = makeService(deps);
+
+    const result = await service.runDaily(NOW);
+
+    expect(deps.assignments.assign).not.toHaveBeenCalledWith(
+      expect.objectContaining({ experimentId: 'exp-progress' }),
+    );
+    expect(result.assigned).toBe(0);
+  });
+
+  it('still respects cooldown and monthly-limit — reuses evaluateEligibility, not a second frequency engine', async () => {
+    const deps = makeDeps({
+      experiments: [PROGRESS_EXPERIMENT],
+      customers: [customer('c1', [])],
+    });
+    deps.prisma.retentionAssignment.count.mockResolvedValue(2); // at the 30-day cap
+    const service = makeService(deps);
+
+    const result = await service.runDaily(NOW);
+
+    expect(result.assigned).toBe(0);
+    expect(
+      deps.decisions.record.mock.calls.map(
+        (c) => (c[0] as { decisionCode: string }).decisionCode,
+      ),
+    ).toContain('SKIPPED_LIMIT');
+  });
+
+  it('respects dry run the same way as every other recruitment pass', async () => {
+    const deps = makeDeps({
+      experiments: [PROGRESS_EXPERIMENT],
+      customers: [customer('c1', [])],
+      dryRunEnabled: true,
+    });
+    const service = makeService(deps);
+
+    const result = await service.runDaily(NOW);
+
+    expect(deps.assignments.assign).not.toHaveBeenCalled();
+    expect(result.dryRunCandidates).toBe(1);
+  });
+
+  it('fetches settings once per business, shared with the segment-based pass', async () => {
+    const deps = makeDeps({
+      experiments: [AT_RISK_EXPERIMENT, PROGRESS_EXPERIMENT],
+      customers: [customer('c1', visits(7, 5, 20))],
+    });
+    const service = makeService(deps);
+
+    await service.runDaily(NOW);
+
+    expect(deps.settings.getOrCreate).toHaveBeenCalledTimes(1);
   });
 });

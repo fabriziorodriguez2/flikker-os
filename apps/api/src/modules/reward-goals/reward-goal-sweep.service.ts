@@ -3,6 +3,10 @@ import { ExperienceVersion, RewardGoalStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { resolveCustomerSegment } from './resolve-customer-segment';
 import { RewardGoalEngineService } from './reward-goal-engine.service';
+import {
+  DECISION_CODES,
+  RetentionDecisionLogService,
+} from '../retention-v2/retention-decision-log.service';
 
 /**
  * Periodic reconciliation sweep (Fase E §33) — the safety net behind the
@@ -23,6 +27,7 @@ export class RewardGoalSweepService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly engine: RewardGoalEngineService,
+    private readonly decisions: RetentionDecisionLogService,
   ) {}
 
   async runDaily(now: Date = new Date(), dryRun = false) {
@@ -54,6 +59,55 @@ export class RewardGoalSweepService {
       evaluated,
       created: wouldCreateOrCreated,
     };
+  }
+
+  /**
+   * Reconciliation for the OTHER terminal transition (Fase F §0.1): a
+   * `CustomerRewardGoal` whose promise window ran out without the customer
+   * finishing it. `expiresAt` is an absolute instant (set once at creation
+   * from the incentive's own `expiresInDays`), so this is a plain instant
+   * comparison — there is no calendar-day/timezone conversion to get right
+   * here, unlike the check-in flow's own day-key logic.
+   *
+   * Runs globally, not scoped to `rewardGoalsEnabled`: a goal already made is
+   * a promise already given, and it must still resolve on schedule even if
+   * the business later turns the feature off. Idempotent and retry-safe the
+   * same way every other reward-goal transition is — a guarded `updateMany`
+   * on `status: ACTIVE`, so re-running this after a crash mid-sweep never
+   * double-transitions or double-logs a goal the previous run already closed.
+   * Never touches `BenefitParticipation` — an expired goal was never unlocked,
+   * so there is nothing to issue or revoke.
+   */
+  async expireOverdue(now: Date = new Date()) {
+    const overdue = await this.prisma.customerRewardGoal.findMany({
+      where: {
+        status: RewardGoalStatus.ACTIVE,
+        expiresAt: { not: null, lt: now },
+      },
+      select: { id: true, businessId: true, customerId: true },
+    });
+
+    let expired = 0;
+    for (const goal of overdue) {
+      const transitioned = await this.prisma.customerRewardGoal.updateMany({
+        where: { id: goal.id, status: RewardGoalStatus.ACTIVE },
+        data: { status: RewardGoalStatus.EXPIRED },
+      });
+      if (transitioned.count === 0) continue; // already closed by a concurrent/previous run
+
+      expired += 1;
+      await this.decisions.record({
+        businessId: goal.businessId,
+        customerId: goal.customerId,
+        decisionCode: DECISION_CODES.REWARD_GOAL_EXPIRED,
+        metadata: { goalId: goal.id },
+      });
+    }
+
+    this.logger.log(
+      `Reward goal expiry checked=${overdue.length} expired=${expired}`,
+    );
+    return { checked: overdue.length, expired };
   }
 
   /** CHECKIN_V2 only — a LEGACY business must never get a Reward Goal (Fase E §42). */

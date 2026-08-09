@@ -220,6 +220,15 @@ enum RetentionObjective {
   SECOND_VISIT
   AT_RISK_RECOVERY
   INACTIVE_RECOVERY
+  /// Pre-piloto fix (Simulation Center finding) — loyalty/progress reminders
+  /// for a customer who already has an ACTIVE CustomerRewardGoal, decoupled
+  /// from AT_RISK/INACTIVE recovery. Recruitment for this objective does NOT
+  /// go through `objectiveForSegment`/`resolveApplicable` (segment-based) —
+  /// its population is "has an active reward goal", which is orthogonal to
+  /// CustomerSegment and in practice excludes AT_RISK/INACTIVE entirely
+  /// (see reward-goal-rules.ts's REWARD_GOAL_TARGET_RANGE). See
+  /// RetentionV2EvaluateService.evaluateBusinessForRewardGoalProgress.
+  REWARD_GOAL_PROGRESS
 }
 
 // Strategy of an experiment variant. CONTROL receives nothing at all — it is
@@ -356,6 +365,7 @@ model User {
   authoredResponses    Response[]            @relation("ResponseAuthor")
   statusChanges        ReviewStatusHistory[] @relation("StatusChanger")
   businessPlansCreated BusinessPlan[]        @relation("BusinessPlanCreator")
+  simulationRuns       SimulationRun[]       @relation("SimulationRunCreator")
 }
 
 // ---------------------------------------------------------------------------
@@ -483,6 +493,8 @@ model Business {
   retentionDecisionLogs         RetentionDecisionLog[]
   retentionOutcomes             RetentionOutcome[]
   rewardGoals                   CustomerRewardGoal[]
+  aiUsageEvents                 AiUsageEvent[]
+  optimizationRuns              RetentionOptimizationRun[]
 }
 
 // ---------------------------------------------------------------------------
@@ -557,12 +569,135 @@ model RetentionSettings {
   /// only ceiling.
   maxPromisedRewardGoalsPerIncentive Int?    @map("max_promised_reward_goals_per_incentive")
 
+  // Fase F — AI Layer per-business opt-in (§5). Off by default, same
+  // philosophy as automaticCampaignsEnabled/rewardGoalsEnabled above: AI
+  // never decides anything commercial regardless of these — they only gate
+  // whether copy/explanations may be AI-written instead of the deterministic
+  // template/numbers. Lives here (not on Business) because every other
+  // retention-pilot toggle already does, and the owner already manages all
+  // of them from the same settings screen.
+  aiCopyEnabled     Boolean @default(false) @map("ai_copy_enabled")
+  aiInsightsEnabled Boolean @default(false) @map("ai_insights_enabled")
+
+  // Fase G — Safe Auto-Optimization. OFF by default: the engine keeps
+  // running perfectly with fixed allocations until an owner opts in
+  // explicitly. One enum, not a boolean + a mode, per Fase G §29 — OFF
+  // already means "disabled", so a separate autoOptimizationEnabled flag
+  // would only duplicate it.
+  optimizationMode                        OptimizationMode @default(OFF) @map("optimization_mode")
+  /// CONTROL is never allowed to drop below this share, no matter how
+  /// clearly a variant is winning (Fase G §7).
+  minimumControlPercent                   Int              @default(10) @map("minimum_control_percent")
+  /// Every non-winning variant, COMBINED, keeps at least this much share —
+  /// Flikker never collapses to "control + one winner" (Fase G §8).
+  minimumExplorationPercent               Int              @default(15) @map("minimum_exploration_percent")
+  /// Ceiling on how many percentage points a single variant may move in one
+  /// optimization round (Fase G §9) — protects against reacting to noise.
+  maxAllocationChangePerOptimization      Int              @default(15) @map("max_allocation_change_per_optimization")
+  /// Minimum time between two applied optimizations on the SAME experiment,
+  /// regardless of new outcomes arriving (Fase G §22 — anti-oscillation).
+  optimizationCooldownHours               Int              @default(72) @map("optimization_cooldown_hours")
+  /// Stricter floor than minimumSampleSize, required specifically for
+  /// AUTOMATIC (Fase G §37). Null falls back to minimumSampleSize itself.
+  minimumExposedPerVariantForOptimization Int?             @map("minimum_exposed_per_variant_for_optimization")
+  /// Hysteresis (Fase G §23): an uplift/net-value gap smaller than this many
+  /// percentage points is never "meaningful" enough to justify moving share
+  /// away from whichever variant is already favored.
+  minimumMeaningfulUpliftPoints           Int              @default(5) @map("minimum_meaningful_uplift_points")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   @@map("retention_settings")
+}
+
+enum OptimizationMode {
+  OFF
+  /// Flikker computes and stores a proposal but never applies it — the owner
+  /// must confirm via the apply endpoint (Fase G §29).
+  ASSISTED
+  /// The worker applies a safe proposal automatically, within every limit
+  /// above (Fase G §29).
+  AUTOMATIC
+}
+
+enum OptimizationRunStatus {
+  /// Computed and stored, nothing changed yet — manual preview, or the
+  /// stored result of a dry-run pass (Fase G §33).
+  PREVIEWED
+  /// Allocation actually changed on the experiment's variants.
+  APPLIED
+  /// A later run that restored a previous APPLIED run's allocations.
+  ROLLED_BACK
+  /// Eligibility failed — nothing computed to change; `reasonCode` says why.
+  SKIPPED
+}
+
+enum OptimizationTrigger {
+  AUTOMATIC_WORKER
+  MANUAL_PREVIEW
+  MANUAL_APPLY
+  MANUAL_ROLLBACK
+}
+
+// ---------------------------------------------------------------------------
+// RetentionOptimizationRun (Fase G §15/§16 — the allocation's audit trail)
+// ---------------------------------------------------------------------------
+// This IS the allocation version history — no separate
+// RetentionAllocationVersion table. A running experiment's `allocationPercent`
+// can ONLY ever change through this system (see
+// RetentionExperimentsAdminService.requireDraft — every OTHER admin write
+// path is frozen once an experiment leaves DRAFT), so every change to a
+// RUNNING experiment's allocation is, by construction, one of these rows.
+// Reconstructing "which allocation was in effect at time T" is: the most
+// recent APPLIED run with `appliedAt <= T`, or the experiment's own
+// variant.allocationPercent as first configured in DRAFT if none exists yet.
+model RetentionOptimizationRun {
+  id           String                @id @default(uuid())
+  businessId   String                @map("business_id")
+  experimentId String                @map("experiment_id")
+  status       OptimizationRunStatus
+  triggeredBy  OptimizationTrigger   @map("triggered_by")
+
+  /// 'BEST_ECONOMIC_VARIANT' | 'BEST_RETURN_VARIANT' | 'NO_CONCLUSION' — a
+  /// plain string, mirroring WinnerConclusion's own `kind`, never re-typed.
+  objectiveUsed   String? @map("objective_used")
+  winnerVariantId String? @map("winner_variant_id")
+  /// One of the Fase G §40 OPTIMIZATION_* decision codes — the same table
+  /// RetentionDecisionLogService already writes to also gets one entry per
+  /// run; this column is the fast, structured summary on the run itself.
+  reasonCode      String  @map("reason_code")
+
+  /// {variantId: allocationPercent} — always present, always sums to 100.
+  previousAllocations Json  @map("previous_allocations")
+  proposedAllocations Json  @map("proposed_allocations")
+  /// Null unless status is APPLIED or ROLLED_BACK — what actually got
+  /// written to the variants, which may differ from `proposedAllocations`
+  /// if nothing was safe to change.
+  appliedAllocations  Json? @map("applied_allocations")
+
+  /// Per-variant returnRate/evidenceState/economics, exactly as read from
+  /// RetentionExperimentMetricsService — never chain-of-thought, never a
+  /// prompt. Fase G §15.
+  metricsSnapshot  Json @map("metrics_snapshot")
+  /// Holm-Bonferroni-adjusted significance read used for this decision.
+  evidenceSnapshot Json @map("evidence_snapshot")
+
+  /// True when RetentionSettings.dryRunEnabled was on when this ran (Fase G
+  /// §33) — computed and logged, never applied.
+  dryRun Boolean @default(false) @map("dry_run")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  appliedAt DateTime? @map("applied_at")
+
+  business   Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  experiment RetentionExperiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@index([experimentId, createdAt])
+  @@index([businessId])
+  @@map("retention_optimization_runs")
 }
 
 // ---------------------------------------------------------------------------
@@ -620,10 +755,19 @@ model RetentionIncentiveDefinition {
   /// Empty means "no day restriction".
   validDays                 Int[] @default([]) @map("valid_days")
 
+  /// Piloto V2 — bridge to the owner-facing Benefit this catalogue row was
+  /// created from. Nullable + unique: at most one definition per Benefit,
+  /// same 1:1 pattern as `RetentionVariant.issuedBenefitId`. Rows created
+  /// before this bridge existed (or created directly, bypassing Beneficios)
+  /// keep `benefitId: null` and keep working exactly as before — this column
+  /// only ever gets set going forward, never backfilled.
+  benefitId String? @unique @map("benefit_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   business    Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  benefit     Benefit?             @relation(fields: [benefitId], references: [id], onDelete: SetNull)
   variants    RetentionVariant[]
   rewardGoals CustomerRewardGoal[]
 
@@ -663,10 +807,11 @@ model RetentionExperiment {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  business    Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  variants    RetentionVariant[]
-  assignments RetentionAssignment[]
-  outcomes    RetentionOutcome[]
+  business         Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  variants         RetentionVariant[]
+  assignments      RetentionAssignment[]
+  outcomes         RetentionOutcome[]
+  optimizationRuns RetentionOptimizationRun[]
 
   @@index([businessId])
   @@index([businessId, status])
@@ -899,6 +1044,51 @@ model CustomerRewardGoal {
   @@index([businessId, status])
   @@index([incentiveDefinitionId, status])
   @@map("customer_reward_goals")
+}
+
+// ---------------------------------------------------------------------------
+// AI Layer (Fase F) — observability/cost tracking only. The AI never writes
+// here to decide anything; every row is a record of ONE generation attempt.
+// ---------------------------------------------------------------------------
+
+/// What produced a Message's final body. DETERMINISTIC_DISABLED and
+/// DETERMINISTIC_FALLBACK both mean "the existing template ran" — the only
+/// difference is whether AI was even attempted.
+enum AiCopySource {
+  AI
+  DETERMINISTIC_FALLBACK
+  DETERMINISTIC_DISABLED
+}
+
+/// One row per AI generation attempt (Fase F §6/§43). Never stores the
+/// prompt or any customer contact info — just enough to compute daily/monthly
+/// caps, success/fallback rates, latency and (when the provider reports them)
+/// token counts, per business and per use case.
+model AiUsageEvent {
+  id               String   @id @default(uuid())
+  businessId       String   @map("business_id")
+  /// One of the AiUseCase constants (RETENTION_MESSAGE, INSIGHT_EXPLANATION,
+  /// ...) — a plain string, not an enum, so a new use case never needs a
+  /// migration to exist.
+  useCase          String   @map("use_case")
+  model            String
+  promptVersion    String   @map("prompt_version")
+  success          Boolean
+  fallbackUsed     Boolean  @map("fallback_used")
+  inputTokens      Int?     @map("input_tokens")
+  outputTokens     Int?     @map("output_tokens")
+  estimatedCostUsd Decimal? @map("estimated_cost_usd") @db.Decimal(10, 6)
+  latencyMs        Int?     @map("latency_ms")
+  /// Debugging aid only (Fase F §43) — never the customer's phone/email.
+  customerId       String?  @map("customer_id")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  message  Message?
+
+  @@index([businessId, useCase, createdAt])
+  @@index([businessId, createdAt])
+  @@map("ai_usage_events")
 }
 
 // ---------------------------------------------------------------------------
@@ -1312,6 +1502,15 @@ model Message {
   readAt         DateTime?
   clickedAt      DateTime?
   createdAt      DateTime       @default(now())
+  /// Fase F §18 — how THIS message's body was produced. Null for every
+  /// message that predates the AI layer or was never AI-eligible in the
+  /// first place (legacy campaigns, review requests, etc.) — only Retention
+  /// V2's own AI-eligible sends ever set it.
+  copySource     AiCopySource?  @map("copy_source")
+  /// The AiUsageEvent this send's generation attempt produced, when AI was
+  /// actually invoked (copySource = AI or DETERMINISTIC_FALLBACK). Never set
+  /// for DETERMINISTIC_DISABLED, since AI was never called.
+  aiUsageEventId String?        @unique @map("ai_usage_event_id")
 
   business                Business             @relation(fields: [businessId], references: [id])
   customer                Customer             @relation(fields: [customerId], references: [id])
@@ -1325,6 +1524,7 @@ model Message {
   /// Present only on messages sent by Retention Engine V2 — this FK is what
   /// identifies a V2 message unambiguously, with no opaque metadata.
   retentionAssignment     RetentionAssignment?
+  aiUsageEvent            AiUsageEvent?        @relation(fields: [aiUsageEventId], references: [id], onDelete: SetNull)
 
   @@index([businessId])
   @@index([customerId])
@@ -1873,6 +2073,11 @@ model Benefit {
   raffleDraws      RaffleDraw[]
   /// Set only on the inert Benefit rows Retention V2 issues through.
   retentionVariant RetentionVariant?
+  /// Piloto V2 — set when the owner authorized this Benefit for Retention V2
+  /// (recovery and/or reward goals) from /dashboard/beneficios. Distinct from
+  /// `retentionVariant` above: this points at the real, editable Benefit the
+  /// owner sees; `retentionVariant` points at an internal, inert copy.
+  retentionIncentiveDefinition RetentionIncentiveDefinition?
 
   @@index([businessId])
   @@index([businessId, active])
@@ -2168,4 +2373,89 @@ model CustomerEvent {
   @@index([customerId, createdAt])
   @@index([businessId, type])
   @@map("customer_events")
+}
+
+// ---------------------------------------------------------------------------
+// SimulationRun (Simulation Center — platform admin only)
+// ---------------------------------------------------------------------------
+// Bookkeeping row for an internal Platform Admin tool that validates Flikker
+// V2's real business logic against fictitious data — NEVER against real
+// Business/Customer rows. This row lives in the main database purely as a
+// status/results ledger the admin panel can query directly; the simulated
+// data itself (fake businesses/customers/visits/etc.) lives entirely in the
+// separate SIMULATION_DATABASE_URL database, so this table never joins to
+// real tenant tables and never carries a businessId.
+
+enum SimulationStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum SimulationScenario {
+  BASELINE_HEALTHY
+  LOW_CHECKIN_COMPLIANCE
+  HIGH_CHECKIN_COMPLIANCE
+  PROMO_SENSITIVE
+  PROGRESS_SENSITIVE
+  HIGH_CHURN
+  LOW_BUDGET
+  AI_PROVIDER_FAILURE
+  MESSAGE_PROVIDER_FAILURE
+  OPTIMIZATION_STRESS
+  /// Fix de diseño pre-piloto — CONTROL 30 / REMINDER 70, dos brazos únicamente.
+  TWO_ARM_REMINDER
+  /// Fix de diseño pre-piloto — CONTROL 30 / SOFT_BENEFIT 70, con economía real.
+  TWO_ARM_SOFT_BENEFIT
+  /// Fix de diseño pre-piloto — objective REWARD_GOAL_PROGRESS; población =
+  /// solo customers con CustomerRewardGoal ACTIVE. CONTROL 30 / PROGRESS_REMINDER 70.
+  REWARD_PROGRESS
+  /// Fix de diseño pre-piloto — ground truth con dos challengers a <1pp entre sí.
+  NEAR_TIE
+  /// Fix de diseño pre-piloto — ground truth con un ganador claramente superior.
+  STRONG_SIGNAL
+}
+
+model SimulationRun {
+  id       String             @id @default(uuid())
+  status   SimulationStatus   @default(PENDING)
+  scenario SimulationScenario
+
+  seed          Int
+  days          Int
+  customerCount Int     @map("customer_count")
+  withAi        Boolean @default(false) @map("with_ai")
+
+  /// Fully resolved input (scenario defaults + overrides + failure-injection
+  /// rates) exactly as the engine ran it — never contains secrets (§36).
+  configuration Json
+
+  /// Structured SimulationResult (§21) once COMPLETED — null otherwise.
+  results Json?
+  /// Diagnosis + recommendations + per-section summaries (§29-§32).
+  summary Json?
+  /// Set only when status = FAILED. A short, human-readable reason — never
+  /// a raw stack trace or internal detail leaked to the admin panel.
+  failureReason String? @map("failure_reason")
+
+  /// 0-100. Updated by the worker between virtual days (§27).
+  progress          Int @default(0) @map("progress")
+  currentVirtualDay Int @default(0) @map("current_virtual_day")
+
+  /// Cooperative cancel flag the worker checks between days/rounds — never
+  /// a hard kill, so no orphaned data is left behind (§28).
+  cancelRequested Boolean @default(false) @map("cancel_requested")
+
+  createdByUserId String    @map("created_by_user_id")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  startedAt       DateTime? @map("started_at")
+  finishedAt      DateTime? @map("finished_at")
+
+  createdBy User @relation("SimulationRunCreator", fields: [createdByUserId], references: [id])
+
+  @@index([status])
+  @@index([createdAt])
+  @@map("simulation_runs")
 }

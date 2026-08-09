@@ -1,14 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import { ChevronDown, ChevronUp, Loader2, Plus } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2, Plus, Sparkles } from "lucide-react";
 import type {
   RetentionExperiment,
   RetentionIncentive,
   RetentionObjective,
   RetentionStrategyType,
 } from "./types";
-import { OBJECTIVE_LABEL, STATUS_LABEL, STRATEGY_LABEL } from "./types";
+import {
+  OBJECTIVE_LABEL,
+  STATUS_LABEL,
+  STRATEGIES_ALLOWED_FOR_OBJECTIVE,
+  STRATEGY_LABEL,
+} from "./types";
 
 const inputClass =
   "mt-1 w-full rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]";
@@ -17,16 +22,42 @@ const OBJECTIVES: RetentionObjective[] = [
   "SECOND_VISIT",
   "AT_RISK_RECOVERY",
   "INACTIVE_RECOVERY",
-];
-
-const STRATEGIES: RetentionStrategyType[] = [
-  "CONTROL",
-  "REMINDER",
-  "SOFT_BENEFIT",
-  "STRONG_BENEFIT",
+  "REWARD_GOAL_PROGRESS",
 ];
 
 const INCENTIVE_STRATEGIES: RetentionStrategyType[] = ["SOFT_BENEFIT", "STRONG_BENEFIT"];
+
+/**
+ * Piloto V2 — las dos plantillas recomendadas para un primer experimento:
+ * dos brazos únicamente (CONTROL + un solo challenger), nunca multi-arm.
+ * Encadena create-experiment + 2×add-variant sobre los endpoints que ya
+ * existen — no hay ningún endpoint nuevo detrás de esto.
+ */
+const TWO_ARM_TEMPLATES: {
+  key: string;
+  label: string;
+  description: string;
+  objective: RetentionObjective;
+  challenger: RetentionStrategyType;
+  challengerLabel: string;
+}[] = [
+  {
+    key: "reminder",
+    label: "CONTROL 30% / Recordatorio 70%",
+    description: "Recomendado para el primer piloto — recupera clientes en riesgo o inactivos.",
+    objective: "AT_RISK_RECOVERY",
+    challenger: "REMINDER",
+    challengerLabel: "Recordatorio",
+  },
+  {
+    key: "progress",
+    label: "CONTROL 30% / Progreso de recompensa 70%",
+    description: "Solo para clientes con una meta de recompensa activa (Reward Goals).",
+    objective: "REWARD_GOAL_PROGRESS",
+    challenger: "PROGRESS_REMINDER",
+    challengerLabel: "Recordatorio de progreso",
+  },
+];
 
 interface NewExperimentForm {
   name: string;
@@ -58,7 +89,7 @@ export default function ExperimentsSection({
   experiments: RetentionExperiment[];
   incentives: RetentionIncentive[];
   canMutate: boolean;
-  onCreate: (payload: NewExperimentForm) => Promise<void>;
+  onCreate: (payload: NewExperimentForm) => Promise<RetentionExperiment>;
   onAddVariant: (
     experimentId: string,
     payload: Record<string, unknown>,
@@ -77,6 +108,8 @@ export default function ExperimentsSection({
   const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [templateBusy, setTemplateBusy] = useState<string | null>(null);
+  const [templateError, setTemplateError] = useState<string | null>(null);
 
   async function handleCreate() {
     setSaving(true);
@@ -89,6 +122,39 @@ export default function ExperimentsSection({
       setError(e instanceof Error ? e.message : "No pudimos crear el experimento.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  /**
+   * Piloto V2 — crea el experimento de dos brazos recomendado en un solo
+   * click: CONTROL 30% + un único challenger 70%. Encadena exactamente los
+   * mismos dos endpoints que el formulario manual (crear experimento, luego
+   * agregar cada variante) — nada nuevo del lado del servidor.
+   */
+  async function createTwoArmTemplate(template: (typeof TWO_ARM_TEMPLATES)[number]) {
+    setTemplateBusy(template.key);
+    setTemplateError(null);
+    try {
+      const experiment = await onCreate({
+        name: `Piloto — ${template.challengerLabel}`,
+        objective: template.objective,
+      });
+      await onAddVariant(experiment.id, {
+        name: "Control",
+        strategyType: "CONTROL",
+        allocationPercent: 30,
+      });
+      await onAddVariant(experiment.id, {
+        name: template.challengerLabel,
+        strategyType: template.challenger,
+        allocationPercent: 70,
+      });
+    } catch (e) {
+      setTemplateError(
+        e instanceof Error ? e.message : "No pudimos crear el experimento de piloto.",
+      );
+    } finally {
+      setTemplateBusy(null);
     }
   }
 
@@ -117,13 +183,55 @@ export default function ExperimentsSection({
           <button
             type="button"
             onClick={() => setShowForm(true)}
-            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
+            className="inline-flex h-10 shrink-0 items-center gap-2 rounded-[8px] border border-[#E8EAF0] px-4 text-sm font-semibold text-[#1A202C] hover:border-[#C7CCE6]"
           >
             <Plus className="h-4 w-4" />
-            Nuevo experimento
+            Experimento personalizado
           </button>
         ) : null}
       </div>
+
+      {canMutate && experiments.length === 0 && !showForm ? (
+        <div className="mt-4 rounded-[12px] border border-[#DCE3F7] bg-[#F5F7FF] p-4">
+          <div className="flex items-start gap-2">
+            <Sparkles className="mt-0.5 h-4 w-4 shrink-0 text-[#5C6BC0]" />
+            <div>
+              <p className="text-sm font-bold text-[#1A202C]">
+                Recomendado para tu primer piloto
+              </p>
+              <p className="mt-1 text-sm text-[#3B4252]">
+                Empezá con dos brazos únicamente — concentra la muestra y es
+                mucho más fácil de leer que un experimento con varias
+                variantes a la vez.
+              </p>
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {TWO_ARM_TEMPLATES.map((template) => (
+              <button
+                key={template.key}
+                type="button"
+                onClick={() => void createTwoArmTemplate(template)}
+                disabled={templateBusy !== null}
+                className="rounded-[10px] border border-[#DCE3F7] bg-white px-3.5 py-3 text-left transition-colors hover:border-[#5C6BC0] disabled:opacity-50"
+              >
+                <p className="text-sm font-semibold text-[#1A202C]">
+                  {template.label}
+                </p>
+                <p className="mt-0.5 text-xs text-[#8891A4]">{template.description}</p>
+                {templateBusy === template.key ? (
+                  <span className="mt-2 inline-flex items-center gap-1.5 text-xs font-semibold text-[#5C6BC0]">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Creando…
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+          {templateError ? (
+            <p className="mt-3 text-sm text-[#C0392B]">{templateError}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       {showForm ? (
         <form
@@ -255,6 +363,7 @@ export default function ExperimentsSection({
 
                   {canMutate && experiment.status === "DRAFT" ? (
                     <AddVariantForm
+                      objective={experiment.objective}
                       incentives={incentives}
                       onAdd={(payload) => onAddVariant(experiment.id, payload)}
                     />
@@ -308,13 +417,19 @@ export default function ExperimentsSection({
 }
 
 function AddVariantForm({
+  objective,
   incentives,
   onAdd,
 }: {
+  objective: RetentionObjective;
   incentives: RetentionIncentive[];
   onAdd: (payload: Record<string, unknown>) => Promise<void>;
 }) {
-  const [form, setForm] = useState<NewVariantForm>(emptyVariantForm);
+  const allowedStrategies = STRATEGIES_ALLOWED_FOR_OBJECTIVE[objective];
+  const [form, setForm] = useState<NewVariantForm>({
+    ...emptyVariantForm,
+    strategyType: allowedStrategies[0],
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const carriesIncentive = INCENTIVE_STRATEGIES.includes(form.strategyType);
@@ -361,7 +476,7 @@ function AddVariantForm({
         }
         className={inputClass}
       >
-        {STRATEGIES.map((s) => (
+        {allowedStrategies.map((s) => (
           <option key={s} value={s}>
             {STRATEGY_LABEL[s]}
           </option>

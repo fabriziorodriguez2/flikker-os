@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
+import { CheckCircle2, Circle } from "lucide-react";
 import PhoneInput, {
   isValidNationalPhone,
   toNationalDigits,
@@ -74,6 +75,65 @@ const inputClassName =
 const primaryButtonClassName =
   "rounded-lg bg-zinc-900 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60";
 
+/**
+ * Piloto V2 — checklist manual para Platform Admin antes de activar mensajes
+ * reales en un negocio. Puramente informativo: no hay estado nuevo en el
+ * backend, cada paso apunta a una pantalla que ya existe hoy. El progreso se
+ * guarda solo en esta pestaña (no persiste) — es una guía, no un tracker.
+ */
+const PILOT_CHECKLIST: Array<{ title: string; detail: string }> = [
+  {
+    title: "Activar Check-in V2",
+    detail:
+      "En /platform, abrí la fila del negocio → \"Experiencia\" → elegí Check-in V2.",
+  },
+  {
+    title: "Activar Retención V2",
+    detail:
+      "En el mismo modal de \"Experiencia\", activá el motor inteligente de retención.",
+  },
+  {
+    title: "Configurar beneficios autorizados",
+    detail:
+      "\"Operar como negocio\" → Retención V2 → Configuración avanzada → Incentivos permitidos: autorizá solo los beneficios que puede ofrecer la automatización.",
+  },
+  {
+    title: "Configurar Reward Goals",
+    detail:
+      "Retención V2 → Recompensas por visitas: activarlas y confirmar qué incentivos son elegibles.",
+  },
+  {
+    title: "Definir presupuesto y máximo de mensajes",
+    detail:
+      "Retención V2 → Configuración avanzada: ticket promedio, margen, máximo de mensajes/30 días, cooldown y presupuesto promocional mensual.",
+  },
+  {
+    title: "Crear el experimento de dos brazos",
+    detail:
+      "Retención V2 → Configuración avanzada → Experimentos: usar la plantilla rápida (CONTROL 30% / challenger 70%) recomendada para el primer piloto.",
+  },
+  {
+    title: "Optimización en ASSISTED",
+    detail:
+      "Retención V2 → Configuración avanzada → Optimización: modo asistido, nunca automático, para este primer piloto.",
+  },
+  {
+    title: "Verificar QR/NFC",
+    detail:
+      "Confirmar que el punto de entrada físico (QR o NFC) del negocio apunta al check-in y que un escaneo de prueba abre la sesión correctamente.",
+  },
+  {
+    title: "Empezar en modo observación",
+    detail:
+      "Retención V2 → Retención automática → \"Modo observación\" activado: el motor decide pero no envía nada todavía.",
+  },
+  {
+    title: "Pasar a envío real",
+    detail:
+      "Después de revisar unos días el reporte de observación, desactivar \"Modo observación\" desde el panel de observación del negocio.",
+  },
+];
+
 export function OnboardingClient({ businessId }: { businessId: string }) {
   const [data, setData] = useState<OnboardingData | null>(null);
   const [businessForm, setBusinessForm] = useState(emptyBusiness);
@@ -86,6 +146,8 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
   const [saving, setSaving] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Piloto V2 — progreso del checklist, solo en memoria de esta pestaña.
+  const [checkedSteps, setCheckedSteps] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     void load();
@@ -359,6 +421,54 @@ export function OnboardingClient({ businessId }: { businessId: string }) {
           {error}
         </div>
       )}
+
+      <section className="rounded-lg border border-zinc-200 bg-white p-4">
+        <h2 className="text-base font-semibold text-zinc-900">
+          Checklist: primer piloto V2
+        </h2>
+        <p className="mt-1 text-sm text-zinc-500">
+          Guía manual antes de activar mensajes reales. No se guarda entre
+          sesiones — es una lista para seguir el orden, no un requisito
+          técnico bloqueante.
+        </p>
+        <ul className="mt-4 space-y-2">
+          {PILOT_CHECKLIST.map((step, index) => {
+            const checked = checkedSteps.has(index);
+            return (
+              <li key={step.title}>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setCheckedSteps((current) => {
+                      const next = new Set(current);
+                      if (next.has(index)) next.delete(index);
+                      else next.add(index);
+                      return next;
+                    })
+                  }
+                  className="flex w-full items-start gap-3 rounded-lg border border-zinc-100 p-3 text-left hover:bg-zinc-50"
+                >
+                  {checked ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-green-600" />
+                  ) : (
+                    <Circle className="mt-0.5 h-4 w-4 shrink-0 text-zinc-300" />
+                  )}
+                  <span>
+                    <span
+                      className={`block text-sm font-semibold ${checked ? "text-zinc-400 line-through" : "text-zinc-900"}`}
+                    >
+                      {index + 1}. {step.title}
+                    </span>
+                    <span className="block text-xs text-zinc-500">
+                      {step.detail}
+                    </span>
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      </section>
 
       <section
         id="business"

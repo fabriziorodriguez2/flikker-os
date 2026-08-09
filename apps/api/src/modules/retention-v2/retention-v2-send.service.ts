@@ -11,7 +11,6 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { evaluateEligibility } from './eligibility';
-import { buildRetentionMessage } from './message-templates';
 import { IncentiveIssuerService } from './incentive-issuer.service';
 import { RetentionSettingsService } from './retention-settings.service';
 import { RetentionExperimentService } from './retention-experiment.service';
@@ -21,6 +20,10 @@ import {
   RetentionDecisionLogService,
   type DecisionCode,
 } from './retention-decision-log.service';
+import {
+  RetentionAiCopyService,
+  type CopySource,
+} from '../ai/retention-ai-copy.service';
 
 /**
  * Sends (or deliberately does not send) one assignment.
@@ -52,6 +55,7 @@ export class RetentionV2SendService {
     private readonly experiments: RetentionExperimentService,
     private readonly issuer: IncentiveIssuerService,
     private readonly decisions: RetentionDecisionLogService,
+    private readonly aiCopy: RetentionAiCopyService,
   ) {}
 
   async processAssignment(
@@ -105,7 +109,20 @@ export class RetentionV2SendService {
       business: assignment.business,
       settings,
       customer: assignment.customer,
-      segment: assignment.segmentAtAssignment,
+      // Pre-piloto fix (§1/§2) — REWARD_GOAL_PROGRESS recruitment never
+      // gated on segment in the first place (it recruits by "has an active
+      // reward goal", which in practice is NEW/REPEAT/FREQUENT/RECOVERED —
+      // segments `TARGETABLE_SEGMENTS` correctly rejects for every OTHER
+      // objective). Re-validating against `segmentAtAssignment` here would
+      // terminally SKIP every single one of these assignments with
+      // SEGMENT_NOT_TARGETABLE, undoing the whole recruitment fix at the
+      // very last step. `segment: null` mirrors exactly what recruitment
+      // itself passed.
+      segment:
+        assignment.experiment.objective ===
+        RetentionObjective.REWARD_GOAL_PROGRESS
+          ? null
+          : assignment.segmentAtAssignment,
       lastRetentionMessageAt,
       retentionMessagesLast30Days: messagesLast30Days,
       // Already recruited by definition — this check belongs to recruitment.
@@ -215,17 +232,34 @@ export class RetentionV2SendService {
       }
     }
 
-    // ── Message ──────────────────────────────────────────────────────────────
-    const body = buildRetentionMessage({
-      customerName: assignment.customer.name,
-      businessName: assignment.business.name,
-      objective: assignment.experiment.objective,
-      strategyType: assignment.variant.strategyType,
-      incentiveLabel,
-      expiresInDays,
+    // ── Message (Fase F §9/§13 — AI-eligible, template is the guaranteed
+    // fallback either way) ────────────────────────────────────────────────────
+    const definition = assignment.variant.incentiveDefinition;
+    const resolved = await this.aiCopy.resolveRetentionMessage({
+      businessId: assignment.businessId,
+      context: {
+        customerName: assignment.customer.name,
+        businessName: assignment.business.name,
+        objective: assignment.experiment.objective,
+        strategyType: assignment.variant.strategyType,
+        incentiveLabel,
+        expiresInDays,
+      },
+      toneOfVoice: assignment.business.toneOfVoice,
+      sourceOfTruth: {
+        percentageValue: definition?.percentageValue ?? null,
+        fixedValue: definition?.fixedValue
+          ? Number(definition.fixedValue)
+          : null,
+        expiresInDays,
+        allowFreeWording: definition?.type === 'gift',
+        allowRaffleWording: definition?.type === 'raffle',
+        maxLength: 480,
+      },
+      customerId: assignment.customerId,
     });
 
-    return this.sendMessageBody(assignment, body, now, benefitIssued);
+    return this.sendMessageBody(assignment, resolved, now, benefitIssued);
   }
 
   /**
@@ -244,7 +278,7 @@ export class RetentionV2SendService {
       customerId: string;
       variantId: string;
       experimentId: string;
-      business: { name: string; timezone: string };
+      business: { name: string; timezone: string; toneOfVoice: string | null };
       customer: { name: string | null };
       variant: { strategyType: RetentionStrategyType };
     },
@@ -285,20 +319,36 @@ export class RetentionV2SendService {
       goal.targetAdditionalVisits - progressVisits,
     );
 
-    const body = buildRetentionMessage({
-      customerName: assignment.customer.name,
-      businessName: assignment.business.name,
-      objective: RetentionObjective.AT_RISK_RECOVERY, // unused by this branch's copy
-      strategyType: RetentionStrategyType.PROGRESS_REMINDER,
-      incentiveLabel: null,
-      expiresInDays: null,
-      progressReminder: {
-        remainingVisits,
-        rewardName: goal.incentiveDefinition.name,
+    // Fase F §13: AI may rephrase this, but never touches the goal, the
+    // target, or invents progress — remainingVisits/rewardName above are the
+    // ONLY facts about the goal, computed the same way with or without AI.
+    const resolved = await this.aiCopy.resolveRetentionMessage({
+      businessId: assignment.businessId,
+      context: {
+        customerName: assignment.customer.name,
+        businessName: assignment.business.name,
+        objective: RetentionObjective.AT_RISK_RECOVERY, // unused by this branch's copy
+        strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+        incentiveLabel: null,
+        expiresInDays: null,
+        progressReminder: {
+          remainingVisits,
+          rewardName: goal.incentiveDefinition.name,
+        },
       },
+      toneOfVoice: assignment.business.toneOfVoice,
+      sourceOfTruth: {
+        percentageValue: null,
+        fixedValue: null,
+        expiresInDays: null,
+        allowFreeWording: false,
+        allowRaffleWording: false,
+        maxLength: 480,
+      },
+      customerId: assignment.customerId,
     });
 
-    return this.sendMessageBody(assignment, body, now, false);
+    return this.sendMessageBody(assignment, resolved, now, false);
   }
 
   /**
@@ -316,7 +366,11 @@ export class RetentionV2SendService {
       experimentId: string;
       variant: { strategyType: RetentionStrategyType };
     },
-    body: string,
+    resolvedCopy: {
+      text: string;
+      copySource: CopySource;
+      aiUsageEventId: string | null;
+    },
     now: Date,
     benefitIssued: boolean,
   ): Promise<SendOutcome> {
@@ -324,7 +378,9 @@ export class RetentionV2SendService {
       const messageId = await this.createMessage(assignment.id, {
         businessId: assignment.businessId,
         customerId: assignment.customerId,
-        body,
+        body: resolvedCopy.text,
+        copySource: resolvedCopy.copySource,
+        aiUsageEventId: resolvedCopy.aiUsageEventId,
         now,
       });
 
@@ -337,6 +393,7 @@ export class RetentionV2SendService {
           experimentId: assignment.experimentId,
           variantId: assignment.variantId,
           strategyType: assignment.variant.strategyType,
+          copySource: resolvedCopy.copySource,
         },
       });
 
@@ -374,6 +431,8 @@ export class RetentionV2SendService {
       businessId: string;
       customerId: string;
       body: string;
+      copySource: CopySource;
+      aiUsageEventId: string | null;
       now: Date;
     },
   ): Promise<string> {
@@ -386,6 +445,8 @@ export class RetentionV2SendService {
             channel: MessageChannel.whatsapp,
             trackingToken: randomBytes(8).toString('base64url'),
             status: MessageStatus.queued,
+            copySource: input.copySource,
+            aiUsageEventId: input.aiUsageEventId,
           },
           select: { id: true },
         });

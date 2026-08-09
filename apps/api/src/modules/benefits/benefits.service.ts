@@ -4,9 +4,14 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Benefit, BenefitType } from '@prisma/client';
-import { BenefitsRepository, type BenefitData } from './benefits.repository';
+import {
+  BenefitsRepository,
+  type BenefitData,
+  type RetentionBridgeSnapshot,
+} from './benefits.repository';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { UpdateBenefitDto } from './dto/update-benefit.dto';
+import { UpdateBenefitRetentionBridgeDto } from './dto/update-benefit-retention-bridge.dto';
 
 export interface LastDrawView {
   winnerName: string | null;
@@ -16,13 +21,46 @@ export interface LastDrawView {
   drawnAt: Date;
 }
 
+export interface RetentionBridgeView {
+  recoveryEnabled: boolean;
+  rewardGoalEnabled: boolean;
+  /**
+   * True once the linked incentive has a percentage, fixed, or estimated
+   * cost value — i.e. enabling "recuperación" would not need to ask for one.
+   * False (including when there is no bridge yet) means the owner will be
+   * asked for `estimatedCost` before recovery can be turned on.
+   */
+  hasKnownValue: boolean;
+}
+
+/** Piloto V2 — deny-by-default view for a Benefit with no bridge yet (legacy or brand new). */
+const EMPTY_BRIDGE: RetentionBridgeView = {
+  recoveryEnabled: false,
+  rewardGoalEnabled: false,
+  hasKnownValue: false,
+};
+
+function toBridgeView(
+  definition: RetentionBridgeSnapshot | null | undefined,
+): RetentionBridgeView {
+  if (!definition) return EMPTY_BRIDGE;
+  return {
+    recoveryEnabled: definition.automationEligible,
+    rewardGoalEnabled: definition.rewardGoalEligible,
+    hasKnownValue:
+      definition.percentageValue != null ||
+      definition.fixedValue != null ||
+      definition.estimatedCost != null,
+  };
+}
+
 @Injectable()
 export class BenefitsService {
   constructor(private readonly repository: BenefitsRepository) {}
 
   async list(businessId: string) {
     const benefits = await this.repository.findMany(businessId);
-    return this.attachLastDraws(benefits);
+    return this.attachLastDraws(this.attachRetentionBridge(benefits));
   }
 
   getActive(businessId: string) {
@@ -32,8 +70,52 @@ export class BenefitsService {
   async getOne(businessId: string, id: string) {
     const benefit = await this.repository.findOne(businessId, id);
     if (!benefit) throw new NotFoundException('Benefit not found');
-    const [withDraw] = await this.attachLastDraws([benefit]);
+    const [withBridge] = this.attachRetentionBridge([benefit]);
+    const [withDraw] = await this.attachLastDraws([withBridge]);
     return withDraw;
+  }
+
+  /**
+   * Piloto V2 — the single write path for "Usar para recuperar clientes" /
+   * "Usar como recompensa por visitas" on a Benefit card. /dashboard/
+   * beneficios is the only caller: Retention V2's own UI only ever lists and
+   * authorizes what already exists (never creates).
+   */
+  async setRetentionBridge(
+    businessId: string,
+    benefitId: string,
+    dto: UpdateBenefitRetentionBridgeDto,
+  ): Promise<RetentionBridgeView> {
+    const current = await this.repository.findRetentionBridge(
+      businessId,
+      benefitId,
+    );
+    if (!current) throw new NotFoundException('Benefit not found');
+
+    if (dto.recoveryEnabled === true) {
+      const alreadyHasValue = toBridgeView(
+        current.retentionIncentiveDefinition,
+      ).hasKnownValue;
+      if (!alreadyHasValue && dto.estimatedCost == null) {
+        // Matches the same rule `RetentionIncentivesService` enforces on
+        // direct catalogue writes — a definition can't be authorized for
+        // automation with nothing concrete to grant. Distinct, matchable
+        // message so the frontend can show a cost prompt instead of a
+        // generic error.
+        throw new BadRequestException('NEEDS_ESTIMATED_COST');
+      }
+    }
+
+    const updated = await this.repository.setRetentionBridge(
+      businessId,
+      benefitId,
+      {
+        automationEligible: dto.recoveryEnabled,
+        rewardGoalEligible: dto.rewardGoalEnabled,
+        estimatedCost: dto.estimatedCost,
+      },
+    );
+    return toBridgeView(updated);
   }
 
   async create(businessId: string, dto: CreateBenefitDto) {
@@ -165,6 +247,27 @@ export class BenefitsService {
     }
 
     return { startDate, endDate };
+  }
+
+  /**
+   * Replaces the raw `retentionIncentiveDefinition` relation (only present
+   * because the repository includes it) with the small derived view the
+   * frontend actually needs. Legacy benefits with no bridge yet get
+   * `EMPTY_BRIDGE` — deny-by-default, satisfied by construction.
+   */
+  private attachRetentionBridge<
+    T extends {
+      retentionIncentiveDefinition?: RetentionBridgeSnapshot | null;
+    },
+  >(
+    benefits: T[],
+  ): (Omit<T, 'retentionIncentiveDefinition'> & {
+    retentionBridge: RetentionBridgeView;
+  })[] {
+    return benefits.map(({ retentionIncentiveDefinition, ...rest }) => ({
+      ...rest,
+      retentionBridge: toBridgeView(retentionIncentiveDefinition),
+    }));
   }
 
   /** Attaches `lastDraw` to raffle-type benefits; other types get `lastDraw: null`. */

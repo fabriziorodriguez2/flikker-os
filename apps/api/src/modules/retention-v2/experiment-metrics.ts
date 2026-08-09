@@ -148,6 +148,71 @@ export function determineWinner(
   return { kind: 'BEST_RETURN_RATE', variantId: best.stats.variantId };
 }
 
+// ── Return-only / economic-only winner reads (ajuste pre-piloto §1) ─────────
+// `determineWinner` above answers ONE question — "what does the dashboard
+// say right now" — which deliberately prefers net economic value over raw
+// return rate whenever every comparable candidate has a known one (Fase D
+// §23's own upgrade-vs-discount example). That single answer conflates two
+// different questions the moment Flikker actually optimizes on economics:
+// "did it pick the variant with the best RETURN RATE?" and "did it pick the
+// variant with the best NET VALUE?" can have different correct answers. The
+// two functions below isolate each question on its own, reusing exactly the
+// same NO_CONCLUSION gates `determineWinner` already uses (duplicated
+// rather than refactored out of it, to avoid changing that already-shipped,
+// already-tested function's behavior for the real dashboard at all).
+
+/** Same question as `determineWinner`, but ALWAYS by return rate — economics, if present, are ignored entirely. */
+export function determineWinnerByReturnRate(
+  control: VariantStats | undefined,
+  candidates: { stats: VariantStats }[],
+): WinnerConclusion {
+  if (!control) return { kind: 'NO_CONCLUSION', reason: 'NO_CONTROL' };
+  if (control.evidenceState === 'INSUFFICIENT_DATA') {
+    return { kind: 'NO_CONCLUSION', reason: 'CONTROL_INSUFFICIENT_DATA' };
+  }
+  const comparable = candidates.filter(
+    (c) => c.stats.evidenceState !== 'INSUFFICIENT_DATA',
+  );
+  if (comparable.length === 0) {
+    return { kind: 'NO_CONCLUSION', reason: 'NO_VARIANT_WITH_ENOUGH_DATA' };
+  }
+  const best = comparable.reduce((a, b) =>
+    b.stats.returnRate > a.stats.returnRate ? b : a,
+  );
+  return { kind: 'BEST_RETURN_RATE', variantId: best.stats.variantId };
+}
+
+/**
+ * Same question as `determineWinner`, but ALWAYS by net economic value —
+ * never falls back to return rate. NO_CONCLUSION whenever even one
+ * comparable candidate's net value is unknown (same "never guess" rule
+ * `determineWinner` itself uses), since picking "the best of the ones we
+ * happen to know" would silently ignore a candidate that might really be
+ * better.
+ */
+export function determineWinnerByEconomics(
+  control: VariantStats | undefined,
+  candidates: { stats: VariantStats; netIncrementalValue: number | null }[],
+): WinnerConclusion {
+  if (!control) return { kind: 'NO_CONCLUSION', reason: 'NO_CONTROL' };
+  if (control.evidenceState === 'INSUFFICIENT_DATA') {
+    return { kind: 'NO_CONCLUSION', reason: 'CONTROL_INSUFFICIENT_DATA' };
+  }
+  const comparable = candidates.filter(
+    (c) => c.stats.evidenceState !== 'INSUFFICIENT_DATA',
+  );
+  if (comparable.length === 0) {
+    return { kind: 'NO_CONCLUSION', reason: 'NO_VARIANT_WITH_ENOUGH_DATA' };
+  }
+  if (comparable.some((c) => c.netIncrementalValue === null)) {
+    return { kind: 'NO_CONCLUSION', reason: 'ECONOMICS_UNKNOWN' };
+  }
+  const best = comparable.reduce((a, b) =>
+    b.netIncrementalValue! > a.netIncrementalValue! ? b : a,
+  );
+  return { kind: 'BEST_INCREMENTAL_VALUE', variantId: best.stats.variantId };
+}
+
 // ── Optional significance read (Fase D §14) ─────────────────────────────────
 // A plain two-proportion z-test — no statistics library: the math is a dozen
 // lines and pulling in a dependency for it would be disproportionate. This is

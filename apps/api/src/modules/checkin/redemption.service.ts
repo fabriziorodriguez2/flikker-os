@@ -3,12 +3,16 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CustomerEventType } from '@prisma/client';
+import { CustomerEventType, RewardGoalStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BenefitsRepository } from '../benefits/benefits.repository';
 import { VisitsRepository } from './visits.repository';
 import { CustomerEventsRepository } from './customer-events.repository';
 import { isCheckinV2 } from '../../common/experience/experience.util';
+import {
+  DECISION_CODES,
+  RetentionDecisionLogService,
+} from '../retention-v2/retention-decision-log.service';
 
 @Injectable()
 export class RedemptionService {
@@ -17,6 +21,7 @@ export class RedemptionService {
     private readonly benefits: BenefitsRepository,
     private readonly visits: VisitsRepository,
     private readonly events: CustomerEventsRepository,
+    private readonly decisions: RetentionDecisionLogService,
   ) {}
 
   /**
@@ -68,11 +73,50 @@ export class RedemptionService {
       metadata: { benefitId: consumed.benefitId },
     });
 
+    await this.closeRewardGoalIfRedeemed(consumed.participationId);
+
     return {
       ok: true as const,
       customerName: consumed.customerName,
       benefitTitle: consumed.benefitTitle,
       visitId: visit.id,
     };
+  }
+
+  /**
+   * Fase F §0.2 — the other half of the Reward Goal lifecycle that Fase E
+   * left open: when the `BenefitParticipation` just redeemed is the one a
+   * `CustomerRewardGoal` carries, close that goal out too (UNLOCKED →
+   * REDEEMED). A no-op for every other redemption — most benefits are never
+   * reward-goal-sourced, and this must not change their behaviour at all.
+   *
+   * Idempotent the same way every other reward-goal transition is: a guarded
+   * `updateMany` on `status: UNLOCKED`. `consumeRedemption`'s own atomic
+   * guard already makes it impossible to reach this twice for the same
+   * redemption, but the guard here costs nothing and keeps the invariant
+   * self-evident without relying on that.
+   */
+  private async closeRewardGoalIfRedeemed(participationId: string) {
+    const goal = await this.prisma.customerRewardGoal.findFirst({
+      where: {
+        benefitParticipationId: participationId,
+        status: RewardGoalStatus.UNLOCKED,
+      },
+      select: { id: true, businessId: true, customerId: true },
+    });
+    if (!goal) return;
+
+    const transitioned = await this.prisma.customerRewardGoal.updateMany({
+      where: { id: goal.id, status: RewardGoalStatus.UNLOCKED },
+      data: { status: RewardGoalStatus.REDEEMED, redeemedAt: new Date() },
+    });
+    if (transitioned.count === 0) return;
+
+    await this.decisions.record({
+      businessId: goal.businessId,
+      customerId: goal.customerId,
+      decisionCode: DECISION_CODES.REWARD_GOAL_REDEEMED,
+      metadata: { goalId: goal.id, participationId },
+    });
   }
 }

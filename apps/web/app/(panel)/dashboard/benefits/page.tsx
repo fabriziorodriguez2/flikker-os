@@ -30,6 +30,17 @@ interface LastDraw {
   drawnAt: string;
 }
 
+/**
+ * Piloto V2 — puente aditivo hacia Retention V2. `hasKnownValue` es lo que
+ * decide si activar "recuperación" pide costo estimado o no: una vez que el
+ * motor conoce un valor (de cualquier fuente), no se vuelve a pedir.
+ */
+interface RetentionBridge {
+  recoveryEnabled: boolean;
+  rewardGoalEnabled: boolean;
+  hasKnownValue: boolean;
+}
+
 interface Benefit {
   id: string;
   type: BenefitType | "none";
@@ -43,6 +54,7 @@ interface Benefit {
   createdAt: string;
   updatedAt: string;
   lastDraw: LastDraw | null;
+  retentionBridge: RetentionBridge;
 }
 
 const TYPE_OPTIONS: { value: BenefitType; label: string }[] = [
@@ -269,19 +281,27 @@ function formatPeriodKey(periodKey: string): string {
 function BenefitCard({
   benefit,
   canMutate,
+  showRetentionBridge,
   busy,
   onToggleActive,
   onEdit,
   onDelete,
   onViewParticipants,
+  onSetRetentionBridge,
 }: {
   benefit: Benefit;
   canMutate: boolean;
+  showRetentionBridge: boolean;
   busy: boolean;
   onToggleActive: () => void;
   onEdit: () => void;
   onDelete: () => void;
   onViewParticipants: () => void;
+  onSetRetentionBridge: (patch: {
+    recoveryEnabled?: boolean;
+    rewardGoalEnabled?: boolean;
+    estimatedCost?: number;
+  }) => Promise<void>;
 }) {
   const from = formatDate(benefit.startDate);
   const to = formatDate(benefit.endDate);
@@ -293,6 +313,69 @@ function BenefitCard({
         : to
           ? `Hasta ${to}`
           : null;
+
+  const [bridgeBusy, setBridgeBusy] = useState<"recovery" | "reward" | null>(
+    null,
+  );
+  const [costPromptOpen, setCostPromptOpen] = useState(false);
+  const [costInput, setCostInput] = useState("");
+  const [bridgeError, setBridgeError] = useState<string | null>(null);
+
+  async function toggleRecovery(nextValue: boolean) {
+    setBridgeError(null);
+    setBridgeBusy("recovery");
+    try {
+      await onSetRetentionBridge({ recoveryEnabled: nextValue });
+      setCostPromptOpen(false);
+      setCostInput("");
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "No pudimos guardar.";
+      // El backend pide un costo estimado la primera vez que se activa
+      // recuperación sobre un beneficio sin descuento (ej. un regalo) — en
+      // vez de un error genérico, abrimos el campo para completarlo.
+      if (nextValue && message === "NEEDS_ESTIMATED_COST") {
+        setCostPromptOpen(true);
+      } else {
+        setBridgeError(message);
+      }
+    } finally {
+      setBridgeBusy(null);
+    }
+  }
+
+  async function confirmCostAndEnableRecovery() {
+    const cost = Number(costInput);
+    if (!costInput.trim() || Number.isNaN(cost) || cost < 0) {
+      setBridgeError("Ingresá un costo válido.");
+      return;
+    }
+    setBridgeError(null);
+    setBridgeBusy("recovery");
+    try {
+      await onSetRetentionBridge({
+        recoveryEnabled: true,
+        estimatedCost: cost,
+      });
+      setCostPromptOpen(false);
+      setCostInput("");
+    } catch (e) {
+      setBridgeError(e instanceof Error ? e.message : "No pudimos guardar.");
+    } finally {
+      setBridgeBusy(null);
+    }
+  }
+
+  async function toggleReward(nextValue: boolean) {
+    setBridgeError(null);
+    setBridgeBusy("reward");
+    try {
+      await onSetRetentionBridge({ rewardGoalEnabled: nextValue });
+    } catch (e) {
+      setBridgeError(e instanceof Error ? e.message : "No pudimos guardar.");
+    } finally {
+      setBridgeBusy(null);
+    }
+  }
 
   return (
     <article
@@ -368,6 +451,79 @@ function BenefitCard({
           </div>
         ) : null}
       </div>
+
+      {showRetentionBridge ? (
+        <div className="mt-4 space-y-2.5 rounded-[10px] border border-[#F0F2FA] bg-[#FAFBFC] px-3.5 py-3">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
+            Retención V2
+          </p>
+
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={benefit.retentionBridge.recoveryEnabled}
+              disabled={!canMutate || bridgeBusy !== null}
+              onChange={(e) => void toggleRecovery(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#5C6BC0]"
+            />
+            <span className="text-[#1A202C]">Usar para recuperar clientes</span>
+          </label>
+
+          {costPromptOpen ? (
+            <div className="ml-6 flex flex-wrap items-center gap-2 rounded-[8px] bg-white px-3 py-2 ring-1 ring-[#E8EAF0]">
+              <span className="text-xs text-[#8891A4]">
+                ¿Cuánto le cuesta este beneficio al negocio?
+              </span>
+              <input
+                type="number"
+                min={0}
+                value={costInput}
+                onChange={(e) => setCostInput(e.target.value)}
+                placeholder="$"
+                className="h-8 w-24 rounded-[6px] border border-[#E8EAF0] px-2 text-sm outline-none focus:border-[#5C6BC0]"
+              />
+              <button
+                type="button"
+                onClick={() => void confirmCostAndEnableRecovery()}
+                disabled={bridgeBusy !== null}
+                className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-[#5C6BC0] px-3 text-xs font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+              >
+                {bridgeBusy === "recovery" ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                Confirmar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setCostPromptOpen(false);
+                  setCostInput("");
+                }}
+                className="text-xs font-semibold text-[#8891A4] hover:text-[#1A202C]"
+              >
+                Cancelar
+              </button>
+            </div>
+          ) : null}
+
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={benefit.retentionBridge.rewardGoalEnabled}
+              disabled={!canMutate || bridgeBusy !== null}
+              onChange={(e) => void toggleReward(e.target.checked)}
+              className="mt-0.5 h-4 w-4 accent-[#5C6BC0]"
+            />
+            <span className="text-[#1A202C]">
+              Usar como recompensa por visitas
+            </span>
+          </label>
+
+          {bridgeError ? (
+            <p className="text-xs text-[#C0392B]">{bridgeError}</p>
+          ) : null}
+        </div>
+      ) : null}
 
       {benefit.type === "raffle" ? (
         <div className="mt-4 space-y-3 border-t border-[#F0F2FA] pt-3">
@@ -700,6 +856,31 @@ export default function BenefitsPage() {
     }
   }
 
+  async function setRetentionBridge(
+    benefit: Benefit,
+    patch: {
+      recoveryEnabled?: boolean;
+      rewardGoalEnabled?: boolean;
+      estimatedCost?: number;
+    },
+  ) {
+    const res = await fetch(
+      `/api/proxy/benefits/${benefit.id}/retention-bridge`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      },
+    );
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as {
+        message?: string;
+      };
+      throw new Error(data.message ?? "No pudimos guardar.");
+    }
+    await load();
+  }
+
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader
@@ -773,11 +954,13 @@ export default function BenefitsPage() {
               key={benefit.id}
               benefit={benefit}
               canMutate={canMutate}
+              showRetentionBridge={isCheckinV2}
               busy={busyId === benefit.id}
               onToggleActive={() => void toggleActive(benefit)}
               onEdit={() => openEdit(benefit)}
               onDelete={() => void remove(benefit)}
               onViewParticipants={() => setParticipantsFor(benefit)}
+              onSetRetentionBridge={(patch) => setRetentionBridge(benefit, patch)}
             />
           ))}
         </div>

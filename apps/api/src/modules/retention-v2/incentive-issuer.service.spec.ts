@@ -90,7 +90,7 @@ function makePrisma(
 function makeService(prisma: ReturnType<typeof makePrisma>) {
   return new IncentiveIssuerService(
     prisma as never,
-    new RetentionBudgetService(),
+    new RetentionBudgetService(prisma as never),
   );
 }
 

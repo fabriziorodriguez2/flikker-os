@@ -84,7 +84,19 @@ function makeDeps(assignment: unknown = assignmentFixture()) {
   const experiments = { isRunning: jest.fn().mockResolvedValue(true) };
   const issuer = { issueForAssignment: jest.fn() };
   const decisions = { record: jest.fn().mockResolvedValue(undefined) };
-  return { prisma, settings, experiments, issuer, decisions };
+  // Fase F: AI is disabled by default in every test here — the whole point
+  // is that Retention V2's own behaviour (skip reasons, message counts,
+  // idempotency) is unaffected by whether AI is on. AI-specific behaviour
+  // (fallback, validation, copySource) is covered by retention-ai-copy.service.spec.ts
+  // and the dedicated Fase F integration tests below.
+  const aiCopy = {
+    resolveRetentionMessage: jest.fn().mockResolvedValue({
+      text: 'stub deterministic message',
+      copySource: 'DETERMINISTIC_DISABLED',
+      aiUsageEventId: null,
+    }),
+  };
+  return { prisma, settings, experiments, issuer, decisions, aiCopy };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
@@ -94,6 +106,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.experiments as never,
     deps.issuer as never,
     deps.decisions as never,
+    deps.aiCopy as never,
   );
 }
 
@@ -610,6 +623,68 @@ describe('RetentionV2SendService — PROGRESS_REMINDER (Fase E §25-27)', () => 
     expect(await service.processAssignment('assign-1', NOW)).toEqual({
       status: 'skipped',
       reasonCode: 'OPTED_OUT',
+    });
+  });
+
+  it('regression (pre-piloto fix §1/§2): a REWARD_GOAL_PROGRESS assignment for a NEW/REPEAT/FREQUENT/RECOVERED customer is NOT rejected as SEGMENT_NOT_TARGETABLE — recruitment for this objective never gated on segment in the first place', async () => {
+    // The exact combination REWARD_GOAL_PROGRESS recruitment actually
+    // produces: segmentAtAssignment is whatever the customer's real segment
+    // was (here REPEAT — never AT_RISK/INACTIVE, since Reward Goals are
+    // never created for those), but the objective is REWARD_GOAL_PROGRESS.
+    const deps = makeDeps(
+      assignmentFixture({
+        segmentAtAssignment: CustomerSegment.REPEAT,
+        experiment: {
+          id: 'exp-1',
+          objective: RetentionObjective.REWARD_GOAL_PROGRESS,
+        },
+        variant: {
+          id: 'var-progress',
+          strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+          incentiveDefinitionId: null,
+          incentiveDefinition: null,
+        },
+      }),
+    );
+    deps.prisma.customerRewardGoal.findFirst.mockResolvedValue({
+      activatedAt: new Date('2026-08-25T00:00:00.000Z'),
+      targetAdditionalVisits: 2,
+      incentiveDefinition: { name: 'Upgrade gratis' },
+    });
+    deps.prisma.visit.count.mockResolvedValue(1);
+    const service = makeService(deps);
+
+    const result = await service.processAssignment('assign-1', NOW);
+
+    expect(result).toEqual({
+      status: 'sent',
+      messageId: 'msg-1',
+      benefitIssued: false,
+    });
+    expect(loggedCodes(deps)).not.toContain('SKIPPED_ENGINE_DISABLED');
+  });
+
+  it('regression: a non-REWARD_GOAL_PROGRESS PROGRESS_REMINDER (historical AT_RISK_RECOVERY combination) keeps validating its real segment exactly as before', async () => {
+    const deps = makeDeps(
+      assignmentFixture({
+        segmentAtAssignment: CustomerSegment.REPEAT, // hypothetically drifted — must still be rejected for this objective
+        experiment: {
+          id: 'exp-1',
+          objective: RetentionObjective.AT_RISK_RECOVERY,
+        },
+        variant: {
+          id: 'var-progress',
+          strategyType: RetentionStrategyType.PROGRESS_REMINDER,
+          incentiveDefinitionId: null,
+          incentiveDefinition: null,
+        },
+      }),
+    );
+    const service = makeService(deps);
+
+    expect(await service.processAssignment('assign-1', NOW)).toEqual({
+      status: 'skipped',
+      reasonCode: 'SEGMENT_NOT_TARGETABLE',
     });
   });
 });

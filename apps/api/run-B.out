@@ -1,0 +1,178 @@
+
+=== RUN B seed 1 (1/10) — BASELINE_HEALTHY — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=132890
+Cleaned isolated business 402bd100-4e8a-434d-a5c6-41af14baa05e from the simulation database.
+
+=== RUN B seed 2 (2/10) — BASELINE_HEALTHY — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=130044
+Cleaned isolated business 2b4fc531-6116-4698-bf6b-3fe73daf6e91 from the simulation database.
+
+=== RUN B seed 3 (3/10) — BASELINE_HEALTHY — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=125499
+Cleaned isolated business 6dfd0c93-493b-4707-ae11-d462483e0731 from the simulation database.
+
+=== RUN B seed 4 (4/10) — BASELINE_HEALTHY — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=117735
+Cleaned isolated business c837f734-280f-4850-9b89-8cb35ba0ece0 from the simulation database.
+
+=== RUN B seed 5 (5/10) — BASELINE_HEALTHY — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=126748
+Cleaned isolated business 9723d298-c10a-4e5c-8c3a-60e175867d22 from the simulation database.
+
+=== RUN B seed 6 (6/10) — BASELINE_HEALTHY — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=150351
+Cleaned isolated business efc5b7f1-d638-4fb5-9553-2df2a97677df from the simulation database.
+
+=== RUN B seed 7 (7/10) — BASELINE_HEALTHY — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=161906
+Cleaned isolated business 40588591-4ba9-4a2c-9eb4-f8dd247c43c9 from the simulation database.
+
+=== RUN B seed 8 (8/10) — BASELINE_HEALTHY — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=148985
+Cleaned isolated business 9ba3aadf-419c-4d07-9385-4b607a4e2480 from the simulation database.
+
+=== RUN B seed 9 (9/10) — BASELINE_HEALTHY — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=136405
+Cleaned isolated business a963fe15-64c4-493e-95fa-1562729bd8c7 from the simulation database.
+
+=== RUN B seed 10 (10/10) — BASELINE_HEALTHY — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=161682
+Cleaned isolated business 877ec4fb-48aa-4d4e-b876-263f6f2f9feb from the simulation database.
+
+
+=== PER-SEED RESULTS ===
+[
+  {
+    "seed": 1,
+    "simulationRunId": "7d5d05e1-485d-4a2f-b19c-52e14073e88b",
+    "winnerAccuracy": "INCORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6839378238341969,
+    "estimationErrorPercent": 31.67605809569413,
+    "estimatedIncrementalRevenue": 2740.540540540537,
+    "promotionalCost": 2580,
+    "anyCriticalInvariantFailed": false
+  },
+  {
+    "seed": 2,
+    "simulationRunId": "80e71e9b-e14a-4f3e-9ea4-443a0d31abab",
+    "winnerAccuracy": "INCORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.662455785750379,
+    "estimationErrorPercent": 142.0418838113795,
+    "estimatedIncrementalRevenue": 8505.882352941178,
+    "promotionalCost": 2100,
+    "anyCriticalInvariantFailed": false
+  },
+  {
+    "seed": 3,
+    "simulationRunId": "e0cd08c4-45fc-4937-933d-c3a7fe481647",
+    "winnerAccuracy": "INCORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6773869346733669,
+    "estimationErrorPercent": 48.434263258370706,
+    "estimatedIncrementalRevenue": 2193.749999999997,
+    "promotionalCost": 2340,
+    "anyCriticalInvariantFailed": false
+  },
+  {
+    "seed": 4,
+    "simulationRunId": "6926a8c0-9192-4f08-af85-c247975248ce",
+    "winnerAccuracy": "INCORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6558044806517311,
+    "estimationErrorPercent": 64.50986876166999,
+    "estimatedIncrementalRevenue": 1274.9999999999998,
+    "promotionalCost": 2640,
+    "anyCriticalInvariantFailed": false
+  },
+  {
+    "seed": 5,
+    "simulationRunId": "a2f09dfa-bf1d-4970-a88c-1635cf94ee82",
+    "winnerAccuracy": "INCORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6795658329400661,
+    "estimationErrorPercent": 450.26771348015,
+    "estimatedIncrementalRevenue": 23123.076923076926,
+    "promotionalCost": 2820,
+    "anyCriticalInvariantFailed": false
+  },
+  {
+    "seed": 6,
+    "simulationRunId": "2da5585c-27ba-4324-88fa-57b9995b465b",
+    "winnerAccuracy": "INCORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6878757515030061,
+    "estimationErrorPercent": 400.98003785391893,
+    "estimatedIncrementalRevenue": -12409.75609756098,
+    "promotionalCost": 1680,
+    "anyCriticalInvariantFailed": false
+  },
+  {
+    "seed": 7,
+    "simulationRunId": "202fea01-1ad0-4d87-834a-4b494e34e6de",
+    "winnerAccuracy": "NO_CONCLUSION",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6588114754098361,
+    "estimationErrorPercent": 100,
+    "estimatedIncrementalRevenue": 0,
+    "promotionalCost": 1920,
+    "anyCriticalInvariantFailed": false
+  },
+  {
+    "seed": 8,
+    "simulationRunId": "0db10ac4-e014-4208-82b1-8bac9180e7eb",
+    "winnerAccuracy": "INCORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6448146157979581,
+    "estimationErrorPercent": 42.238675315959505,
+    "estimatedIncrementalRevenue": 4954.285714285717,
+    "promotionalCost": 1860,
+    "anyCriticalInvariantFailed": false
+  },
+  {
+    "seed": 9,
+    "simulationRunId": "0836781c-476a-4841-8872-d8326e54922d",
+    "winnerAccuracy": "INCORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6788211788211789,
+    "estimationErrorPercent": 133.9358333145875,
+    "estimatedIncrementalRevenue": 8985.000000000004,
+    "promotionalCost": 1860,
+    "anyCriticalInvariantFailed": false
+  },
+  {
+    "seed": 10,
+    "simulationRunId": "904b7462-11d6-4078-96f7-36b151b4a1c6",
+    "winnerAccuracy": "CORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6676413255360624,
+    "estimationErrorPercent": 161.06530230778003,
+    "estimatedIncrementalRevenue": -2676.9230769230803,
+    "promotionalCost": 2700,
+    "anyCriticalInvariantFailed": false
+  }
+]
+
+=== BATCH AGGREGATE (§24) ===
+{
+  "n": 10,
+  "correctWinnerRate": 0.1,
+  "noConclusionRate": 0.1,
+  "incorrectWinnerRate": 0.8,
+  "safetyFailureRate": 0,
+  "meanVisibility": 0.6697115204917782,
+  "meanEstimationError": 157.51496361995103,
+  "estimationErrorSampleCount": 10,
+  "meanNetValue": 1419.08563563603
+}

@@ -9,6 +9,7 @@ function makeDeps(
     customers?: unknown[];
     hasActiveGoal?: boolean;
     engineDecision?: unknown;
+    overdueGoals?: unknown[];
   } = {},
 ) {
   const prisma = {
@@ -32,6 +33,8 @@ function makeDeps(
         .mockResolvedValue(
           options.hasActiveGoal ? { id: 'existing-goal' } : null,
         ),
+      findMany: jest.fn().mockResolvedValue(options.overdueGoals ?? []),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     visit: { findMany: jest.fn().mockResolvedValue([]) },
     retentionAssignment: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -44,11 +47,16 @@ function makeDeps(
       },
     ),
   };
-  return { prisma, engine };
+  const decisions = { record: jest.fn().mockResolvedValue(undefined) };
+  return { prisma, engine, decisions };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
-  return new RewardGoalSweepService(deps.prisma as never, deps.engine as never);
+  return new RewardGoalSweepService(
+    deps.prisma as never,
+    deps.engine as never,
+    deps.decisions as never,
+  );
 }
 
 describe('RewardGoalSweepService — business ownership (Fase E §42)', () => {
@@ -111,6 +119,100 @@ describe('RewardGoalSweepService — dry run (Fase E §32)', () => {
       { dryRun: true },
     );
     expect(result.created).toBe(1);
+  });
+});
+
+describe('RewardGoalSweepService — expireOverdue (Fase F §0.1)', () => {
+  it('finds only ACTIVE goals with a past expiresAt', async () => {
+    const deps = makeDeps({ overdueGoals: [] });
+    const service = makeService(deps);
+
+    await service.expireOverdue(NOW);
+
+    expect(deps.prisma.customerRewardGoal.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: 'ACTIVE',
+          expiresAt: { not: null, lt: NOW },
+        },
+      }),
+    );
+  });
+
+  it('transitions each overdue goal ACTIVE → EXPIRED and logs REWARD_GOAL_EXPIRED', async () => {
+    const deps = makeDeps({
+      overdueGoals: [
+        { id: 'goal-1', businessId: 'biz-1', customerId: 'cust-1' },
+      ],
+    });
+    const service = makeService(deps);
+
+    const result = await service.expireOverdue(NOW);
+
+    expect(deps.prisma.customerRewardGoal.updateMany).toHaveBeenCalledWith({
+      where: { id: 'goal-1', status: 'ACTIVE' },
+      data: { status: 'EXPIRED' },
+    });
+    expect(deps.decisions.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+        decisionCode: 'REWARD_GOAL_EXPIRED',
+      }),
+    );
+    expect(result).toEqual({ checked: 1, expired: 1 });
+  });
+
+  it('never emits a BenefitParticipation or touches the benefits module', async () => {
+    const deps = makeDeps({
+      overdueGoals: [
+        { id: 'goal-1', businessId: 'biz-1', customerId: 'cust-1' },
+      ],
+    });
+    const service = makeService(deps);
+
+    await service.expireOverdue(NOW);
+
+    // The mock Prisma client has no `benefit`/`benefitParticipation` model at
+    // all — if the sweep ever touched one, this test would throw on access
+    // rather than silently pass.
+    expect((deps.prisma as Record<string, unknown>).benefit).toBeUndefined();
+    expect(
+      (deps.prisma as Record<string, unknown>).benefitParticipation,
+    ).toBeUndefined();
+  });
+
+  it('idempotent under a race: a goal already closed by a concurrent run is skipped, not double-logged', async () => {
+    const deps = makeDeps({
+      overdueGoals: [
+        { id: 'goal-1', businessId: 'biz-1', customerId: 'cust-1' },
+      ],
+    });
+    deps.prisma.customerRewardGoal.updateMany.mockResolvedValueOnce({
+      count: 0,
+    });
+    const service = makeService(deps);
+
+    const result = await service.expireOverdue(NOW);
+
+    expect(deps.decisions.record).not.toHaveBeenCalled();
+    expect(result).toEqual({ checked: 1, expired: 0 });
+  });
+
+  it('processes every overdue goal even when the batch spans several businesses/customers', async () => {
+    const deps = makeDeps({
+      overdueGoals: [
+        { id: 'goal-1', businessId: 'biz-1', customerId: 'cust-1' },
+        { id: 'goal-2', businessId: 'biz-2', customerId: 'cust-2' },
+      ],
+    });
+    const service = makeService(deps);
+
+    const result = await service.expireOverdue(NOW);
+
+    expect(deps.prisma.customerRewardGoal.updateMany).toHaveBeenCalledTimes(2);
+    expect(deps.decisions.record).toHaveBeenCalledTimes(2);
+    expect(result).toEqual({ checked: 2, expired: 2 });
   });
 });
 

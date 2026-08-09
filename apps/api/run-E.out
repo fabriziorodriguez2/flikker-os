@@ -1,0 +1,159 @@
+
+=== RUN E — AI_PROVIDER_FAILURE — days=30 customers=100 seed=42 withAi=true optMode=AUTOMATIC ===
+SimulationRun id: ded1ba49-d4a2-4852-9c74-dd2f36bc0933
+status=COMPLETED progress=100 elapsedMs=10445 failureReason=none
+
+--- RESULTS ---
+{
+  "aiCalls": 0,
+  "durationMs": 10409,
+  "trueWinner": "SOFT_BENEFIT",
+  "messagesRead": 10,
+  "messagesSent": 13,
+  "reviewClicks": 18,
+  "reviewPrompts": 103,
+  "detectedWinner": {
+    "kind": "NO_CONCLUSION",
+    "reason": "CONTROL_INSUFFICIENT_DATA"
+  },
+  "messagesFailed": 0,
+  "visibleReturns": 103,
+  "winnerAccuracy": "NO_CONCLUSION",
+  "finalAllocation": {
+    "CONTROL": 15,
+    "REMINDER": 30,
+    "SOFT_BENEFIT": 25,
+    "PROGRESS_REMINDER": 30
+  },
+  "physicalReturns": 165,
+  "promotionalCost": 60,
+  "customersCreated": 100,
+  "invariantResults": [
+    {
+      "code": "SIMULATION_DATABASE_ISOLATED",
+      "status": "PASS",
+      "message": "Connected to the isolated simulation database (flikker_simulation).",
+      "critical": true
+    },
+    {
+      "code": "NO_LEGACY_BUSINESS_PROCESSED_BY_V2",
+      "status": "PASS",
+      "message": "The simulated business is CHECKIN_V2 with Retention V2 enabled.",
+      "critical": true
+    },
+    {
+      "code": "ALLOCATION_SUMS_TO_100",
+      "status": "PASS",
+      "message": "Active variant allocation sums to exactly 100%.",
+      "critical": true
+    },
+    {
+      "code": "CONTROL_FLOOR_RESPECTED",
+      "status": "PASS",
+      "message": "CONTROL holds 15%, at or above the 10% floor.",
+      "critical": true
+    },
+    {
+      "code": "EXPLORATION_FLOOR_RESPECTED",
+      "status": "PASS",
+      "message": "Combined non-winning exploration is 55 points, at or above the 15-point floor.",
+      "critical": true
+    },
+    {
+      "code": "MONTHLY_INCENTIVE_COUNT_WITHIN_LIMIT",
+      "status": "PASS",
+      "message": "0 automated incentives issued this month, within the 300 cap.",
+      "critical": true
+    },
+    {
+      "code": "MONTHLY_INCENTIVE_COST_WITHIN_LIMIT",
+      "status": "PASS",
+      "message": "Estimated 0.00 spent this month, within the 50000 cap.",
+      "critical": true
+    },
+    {
+      "code": "NO_DUPLICATE_MESSAGE_PER_ASSIGNMENT",
+      "status": "PASS",
+      "message": "Every Message is attached to at most one assignment.",
+      "critical": true
+    },
+    {
+      "code": "NO_DUPLICATE_BENEFIT_PARTICIPATION",
+      "status": "PASS",
+      "message": "Every BenefitParticipation is owned by at most one assignment/goal.",
+      "critical": true
+    },
+    {
+      "code": "MAX_ONE_ACTIVE_REWARD_GOAL_PER_CUSTOMER",
+      "status": "PASS",
+      "message": "No customer has more than one ACTIVE Reward Goal at a time.",
+      "critical": false
+    },
+    {
+      "code": "NO_ASSIGNMENT_MULTIPLE_VARIANT",
+      "status": "PASS",
+      "message": "No customer was assigned more than once to this experiment.",
+      "critical": true
+    },
+    {
+      "code": "AI_USAGE_WITHIN_MAX_CALLS",
+      "status": "PASS",
+      "message": "0 AI call(s) recorded, within the 20 cap.",
+      "critical": true
+    }
+  ],
+  "initialAllocation": {
+    "CONTROL": 15,
+    "REMINDER": 30,
+    "SOFT_BENEFIT": 25,
+    "PROGRESS_REMINDER": 30
+  },
+  "messagesDelivered": 3,
+  "controlAssignments": 2,
+  "rewardGoalsCreated": 100,
+  "returnRateByVariant": {
+    "REMINDER": 0.375,
+    "SOFT_BENEFIT": 0.2,
+    "PROGRESS_REMINDER": 0
+  },
+  "rewardGoalsRedeemed": 53,
+  "rewardGoalsUnlocked": 55,
+  "trueEffectByVariant": {
+    "REMINDER": 0.06969999999999998,
+    "SOFT_BENEFIT": 0.0837,
+    "PROGRESS_REMINDER": 0.07429999999999995
+  },
+  "retentionAssignments": 21,
+  "checkinVisibilityRate": 0.6242424242424243,
+  "estimationErrorPercent": 100,
+  "trueIncrementalRevenue": 351.39599999999996,
+  "optimizationRunsApplied": 0,
+  "optimizationRunsSkipped": 30,
+  "estimatedEffectByVariant": {
+    "REMINDER": null,
+    "SOFT_BENEFIT": null,
+    "PROGRESS_REMINDER": null
+  },
+  "estimatedIncrementalRevenue": 0
+}
+
+--- SUMMARY (diagnosis) ---
+{
+  "failures": [],
+  "warnings": [
+    {
+      "code": "HIGH_ESTIMATION_ERROR",
+      "message": "El error de estimación de revenue incremental es del 100.0%."
+    }
+  ],
+  "overallStatus": "PASS_WITH_WARNINGS",
+  "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+  "recommendations": [
+    "Tratar las proyecciones económicas de este experimento como orientativas, no exactas, hasta acumular más muestra.",
+    "Sin conclusión estadística todavía — es el comportamiento correcto con muestra chica; no forzar una decisión."
+  ]
+}
+
+SIMULATION_RUN_ID=ded1ba49-d4a2-4852-9c74-dd2f36bc0933
+THROWAWAY_USER_ID=6100babb-27d4-4ac9-bf3f-43d7b3bea2e7
+Cleaned isolated business 72c919db-c1f1-4ffe-9eab-f2e3a42bd1f6 from the simulation database.

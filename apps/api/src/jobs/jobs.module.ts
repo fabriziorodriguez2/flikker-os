@@ -21,6 +21,8 @@ import { RetentionWorker } from './workers/retention.worker';
 import { RetentionV2Worker } from './workers/retention-v2.worker';
 import { RewardGoalQueue } from './reward-goal.queue';
 import { RewardGoalWorker } from './workers/reward-goal.worker';
+import { RetentionOptimizationQueue } from './retention-optimization.queue';
+import { RetentionOptimizationWorker } from './workers/retention-optimization.worker';
 import { RaffleWorker } from './workers/raffle.worker';
 import { ReviewRequestWorker } from './workers/review-request.worker';
 import { WhatsAppBspService } from './whatsapp-bsp.service';
@@ -37,6 +39,7 @@ import { RaffleProcessor } from './raffle.processor';
     RetentionQueue,
     RetentionV2Queue,
     RewardGoalQueue,
+    RetentionOptimizationQueue,
     RaffleQueue,
     GoogleReviewDetectionQueue,
     OwnerNotificationsQueue,
@@ -52,6 +55,7 @@ import { RaffleProcessor } from './raffle.processor';
     RetentionWorker,
     RetentionV2Worker,
     RewardGoalWorker,
+    RetentionOptimizationWorker,
     RaffleProcessor,
     RaffleWorker,
     WhatsAppInboundWorker,

@@ -17,6 +17,8 @@ function makeRepo() {
     findParticipants: jest.fn(),
     registerParticipation: jest.fn(),
     findLatestDraw: jest.fn(),
+    findRetentionBridge: jest.fn(),
+    setRetentionBridge: jest.fn(),
   };
 }
 
@@ -156,5 +158,249 @@ describe('BenefitsService', () => {
     const result = await service.list('biz-1');
 
     expect(result[0].lastDraw).toBeNull();
+  });
+
+  it('list exposes deny-by-default retentionBridge for a legacy benefit with no bridge yet', async () => {
+    const repo = makeRepo();
+    repo.findMany.mockResolvedValue([
+      {
+        id: 'b1',
+        type: BenefitType.discount,
+        retentionIncentiveDefinition: null,
+      },
+    ]);
+    const service = makeService(repo);
+
+    const result = await service.list('biz-1');
+
+    expect(result[0].retentionBridge).toEqual({
+      recoveryEnabled: false,
+      rewardGoalEnabled: false,
+      hasKnownValue: false,
+    });
+    // The raw relation never leaks to the frontend.
+    expect(result[0]).not.toHaveProperty('retentionIncentiveDefinition');
+  });
+});
+
+describe('BenefitsService.setRetentionBridge — puente Benefit ↔ RetentionIncentiveDefinition', () => {
+  it('create Benefit, then enable recovery with a cost — creates/authorizes the bridge', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue({
+      id: 'b1',
+      type: BenefitType.gift,
+      title: 'Capuccino gratis',
+      retentionIncentiveDefinition: null,
+    });
+    repo.setRetentionBridge.mockResolvedValue({
+      automationEligible: true,
+      rewardGoalEligible: false,
+      percentageValue: null,
+      fixedValue: null,
+      estimatedCost: 50,
+    });
+    const service = makeService(repo);
+
+    const result = await service.setRetentionBridge('biz-1', 'b1', {
+      recoveryEnabled: true,
+      estimatedCost: 50,
+    });
+
+    expect(repo.setRetentionBridge).toHaveBeenCalledWith('biz-1', 'b1', {
+      automationEligible: true,
+      rewardGoalEligible: undefined,
+      estimatedCost: 50,
+    });
+    expect(result).toEqual({
+      recoveryEnabled: true,
+      rewardGoalEnabled: false,
+      hasKnownValue: true,
+    });
+  });
+
+  it('rejects enabling recovery without any known value (gift/promotion/other with no cost yet)', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue({
+      id: 'b1',
+      type: BenefitType.gift,
+      title: 'Capuccino gratis',
+      retentionIncentiveDefinition: null,
+    });
+    const service = makeService(repo);
+
+    await expect(
+      service.setRetentionBridge('biz-1', 'b1', { recoveryEnabled: true }),
+    ).rejects.toThrow('NEEDS_ESTIMATED_COST');
+    expect(repo.setRetentionBridge).not.toHaveBeenCalled();
+  });
+
+  it('enables recovery without asking for a cost again once one is already known', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue({
+      id: 'b1',
+      type: BenefitType.gift,
+      title: 'Capuccino gratis',
+      retentionIncentiveDefinition: {
+        id: 'def-1',
+        automationEligible: false,
+        rewardGoalEligible: false,
+        percentageValue: null,
+        fixedValue: null,
+        estimatedCost: 50,
+      },
+    });
+    repo.setRetentionBridge.mockResolvedValue({
+      automationEligible: true,
+      rewardGoalEligible: false,
+      percentageValue: null,
+      fixedValue: null,
+      estimatedCost: 50,
+    });
+    const service = makeService(repo);
+
+    await service.setRetentionBridge('biz-1', 'b1', { recoveryEnabled: true });
+
+    expect(repo.setRetentionBridge).toHaveBeenCalledWith('biz-1', 'b1', {
+      automationEligible: true,
+      rewardGoalEligible: undefined,
+      estimatedCost: undefined,
+    });
+  });
+
+  it('enable reward — no cost required at all', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue({
+      id: 'b1',
+      type: BenefitType.gift,
+      title: 'Capuccino gratis',
+      retentionIncentiveDefinition: null,
+    });
+    repo.setRetentionBridge.mockResolvedValue({
+      automationEligible: false,
+      rewardGoalEligible: true,
+      percentageValue: null,
+      fixedValue: null,
+      estimatedCost: null,
+    });
+    const service = makeService(repo);
+
+    const result = await service.setRetentionBridge('biz-1', 'b1', {
+      rewardGoalEnabled: true,
+    });
+
+    expect(repo.setRetentionBridge).toHaveBeenCalledWith('biz-1', 'b1', {
+      automationEligible: undefined,
+      rewardGoalEligible: true,
+      estimatedCost: undefined,
+    });
+    expect(result.rewardGoalEnabled).toBe(true);
+    expect(result.recoveryEnabled).toBe(false);
+  });
+
+  it('enable both recovery and reward together, with a cost provided', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue({
+      id: 'b1',
+      type: BenefitType.gift,
+      title: 'Capuccino gratis',
+      retentionIncentiveDefinition: null,
+    });
+    repo.setRetentionBridge.mockResolvedValue({
+      automationEligible: true,
+      rewardGoalEligible: true,
+      percentageValue: null,
+      fixedValue: null,
+      estimatedCost: 50,
+    });
+    const service = makeService(repo);
+
+    const result = await service.setRetentionBridge('biz-1', 'b1', {
+      recoveryEnabled: true,
+      rewardGoalEnabled: true,
+      estimatedCost: 50,
+    });
+
+    expect(result).toEqual({
+      recoveryEnabled: true,
+      rewardGoalEnabled: true,
+      hasKnownValue: true,
+    });
+  });
+
+  it('disable recovery — never needs a cost, never deletes anything', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue({
+      id: 'b1',
+      type: BenefitType.gift,
+      title: 'Capuccino gratis',
+      retentionIncentiveDefinition: {
+        id: 'def-1',
+        automationEligible: true,
+        rewardGoalEligible: false,
+        percentageValue: null,
+        fixedValue: null,
+        estimatedCost: 50,
+      },
+    });
+    repo.setRetentionBridge.mockResolvedValue({
+      automationEligible: false,
+      rewardGoalEligible: false,
+      percentageValue: null,
+      fixedValue: null,
+      estimatedCost: 50,
+    });
+    const service = makeService(repo);
+
+    const result = await service.setRetentionBridge('biz-1', 'b1', {
+      recoveryEnabled: false,
+    });
+
+    expect(result.recoveryEnabled).toBe(false);
+    // The value itself is preserved — hasKnownValue stays true so
+    // re-enabling later never asks for the cost again.
+    expect(result.hasKnownValue).toBe(true);
+  });
+
+  it('disable reward independently of recovery', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue({
+      id: 'b1',
+      type: BenefitType.gift,
+      title: 'Capuccino gratis',
+      retentionIncentiveDefinition: {
+        id: 'def-1',
+        automationEligible: true,
+        rewardGoalEligible: true,
+        percentageValue: null,
+        fixedValue: null,
+        estimatedCost: 50,
+      },
+    });
+    repo.setRetentionBridge.mockResolvedValue({
+      automationEligible: true,
+      rewardGoalEligible: false,
+      percentageValue: null,
+      fixedValue: null,
+      estimatedCost: 50,
+    });
+    const service = makeService(repo);
+
+    const result = await service.setRetentionBridge('biz-1', 'b1', {
+      rewardGoalEnabled: false,
+    });
+
+    expect(result.rewardGoalEnabled).toBe(false);
+    expect(result.recoveryEnabled).toBe(true);
+  });
+
+  it('scopes to the correct tenant — 404s instead of touching another business’s benefit', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue(null);
+    const service = makeService(repo);
+
+    await expect(
+      service.setRetentionBridge('biz-1', 'foreign', { recoveryEnabled: true }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(repo.setRetentionBridge).not.toHaveBeenCalled();
   });
 });

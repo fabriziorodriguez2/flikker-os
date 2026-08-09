@@ -98,9 +98,23 @@ describe('RetentionIncentivesService.create', () => {
         automationEligible: true,
       }),
     ).rejects.toThrow(
-      'An incentive authorized for automation needs a percentageValue or a fixedValue',
+      'An incentive authorized for automation needs a percentageValue, a fixedValue, or an estimatedCost',
     );
     expect(prisma.retentionIncentiveDefinition.create).not.toHaveBeenCalled();
+  });
+
+  it('accepts automation with only an estimatedCost — a gift has no percentage/fixed value', async () => {
+    const prisma = makePrisma();
+    const service = new RetentionIncentivesService(prisma as never);
+
+    await service.create('biz-1', {
+      name: 'Capuccino gratis',
+      type: BenefitType.gift,
+      automationEligible: true,
+      estimatedCost: 50,
+    });
+
+    expect(prisma.retentionIncentiveDefinition.create).toHaveBeenCalledTimes(1);
   });
 
   it('rejects combining a percentage and a fixed value', async () => {
@@ -173,7 +187,7 @@ describe('RetentionIncentivesService.update', () => {
     await expect(
       service.update('biz-1', 'inc-1', { automationEligible: true }),
     ).rejects.toThrow(
-      'An incentive authorized for automation needs a percentageValue or a fixedValue',
+      'An incentive authorized for automation needs a percentageValue, a fixedValue, or an estimatedCost',
     );
   });
 

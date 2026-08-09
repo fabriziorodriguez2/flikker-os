@@ -59,6 +59,30 @@ export const DECISION_CODES = {
   // time (unlocked/expired/cancelled on its own), so there is nothing left to
   // remind the customer of.
   SKIPPED_NO_ACTIVE_REWARD_GOAL: 'SKIPPED_NO_ACTIVE_REWARD_GOAL',
+  // Fase G — Safe Auto-Optimization (§40). One entry per optimization run,
+  // in addition to (never instead of) the structured row on
+  // RetentionOptimizationRun itself.
+  OPTIMIZATION_INSUFFICIENT_DATA: 'OPTIMIZATION_INSUFFICIENT_DATA',
+  OPTIMIZATION_COOLDOWN: 'OPTIMIZATION_COOLDOWN',
+  OPTIMIZATION_NO_CONCLUSION: 'OPTIMIZATION_NO_CONCLUSION',
+  OPTIMIZATION_BEST_RETURN: 'OPTIMIZATION_BEST_RETURN',
+  OPTIMIZATION_BEST_ECONOMIC: 'OPTIMIZATION_BEST_ECONOMIC',
+  OPTIMIZATION_NEGATIVE_VARIANT: 'OPTIMIZATION_NEGATIVE_VARIANT',
+  // Pre-piloto fix (§7/§8) — a candidate was picked and beats CONTROL with
+  // significance, but does not clearly beat the next-best eligible
+  // candidate (return-rate z-test between the two). AUTOMATIC never applies
+  // on this; ASSISTED preview still shows the tentative pick.
+  OPTIMIZATION_AMBIGUOUS_WINNER: 'OPTIMIZATION_AMBIGUOUS_WINNER',
+  OPTIMIZATION_BUDGET_CONSTRAINED: 'OPTIMIZATION_BUDGET_CONSTRAINED',
+  OPTIMIZATION_APPLIED: 'OPTIMIZATION_APPLIED',
+  OPTIMIZATION_PREVIEWED: 'OPTIMIZATION_PREVIEWED',
+  OPTIMIZATION_ROLLED_BACK: 'OPTIMIZATION_ROLLED_BACK',
+  // Not eligible for a reason outside the objective itself (mode off,
+  // experiment not running, dry-run, no control, ending soon, ...) — the
+  // exact OptimizationRejection code lives in the run's own metadata.
+  OPTIMIZATION_NOT_ELIGIBLE: 'OPTIMIZATION_NOT_ELIGIBLE',
+  // Fase G §33.
+  DRY_RUN_OPTIMIZATION_PROPOSED: 'DRY_RUN_OPTIMIZATION_PROPOSED',
 } as const;
 
 export type DecisionCode = (typeof DECISION_CODES)[keyof typeof DECISION_CODES];

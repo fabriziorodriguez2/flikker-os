@@ -9,6 +9,7 @@ import type {
   VariantResult,
 } from "./types";
 import { EVIDENCE_LABEL, STRATEGY_LABEL } from "./types";
+import OptimizationPanel from "./optimization-panel";
 
 function pct(value: number | null): string {
   if (value === null) return "—";
@@ -47,7 +48,7 @@ function winnerCopy(overview: ExperimentOverview): string {
   return `${label} presenta mayor retorno que el control.`;
 }
 
-export default function ResultsSection() {
+export default function ResultsSection({ canMutate }: { canMutate: boolean }) {
   const [overviews, setOverviews] = useState<ExperimentOverview[]>([]);
   const [details, setDetails] = useState<Record<string, ExperimentResults>>({});
   const [loading, setLoading] = useState(true);
@@ -174,7 +175,14 @@ export default function ResultsSection() {
                       Cargando detalle…
                     </div>
                   ) : details[overview.experimentId] ? (
-                    <VariantTable results={details[overview.experimentId]} />
+                    <>
+                      <VariantTable results={details[overview.experimentId]} />
+                      <OptimizationPanel
+                        experimentId={overview.experimentId}
+                        results={details[overview.experimentId]}
+                        canMutate={canMutate}
+                      />
+                    </>
                   ) : null}
                 </div>
               ) : null}

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { PrismaService } from '../../prisma/prisma.service';
 import { localPeriodKey } from '../../common/utils/timezone.util';
 import { estimateIncentiveCost } from './incentive-cost';
 
@@ -30,6 +31,13 @@ export interface BudgetCaps {
 
 @Injectable()
 export class RetentionBudgetService {
+  /**
+   * Only used by `headroom` below — a read-only, advisory check that never
+   * writes anything and never needs the transaction/advisory-lock the real
+   * issuance path (`checkWithinCaps`) requires.
+   */
+  constructor(private readonly prisma: PrismaService) {}
+
   /**
    * The advisory-lock key for one business's monthly budget. Callers must take
    * this lock, inside the same transaction that will write the new
@@ -115,6 +123,66 @@ export class RetentionBudgetService {
     }
 
     return { allowed: true };
+  }
+
+  /**
+   * Fase G §14 — read-only, advisory version of the same check: "is there
+   * still comfortable room this month?", used by the optimizer to decide
+   * whether it may INCREASE an incentive-bearing variant's share. Never the
+   * authoritative gate (that stays `checkWithinCaps`, inside the issuance
+   * transaction) — this only decides whether optimization is allowed to
+   * send MORE customers toward a variant that issues a benefit; the
+   * existing per-issuance check still protects every individual send.
+   *
+   * "Near the limit" is deliberately conservative: within 20% of either cap,
+   * or the incentive itself already inactive — matches Fase G §14's "budget
+   * mensual está cerca del límite" without inventing a second config knob.
+   */
+  async headroom(params: {
+    businessId: string;
+    timezone: string;
+    now: Date;
+    caps: BudgetCaps;
+    averageTicketAmount: Prisma.Decimal | number | null;
+    incentiveActive: boolean;
+  }): Promise<{ nearLimit: boolean; reasonCode: string | null }> {
+    if (!params.incentiveActive) {
+      return { nearLimit: true, reasonCode: 'INCENTIVE_INACTIVE' };
+    }
+    if (
+      params.caps.maxAutomatedIncentivesPerMonth === null &&
+      params.caps.maxEstimatedIncentiveCostPerMonth === null
+    ) {
+      // No caps configured at all → the existing issuance path already
+      // denies every automated issue (deny-by-default) — optimization must
+      // not grow a variant it could never actually deliver for.
+      return { nearLimit: true, reasonCode: 'NOT_CONFIGURED' };
+    }
+
+    const { count, cost } = await this.issuedThisMonth(
+      this.prisma as unknown as Prisma.TransactionClient,
+      params.businessId,
+      params.timezone,
+      params.now,
+      params.averageTicketAmount,
+    );
+
+    const NEAR_LIMIT_RATIO = 0.8;
+    if (
+      params.caps.maxAutomatedIncentivesPerMonth !== null &&
+      count >= params.caps.maxAutomatedIncentivesPerMonth * NEAR_LIMIT_RATIO
+    ) {
+      return { nearLimit: true, reasonCode: 'NEAR_COUNT_LIMIT' };
+    }
+    const costCap =
+      params.caps.maxEstimatedIncentiveCostPerMonth === null
+        ? null
+        : Number(params.caps.maxEstimatedIncentiveCostPerMonth);
+    if (costCap !== null && cost >= costCap * NEAR_LIMIT_RATIO) {
+      return { nearLimit: true, reasonCode: 'NEAR_COST_LIMIT' };
+    }
+
+    return { nearLimit: false, reasonCode: null };
   }
 
   /**

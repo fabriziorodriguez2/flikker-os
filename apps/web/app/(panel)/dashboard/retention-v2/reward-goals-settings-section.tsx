@@ -93,8 +93,8 @@ export default function RewardGoalsSettingsSection({
         </p>
         {incentives.length === 0 ? (
           <p className="mt-2 text-sm text-[#8891A4]">
-            Todavía no configuraste ningún incentivo — creá uno en la sección
-            de abajo para poder autorizarlo aquí.
+            Todavía no tenés ningún incentivo configurado — creá uno desde
+            Beneficios para poder autorizarlo aquí.
           </p>
         ) : (
           <ul className="mt-2 space-y-1.5">

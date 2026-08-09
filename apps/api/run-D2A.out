@@ -1,0 +1,161 @@
+
+=== RUN D2A seed 1 (1/6) — TWO_ARM_REMINDER — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=134686
+Cleaned isolated business 4c3f630d-e3b9-4041-b9bb-665bab0daa3f from the simulation database.
+
+=== RUN D2A seed 2 (2/6) — TWO_ARM_REMINDER — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=142386
+Cleaned isolated business 4531397b-e76d-4b1e-a9e0-6171e94aaecc from the simulation database.
+
+=== RUN D2A seed 3 (3/6) — TWO_ARM_REMINDER — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=140790
+Cleaned isolated business efbc655a-331d-4cf9-9f8c-9d067f352a3d from the simulation database.
+
+=== RUN D2A seed 4 (4/6) — TWO_ARM_REMINDER — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=144343
+Cleaned isolated business fdd0b67a-aca3-494b-8857-7c2edf623c11 from the simulation database.
+
+=== RUN D2A seed 5 (5/6) — TWO_ARM_REMINDER — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=132061
+Cleaned isolated business e06ad9d8-8beb-4037-99c7-4a758b3cb3ba from the simulation database.
+
+=== RUN D2A seed 6 (6/6) — TWO_ARM_REMINDER — days=60 customers=500 ===
+status=COMPLETED progress=100 elapsedMs=128672
+Cleaned isolated business 89645757-de99-4557-8ce2-8e2c60c21670 from the simulation database.
+
+
+=== PER-SEED RESULTS ===
+[
+  {
+    "seed": 1,
+    "simulationRunId": "847544ba-4e9a-44cf-ae82-8c330cd42a7d",
+    "winnerAccuracy": "CORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6737995824634656,
+    "estimationErrorPercent": 107.54568538116216,
+    "estimatedIncrementalRevenue": -350.56179775281186,
+    "promotionalCost": 0,
+    "anyCriticalInvariantFailed": false,
+    "clearWinner": null,
+    "automaticApplied": false,
+    "exposedByStrategyType": {
+      "CONTROL": 89,
+      "REMINDER": 183
+    },
+    "progress": null
+  },
+  {
+    "seed": 2,
+    "simulationRunId": "bb50a2d5-29e6-418a-8501-c0ad2911b4fa",
+    "winnerAccuracy": "CORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6616238023197176,
+    "estimationErrorPercent": 70.8695904560205,
+    "estimatedIncrementalRevenue": 8111.11111111112,
+    "promotionalCost": 0,
+    "anyCriticalInvariantFailed": false,
+    "clearWinner": null,
+    "automaticApplied": false,
+    "exposedByStrategyType": {
+      "CONTROL": 81,
+      "REMINDER": 190
+    },
+    "progress": null
+  },
+  {
+    "seed": 3,
+    "simulationRunId": "0b25dfb0-80ce-47b5-8071-382b337f4e14",
+    "winnerAccuracy": "CORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6807228915662651,
+    "estimationErrorPercent": 51.44948875428943,
+    "estimatedIncrementalRevenue": 2369.230769230761,
+    "promotionalCost": 0,
+    "anyCriticalInvariantFailed": false,
+    "clearWinner": null,
+    "automaticApplied": false,
+    "exposedByStrategyType": {
+      "REMINDER": 196,
+      "CONTROL": 78
+    },
+    "progress": null
+  },
+  {
+    "seed": 4,
+    "simulationRunId": "9f10016d-f7d2-44e2-ae3f-a372dd7ce846",
+    "winnerAccuracy": "CORRECT",
+    "overallStatus": "PASS",
+    "pilotReadiness": "PILOT_READY",
+    "checkinVisibilityRate": 0.6578411405295316,
+    "estimationErrorPercent": 23.18523942408198,
+    "estimatedIncrementalRevenue": 3192.8571428571495,
+    "promotionalCost": 0,
+    "anyCriticalInvariantFailed": false,
+    "clearWinner": null,
+    "automaticApplied": false,
+    "exposedByStrategyType": {
+      "REMINDER": 173,
+      "CONTROL": 84
+    },
+    "progress": null
+  },
+  {
+    "seed": 5,
+    "simulationRunId": "788e93df-8d1c-45c8-900a-701f7d6ab260",
+    "winnerAccuracy": "CORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6764275256222547,
+    "estimationErrorPercent": 45.83156036042128,
+    "estimatedIncrementalRevenue": 7321.51898734178,
+    "promotionalCost": 0,
+    "anyCriticalInvariantFailed": false,
+    "clearWinner": null,
+    "automaticApplied": false,
+    "exposedByStrategyType": {
+      "REMINDER": 199,
+      "CONTROL": 79
+    },
+    "progress": null
+  },
+  {
+    "seed": 6,
+    "simulationRunId": "be4bc118-bcc0-49f9-8030-d9660bc0cf16",
+    "winnerAccuracy": "CORRECT",
+    "overallStatus": "PASS_WITH_WARNINGS",
+    "pilotReadiness": "PILOT_READY_WITH_WARNINGS",
+    "checkinVisibilityRate": 0.6819313091090095,
+    "estimationErrorPercent": 81.30307885939807,
+    "estimatedIncrementalRevenue": 1015.3846153846166,
+    "promotionalCost": 0,
+    "anyCriticalInvariantFailed": false,
+    "clearWinner": null,
+    "automaticApplied": false,
+    "exposedByStrategyType": {
+      "REMINDER": 216,
+      "CONTROL": 78
+    },
+    "progress": null
+  }
+]
+
+=== BATCH AGGREGATE (§19/§24) ===
+{
+  "n": 6,
+  "correctWinnerRate": 1,
+  "noConclusionRate": 0,
+  "incorrectWinnerRate": 0,
+  "clearWinnerRate": null,
+  "automaticAppliedRate": 0,
+  "meanExposedControl": 81.5,
+  "meanExposedChallenger": 192.83333333333334,
+  "meanVisibility": 0.6720577086017072,
+  "meanEstimationError": 63.36410720589557,
+  "estimationErrorSampleCount": 6,
+  "safetyFailureRate": 0,
+  "meanNetValue": 3609.9234713621026,
+  "progress": null
+}

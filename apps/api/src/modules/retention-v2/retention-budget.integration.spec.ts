@@ -116,7 +116,10 @@ describe('RetentionBudgetService concurrency (integration)', () => {
         assignmentIds.push(assignment.id);
       }
 
-      issuer = new IncentiveIssuerService(prisma, new RetentionBudgetService());
+      issuer = new IncentiveIssuerService(
+        prisma,
+        new RetentionBudgetService(prisma),
+      );
       available = true;
     } catch {
       available = false;

@@ -1,12 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
 import { useCanMutate } from "../../role-context";
 import { useIsCheckinV2 } from "../../experience-context";
 import SettingsSection from "./settings-section";
+import AdvancedSettingsSection from "./advanced-settings-section";
+import PilotSummarySection from "./pilot-summary-section";
 import RewardGoalsSettingsSection from "./reward-goals-settings-section";
+import AiSettingsSection from "./ai-settings-section";
+import OptimizationSettingsSection from "./optimization-settings-section";
 import IncentivesSection from "./incentives-section";
 import ExperimentsSection from "./experiments-section";
 import DryRunPanel from "./dry-run-panel";
@@ -37,6 +41,10 @@ export default function RetentionV2Page() {
   const [dryRunReport, setDryRunReport] = useState<DryRunReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Piloto V2 — Retención principal queda ultra simple; todo lo técnico
+  // (experimentos, optimización, ticket/margen/límites, incentivos) vive
+  // colapsado acá y se abre solo si el dueño lo busca.
+  const [showAdvanced, setShowAdvanced] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -92,16 +100,6 @@ export default function RetentionV2Page() {
     }
   }
 
-  async function createIncentive(payload: Record<string, unknown>) {
-    const res = await fetch("/api/proxy/retention-v2/incentives", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    await readJson(res);
-    await load();
-  }
-
   async function updateIncentive(id: string, payload: Record<string, unknown>) {
     const res = await fetch(`/api/proxy/retention-v2/incentives/${id}`, {
       method: "PATCH",
@@ -112,23 +110,18 @@ export default function RetentionV2Page() {
     await load();
   }
 
-  async function removeIncentive(id: string) {
-    const res = await fetch(`/api/proxy/retention-v2/incentives/${id}`, {
-      method: "DELETE",
-    });
-    if (!res.ok && res.status !== 409) await readJson(res);
-    // A 409 means it was deactivated instead of deleted — refresh either way.
-    await load();
-  }
-
   async function createExperiment(payload: { name: string; objective: string }) {
     const res = await fetch("/api/proxy/retention-v2/experiments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    await readJson(res);
+    // Piloto V2 — devuelve el experimento creado (antes se descartaba) para
+    // que la plantilla rápida de dos brazos pueda encadenar addVariant sin
+    // esperar el refetch completo de `load()`.
+    const created = (await readJson(res)) as RetentionExperiment;
     await load();
+    return created;
   }
 
   async function addVariant(experimentId: string, payload: Record<string, unknown>) {
@@ -182,7 +175,10 @@ export default function RetentionV2Page() {
         </div>
       ) : settings ? (
         <>
-          <ResultsSection />
+          <PilotSummarySection
+            dryRunEnabled={settings.dryRunEnabled}
+            dryRunReport={dryRunReport}
+          />
 
           <SettingsSection settings={settings} canMutate={canMutate} onSave={saveSettings} />
 
@@ -203,22 +199,57 @@ export default function RetentionV2Page() {
             onGoLive={goLive}
           />
 
-          <IncentivesSection
-            incentives={incentives}
-            canMutate={canMutate}
-            onCreate={createIncentive}
-            onUpdate={updateIncentive}
-            onRemove={removeIncentive}
-          />
+          <button
+            type="button"
+            onClick={() => setShowAdvanced((v) => !v)}
+            className="inline-flex items-center gap-1 text-sm font-semibold text-[#5C6BC0]"
+          >
+            {showAdvanced ? (
+              <ChevronUp className="h-4 w-4" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="h-4 w-4" aria-hidden="true" />
+            )}
+            Configuración avanzada
+          </button>
 
-          <ExperimentsSection
-            experiments={experiments}
-            incentives={incentives}
-            canMutate={canMutate}
-            onCreate={createExperiment}
-            onAddVariant={addVariant}
-            onLifecycle={runLifecycle}
-          />
+          {showAdvanced ? (
+            <div className="space-y-6">
+              <AdvancedSettingsSection
+                settings={settings}
+                canMutate={canMutate}
+                onSave={saveSettings}
+              />
+
+              <AiSettingsSection
+                settings={settings}
+                canMutate={canMutate}
+                onSaveSettings={saveSettings}
+              />
+
+              <OptimizationSettingsSection
+                settings={settings}
+                canMutate={canMutate}
+                onSaveSettings={saveSettings}
+              />
+
+              <IncentivesSection
+                incentives={incentives}
+                canMutate={canMutate}
+                onUpdate={updateIncentive}
+              />
+
+              <ExperimentsSection
+                experiments={experiments}
+                incentives={incentives}
+                canMutate={canMutate}
+                onCreate={createExperiment}
+                onAddVariant={addVariant}
+                onLifecycle={runLifecycle}
+              />
+
+              <ResultsSection canMutate={canMutate} />
+            </div>
+          ) : null}
         </>
       ) : null}
     </div>

@@ -8,6 +8,7 @@ import {
   Business,
   ExperienceVersion,
   RetentionExperimentStatus,
+  RetentionObjective,
   RetentionStrategyType,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -88,6 +89,7 @@ export class RetentionExperimentsAdminService {
     dto: CreateRetentionVariantDto,
   ) {
     const experiment = await this.requireDraft(businessId, experimentId);
+    this.validateStrategyForObjective(experiment.objective, dto.strategyType);
     await this.validateVariantIncentive(
       businessId,
       dto.strategyType,
@@ -112,13 +114,21 @@ export class RetentionExperimentsAdminService {
     variantId: string,
     dto: UpdateRetentionVariantDto,
   ) {
-    await this.requireDraft(businessId, experimentId);
+    const experiment = await this.requireDraft(businessId, experimentId);
     const variant = await this.prisma.retentionVariant.findFirst({
       where: { businessId, experimentId, id: variantId },
     });
     if (!variant) throw new NotFoundException('Variant not found');
 
     const nextStrategy = dto.strategyType ?? variant.strategyType;
+    // Only re-validate the objective/strategy pairing when the caller is
+    // actually CHANGING strategyType — an update that leaves it untouched
+    // (e.g. only bumping allocationPercent) must never retroactively break a
+    // historical variant that predates this rule (§5: no destructive
+    // migration of existing experiments).
+    if (dto.strategyType !== undefined) {
+      this.validateStrategyForObjective(experiment.objective, nextStrategy);
+    }
     const nextIncentiveId =
       dto.incentiveDefinitionId !== undefined
         ? dto.incentiveDefinitionId
@@ -241,6 +251,40 @@ export class RetentionExperimentsAdminService {
     if (!business.retentionEngineV2Enabled) {
       throw new BadRequestException(
         'Retention Engine V2 is disabled for this business at the platform level',
+      );
+    }
+  }
+
+  /**
+   * Pre-piloto fix — keeps PROGRESS_REMINDER and REWARD_GOAL_PROGRESS paired.
+   *
+   * Only enforced here, at variant creation/update time (both require
+   * DRAFT — see `requireDraft`), never at recruitment/send time: an existing
+   * RUNNING or COMPLETED experiment that already has a PROGRESS_REMINDER
+   * variant under AT_RISK_RECOVERY (there is at least one, from the
+   * Simulation Center's own historical runs) is a frozen, historical
+   * structure this must not retroactively break. New variants going forward
+   * are what this restricts.
+   */
+  private validateStrategyForObjective(
+    objective: RetentionObjective,
+    strategyType: RetentionStrategyType,
+  ): void {
+    if (
+      strategyType === RetentionStrategyType.PROGRESS_REMINDER &&
+      objective !== RetentionObjective.REWARD_GOAL_PROGRESS
+    ) {
+      throw new BadRequestException(
+        'PROGRESS_REMINDER variants are only allowed in a REWARD_GOAL_PROGRESS experiment',
+      );
+    }
+    if (
+      objective === RetentionObjective.REWARD_GOAL_PROGRESS &&
+      strategyType !== RetentionStrategyType.CONTROL &&
+      strategyType !== RetentionStrategyType.PROGRESS_REMINDER
+    ) {
+      throw new BadRequestException(
+        'A REWARD_GOAL_PROGRESS experiment only allows CONTROL and PROGRESS_REMINDER variants',
       );
     }
   }
