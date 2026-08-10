@@ -75,7 +75,13 @@ function LoginPageContent() {
         return;
       }
 
-      router.push(data.redirectTo ?? "/dashboard");
+      // Canje por URL (#1) — si vinimos de "/redeem/{token}" sin sesión,
+      // volvemos exactamente ahí después del login en vez de al dashboard.
+      // Solo se acepta una ruta interna (evita open-redirect vía "//host").
+      const next = searchParams.get("next");
+      const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
+
+      router.push(safeNext ?? data.redirectTo ?? "/dashboard");
       router.refresh();
     } catch {
       setError("No pudimos conectar con el servidor. Probá de nuevo.");
@@ -184,6 +190,10 @@ function LoginPageContent() {
               {searchParams.get("reason") === "session_expired" ? (
                 <div className="rounded-xl border border-[#E4E0FA] bg-[#F6F4FF] px-4 py-3 text-sm text-[#625B80]">
                   Tu sesión expiró. Iniciá sesión de nuevo.
+                </div>
+              ) : searchParams.get("next")?.startsWith("/redeem/") ? (
+                <div className="rounded-xl border border-[#E4E0FA] bg-[#F6F4FF] px-4 py-3 text-sm text-[#625B80]">
+                  Iniciá sesión para continuar con el canje.
                 </div>
               ) : null}
 

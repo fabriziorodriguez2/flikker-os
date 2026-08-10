@@ -1,14 +1,32 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { CustomerEventType } from '@prisma/client';
 import { RedemptionService } from './redemption.service';
 
-function makeDeps(options: { rewardGoal?: unknown } = {}) {
+function makeDeps(
+  options: {
+    rewardGoal?: unknown;
+    membership?: { role: string; status: string } | null;
+  } = {},
+) {
   const prisma = {
     business: {
       findUnique: jest.fn().mockResolvedValue({
         timezone: 'America/Montevideo',
         experienceVersion: 'CHECKIN_V2',
       }),
+    },
+    membership: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue(
+          options.membership === undefined
+            ? { role: 'OWNER', status: 'ACTIVE' }
+            : options.membership,
+        ),
     },
     customerRewardGoal: {
       findFirst: jest.fn().mockResolvedValue(options.rewardGoal ?? null),
@@ -17,7 +35,12 @@ function makeDeps(options: { rewardGoal?: unknown } = {}) {
   };
   const benefits = {
     consumeRedemption: jest.fn(),
-    previewRedemption: jest.fn(),
+    previewRedemption: jest.fn().mockResolvedValue({
+      status: 'ok',
+      businessId: 'biz-1',
+      benefitTitle: '10% off',
+      customerName: 'Ana',
+    }),
     attachRedeemedVisit: jest.fn().mockResolvedValue(undefined),
   };
   const visits = {
@@ -41,6 +64,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
 function okConsumption(overrides: Record<string, unknown> = {}) {
   return {
     status: 'ok' as const,
+    businessId: 'biz-1',
     participationId: 'p-1',
     benefitId: 'b-1',
     customerId: 'c-1',
@@ -56,6 +80,7 @@ describe('RedemptionService', () => {
     const deps = makeDeps();
     deps.benefits.consumeRedemption.mockResolvedValue({
       status: 'ok',
+      businessId: 'biz-1',
       participationId: 'p-1',
       benefitId: 'b-1',
       customerId: 'c-1',
@@ -65,11 +90,10 @@ describe('RedemptionService', () => {
     });
     const service = makeService(deps);
 
-    const result = await service.redeem('biz-1', 'user-1', ' abcd1234 ');
+    const result = await service.redeem('user-1', ' abcd1234 ');
 
     // Code is normalized (trim + uppercase) before consuming.
     expect(deps.benefits.consumeRedemption).toHaveBeenCalledWith(
-      'biz-1',
       'ABCD1234',
       'user-1',
     );
@@ -101,55 +125,140 @@ describe('RedemptionService', () => {
 
   it('throws NotFound for an unknown code and never touches visits', async () => {
     const deps = makeDeps();
-    deps.benefits.consumeRedemption.mockResolvedValue({ status: 'not_found' });
+    deps.benefits.previewRedemption.mockResolvedValue({ status: 'not_found' });
     const service = makeService(deps);
 
-    await expect(
-      service.redeem('biz-1', 'user-1', 'XXXX'),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.redeem('user-1', 'XXXX')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(deps.benefits.consumeRedemption).not.toHaveBeenCalled();
     expect(deps.visits.registerRedemptionVisit).not.toHaveBeenCalled();
   });
 
   it('throws Conflict for an already-redeemed code (no double canje)', async () => {
     const deps = makeDeps();
-    deps.benefits.consumeRedemption.mockResolvedValue({ status: 'already' });
+    deps.benefits.previewRedemption.mockResolvedValue({
+      status: 'already',
+      businessId: 'biz-1',
+    });
+    deps.benefits.consumeRedemption.mockResolvedValue({
+      status: 'already',
+      businessId: 'biz-1',
+    });
     const service = makeService(deps);
 
-    await expect(
-      service.redeem('biz-1', 'user-1', 'ABCD1234'),
-    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.redeem('user-1', 'ABCD1234')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
     expect(deps.visits.registerRedemptionVisit).not.toHaveBeenCalled();
     expect(deps.events.emit).not.toHaveBeenCalled();
   });
 
-  it('Piloto V2 (#5) — throws Conflict for an expired code, never registers a visit', async () => {
+  it('throws Conflict for an expired code, never registers a visit', async () => {
     const deps = makeDeps();
-    deps.benefits.consumeRedemption.mockResolvedValue({ status: 'expired' });
+    deps.benefits.previewRedemption.mockResolvedValue({
+      status: 'expired',
+      businessId: 'biz-1',
+    });
+    deps.benefits.consumeRedemption.mockResolvedValue({
+      status: 'expired',
+      businessId: 'biz-1',
+    });
     const service = makeService(deps);
 
-    await expect(
-      service.redeem('biz-1', 'user-1', 'ABCD1234'),
-    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.redeem('user-1', 'ABCD1234')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
     expect(deps.visits.registerRedemptionVisit).not.toHaveBeenCalled();
+  });
+
+  it('ajuste "canje por URL" — resuelve el negocio del propio código, sin depender de un negocio "activo"', async () => {
+    const deps = makeDeps();
+    deps.benefits.previewRedemption.mockResolvedValue({
+      status: 'ok',
+      businessId: 'biz-OTHER',
+      benefitTitle: '10% off',
+      customerName: 'Ana',
+    });
+    deps.benefits.consumeRedemption.mockResolvedValue(
+      okConsumption({ businessId: 'biz-OTHER' }),
+    );
+    const service = makeService(deps);
+
+    await service.redeem('user-1', 'ABCD1234');
+
+    // El chequeo de membership se hace contra el negocio del CÓDIGO
+    // (biz-OTHER), nunca contra un businessId pasado por el caller.
+    expect(deps.prisma.membership.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          userId_businessId: { userId: 'user-1', businessId: 'biz-OTHER' },
+        },
+      }),
+    );
+    expect(deps.visits.registerRedemptionVisit).toHaveBeenCalledWith(
+      expect.objectContaining({ businessId: 'biz-OTHER' }),
+    );
+  });
+
+  it('rechaza con Forbidden si el empleado no tiene membership activa en el negocio del código, y nunca consume', async () => {
+    const deps = makeDeps({ membership: null });
+    const service = makeService(deps);
+
+    await expect(service.redeem('user-1', 'ABCD1234')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(deps.benefits.consumeRedemption).not.toHaveBeenCalled();
+  });
+
+  it('rechaza con Forbidden si la membership existe pero está inactiva', async () => {
+    const deps = makeDeps({ membership: { role: 'OWNER', status: 'REMOVED' } });
+    const service = makeService(deps);
+
+    await expect(service.redeem('user-1', 'ABCD1234')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(deps.benefits.consumeRedemption).not.toHaveBeenCalled();
+  });
+
+  it('rechaza con Forbidden si el rol no es OWNER/ADMIN/OPERATOR (ej. VIEWER)', async () => {
+    const deps = makeDeps({ membership: { role: 'VIEWER', status: 'ACTIVE' } });
+    const service = makeService(deps);
+
+    await expect(service.redeem('user-1', 'ABCD1234')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
+    expect(deps.benefits.consumeRedemption).not.toHaveBeenCalled();
+  });
+
+  it('LEGACY (negocio del código, no uno "activo") es rechazado igual que antes', async () => {
+    const deps = makeDeps();
+    deps.prisma.business.findUnique.mockResolvedValue({
+      experienceVersion: 'LEGACY',
+    });
+    const service = makeService(deps);
+
+    await expect(service.redeem('user-1', 'ABCD1234')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+    expect(deps.benefits.consumeRedemption).not.toHaveBeenCalled();
   });
 });
 
-describe('RedemptionService.preview — Piloto V2 (#5), escaneo por QR', () => {
+describe('RedemptionService.preview — canje por URL', () => {
   it('returns benefitTitle/customerName without consuming anything', async () => {
     const deps = makeDeps();
     deps.benefits.previewRedemption.mockResolvedValue({
       status: 'ok',
+      businessId: 'biz-1',
       benefitTitle: 'Capuccino gratis',
       customerName: 'Ana',
     });
     const service = makeService(deps);
 
-    const result = await service.preview('biz-1', ' abcd1234 ');
+    const result = await service.preview('user-1', ' abcd1234 ');
 
-    expect(deps.benefits.previewRedemption).toHaveBeenCalledWith(
-      'biz-1',
-      'ABCD1234',
-    );
+    expect(deps.benefits.previewRedemption).toHaveBeenCalledWith('ABCD1234');
     expect(deps.benefits.consumeRedemption).not.toHaveBeenCalled();
     expect(result).toEqual({
       benefitTitle: 'Capuccino gratis',
@@ -162,29 +271,35 @@ describe('RedemptionService.preview — Piloto V2 (#5), escaneo por QR', () => {
     deps.benefits.previewRedemption.mockResolvedValue({ status: 'not_found' });
     const service = makeService(deps);
 
-    await expect(service.preview('biz-1', 'XXXX')).rejects.toBeInstanceOf(
+    await expect(service.preview('user-1', 'XXXX')).rejects.toBeInstanceOf(
       NotFoundException,
     );
   });
 
   it('throws Conflict for an already-redeemed code', async () => {
     const deps = makeDeps();
-    deps.benefits.previewRedemption.mockResolvedValue({ status: 'already' });
+    deps.benefits.previewRedemption.mockResolvedValue({
+      status: 'already',
+      businessId: 'biz-1',
+    });
     const service = makeService(deps);
 
-    await expect(
-      service.preview('biz-1', 'ABCD1234'),
-    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.preview('user-1', 'ABCD1234')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 
   it('throws Conflict for an expired code', async () => {
     const deps = makeDeps();
-    deps.benefits.previewRedemption.mockResolvedValue({ status: 'expired' });
+    deps.benefits.previewRedemption.mockResolvedValue({
+      status: 'expired',
+      businessId: 'biz-1',
+    });
     const service = makeService(deps);
 
-    await expect(
-      service.preview('biz-1', 'ABCD1234'),
-    ).rejects.toBeInstanceOf(ConflictException);
+    await expect(service.preview('user-1', 'ABCD1234')).rejects.toBeInstanceOf(
+      ConflictException,
+    );
   });
 
   it('rejects a LEGACY business the same way redeem does', async () => {
@@ -194,10 +309,22 @@ describe('RedemptionService.preview — Piloto V2 (#5), escaneo por QR', () => {
     });
     const service = makeService(deps);
 
-    await expect(
-      service.preview('biz-1', 'ABCD1234'),
-    ).rejects.toBeInstanceOf(NotFoundException);
-    expect(deps.benefits.previewRedemption).not.toHaveBeenCalled();
+    await expect(service.preview('user-1', 'ABCD1234')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('rechaza con Forbidden — nunca revela already/expired — si el empleado no tiene acceso a ese negocio', async () => {
+    const deps = makeDeps({ membership: null });
+    deps.benefits.previewRedemption.mockResolvedValue({
+      status: 'already',
+      businessId: 'biz-1',
+    });
+    const service = makeService(deps);
+
+    await expect(service.preview('user-1', 'ABCD1234')).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 });
 
@@ -209,7 +336,7 @@ describe('RedemptionService — Reward Goal REDEEMED wiring (Fase F §0.2)', () 
     deps.benefits.consumeRedemption.mockResolvedValue(okConsumption());
     const service = makeService(deps);
 
-    await service.redeem('biz-1', 'user-1', 'ABCD1234');
+    await service.redeem('user-1', 'ABCD1234');
 
     expect(deps.prisma.customerRewardGoal.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -235,7 +362,7 @@ describe('RedemptionService — Reward Goal REDEEMED wiring (Fase F §0.2)', () 
     deps.benefits.consumeRedemption.mockResolvedValue(okConsumption());
     const service = makeService(deps);
 
-    const result = await service.redeem('biz-1', 'user-1', 'ABCD1234');
+    const result = await service.redeem('user-1', 'ABCD1234');
 
     expect(deps.prisma.customerRewardGoal.updateMany).not.toHaveBeenCalled();
     expect(deps.decisions.record).not.toHaveBeenCalled();
@@ -252,7 +379,7 @@ describe('RedemptionService — Reward Goal REDEEMED wiring (Fase F §0.2)', () 
     deps.benefits.consumeRedemption.mockResolvedValue(okConsumption());
     const service = makeService(deps);
 
-    await service.redeem('biz-1', 'user-1', 'ABCD1234');
+    await service.redeem('user-1', 'ABCD1234');
 
     expect(deps.decisions.record).not.toHaveBeenCalled();
   });
@@ -264,7 +391,7 @@ describe('RedemptionService — Reward Goal REDEEMED wiring (Fase F §0.2)', () 
     deps.benefits.consumeRedemption.mockResolvedValue(okConsumption());
     const service = makeService(deps);
 
-    await service.redeem('biz-1', 'user-1', 'ABCD1234');
+    await service.redeem('user-1', 'ABCD1234');
 
     // attachRedeemedVisit is the one legitimate write to the redemption
     // itself, already asserted elsewhere — nothing else on `benefits` is

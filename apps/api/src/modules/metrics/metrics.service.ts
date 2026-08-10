@@ -973,7 +973,13 @@ export class MetricsService {
     });
   }
 
-  private countGoogleReviews(
+  /**
+   * Dashboard overview (#new) reutiliza esto tal cual para "reseñas nuevas
+   * en el período" con from/to arbitrarios — ya no es private para poder
+   * inyectar `MetricsService` desde `DashboardOverviewService` sin duplicar
+   * la query.
+   */
+  countGoogleReviews(
     businessId: string,
     from: Date,
     to: Date,
@@ -989,11 +995,7 @@ export class MetricsService {
     });
   }
 
-  private countMessagesSent(
-    businessId: string,
-    from: Date,
-    to: Date,
-  ): Promise<number> {
+  countMessagesSent(businessId: string, from: Date, to: Date): Promise<number> {
     return this.prisma.message.count({
       where: {
         businessId,

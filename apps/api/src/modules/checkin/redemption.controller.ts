@@ -1,10 +1,5 @@
 import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
-import { MembershipRole } from '@prisma/client';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { RolesGuard } from '../../common/guards/roles.guard';
-import { TenantGuard } from '../../common/guards/tenant.guard';
-import { CheckinV2Guard } from '../../common/guards/checkin-v2.guard';
 import type { AuthenticatedRequest } from '../../common/types/request.types';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { RedemptionService } from './redemption.service';
@@ -18,28 +13,32 @@ class RedeemDto {
 
 /**
  * Staff-facing benefit validation. Owners/admins and counter operators can
- * validate a customer's redemption code. Tenant-scoped and role-guarded.
+ * validate a customer's redemption code.
+ *
+ * Ajuste "canje por URL" — deliberadamente sin `TenantGuard`/`RolesGuard`/
+ * `CheckinV2Guard` a nivel de decorator: el negocio y el rol ya no se
+ * resuelven desde `x-business-id` (el "negocio activo" de la sesión), sino
+ * desde el propio código escaneado — `RedemptionService.assertEmployeeAccess`
+ * hace ese chequeo (membership + rol + Check-in V2) contra el negocio real
+ * al que pertenece el código, cualquiera sea el negocio activo del
+ * empleado. Solo requiere estar logueado (`JwtGuard`); todo el resto de la
+ * autorización vive en el service, con acceso a `req.user.id`.
  */
 @Controller('redemptions')
-@UseGuards(JwtGuard, TenantGuard, CheckinV2Guard)
+@UseGuards(JwtGuard)
 export class RedemptionController {
   constructor(private readonly service: RedemptionService) {}
 
-  // Piloto V2 (#5) — lectura, nunca consume. El "Escanear recompensa" del
-  // empleado llama esto primero para mostrar "Beneficio: X / Cliente: Y";
-  // recién al tocar "Confirmar canje" el frontend llama /redeem con el
-  // mismo código.
+  // Lectura, nunca consume. La pantalla de canje (`/redeem/{token}`) llama
+  // esto primero para mostrar "Beneficio: X / Cliente: Y"; recién al tocar
+  // "Confirmar canje" llama a /redeem con el mismo código.
   @Post('preview')
-  @UseGuards(RolesGuard)
-  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.OPERATOR)
   preview(@Req() req: AuthenticatedRequest, @Body() dto: RedeemDto) {
-    return this.service.preview(req.currentBusinessId!, dto.code);
+    return this.service.preview(req.user.id, dto.code);
   }
 
   @Post('redeem')
-  @UseGuards(RolesGuard)
-  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.OPERATOR)
   redeem(@Req() req: AuthenticatedRequest, @Body() dto: RedeemDto) {
-    return this.service.redeem(req.currentBusinessId!, req.user.id, dto.code);
+    return this.service.redeem(req.user.id, dto.code);
   }
 }

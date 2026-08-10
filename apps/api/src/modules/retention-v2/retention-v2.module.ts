@@ -65,6 +65,10 @@ import { RetentionOptimizationService } from './retention-optimization.service';
     IncentiveIssuerService,
     AiRecommendationExplanationService,
     RetentionOptimizationService,
+    // Dashboard principal (#new) — señal simple de Retención reutiliza el
+    // mismo resumen por experimento que ya usa /retention-v2/results/overview,
+    // en vez de recalcular winner/uplift por su cuenta.
+    RetentionResultsOverviewService,
   ],
 })
 export class RetentionV2Module {}

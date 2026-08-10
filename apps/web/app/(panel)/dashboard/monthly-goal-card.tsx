@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import WelcomeGoalPicker from "./welcome-goal-picker";
 import type { GoalView, PlanType } from "./page";
 
@@ -160,6 +161,13 @@ export default function MonthlyGoalCard({
           </button>
         </div>
       )}
+
+      <Link
+        href="/dashboard/reviews"
+        className="mt-4 text-center text-xs font-semibold text-[#5C6BC0] hover:underline"
+      >
+        Ver todas las reseñas
+      </Link>
     </article>
   );
 }

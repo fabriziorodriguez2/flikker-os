@@ -607,10 +607,11 @@ function SlideToReveal({
   const [breaking, setBreaking] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Piloto V2 (#5) — el mismo código que ya se mostraba como texto también
-  // se codifica como QR: el empleado lo escanea con "Escanear recompensa"
-  // en vez de tipearlo. Nada nuevo del lado del servidor — es el mismo
-  // `redemptionCode`, solo renderizado distinto.
+  // Canje por URL — el QR ya no codifica el código en texto plano: codifica
+  // una URL (`/redeem/{code}`) que el empleado abre con la cámara NATIVA de
+  // su teléfono (no una cámara dentro de Flikker). Esa pantalla ya sabe
+  // resolver el negocio y el permiso a partir del propio código — nada
+  // nuevo del lado del servidor, es el mismo `redemptionCode` de siempre.
   const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
@@ -622,7 +623,8 @@ function SlideToReveal({
   useEffect(() => {
     if (!revealed) return;
     let cancelled = false;
-    void QRCode.toDataURL(code, {
+    const redeemUrl = `${window.location.origin}/redeem/${code}`;
+    void QRCode.toDataURL(redeemUrl, {
       errorCorrectionLevel: "M",
       margin: 2,
       width: 220,

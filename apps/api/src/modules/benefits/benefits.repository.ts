@@ -15,12 +15,21 @@ function generateRedemptionCode(): string {
   return code;
 }
 
+/**
+ * Ajuste "canje por URL" — `businessId` ya no es un filtro que el caller
+ * decide (dejaba de funcionar si el empleado escaneaba un QR de un negocio
+ * distinto al "activo" en su sesión); ahora `redemptionCode` es la única
+ * clave de búsqueda (ya es `@unique` globalmente) y el `businessId` viaja
+ * DENTRO del resultado — es `RedemptionService` quien lo usa para verificar
+ * que el empleado logueado tiene membership ahí, cualquiera sea el status.
+ */
 export type ConsumeRedemptionResult =
   | { status: 'not_found' }
-  | { status: 'already' }
-  | { status: 'expired' }
+  | { status: 'already'; businessId: string }
+  | { status: 'expired'; businessId: string }
   | {
       status: 'ok';
+      businessId: string;
       participationId: string;
       benefitId: string;
       customerId: string;
@@ -39,9 +48,14 @@ export type ConsumeRedemptionResult =
  */
 export type PreviewRedemptionResult =
   | { status: 'not_found' }
-  | { status: 'already' }
-  | { status: 'expired' }
-  | { status: 'ok'; benefitTitle: string; customerName: string };
+  | { status: 'already'; businessId: string }
+  | { status: 'expired'; businessId: string }
+  | {
+      status: 'ok';
+      businessId: string;
+      benefitTitle: string;
+      customerName: string;
+    };
 
 export interface BenefitData {
   type: BenefitType;
@@ -404,33 +418,43 @@ export class BenefitsRepository {
    * behaviour); Retention V2/Reward-Goal-issued ones set it, and it is now
    * actually honored at redemption time — the "expiración corta razonable"
    * the QR canje flow needs is exactly this already-existing field.
+   *
+   * "Canje por URL" — ya no recibe `businessId`: `redemptionCode` es único
+   * globalmente, así que la fila se busca solo por código. El caller
+   * (`RedemptionService`) es quien decide, con el `businessId` que devuelve
+   * el resultado, si el empleado logueado tiene permiso ahí — antes de eso
+   * nunca se muta nada.
    */
   async consumeRedemption(
-    businessId: string,
     code: string,
     userId: string,
     now: Date = new Date(),
   ): Promise<ConsumeRedemptionResult> {
     return this.prisma.$transaction(async (tx) => {
       const found = await tx.benefitParticipation.findFirst({
-        where: { businessId, redemptionCode: code },
+        where: { redemptionCode: code },
         include: {
           benefit: { select: { title: true, type: true } },
           customer: { select: { name: true } },
         },
       });
       if (!found) return { status: 'not_found' };
-      if (found.redeemedAt) return { status: 'already' };
-      if (found.expiresAt && found.expiresAt < now) return { status: 'expired' };
+      if (found.redeemedAt)
+        return { status: 'already', businessId: found.businessId };
+      if (found.expiresAt && found.expiresAt < now) {
+        return { status: 'expired', businessId: found.businessId };
+      }
 
       const updated = await tx.benefitParticipation.updateMany({
         where: { id: found.id, redeemedAt: null },
         data: { redeemedAt: now, redeemedByUserId: userId },
       });
-      if (updated.count === 0) return { status: 'already' };
+      if (updated.count === 0)
+        return { status: 'already', businessId: found.businessId };
 
       return {
         status: 'ok',
+        businessId: found.businessId,
         participationId: found.id,
         benefitId: found.benefitId,
         customerId: found.customerId,
@@ -447,25 +471,31 @@ export class BenefitsRepository {
    * by the same code via `consumeRedemption`, so there is no id to pass
    * forward and no window for the preview itself to go stale in a way that
    * matters (the atomic guard in `consumeRedemption` is what's authoritative).
+   *
+   * Sin `businessId`: mismo motivo que `consumeRedemption` — busca solo por
+   * código (único globalmente) y devuelve el `businessId` en el resultado.
    */
   async previewRedemption(
-    businessId: string,
     code: string,
     now: Date = new Date(),
   ): Promise<PreviewRedemptionResult> {
     const found = await this.prisma.benefitParticipation.findFirst({
-      where: { businessId, redemptionCode: code },
+      where: { redemptionCode: code },
       include: {
         benefit: { select: { title: true } },
         customer: { select: { name: true } },
       },
     });
     if (!found) return { status: 'not_found' };
-    if (found.redeemedAt) return { status: 'already' };
-    if (found.expiresAt && found.expiresAt < now) return { status: 'expired' };
+    if (found.redeemedAt)
+      return { status: 'already', businessId: found.businessId };
+    if (found.expiresAt && found.expiresAt < now) {
+      return { status: 'expired', businessId: found.businessId };
+    }
 
     return {
       status: 'ok',
+      businessId: found.businessId,
       benefitTitle: found.benefit.title,
       customerName: found.customer.name,
     };

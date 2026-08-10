@@ -6,32 +6,45 @@ function Bone({ className }: { className?: string }) {
 
 export default function DashboardLoading() {
   return (
-    <div className="mx-auto max-w-5xl space-y-5">
-      {/* Title */}
-      <div className="space-y-2">
-        <Bone className="h-7 w-24" />
-        <Bone className="h-4 w-48" />
+    <div className="mx-auto max-w-6xl space-y-6">
+      {/* Header + selector de período */}
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div className="space-y-2">
+          <Bone className="h-7 w-56" />
+          <Bone className="h-4 w-64" />
+        </div>
+        <Bone className="h-8 w-40" />
       </div>
 
-      {/* KPI cards */}
-      <section className="grid gap-4 sm:grid-cols-3">
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div
-            key={i}
-            className="rounded-[12px] border border-[#E8EAF0] bg-white p-5 space-y-3"
-          >
-            <Bone className="h-3 w-28" />
-            <Bone className="h-9 w-16" />
-            <Bone className="h-5 w-36" />
+      {/* 4 cards principales */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 space-y-3">
+            <Bone className="h-3 w-24" />
+            <Bone className="h-8 w-16" />
+            <Bone className="h-3 w-32" />
           </div>
         ))}
-      </section>
+      </div>
 
-      {/* Flik panel */}
-      <Bone className="h-48 w-full rounded-[12px]" />
+      {/* Rendimiento + Actividad reciente */}
+      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <Bone className="h-[340px] w-full rounded-[16px]" />
+        <Bone className="h-[340px] w-full rounded-[16px]" />
+      </div>
 
-      {/* QuickAttend */}
-      <Bone className="h-32 w-full rounded-[12px]" />
+      {/* Acciones rápidas */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        {Array.from({ length: 5 }).map((_, i) => (
+          <Bone key={i} className="h-24 w-full rounded-[14px]" />
+        ))}
+      </div>
+
+      {/* Próximos pasos + Retención */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Bone className="h-40 w-full rounded-[16px]" />
+        <Bone className="h-40 w-full rounded-[16px]" />
+      </div>
     </div>
   );
 }

@@ -236,12 +236,24 @@ describe('Benefit redemption rollout', () => {
             experienceVersion,
           }),
         },
+        membership: {
+          findUnique: jest.fn().mockResolvedValue({
+            role: 'OWNER',
+            status: 'ACTIVE',
+          }),
+        },
         customerRewardGoal: {
           findFirst: jest.fn().mockResolvedValue(null),
           updateMany: jest.fn(),
         },
       },
       benefits: {
+        previewRedemption: jest.fn().mockResolvedValue({
+          status: 'ok',
+          businessId: 'biz-1',
+          benefitTitle: '10% off',
+          customerName: 'Ana',
+        }),
         consumeRedemption: jest.fn(),
         attachRedeemedVisit: jest.fn(),
       },
@@ -261,9 +273,9 @@ describe('Benefit redemption rollout', () => {
       deps.decisions as never,
     );
 
-    await expect(
-      service.redeem('biz-1', 'user-1', 'ABCD1234'),
-    ).rejects.toBeInstanceOf(NotFoundException);
+    await expect(service.redeem('user-1', 'ABCD1234')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     expect(deps.benefits.consumeRedemption).not.toHaveBeenCalled();
     expect(deps.visits.registerRedemptionVisit).not.toHaveBeenCalled();
   });
@@ -272,6 +284,7 @@ describe('Benefit redemption rollout', () => {
     const deps = makeRedemptionDeps(ExperienceVersion.CHECKIN_V2);
     deps.benefits.consumeRedemption.mockResolvedValue({
       status: 'ok',
+      businessId: 'biz-1',
       participationId: 'p-1',
       benefitId: 'b-1',
       customerId: 'c-1',
@@ -288,8 +301,9 @@ describe('Benefit redemption rollout', () => {
       deps.decisions as never,
     );
 
-    await expect(
-      service.redeem('biz-1', 'user-1', 'ABCD1234'),
-    ).resolves.toMatchObject({ ok: true, visitId: 'v-1' });
+    await expect(service.redeem('user-1', 'ABCD1234')).resolves.toMatchObject({
+      ok: true,
+      visitId: 'v-1',
+    });
   });
 });

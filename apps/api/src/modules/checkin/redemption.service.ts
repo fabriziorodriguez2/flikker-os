@@ -1,9 +1,15 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { CustomerEventType, RewardGoalStatus } from '@prisma/client';
+import {
+  CustomerEventType,
+  MembershipRole,
+  MembershipStatus,
+  RewardGoalStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BenefitsRepository } from '../benefits/benefits.repository';
 import { VisitsRepository } from './visits.repository';
@@ -13,6 +19,13 @@ import {
   DECISION_CODES,
   RetentionDecisionLogService,
 } from '../retention-v2/retention-decision-log.service';
+
+/** Same three roles the old TenantGuard+RolesGuard combo used to require. */
+const ALLOWED_ROLES: MembershipRole[] = [
+  MembershipRole.OWNER,
+  MembershipRole.ADMIN,
+  MembershipRole.OPERATOR,
+];
 
 @Injectable()
 export class RedemptionService {
@@ -25,25 +38,53 @@ export class RedemptionService {
   ) {}
 
   /**
-   * Read-only "scan → preview" step — see PreviewRedemptionResult. Used by
-   * the employee-facing camera scan (Piloto V2 #5): shows "Beneficio: X /
-   * Cliente: Y" before anything is consumed. Manual code entry skips this
-   * and calls `redeem` directly, same as always.
+   * Ajuste "canje por URL" — el empleado ya no necesita tener este negocio
+   * "activo" en su sesión: escanea el QR con la cámara nativa del teléfono,
+   * que abre `/redeem/{code}` autenticado, y el negocio correcto se resuelve
+   * a partir del propio código (único globalmente). Esto reemplaza al viejo
+   * `TenantGuard` (que exigía `x-business-id` == negocio activo) por una
+   * autorización basada en membership real contra el negocio que el código
+   * efectivamente pertenece — al menos igual de estricta, pero sin la
+   * fricción de "cambiar de negocio" antes de poder canjear.
    */
-  async preview(businessId: string, rawCode: string) {
-    const code = rawCode.trim().toUpperCase();
-    if (!code) throw new NotFoundException('Código inválido');
-
+  private async assertEmployeeAccess(userId: string, businessId: string) {
     const business = await this.prisma.business.findUnique({
       where: { id: businessId },
-      select: { experienceVersion: true },
+      select: { experienceVersion: true, timezone: true },
     });
     if (!business || !isCheckinV2(business)) throw new NotFoundException();
 
-    const result = await this.benefits.previewRedemption(businessId, code);
+    const membership = await this.prisma.membership.findUnique({
+      where: { userId_businessId: { userId, businessId } },
+      select: { role: true, status: true },
+    });
+    if (
+      !membership ||
+      membership.status !== MembershipStatus.ACTIVE ||
+      !ALLOWED_ROLES.includes(membership.role)
+    ) {
+      throw new ForbiddenException('No tenés acceso a este negocio.');
+    }
+
+    return business;
+  }
+
+  /**
+   * Read-only "scan → preview" step — see PreviewRedemptionResult. Muestra
+   * "Beneficio: X / Cliente: Y" antes de consumir nada. El código manual
+   * sigue llamando `redeem` directo, sin este paso intermedio.
+   */
+  async preview(userId: string, rawCode: string) {
+    const code = rawCode.trim().toUpperCase();
+    if (!code) throw new NotFoundException('Código inválido');
+
+    const result = await this.benefits.previewRedemption(code);
     if (result.status === 'not_found') {
       throw new NotFoundException('Código no encontrado');
     }
+
+    await this.assertEmployeeAccess(userId, result.businessId);
+
     if (result.status === 'already') {
       throw new ConflictException('Este beneficio ya fue canjeado');
     }
@@ -62,25 +103,22 @@ export class RedemptionService {
    * confirmed_redemption, (3) links the visit and emits the timeline event.
    * The authoritative "used once" guarantee is the atomic consume in step 1.
    */
-  async redeem(businessId: string, userId: string, rawCode: string) {
+  async redeem(userId: string, rawCode: string) {
     const code = rawCode.trim().toUpperCase();
     if (!code) throw new NotFoundException('Código inválido');
 
-    // V2-only: the redemption produces a Visit and a confirmed_redemption
-    // attribution, neither of which may exist for a legacy business. Checked
-    // before consuming so a legacy call never burns the code either. The legacy
-    // benefits module (Benefit/BenefitParticipation) is untouched by this.
-    const business = await this.prisma.business.findUnique({
-      where: { id: businessId },
-      select: { timezone: true, experienceVersion: true },
-    });
-    if (!business || !isCheckinV2(business)) throw new NotFoundException();
+    // Resuelve a qué negocio pertenece el código y verifica acceso ANTES de
+    // consumir nada — nunca quemar un código válido para después descubrir
+    // que el empleado no tiene permiso ahí. La garantía de un solo uso
+    // sigue viviendo enteramente en el guard atómico de `consumeRedemption`,
+    // no en este chequeo previo.
+    const lookup = await this.benefits.previewRedemption(code);
+    if (lookup.status === 'not_found') {
+      throw new NotFoundException('Código no encontrado');
+    }
+    const business = await this.assertEmployeeAccess(userId, lookup.businessId);
 
-    const consumed = await this.benefits.consumeRedemption(
-      businessId,
-      code,
-      userId,
-    );
+    const consumed = await this.benefits.consumeRedemption(code, userId);
     if (consumed.status === 'not_found') {
       throw new NotFoundException('Código no encontrado');
     }
@@ -92,16 +130,16 @@ export class RedemptionService {
     }
 
     const visit = await this.visits.registerRedemptionVisit({
-      businessId,
+      businessId: consumed.businessId,
       customerId: consumed.customerId,
-      timezone: business?.timezone ?? 'America/Montevideo',
+      timezone: business.timezone ?? 'America/Montevideo',
       benefitId: consumed.benefitId,
       participationId: consumed.participationId,
     });
 
     await this.benefits.attachRedeemedVisit(consumed.participationId, visit.id);
     await this.events.emit({
-      businessId,
+      businessId: consumed.businessId,
       customerId: consumed.customerId,
       type: CustomerEventType.benefit_redeemed,
       visitId: visit.id,
