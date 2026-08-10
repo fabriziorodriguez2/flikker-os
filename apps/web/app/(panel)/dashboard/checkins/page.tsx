@@ -2,12 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
+  Activity,
   Clock,
   Copy,
   Download,
   Loader2,
   Plus,
   QrCode,
+  Repeat2,
   Trash2,
   X,
 } from "lucide-react";
@@ -152,10 +154,10 @@ export default function CheckinsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6">
+    <div className="w-full space-y-5">
       <PageHeader
         title="Check-ins"
-        subtitle="Cada QR es un punto de check-in. Gestioná las fuentes y descubrí quién entra y quién vuelve."
+        subtitle="Gestioná tus puntos QR y revisá la actividad de quienes visitan tu negocio."
       />
 
       {error ? (
@@ -163,6 +165,59 @@ export default function CheckinsPage() {
           {error}
         </div>
       ) : null}
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          {
+            label: "Fuentes QR",
+            value: sources.length,
+            detail: "Puntos configurados",
+            icon: <QrCode className="h-5 w-5" aria-hidden="true" />,
+            tone: "bg-[#EEF0FF] text-[#5C6BC0]",
+          },
+          {
+            label: "Fuentes activas",
+            value: sources.filter((source) => source.isActive).length,
+            detail: "Disponibles para escanear",
+            icon: <Activity className="h-5 w-5" aria-hidden="true" />,
+            tone: "bg-[#EAF8F1] text-[#16805D]",
+          },
+          {
+            label: "Actividad reciente",
+            value: checkins.length,
+            detail: "Check-ins en esta vista",
+            icon: <Clock className="h-5 w-5" aria-hidden="true" />,
+            tone: "bg-[#FFF3E8] text-[#C76A2A]",
+          },
+          {
+            label: "Retornos",
+            value: checkins.filter((checkin) => checkin.isReturn).length,
+            detail: "Clientes que volvieron",
+            icon: <Repeat2 className="h-5 w-5" aria-hidden="true" />,
+            tone: "bg-[#F3EDFF] text-[#7653B6]",
+          },
+        ].map((metric) => (
+          <div
+            key={metric.label}
+            className="flex items-center gap-4 rounded-[20px] border border-white/80 bg-white/68 px-5 py-4 shadow-[0_10px_28px_rgba(56,45,125,0.07)] backdrop-blur-xl"
+          >
+            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] ${metric.tone}`}>
+              {metric.icon}
+            </span>
+            <div className="min-w-0">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8B93A7]">
+                {metric.label}
+              </p>
+              <div className="mt-0.5 flex items-baseline gap-2">
+                <span className="text-2xl font-bold tracking-[-0.03em] text-[#202333]">
+                  {metric.value}
+                </span>
+                <span className="truncate text-xs text-[#9299AA]">{metric.detail}</span>
+              </div>
+            </div>
+          </div>
+        ))}
+      </section>
 
       <SourcesSection
         sources={sources}
@@ -174,16 +229,17 @@ export default function CheckinsPage() {
       />
 
       {/* Check-ins table */}
-      <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <p className="text-sm font-semibold text-[#1A202C]">
-            Últimos check-ins
-          </p>
+      <section className="overflow-hidden rounded-[22px] border border-white/80 bg-white/72 shadow-[0_14px_36px_rgba(56,45,125,0.08)] backdrop-blur-xl">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#E9EAF1] px-5 py-4 md:px-6">
+          <div>
+            <h2 className="text-base font-semibold text-[#202333]">Actividad reciente</h2>
+            <p className="mt-0.5 text-xs text-[#8B93A7]">Últimos ingresos registrados en tus fuentes QR.</p>
+          </div>
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={filterSource}
               onChange={(e) => setFilterSource(e.target.value)}
-              className="h-9 rounded-[8px] border border-[#E8EAF0] bg-white px-2 text-sm text-[#1A202C] outline-none focus:border-[#5C6BC0]"
+              className="h-10 rounded-[11px] border border-[#DDE0EA] bg-white/80 px-3 text-sm text-[#303447] outline-none transition-colors focus:border-[#5C6BC0]"
             >
               <option value="">Todas las fuentes</option>
               {sources.map((s) => (
@@ -192,7 +248,7 @@ export default function CheckinsPage() {
                 </option>
               ))}
             </select>
-            <label className="flex items-center gap-2 text-sm text-[#475467]">
+            <label className="flex h-10 items-center gap-2 rounded-[11px] border border-[#DDE0EA] bg-white/65 px-3 text-sm text-[#5F6678]">
               <input
                 type="checkbox"
                 checked={onlyReturns}
@@ -204,31 +260,31 @@ export default function CheckinsPage() {
         </div>
 
         {loading ? (
-          <div className="flex h-24 items-center justify-center text-sm text-[#8891A4]">
+          <div className="flex h-32 items-center justify-center text-sm text-[#8891A4]">
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             Cargando…
           </div>
         ) : checkins.length === 0 ? (
-          <p className="py-8 text-center text-sm text-[#8891A4]">
+          <p className="py-12 text-center text-sm text-[#8891A4]">
             Todavía no hay check-ins con estos filtros.
           </p>
         ) : (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[640px] text-sm">
+          <div className="overflow-x-auto px-5 pb-3 md:px-6">
+            <table className="w-full min-w-[820px] text-sm">
               <thead>
-                <tr className="text-left text-[11px] uppercase tracking-wide text-[#98a2b3]">
-                  <th className="pb-2 pr-3 font-semibold">Cliente</th>
-                  <th className="pb-2 px-3 font-semibold">Fecha</th>
-                  <th className="pb-2 px-3 font-semibold">Fuente</th>
-                  <th className="pb-2 px-3 font-semibold">Tipo</th>
-                  <th className="pb-2 px-3 font-semibold">Atribución</th>
-                  <th className="pb-2 pl-3 font-semibold">Beneficio</th>
+                <tr className="text-left text-[11px] uppercase tracking-[0.08em] text-[#98A0B2]">
+                  <th className="py-3 pr-4 font-semibold">Cliente</th>
+                  <th className="px-4 py-3 font-semibold">Fecha</th>
+                  <th className="px-4 py-3 font-semibold">Fuente</th>
+                  <th className="px-4 py-3 font-semibold">Tipo</th>
+                  <th className="px-4 py-3 font-semibold">Atribución</th>
+                  <th className="py-3 pl-4 font-semibold">Beneficio</th>
                 </tr>
               </thead>
               <tbody>
                 {checkins.map((c) => (
-                  <tr key={c.id} className="border-t border-[#F0F1F5]">
-                    <td className="py-2 pr-3">
+                  <tr key={c.id} className="border-t border-[#ECEEF4] transition-colors hover:bg-[#F8F8FC]/80">
+                    <td className="py-3.5 pr-4">
                       <button
                         type="button"
                         onClick={() => void openTimeline(c.customer.id)}
@@ -237,13 +293,13 @@ export default function CheckinsPage() {
                         {c.customer.name}
                       </button>
                     </td>
-                    <td className="py-2 px-3 text-[#475467]">
+                    <td className="px-4 py-3.5 text-[#5F6678]">
                       {fmtDate(c.occurredAt)}
                     </td>
-                    <td className="py-2 px-3 text-[#475467]">
+                    <td className="px-4 py-3.5 text-[#5F6678]">
                       {c.sourceName ?? "—"}
                     </td>
-                    <td className="py-2 px-3">
+                    <td className="px-4 py-3.5">
                       <span
                         className={`rounded-full px-2 py-0.5 text-xs font-medium ${
                           c.isReturn
@@ -254,7 +310,7 @@ export default function CheckinsPage() {
                         {c.isReturn ? "Retorno" : "Primera visita"}
                       </span>
                     </td>
-                    <td className="py-2 px-3 text-[#475467]">
+                    <td className="px-4 py-3.5 text-[#5F6678]">
                       {ATTRIBUTION_LABEL[c.attributionType] ?? c.attributionType}
                       {c.campaignName ? (
                         <span className="block text-[11px] text-[#98a2b3]">
@@ -262,7 +318,7 @@ export default function CheckinsPage() {
                         </span>
                       ) : null}
                     </td>
-                    <td className="py-2 pl-3 text-[#475467]">
+                    <td className="py-3.5 pl-4 text-[#5F6678]">
                       {c.benefitTitle ?? "—"}
                     </td>
                   </tr>
@@ -271,7 +327,7 @@ export default function CheckinsPage() {
             </table>
           </div>
         )}
-      </div>
+      </section>
 
       {timeline ? (
         <TimelineModal timeline={timeline} onClose={() => setTimeline(null)} />
@@ -354,14 +410,24 @@ function SourcesSection({
   }
 
   return (
-    <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-5">
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-[#1A202C]">Fuentes QR</p>
+    <section className="rounded-[22px] border border-white/80 bg-white/72 p-5 shadow-[0_14px_36px_rgba(56,45,125,0.08)] backdrop-blur-xl md:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-[12px] bg-[#EEF0FF] text-[#5C6BC0]">
+              <QrCode className="h-[18px] w-[18px]" aria-hidden="true" />
+            </span>
+            <h2 className="text-base font-semibold text-[#202333]">Fuentes QR</h2>
+          </div>
+          <p className="mt-1.5 text-xs text-[#8B93A7]">
+            Creá distintos puntos para saber desde dónde llegan tus visitas.
+          </p>
+        </div>
         {canMutate && !creating ? (
           <button
             type="button"
             onClick={() => setCreating(true)}
-            className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-3 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
+            className="inline-flex h-10 items-center gap-2 rounded-[11px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white shadow-[0_7px_18px_rgba(92,107,192,0.22)] transition-all hover:-translate-y-px hover:bg-[#5261B4]"
           >
             <Plus className="h-4 w-4" />
             Nueva fuente
@@ -370,17 +436,17 @@ function SourcesSection({
       </div>
 
       {creating ? (
-        <div className="mt-4 flex flex-wrap items-end gap-2">
+        <div className="mt-5 flex flex-wrap items-end gap-2 rounded-[16px] border border-[#E4E6EF] bg-[#F8F8FC]/75 p-3">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Nombre (ej. Mesa 4, Mostrador)"
-            className="h-10 flex-1 rounded-[8px] border border-[#E8EAF0] px-3 text-sm outline-none focus:border-[#5C6BC0]"
+            className="h-10 min-w-[220px] flex-1 rounded-[10px] border border-[#DDE0EA] bg-white px-3 text-sm outline-none focus:border-[#5C6BC0]"
           />
           <select
             value={type}
             onChange={(e) => setType(e.target.value)}
-            className="h-10 rounded-[8px] border border-[#E8EAF0] px-2 text-sm outline-none focus:border-[#5C6BC0]"
+            className="h-10 rounded-[10px] border border-[#DDE0EA] bg-white px-3 text-sm outline-none focus:border-[#5C6BC0]"
           >
             <option value="qr">QR</option>
             <option value="link">Link</option>
@@ -389,7 +455,7 @@ function SourcesSection({
             type="button"
             onClick={() => void create()}
             disabled={busy || !name.trim()}
-            className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+            className="inline-flex h-10 items-center gap-2 rounded-[10px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#5261B4] disabled:opacity-50"
           >
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Crear
@@ -397,38 +463,39 @@ function SourcesSection({
           <button
             type="button"
             onClick={() => setCreating(false)}
-            className="inline-flex h-10 items-center rounded-[8px] border border-[#E8EAF0] px-3 text-sm font-semibold text-[#475467]"
+            className="inline-flex h-10 items-center rounded-[10px] border border-[#DDE0EA] bg-white px-3 text-sm font-semibold text-[#5F6678] hover:bg-[#F5F6FA]"
           >
             Cancelar
           </button>
         </div>
       ) : null}
 
-      <div className="mt-4 space-y-2">
+      <div className="mt-5 grid gap-3 xl:grid-cols-2">
         {sources.map((s) => (
           <div
             key={s.id}
-            className="flex flex-wrap items-center gap-3 rounded-[10px] border border-[#F0F1F5] px-3 py-2.5"
+            className="group flex flex-wrap items-center gap-3 rounded-[16px] border border-[#E5E7EF] bg-white/70 px-4 py-3.5 transition-all hover:border-[#C9CEF0] hover:shadow-[0_8px_22px_rgba(56,45,125,0.07)]"
           >
-            <div className="min-w-[120px] flex-1">
-              <p className="text-sm font-semibold text-[#1A202C]">
+            <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] ${s.isActive ? "bg-[#EEF0FF] text-[#5C6BC0]" : "bg-[#F1F2F5] text-[#969DAD]"}`}>
+              <QrCode className="h-[18px] w-[18px]" aria-hidden="true" />
+            </span>
+            <div className="min-w-[140px] flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-[#202333]">
                 {s.name}
-                {s.isDefault ? (
-                  <span className="ml-2 text-[11px] font-normal text-[#98a2b3]">
-                    (por defecto)
-                  </span>
-                ) : null}
-              </p>
-              <p className="text-[11px] text-[#98a2b3]">
+                </p>
+                {s.isDefault ? <span className="rounded-full bg-[#EEF0FF] px-2 py-0.5 text-[10px] font-semibold text-[#5C6BC0]">Principal</span> : null}
+                {!s.isActive ? <span className="rounded-full bg-[#F1F2F5] px-2 py-0.5 text-[10px] font-semibold text-[#747B8B]">Inactiva</span> : null}
+              </div>
+              <p className="mt-0.5 text-[11px] text-[#9299AA]">
                 {SOURCE_TYPE_LABEL[s.type] ?? s.type} · {s.scannedCount} escaneos
-                {s.isActive ? "" : " · inactiva"}
               </p>
             </div>
 
             <button
               type="button"
               onClick={() => void copyUrl(s)}
-              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#E8EAF0] px-3 text-xs font-medium text-[#475467] hover:bg-[#F5F6FA]"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[9px] border border-[#DDE0EA] bg-white/75 px-3 text-xs font-medium text-[#5F6678] hover:bg-white"
             >
               <Copy className="h-3.5 w-3.5" />
               {copiedId === s.id ? "Copiado" : "Copiar link"}
@@ -436,7 +503,7 @@ function SourcesSection({
 
             <a
               href={`/api/checkin/source/${s.id}/qr`}
-              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#E8EAF0] px-3 text-xs font-medium text-[#475467] hover:bg-[#F5F6FA]"
+              className="inline-flex h-9 items-center gap-1.5 rounded-[9px] border border-[#DDE0EA] bg-white/75 px-3 text-xs font-medium text-[#5F6678] hover:bg-white"
             >
               <Download className="h-3.5 w-3.5" />
               QR
@@ -447,7 +514,7 @@ function SourcesSection({
                 <button
                   type="button"
                   onClick={() => void toggleActive(s)}
-                  className="inline-flex h-9 items-center rounded-[8px] border border-[#E8EAF0] px-3 text-xs font-medium text-[#475467] hover:bg-[#F5F6FA]"
+                  className="inline-flex h-9 items-center rounded-[9px] border border-[#DDE0EA] bg-white/75 px-3 text-xs font-medium text-[#5F6678] hover:bg-white"
                 >
                   {s.isActive ? "Desactivar" : "Activar"}
                 </button>
@@ -456,7 +523,7 @@ function SourcesSection({
                     type="button"
                     onClick={() => void remove(s)}
                     aria-label="Eliminar fuente"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:text-[#C0392B]"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-[9px] border border-[#DDE0EA] bg-white/75 text-[#9299AA] hover:border-red-200 hover:text-[#C0392B]"
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -471,7 +538,7 @@ function SourcesSection({
           </p>
         ) : null}
       </div>
-    </div>
+    </section>
   );
 }
 

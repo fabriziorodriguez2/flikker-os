@@ -452,29 +452,31 @@ function BenefitCard({
             cambia qué se muestra en el check-in.
           </p>
 
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={benefit.retentionBridge.recoveryEnabled}
-              disabled={!canMutate || bridgeBusy !== null}
-              onChange={(e) => void toggleRecovery(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[#5C6BC0]"
-            />
-            <span className="text-[#1A202C]">Usar para recuperar clientes</span>
-          </label>
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:gap-8">
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={benefit.retentionBridge.recoveryEnabled}
+                disabled={!canMutate || bridgeBusy !== null}
+                onChange={(e) => void toggleRecovery(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-[#5C6BC0]"
+              />
+              <span className="text-[#1A202C]">Usar para recuperar clientes</span>
+            </label>
 
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={benefit.retentionBridge.rewardGoalEnabled}
-              disabled={!canMutate || bridgeBusy !== null}
-              onChange={(e) => void toggleReward(e.target.checked)}
-              className="mt-0.5 h-4 w-4 accent-[#5C6BC0]"
-            />
-            <span className="text-[#1A202C]">
-              Usar como recompensa por visitas
-            </span>
-          </label>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={benefit.retentionBridge.rewardGoalEnabled}
+                disabled={!canMutate || bridgeBusy !== null}
+                onChange={(e) => void toggleReward(e.target.checked)}
+                className="mt-0.5 h-4 w-4 accent-[#5C6BC0]"
+              />
+              <span className="text-[#1A202C]">
+                Usar como recompensa por visitas
+              </span>
+            </label>
+          </div>
 
           {/* El costo NUNCA es obligatorio para autorizar — esto es
               puramente opcional, solo mejora la estimación económica y solo
@@ -891,7 +893,7 @@ export default function BenefitsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-3xl space-y-5 xl:max-w-5xl 2xl:max-w-6xl">
       <PageHeader
         title="Beneficios"
         subtitle={

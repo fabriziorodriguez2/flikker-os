@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { MessageCircleHeart } from "lucide-react";
 
 export interface NegativeFeedbackItem {
   id: string;
@@ -60,8 +61,13 @@ export default function NegativeFeedbackList({
 
   if (feedback.length === 0) {
     return (
-      <div className="rounded-[12px] border border-[#E8EAF0] bg-white p-4 text-sm text-[#8891A4]">
-        No hay comentarios negativos registrados.
+      <div className="flex h-full min-h-[200px] flex-col items-center justify-center gap-3 py-8 text-center">
+        <span className="flex h-14 w-14 items-center justify-center rounded-full bg-[#EEF0FB] text-[#5C6BC0]">
+          <MessageCircleHeart className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <p className="text-sm text-[#8891A4]">
+          No hay comentarios negativos registrados.
+        </p>
       </div>
     );
   }

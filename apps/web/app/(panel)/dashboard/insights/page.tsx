@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { QrCode, Star, UserRoundCheck } from "lucide-react";
+import { ArrowRight, QrCode, Star, UserRoundCheck } from "lucide-react";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import SectionCard from "@/components/ui/section-card";
@@ -106,24 +106,26 @@ function MiniKpiCard({
   value,
   sub,
   tone,
+  icon: Icon,
 }: {
   label: string;
   value: string;
   sub: string;
   tone: "violet" | "warm";
+  icon: typeof Star;
 }) {
   const toneClasses =
     tone === "violet"
       ? {
           card: "border-[#5C6BC0]/20 bg-[linear-gradient(135deg,#F8F8FF_0%,#ECEEFC_100%)]",
-          glow: "bg-[#9188F5]/22",
+          badge: "bg-white text-[#5C6BC0] shadow-[0_4px_12px_rgba(92,107,192,0.18)]",
           label: "text-[#5C6BC0]",
           value: "text-[#1A202C]",
           sub: "text-[#777F96]",
         }
       : {
           card: "border-[#F9A148]/30 bg-gradient-to-br from-[#FBB25A] to-[#F5842A] shadow-[0_12px_30px_rgba(245,132,42,0.22)]",
-          glow: "bg-white/22",
+          badge: "bg-white/25 text-white",
           label: "text-white/85",
           value: "text-white",
           sub: "text-white/80",
@@ -131,21 +133,25 @@ function MiniKpiCard({
 
   return (
     <article
-      className={`group relative overflow-hidden rounded-[16px] border p-5 shadow-[0_8px_24px_rgba(56,45,125,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(56,45,125,0.13)] ${toneClasses.card}`}
+      className={`group relative flex items-start justify-between gap-4 overflow-hidden rounded-[16px] border p-5 shadow-[0_8px_24px_rgba(56,45,125,0.06)] transition-all duration-300 hover:-translate-y-1 hover:shadow-[0_16px_34px_rgba(56,45,125,0.13)] ${toneClasses.card}`}
     >
+      <div className="min-w-0">
+        <p
+          className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${toneClasses.label}`}
+        >
+          {label}
+        </p>
+        <p className={`mt-3 text-[32px] font-bold leading-none ${toneClasses.value}`}>
+          {value}
+        </p>
+        <p className={`mt-3 text-xs ${toneClasses.sub}`}>{sub}</p>
+      </div>
       <span
         aria-hidden="true"
-        className={`absolute -right-8 -top-10 h-28 w-28 rounded-full blur-2xl transition-transform duration-500 group-hover:translate-x-2 group-hover:translate-y-2 group-hover:scale-110 ${toneClasses.glow}`}
-      />
-      <p
-        className={`relative text-[11px] font-semibold uppercase tracking-[0.14em] ${toneClasses.label}`}
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition-transform duration-300 group-hover:scale-105 ${toneClasses.badge}`}
       >
-        {label}
-      </p>
-      <p className={`relative mt-3 text-[32px] font-bold leading-none ${toneClasses.value}`}>
-        {value}
-      </p>
-      <p className={`relative mt-3 text-xs ${toneClasses.sub}`}>{sub}</p>
+        <Icon className="h-5 w-5" />
+      </span>
     </article>
   );
 }
@@ -322,11 +328,11 @@ function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
             </div>
           </div>
 
-          <div className="hidden flex-col items-center gap-1.5 sm:flex">
+          <div className="hidden flex-col items-center gap-1 sm:flex">
+            <ArrowRight className="h-4 w-4 text-[#B0B8C9]" aria-hidden="true" />
             <span className="text-[10px] font-semibold text-[#5C6BC0]">
               {captureRate}%
             </span>
-            <span className="h-px w-full bg-gradient-to-r from-[#5C6BC0]/20 via-[#5C6BC0] to-[#5C6BC0]/20" />
           </div>
 
           <div className="group/step flex items-center gap-3 rounded-[14px] p-3 transition-colors duration-300 hover:bg-white hover:shadow-[0_8px_22px_rgba(56,45,125,0.08)]">
@@ -346,7 +352,7 @@ function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
           {/* No percentage between contacts and reviews on purpose: these
               reviews are not attributed to those specific contacts. */}
           <div className="hidden flex-col items-center gap-1.5 sm:flex">
-            <span className="h-px w-full bg-gradient-to-r from-[#FFAB76]/20 via-[#EF9156] to-[#FFAB76]/20" />
+            <ArrowRight className="h-4 w-4 text-[#B0B8C9]" aria-hidden="true" />
           </div>
 
           <div className="group/step flex items-center gap-3 rounded-[14px] p-3 transition-colors duration-300 hover:bg-white hover:shadow-[0_8px_22px_rgba(56,45,125,0.08)]">
@@ -480,6 +486,7 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
         <MiniKpiCard
           label="Contactos"
           tone="violet"
+          icon={UserRoundCheck}
           value={(contactsStats?.total ?? 0).toLocaleString("es-UY")}
           sub={
             contactsStats
@@ -492,6 +499,7 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
         <MiniKpiCard
           label="Tu rating en Google"
           tone="warm"
+          icon={Star}
           value={
             googleStats
               ? `${googleStats.avgStars.toLocaleString("es-UY", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} ★`
@@ -505,36 +513,59 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
         />
       </div>
 
-      {/* Conversion rate */}
-      <ConversionCard conversion={conversion} />
-
-      {/* QR funnel: scan → capture → review */}
-      <QrFunnelCard funnel={qrFunnel} />
-
-      {/* Activity chart */}
-      <SectionCard
-        interactive
-        title="Tu actividad"
-        description="Cómo se mueven tus mensajes y reseñas con el tiempo."
-        action={
-          <div className="hidden items-center gap-4 sm:flex">
-            {ACTIVITY_SERIES.map((s) => (
-              <span key={s.key} className="flex items-center gap-1.5 text-xs text-[#8891A4]">
-                <span
-                  className="inline-block h-2.5 w-2.5 rounded-full"
-                  style={{ backgroundColor: s.color }}
-                />
-                {s.label}
-              </span>
-            ))}
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          <ActivityFilters granularity={metrics.activityRange.granularity} />
-          <ActivityEvolutionChart data={metrics.activityByMonth} />
+      {/* Conversión + QR — antes apilados a lo largo de toda la página, ahora
+          en la misma fila: son dos vistas de un mismo tema (qué tan bien
+          convierte tu captación) y se leen mejor una al lado de la otra. */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className={qrFunnel ? undefined : "lg:col-span-2"}>
+          <ConversionCard conversion={conversion} />
         </div>
-      </SectionCard>
+        <div className={conversion ? undefined : "lg:col-span-2"}>
+          <QrFunnelCard funnel={qrFunnel} />
+        </div>
+      </div>
+
+      {/* Actividad + Comentarios — mismo motivo: "Comentarios para atender"
+          vacío es una card chica, no necesita todo el ancho para sí sola. */}
+      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <SectionCard
+          interactive
+          title="Tu actividad"
+          description="Cómo se mueven tus mensajes y reseñas con el tiempo."
+          action={
+            <div className="hidden items-center gap-4 sm:flex">
+              {ACTIVITY_SERIES.map((s) => (
+                <span key={s.key} className="flex items-center gap-1.5 text-xs text-[#8891A4]">
+                  <span
+                    className="inline-block h-2.5 w-2.5 rounded-full"
+                    style={{ backgroundColor: s.color }}
+                  />
+                  {s.label}
+                </span>
+              ))}
+            </div>
+          }
+        >
+          <div className="space-y-4">
+            <ActivityFilters granularity={metrics.activityRange.granularity} />
+            <ActivityEvolutionChart data={metrics.activityByMonth} />
+          </div>
+        </SectionCard>
+
+        <SectionCard
+          title="Comentarios para atender"
+          description="No se publicaron en Google. Un mensaje a tiempo hace la diferencia 💬"
+          action={
+            unread > 0 ? (
+              <span className="rounded-full bg-[#FFAB76]/20 px-3 py-1.5 text-xs font-semibold text-[#D4600A]">
+                {unread} sin leer
+              </span>
+            ) : undefined
+          }
+        >
+          <NegativeFeedbackList items={metrics.negativeFeedback} />
+        </SectionCard>
+      </div>
 
       {/* Reactivated customers — only if there's data */}
       {showReactivated && (
@@ -552,21 +583,6 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
           </p>
         </SectionCard>
       )}
-
-      {/* Negative feedback */}
-      <SectionCard
-        title="Comentarios para atender"
-        description="No se publicaron en Google. Un mensaje a tiempo hace la diferencia 💬"
-        action={
-          unread > 0 ? (
-            <span className="rounded-full bg-[#FFAB76]/20 px-3 py-1.5 text-xs font-semibold text-[#D4600A]">
-              {unread} sin leer
-            </span>
-          ) : undefined
-        }
-      >
-        <NegativeFeedbackList items={metrics.negativeFeedback} />
-      </SectionCard>
     </div>
   );
 }
