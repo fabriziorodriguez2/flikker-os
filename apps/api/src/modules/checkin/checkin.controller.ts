@@ -15,6 +15,7 @@ import {
   RecoverStartDto,
   RecoverVerifyDto,
   RegisterDto,
+  SubmitCheckinFeedbackDto,
 } from './dto/checkin.dto';
 
 /**
@@ -36,6 +37,20 @@ export class CheckinController {
   @HttpCode(200)
   logout(@Headers('x-flikker-session') session?: string) {
     return this.service.logout(session);
+  }
+
+  /**
+   * "¿Cómo fue tu experiencia?" — anchored purely to the session (like `me`,
+   * not `:token`): the visit it scores is resolved server-side from the
+   * customer's own most recent one, never a token/body-supplied id.
+   */
+  @Post('session/feedback')
+  @HttpCode(200)
+  submitFeedback(
+    @Headers('x-flikker-session') session: string | undefined,
+    @Body() dto: SubmitCheckinFeedbackDto,
+  ) {
+    return this.service.submitFeedback(session, dto.score, dto.comment);
   }
 
   @Get(':token')

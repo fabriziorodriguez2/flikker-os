@@ -56,6 +56,7 @@ export interface RetentionSettingsView {
   rewardGoalsEnabled: boolean;
   rewardGoalMinVisits: number | null;
   rewardGoalMaxVisits: number | null;
+  rewardGoalFeedbackBonusEnabled: boolean;
   rewardGoalCooldownDays: number;
   maxPromisedRewardGoalsPerIncentive: number | null;
   // Fase F — AI Layer.

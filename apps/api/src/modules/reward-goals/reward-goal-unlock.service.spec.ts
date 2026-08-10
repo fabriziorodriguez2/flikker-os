@@ -16,6 +16,7 @@ function makeDeps(
   options: {
     goal?: unknown;
     visitCount?: number;
+    bonusStampCount?: number;
     transitionedCount?: number;
   } = {},
 ) {
@@ -32,6 +33,9 @@ function makeDeps(
     },
     visit: {
       count: jest.fn().mockResolvedValue(options.visitCount ?? 0),
+    },
+    rewardGoalBonusStamp: {
+      count: jest.fn().mockResolvedValue(options.bonusStampCount ?? 0),
     },
   };
   const decisions = { record: jest.fn().mockResolvedValue(undefined) };
@@ -91,10 +95,24 @@ describe('RewardGoalUnlockService — progress (Fase E §13)', () => {
       status: 'in_progress',
       goalId: 'goal-1',
       progressVisits: 1,
+      visitProgress: 1,
+      bonusStamps: 0,
       targetAdditionalVisits: 2,
       incentiveName: 'Upgrade gratis',
     });
     expect(deps.prisma.customerRewardGoal.updateMany).not.toHaveBeenCalled();
+  });
+
+  it('adds feedback bonus stamps on top of real visits — either alone can reach the target', async () => {
+    const deps = makeDeps({ visitCount: 1, bonusStampCount: 1 }); // target is 2
+    const service = makeService(deps);
+
+    const result = await service.evaluateUnlock('biz-1', 'cust-1', NOW);
+
+    expect(deps.prisma.rewardGoalBonusStamp.count).toHaveBeenCalledWith({
+      where: { rewardGoalId: 'goal-1' },
+    });
+    expect(result).toMatchObject({ status: 'unlocked' });
   });
 });
 

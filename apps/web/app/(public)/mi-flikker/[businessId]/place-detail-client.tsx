@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, CalendarDays, Footprints, Gift, Loader2, Sparkles } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
+import RewardGoalStamps from "@/components/public/reward-goal-stamps";
 
 interface MyFlikkerPlace {
   businessId: string;
@@ -15,6 +16,8 @@ interface MyFlikkerPlace {
   rewardGoal: {
     incentiveName: string;
     progressVisits: number;
+    visitProgress?: number;
+    bonusStamps?: number;
     targetAdditionalVisits: number;
     remainingVisits: number;
   } | null;
@@ -193,13 +196,20 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
               <Gift className="h-4 w-4" aria-hidden="true" />
             </span>
             {place.rewardGoal.remainingVisits === 1
-              ? "Te falta 1 visita para desbloquear:"
-              : `Te faltan ${place.rewardGoal.remainingVisits} visitas para desbloquear:`}
+              ? "Te falta 1 sello para tu"
+              : `Te faltan ${place.rewardGoal.remainingVisits} sellos para tu`}
           </p>
           <p className="mt-4 text-[24px] font-bold leading-tight tracking-[-0.03em]" style={{ color: brand }}>
             {place.rewardGoal.incentiveName}
           </p>
-          <div className="mt-6 h-3 w-full overflow-hidden rounded-full bg-[#E7E9F1]">
+          <div className="mt-5">
+            <RewardGoalStamps
+              progress={place.rewardGoal.progressVisits}
+              target={place.rewardGoal.targetAdditionalVisits}
+              brand={brand}
+            />
+          </div>
+          <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-[#E7E9F1]">
             <div
               className="h-full rounded-full"
               style={{
@@ -216,8 +226,11 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
             />
           </div>
           <p className="mt-2.5 text-sm font-semibold text-[#697084]">
-            {place.rewardGoal.progressVisits}/{place.rewardGoal.targetAdditionalVisits}{" "}
-            visitas completadas
+            {place.rewardGoal.progressVisits} de{" "}
+            {place.rewardGoal.targetAdditionalVisits} sellos
+            {place.rewardGoal.bonusStamps
+              ? ` (incluye ${place.rewardGoal.bonusStamps} por tu feedback)`
+              : ""}
           </p>
         </section>
       ) : (

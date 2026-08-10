@@ -111,6 +111,10 @@ export class UpdateRetentionSettingsDto {
   rewardGoalMaxVisits?: number;
 
   @IsOptional()
+  @IsBoolean()
+  rewardGoalFeedbackBonusEnabled?: boolean;
+
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(90)

@@ -13,13 +13,14 @@ import {
   LockKeyhole,
   PartyPopper,
   Sparkles,
-  Star,
   Ticket,
 } from "lucide-react";
 import PoweredByFlikker from "@/components/ui/powered-by-flikker";
 import { normalizeUruguayNationalPhone } from "@/components/ui/phone-input";
 import OtpInput from "@/components/ui/otp-input";
 import { useImagePalette } from "@/lib/use-logo-palette";
+import RewardGoalStamps from "@/components/public/reward-goal-stamps";
+import CheckinFeedbackCard from "@/components/public/checkin-feedback-card";
 import type { CheckinLanding, PublicBenefit } from "./page";
 
 // ── Types shared with the API responses ──────────────────────────────────────
@@ -32,6 +33,8 @@ interface RewardGoalView {
   goal: {
     incentiveName: string;
     progressVisits: number;
+    visitProgress?: number;
+    bonusStamps?: number;
     targetAdditionalVisits: number;
     remainingVisits: number;
   } | null;
@@ -799,8 +802,11 @@ function PersonalScreen({
   const benefitViewed = useRef(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
-  const showReview =
-    personal.reviewPrompt.show && Boolean(personal.reviewPrompt.googleUrl);
+  // Ya no depende de que exista googleUrl: el mini-flow de feedback (§9)
+  // vale por sí solo (sello bonus, opinión interna) incluso cuando no hay
+  // link de Google — la oferta de Google es un paso aparte, condicionado
+  // por el backend a partir del puntaje, nunca acá.
+  const showReview = personal.reviewPrompt.show;
 
   useEffect(() => {
     if (showReview && !promptShown.current) {
@@ -811,17 +817,10 @@ function PersonalScreen({
     }
   }, [showReview, token]);
 
-  function onReviewClick() {
+  function onReviewLinkClicked() {
     void postJson(`/api/checkin/${token}/event`, {
       type: "review_link_clicked",
     });
-    if (personal.reviewPrompt.googleUrl) {
-      window.open(
-        personal.reviewPrompt.googleUrl,
-        "_blank",
-        "noopener,noreferrer",
-      );
-    }
   }
 
   async function switchAccount() {
@@ -957,15 +956,15 @@ function PersonalScreen({
         </div>
 
         {showReview && (
-          <button
-            type="button"
-            onClick={onReviewClick}
-            className="group checkin-enter-delay mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[18px] py-4 text-sm font-bold shadow-[0_12px_28px_rgba(12,16,30,0.2)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(12,16,30,0.26)]"
-            style={{ backgroundColor: palette.accent, color: palette.accentText }}
-          >
-            <Star className="h-4 w-4 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
-            Contá tu experiencia en Google
-          </button>
+          <div className="mt-5 w-full">
+            <CheckinFeedbackCard
+              hasActiveGoal={Boolean(personal.rewardGoal?.goal)}
+              brand={brand}
+              accentBg={palette.accent}
+              accentText={palette.accentText}
+              onReviewLinkClicked={onReviewLinkClicked}
+            />
+          </div>
         )}
 
         <Link
@@ -1019,8 +1018,13 @@ function RewardGoalCard({
   }
 
   if (rewardGoal.goal) {
-    const { progressVisits, targetAdditionalVisits, remainingVisits, incentiveName } =
-      rewardGoal.goal;
+    const {
+      progressVisits,
+      targetAdditionalVisits,
+      remainingVisits,
+      incentiveName,
+      bonusStamps,
+    } = rewardGoal.goal;
     const pct = Math.min(
       100,
       Math.round((progressVisits / Math.max(1, targetAdditionalVisits)) * 100),
@@ -1029,12 +1033,19 @@ function RewardGoalCard({
       <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[22px] border border-white/80 bg-white/72 px-5 py-4 shadow-[0_14px_36px_rgba(31,35,58,0.09)] backdrop-blur-md">
         <p className="text-sm font-bold text-[#24283A]">
           {remainingVisits === 1
-            ? `Te falta 1 visita para desbloquear:`
-            : `Te faltan ${remainingVisits} visitas para desbloquear:`}
+            ? "Te falta 1 sello para tu"
+            : `Te faltan ${remainingVisits} sellos para tu`}
         </p>
         <p className="mt-0.5 text-base font-bold" style={{ color: brand }}>
           {incentiveName}
         </p>
+        <div className="mt-3">
+          <RewardGoalStamps
+            progress={progressVisits}
+            target={targetAdditionalVisits}
+            brand={brand}
+          />
+        </div>
         <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[#EDEFF5]">
           <div
             className="h-full rounded-full transition-all"
@@ -1042,8 +1053,9 @@ function RewardGoalCard({
           />
         </div>
         <p className="mt-1.5 text-[11px] font-semibold text-[#8A91A3]">
-          {progressVisits}/{targetAdditionalVisits} visitas · Escaneá cada vez que
-          vengas para avanzar.
+          {progressVisits} de {targetAdditionalVisits} sellos
+          {bonusStamps ? ` (incluye ${bonusStamps} por tu feedback)` : ""} ·
+          Escaneá cada vez que vengas para avanzar.
         </p>
       </div>
     );

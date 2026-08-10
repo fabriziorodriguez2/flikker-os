@@ -333,6 +333,9 @@ enum CustomerEventType {
   benefit_redeemed
   review_prompt_shown
   review_link_clicked
+  /// "¿Cómo fue tu experiencia?" submitted right after a check-in — never
+  /// gated on score, never tied to whether the customer later opens Google.
+  feedback_submitted
 }
 
 // ---------------------------------------------------------------------------
@@ -493,6 +496,8 @@ model Business {
   retentionDecisionLogs         RetentionDecisionLog[]
   retentionOutcomes             RetentionOutcome[]
   rewardGoals                   CustomerRewardGoal[]
+  checkinFeedback               CheckinFeedback[]
+  rewardGoalBonusStamps         RewardGoalBonusStamp[]
   aiUsageEvents                 AiUsageEvent[]
   optimizationRuns              RetentionOptimizationRun[]
 }
@@ -558,6 +563,14 @@ model RetentionSettings {
   /// owner is never required to configure this (Fase E §30/§31).
   rewardGoalMinVisits                Int?    @map("reward_goal_min_visits")
   rewardGoalMaxVisits                Int?    @map("reward_goal_max_visits")
+  /// Owner-configurable toggle for the "+1 sello extra" feedback bonus
+  /// (§9 pilot follow-up). Defaults to FALSE — opt-in only. This feature has
+  /// never been deployed, so there is no live "on" behaviour to preserve;
+  /// defaulting to on would have let existing businesses start giving out
+  /// stamps automatically the moment this migration ran, with nobody having
+  /// asked for it. When false, `CheckinFeedback` is still saved as always;
+  /// only the `RewardGoalBonusStamp` is skipped — never a partial/half bonus.
+  rewardGoalFeedbackBonusEnabled     Boolean @default(false) @map("reward_goal_feedback_bonus_enabled")
   /// Days after a goal is UNLOCKED (or CANCELLED/EXPIRED) before the engine
   /// will consider creating another one for the same customer — the guard
   /// against "immediately after unlocking, infinite new goals" (Fase E §33).
@@ -1039,11 +1052,72 @@ model CustomerRewardGoal {
   customer             Customer                     @relation(fields: [customerId], references: [id], onDelete: Cascade)
   incentiveDefinition  RetentionIncentiveDefinition @relation(fields: [incentiveDefinitionId], references: [id], onDelete: Cascade)
   benefitParticipation BenefitParticipation?        @relation(fields: [benefitParticipationId], references: [id], onDelete: SetNull)
+  /// Progreso adicional otorgado por completar el feedback post-check-in —
+  /// nunca una Visit falsa. Ver comentario de `RewardGoalBonusStamp`.
+  bonusStamps          RewardGoalBonusStamp[]
 
   @@index([businessId, customerId])
   @@index([businessId, status])
   @@index([incentiveDefinitionId, status])
   @@map("customer_reward_goals")
+}
+
+// ---------------------------------------------------------------------------
+// CheckinFeedback — "¿Cómo fue tu experiencia?" shown right after a check-in.
+// Deliberately its own model, not a reuse of `FeedbackResponse` (which is
+// anchored to an outbound `Message`/WhatsApp campaign — this happens inline,
+// live, with no message ever sent). One row per Visit, ever: `visitId` is the
+// natural idempotency anchor for "no volver a preguntar por la misma visita".
+// ---------------------------------------------------------------------------
+
+model CheckinFeedback {
+  id         String   @id @default(uuid())
+  businessId String   @map("business_id")
+  customerId String   @map("customer_id")
+  visitId    String   @unique @map("visit_id")
+  score      Int
+  comment    String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  business   Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer   Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  visit      Visit                 @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  bonusStamp RewardGoalBonusStamp?
+
+  @@index([businessId, createdAt])
+  @@index([customerId])
+  @@map("checkin_feedback")
+}
+
+// ---------------------------------------------------------------------------
+// RewardGoalBonusStamp — additive progress source distinct from `Visit`.
+// Reward Goal progress today is `Visit.count()` after `activatedAt`; this
+// table is summed ALONGSIDE that count, never merged into it and never
+// backfilled as a fake Visit — see `RewardGoalUnlockService`/
+// `RewardGoalOrchestratorService` for where the two sources are added
+// together. `feedbackId` is unique: at most one bonus stamp per feedback
+// submission, ever, even under a retry/race.
+// ---------------------------------------------------------------------------
+
+model RewardGoalBonusStamp {
+  id           String   @id @default(uuid())
+  businessId   String   @map("business_id")
+  customerId   String   @map("customer_id")
+  rewardGoalId String   @map("reward_goal_id")
+  feedbackId   String   @unique @map("feedback_id")
+  /// Stable, extensible reason — same pattern as `CustomerRewardGoal.reasonCode`.
+  /// Only value today, but a string (not an enum) so a future second bonus
+  /// type never needs a migration.
+  reasonCode   String   @default("feedback_completed") @map("reason_code")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  business   Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer   Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  rewardGoal CustomerRewardGoal @relation(fields: [rewardGoalId], references: [id], onDelete: Cascade)
+  feedback   CheckinFeedback    @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+
+  @@index([rewardGoalId])
+  @@map("reward_goal_bonus_stamps")
 }
 
 // ---------------------------------------------------------------------------
@@ -1357,6 +1431,8 @@ model Customer {
   retentionAssignments     RetentionAssignment[]
   retentionOutcomes        RetentionOutcome[]
   rewardGoals              CustomerRewardGoal[]
+  checkinFeedback          CheckinFeedback[]
+  rewardGoalBonusStamps    RewardGoalBonusStamp[]
 
   @@index([businessId])
   @@index([businessId, isActive])
@@ -2068,11 +2144,11 @@ model Benefit {
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
-  business         Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  participations   BenefitParticipation[]
-  raffleDraws      RaffleDraw[]
+  business                     Business                      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  participations               BenefitParticipation[]
+  raffleDraws                  RaffleDraw[]
   /// Set only on the inert Benefit rows Retention V2 issues through.
-  retentionVariant RetentionVariant?
+  retentionVariant             RetentionVariant?
   /// Piloto V2 — set when the owner authorized this Benefit for Retention V2
   /// (recovery and/or reward goals) from /dashboard/beneficios. Distinct from
   /// `retentionVariant` above: this points at the real, editable Benefit the
@@ -2279,6 +2355,8 @@ model Visit {
   message           Message?           @relation(fields: [messageId], references: [id], onDelete: SetNull)
   events            CustomerEvent[]
   retentionOutcomes RetentionOutcome[]
+  /// At most one feedback per visit — see `CheckinFeedback.visitId`.
+  checkinFeedback   CheckinFeedback?
 
   @@index([businessId])
   @@index([businessId, occurredAt])
@@ -2433,9 +2511,9 @@ model SimulationRun {
   configuration Json
 
   /// Structured SimulationResult (§21) once COMPLETED — null otherwise.
-  results Json?
+  results       Json?
   /// Diagnosis + recommendations + per-section summaries (§29-§32).
-  summary Json?
+  summary       Json?
   /// Set only when status = FAILED. A short, human-readable reason — never
   /// a raw stack trace or internal detail leaked to the admin panel.
   failureReason String? @map("failure_reason")

@@ -22,6 +22,7 @@ import { CustomerVerificationsRepository } from './customer-verifications.reposi
 import { CustomerEventsRepository } from './customer-events.repository';
 import { isCheckinV2 } from '../../common/experience/experience.util';
 import { RewardGoalOrchestratorService } from '../reward-goals/reward-goal-orchestrator.service';
+import { RewardGoalFeedbackService } from '../reward-goals/reward-goal-feedback.service';
 
 // Client-emittable timeline events (whitelist — never trust an arbitrary type).
 const CLIENT_EVENTS: Record<string, CustomerEventType> = {
@@ -57,6 +58,7 @@ export class CheckinService {
     private readonly benefits: BenefitsService,
     private readonly messaging: PublicMessagingService,
     private readonly rewardGoals: RewardGoalOrchestratorService,
+    private readonly rewardGoalFeedback: RewardGoalFeedbackService,
   ) {}
 
   // ── Landing (GET) ──────────────────────────────────────────────────────────
@@ -245,6 +247,62 @@ export class CheckinService {
       session.customerId,
     );
     return this.buildPersonalSpace(business, customer.id, {});
+  }
+
+  // ── Feedback ("¿Cómo fue tu experiencia?") — Fase E §9 pilot ask ─────────────
+
+  /**
+   * Anchored to the customer's own most recent Visit, resolved server-side —
+   * never a client-supplied visit id, so there is nothing to trick this into
+   * scoring feedback (or a bonus stamp) onto someone else's visit.
+   */
+  async submitFeedback(
+    sessionRawToken: string | undefined,
+    score: number,
+    comment: string | undefined,
+  ) {
+    const session = await this.sessions.resolveLive(sessionRawToken ?? '');
+    if (!session) throw new UnauthorizedException('No session');
+    const business = await this.getBusinessOrThrow(session.businessId);
+    const customer = await this.getCustomerOrThrow(
+      business.id,
+      session.customerId,
+    );
+
+    const lastVisit = await this.visits.findLastByCustomer(
+      business.id,
+      customer.id,
+    );
+    if (!lastVisit) {
+      throw new NotFoundException('No hay una visita reciente para calificar');
+    }
+
+    const result = await this.rewardGoalFeedback.submit(
+      business.id,
+      customer.id,
+      lastVisit.id,
+      score,
+      comment,
+    );
+
+    if (!result.alreadySubmitted) {
+      await this.events.emit({
+        businessId: business.id,
+        customerId: customer.id,
+        type: CustomerEventType.feedback_submitted,
+        visitId: lastVisit.id,
+        metadata: { score, bonusGranted: result.bonusGranted },
+      });
+    }
+
+    return {
+      alreadySubmitted: result.alreadySubmitted,
+      bonusGranted: result.bonusGranted,
+      offerGoogle:
+        result.offerGoogle && Boolean(business.googleBusinessProfileUrl),
+      googleUrl: business.googleBusinessProfileUrl,
+      rewardGoal: result.rewardGoal,
+    };
   }
 
   // ── Recovery (WhatsApp one-time code) ────────────────────────────────────────

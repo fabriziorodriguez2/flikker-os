@@ -133,6 +133,8 @@ describe('RewardGoalOrchestratorService — creating a new goal (Fase E §27)', 
       goal: {
         incentiveName: 'Upgrade gratis',
         progressVisits: 0,
+        visitProgress: 0,
+        bonusStamps: 0,
         targetAdditionalVisits: 1,
         remainingVisits: 1,
       },

@@ -42,6 +42,14 @@ function makeDeps() {
       .fn()
       .mockResolvedValue({ goal: null, unlockedNow: false, benefit: null }),
   };
+  const rewardGoalFeedback = {
+    submit: jest.fn().mockResolvedValue({
+      alreadySubmitted: false,
+      bonusGranted: false,
+      offerGoogle: false,
+      rewardGoal: { goal: null, unlockedNow: false, benefit: null },
+    }),
+  };
   return {
     prisma,
     sources,
@@ -52,6 +60,7 @@ function makeDeps() {
     benefits,
     messaging,
     rewardGoals,
+    rewardGoalFeedback,
   };
 }
 
@@ -66,6 +75,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.benefits as never,
     deps.messaging as never,
     deps.rewardGoals as never,
+    deps.rewardGoalFeedback as never,
   );
 }
 

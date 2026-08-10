@@ -13,6 +13,8 @@ export type UnlockResult =
       status: 'in_progress';
       goalId: string;
       progressVisits: number;
+      visitProgress: number;
+      bonusStamps: number;
       targetAdditionalVisits: number;
       incentiveName: string;
     }
@@ -28,12 +30,17 @@ export type UnlockResult =
 /**
  * Fase E §11/§12/§13 — the only place an ACTIVE goal ever becomes UNLOCKED.
  *
- * "Which Visit counts" (§13): reuses `Visit` as the only source of truth,
- * counting every visit strictly after `activatedAt` — never
+ * "Which Visit counts" (§13): reuses `Visit` as the only source of truth for
+ * REAL visits, counting every visit strictly after `activatedAt` — never
  * `startingVisitCount` arithmetic, which would need to stay in sync with a
  * second number. No new visit-validity rules are introduced: whatever
  * `VisitsRepository.registerVisit` already accepted (its own dedup, its own
  * verification types) is exactly what counts here too.
+ *
+ * Feedback bonus stamps (§9 pilot ask): a SEPARATE, additive count from
+ * `RewardGoalBonusStamp` — never a fake `Visit`, never merged into the Visit
+ * table itself. Total progress is the sum of both; either alone can push a
+ * goal to unlock.
  */
 @Injectable()
 export class RewardGoalUnlockService {
@@ -59,15 +66,23 @@ export class RewardGoalUnlockService {
     });
     if (!goal) return { status: 'no_active_goal' };
 
-    const progressVisits = await this.prisma.visit.count({
-      where: { businessId, customerId, occurredAt: { gt: goal.activatedAt } },
-    });
+    const [visitProgress, bonusStamps] = await Promise.all([
+      this.prisma.visit.count({
+        where: { businessId, customerId, occurredAt: { gt: goal.activatedAt } },
+      }),
+      this.prisma.rewardGoalBonusStamp.count({
+        where: { rewardGoalId: goal.id },
+      }),
+    ]);
+    const progressVisits = visitProgress + bonusStamps;
 
     if (progressVisits < goal.targetAdditionalVisits) {
       return {
         status: 'in_progress',
         goalId: goal.id,
         progressVisits,
+        visitProgress,
+        bonusStamps,
         targetAdditionalVisits: goal.targetAdditionalVisits,
         incentiveName: goal.incentiveDefinition.name,
       };

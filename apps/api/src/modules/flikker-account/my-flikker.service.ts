@@ -13,6 +13,8 @@ export interface MyFlikkerPlace {
   rewardGoal: {
     incentiveName: string;
     progressVisits: number;
+    visitProgress: number;
+    bonusStamps: number;
     targetAdditionalVisits: number;
     remainingVisits: number;
   } | null;

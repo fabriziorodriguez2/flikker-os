@@ -28,6 +28,7 @@ const EVENT_LABELS: Record<CustomerEventType, string> = {
   benefit_redeemed: 'Beneficio canjeado',
   review_prompt_shown: 'Se le pidió una reseña',
   review_link_clicked: 'Abrió la reseña en Google',
+  feedback_submitted: 'Contó su experiencia',
 };
 
 @Injectable()

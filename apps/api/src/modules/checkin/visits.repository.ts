@@ -253,7 +253,7 @@ export class VisitsRepository {
     return this.prisma.visit.findFirst({
       where: { businessId, customerId },
       orderBy: { occurredAt: 'desc' },
-      select: { occurredAt: true },
+      select: { id: true, occurredAt: true },
     });
   }
 }

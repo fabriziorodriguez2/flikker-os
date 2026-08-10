@@ -158,7 +158,10 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest redemption checkin benefits --silent)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest dashboard-overview.integration --silent)",
       "Bash(node -e \"console.log\\(require\\('./node_modules/next/package.json'\\).version\\)\")",
-      "Bash(node -e \"console.log\\(require\\('./node_modules/@nestjs/common/constants.js'\\).GUARDS_METADATA\\)\")"
+      "Bash(node -e \"console.log\\(require\\('./node_modules/@nestjs/common/constants.js'\\).GUARDS_METADATA\\)\")",
+      "Bash(grep -n \"de \\\\${goal\\\\|progressVisits}·de\\\\|ahora tenés\" components/public/checkin-feedback-card.tsx)",
+      "Bash(echo \"TSC_EXIT:$?\")",
+      "Bash(node -e \"console.log\\(require\\('./node_modules/pg/package.json'\\).version\\)\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

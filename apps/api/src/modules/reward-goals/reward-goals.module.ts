@@ -6,6 +6,7 @@ import { RewardGoalIssuerService } from './reward-goal-issuer.service';
 import { RewardGoalUnlockService } from './reward-goal-unlock.service';
 import { RewardGoalOrchestratorService } from './reward-goal-orchestrator.service';
 import { RewardGoalSweepService } from './reward-goal-sweep.service';
+import { RewardGoalFeedbackService } from './reward-goal-feedback.service';
 
 /**
  * Reward Goals (Fase E). Imports `RetentionV2Module` for its shared
@@ -20,6 +21,7 @@ import { RewardGoalSweepService } from './reward-goal-sweep.service';
     RewardGoalUnlockService,
     RewardGoalOrchestratorService,
     RewardGoalSweepService,
+    RewardGoalFeedbackService,
   ],
   exports: [
     RewardGoalEngineService,
@@ -27,6 +29,7 @@ import { RewardGoalSweepService } from './reward-goal-sweep.service';
     RewardGoalUnlockService,
     RewardGoalOrchestratorService,
     RewardGoalSweepService,
+    RewardGoalFeedbackService,
   ],
 })
 export class RewardGoalsModule {}

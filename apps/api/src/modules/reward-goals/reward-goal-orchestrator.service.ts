@@ -2,12 +2,20 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { resolveCustomerSegment } from './resolve-customer-segment';
 import { RewardGoalEngineService } from './reward-goal-engine.service';
-import { RewardGoalUnlockService } from './reward-goal-unlock.service';
+import {
+  RewardGoalUnlockService,
+  type UnlockResult,
+} from './reward-goal-unlock.service';
 
 export interface RewardGoalPublicView {
   goal: {
     incentiveName: string;
+    /** Total combined progress — visits + feedback bonus stamps. */
     progressVisits: number;
+    /** Breakdown (§9 pilot ask) — how many of `progressVisits` are real visits. */
+    visitProgress: number;
+    /** Breakdown — how many of `progressVisits` came from a feedback bonus. */
+    bonusStamps: number;
     targetAdditionalVisits: number;
     remainingVisits: number;
   } | null;
@@ -24,6 +32,50 @@ const NOTHING: RewardGoalPublicView = {
   unlockedNow: false,
   benefit: null,
 };
+
+/**
+ * Shared `UnlockResult` → `RewardGoalPublicView` mapping — used by both
+ * `afterVisit` (below) and `RewardGoalFeedbackService` (§9 pilot ask), so
+ * the two never drift into two slightly-different shapes for the same
+ * unlocked/in-progress states. Returns `null` for 'no_active_goal' /
+ * 'already_processed' — callers decide their own fallback (never a new goal
+ * here; only `afterVisit` is allowed to create one).
+ */
+export function viewFromUnlockResult(
+  unlockResult: UnlockResult,
+): RewardGoalPublicView | null {
+  if (unlockResult.status === 'unlocked') {
+    return {
+      goal: null,
+      unlockedNow: true,
+      benefit: {
+        name: unlockResult.incentiveName,
+        code: unlockResult.code,
+        expiresAt: unlockResult.expiresAt?.toISOString() ?? null,
+      },
+    };
+  }
+
+  if (unlockResult.status === 'in_progress') {
+    return {
+      goal: {
+        incentiveName: unlockResult.incentiveName,
+        progressVisits: unlockResult.progressVisits,
+        visitProgress: unlockResult.visitProgress,
+        bonusStamps: unlockResult.bonusStamps,
+        targetAdditionalVisits: unlockResult.targetAdditionalVisits,
+        remainingVisits: Math.max(
+          0,
+          unlockResult.targetAdditionalVisits - unlockResult.progressVisits,
+        ),
+      },
+      unlockedNow: false,
+      benefit: null,
+    };
+  }
+
+  return null;
+}
 
 /**
  * The single entry point the check-in flow calls after registering a Visit
@@ -54,33 +106,8 @@ export class RewardGoalOrchestratorService {
       now,
     );
 
-    if (unlockResult.status === 'unlocked') {
-      return {
-        goal: null,
-        unlockedNow: true,
-        benefit: {
-          name: unlockResult.incentiveName,
-          code: unlockResult.code,
-          expiresAt: unlockResult.expiresAt?.toISOString() ?? null,
-        },
-      };
-    }
-
-    if (unlockResult.status === 'in_progress') {
-      return {
-        goal: {
-          incentiveName: unlockResult.incentiveName,
-          progressVisits: unlockResult.progressVisits,
-          targetAdditionalVisits: unlockResult.targetAdditionalVisits,
-          remainingVisits: Math.max(
-            0,
-            unlockResult.targetAdditionalVisits - unlockResult.progressVisits,
-          ),
-        },
-        unlockedNow: false,
-        benefit: null,
-      };
-    }
+    const view = viewFromUnlockResult(unlockResult);
+    if (view) return view;
 
     // No ACTIVE goal existed (or one just resolved elsewhere) — see whether
     // the engine wants to start a new one now that a fresh Visit exists.
@@ -100,6 +127,7 @@ export class RewardGoalOrchestratorService {
     const goal = await this.prisma.customerRewardGoal.findFirst({
       where: { businessId, customerId, status: 'ACTIVE' },
       select: {
+        id: true,
         activatedAt: true,
         targetAdditionalVisits: true,
         incentiveDefinition: { select: { name: true } },
@@ -107,14 +135,22 @@ export class RewardGoalOrchestratorService {
     });
     if (!goal) return NOTHING;
 
-    const progressVisits = await this.prisma.visit.count({
-      where: { businessId, customerId, occurredAt: { gt: goal.activatedAt } },
-    });
+    const [visitProgress, bonusStamps] = await Promise.all([
+      this.prisma.visit.count({
+        where: { businessId, customerId, occurredAt: { gt: goal.activatedAt } },
+      }),
+      this.prisma.rewardGoalBonusStamp.count({
+        where: { rewardGoalId: goal.id },
+      }),
+    ]);
+    const progressVisits = visitProgress + bonusStamps;
 
     return {
       goal: {
         incentiveName: goal.incentiveDefinition.name,
         progressVisits,
+        visitProgress,
+        bonusStamps,
         targetAdditionalVisits: goal.targetAdditionalVisits,
         remainingVisits: Math.max(
           0,
@@ -161,6 +197,8 @@ export class RewardGoalOrchestratorService {
       goal: {
         incentiveName: incentive?.name ?? 'tu recompensa',
         progressVisits: 0,
+        visitProgress: 0,
+        bonusStamps: 0,
         targetAdditionalVisits: decision.targetAdditionalVisits,
         remainingVisits: decision.targetAdditionalVisits,
       },

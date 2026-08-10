@@ -1,10 +1,13 @@
 import {
+  IsInt,
   IsISO8601,
   IsNotEmpty,
   IsOptional,
   IsString,
   Matches,
+  Max,
   MaxLength,
+  Min,
 } from 'class-validator';
 
 export class RegisterDto {
@@ -46,4 +49,16 @@ export class ClientEventDto {
   @IsNotEmpty()
   @MaxLength(40)
   type!: string;
+}
+
+export class SubmitCheckinFeedbackDto {
+  @IsInt()
+  @Min(1)
+  @Max(5)
+  score!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  comment?: string;
 }

@@ -74,6 +74,14 @@ function makeDeps(experienceVersion: ExperienceVersion) {
       .fn()
       .mockResolvedValue({ goal: null, unlockedNow: false, benefit: null }),
   };
+  const rewardGoalFeedback = {
+    submit: jest.fn().mockResolvedValue({
+      alreadySubmitted: false,
+      bonusGranted: false,
+      offerGoogle: false,
+      rewardGoal: { goal: null, unlockedNow: false, benefit: null },
+    }),
+  };
   return {
     prisma,
     sources,
@@ -84,6 +92,7 @@ function makeDeps(experienceVersion: ExperienceVersion) {
     benefits,
     messaging,
     rewardGoals,
+    rewardGoalFeedback,
   };
 }
 
@@ -98,6 +107,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.benefits as never,
     deps.messaging as never,
     deps.rewardGoals as never,
+    deps.rewardGoalFeedback as never,
   );
 }
 
@@ -181,6 +191,21 @@ describe('Check-in V2 public flow — LEGACY business', () => {
 
     // The session is valid, but the business is legacy → nothing is disclosed.
     await expect(service.me('sess')).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('cannot submit feedback — same gate as "me", no CheckinFeedback and no bonus stamp are ever attempted', async () => {
+    const deps = legacy();
+    deps.sessions.resolveLive.mockResolvedValue({
+      id: 's-1',
+      businessId: 'biz-1',
+      customerId: 'c-1',
+    });
+    const service = makeService(deps);
+
+    await expect(
+      service.submitFeedback('sess', 5, undefined),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(deps.rewardGoalFeedback.submit).not.toHaveBeenCalled();
   });
 });
 
