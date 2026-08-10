@@ -29,7 +29,7 @@ function GoalRing({
   const color = ringColor(pct);
 
   return (
-    <div className="relative mx-auto h-[184px] w-[184px]">
+    <div className="relative h-[124px] w-[124px] shrink-0">
       <svg viewBox="0 0 184 184" className="h-full w-full -rotate-90">
         <circle
           cx="92"
@@ -37,7 +37,7 @@ function GoalRing({
           r={r}
           fill="none"
           stroke="#EEF0FB"
-          strokeWidth="14"
+          strokeWidth="12"
         />
         <circle
           cx="92"
@@ -45,21 +45,21 @@ function GoalRing({
           r={r}
           fill="none"
           stroke={color}
-          strokeWidth="14"
+          strokeWidth="12"
           strokeLinecap="round"
           strokeDasharray={circumference}
           strokeDashoffset={offset}
           className="transition-all duration-700"
         />
       </svg>
-      <div className="absolute inset-0 flex flex-col items-center justify-center px-7 text-center">
+      <div className="absolute inset-0 flex flex-col items-center justify-center px-4 text-center">
         <p className="flex items-baseline justify-center leading-none">
-          <span className="text-4xl font-bold text-[#1A202C]">{current}</span>
-          <span className="text-lg font-semibold text-[#B0B8C9]">/{target}</span>
+          <span className="text-[26px] font-bold text-[#1A202C]">{current}</span>
+          <span className="text-sm font-semibold text-[#B0B8C9]">/{target}</span>
         </p>
-        <p className="mt-2 flex w-[118px] flex-col items-center text-[#8891A4]">
-          <span className="text-xs font-semibold leading-4">{noun}</span>
-          <span className="text-[10px] font-medium leading-3.5">
+        <p className="mt-1.5 flex w-[92px] flex-col items-center text-[#8891A4]">
+          <span className="text-[10px] font-semibold leading-3.5">{noun}</span>
+          <span className="text-[9px] font-medium leading-3">
             {periodLabel}
           </span>
         </p>
@@ -120,19 +120,21 @@ export default function MonthlyGoalCard({
   const showTrialCta = currentPlan?.type === "FREE_TRIAL" && reached;
 
   return (
-    <article className="flex flex-col rounded-[16px] border border-[#E8EAF0] bg-white p-6">
-      <GoalRing
-        current={goalView.current}
-        target={goalView.target}
-        noun={noun}
-        periodLabel={periodLabel}
-      />
+    <article className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
+      <div className="flex items-center gap-4">
+        <GoalRing
+          current={goalView.current}
+          target={goalView.target}
+          noun={noun}
+          periodLabel={periodLabel}
+        />
+        <div className="min-w-0 flex-1">
 
-      <div className="mt-4 text-center">
-        <p className="text-base font-bold text-[#1A202C]">Tu objetivo</p>
-        <p className="mt-1 text-sm text-[#8891A4]">{hint}</p>
+      <div className="text-left">
+        <p className="text-sm font-bold text-[#1A202C]">Tu objetivo</p>
+        <p className="mt-1 text-xs text-[#8891A4]">{hint}</p>
         {goalView.metric === "google_reviews_since_start" ? (
-          <p className="mt-2 text-xs leading-relaxed text-[#A0A6B8]">
+          <p className="mt-2 text-[10px] leading-4 text-[#A0A6B8]">
             Cuenta todas las reseñas de Google recibidas en el período, no solo
             las que haya generado Flikker.
           </p>
@@ -144,14 +146,14 @@ export default function MonthlyGoalCard({
           href="https://www.flikker.website/#precios"
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-4 inline-flex items-center justify-center rounded-[8px] bg-[#1D9E75] px-4 py-2 text-sm font-semibold text-white hover:bg-[#168360]"
+          className="mt-2 inline-flex items-center justify-center rounded-[8px] bg-[#1D9E75] px-3 py-1.5 text-xs font-semibold text-white hover:bg-[#168360]"
         >
           Hablemos del plan mensual
         </a>
       )}
 
       {goalView.source === "user" && (
-        <div className="mt-4 flex justify-center">
+        <div className="mt-2 flex justify-start">
           <button
             type="button"
             onClick={() => setEditing(true)}
@@ -164,10 +166,12 @@ export default function MonthlyGoalCard({
 
       <Link
         href="/dashboard/reviews"
-        className="mt-4 text-center text-xs font-semibold text-[#5C6BC0] hover:underline"
+        className="mt-2 inline-block text-[11px] font-semibold text-[#5C6BC0] hover:underline"
       >
         Ver todas las reseñas
       </Link>
+        </div>
+      </div>
     </article>
   );
 }

@@ -663,6 +663,34 @@ textarea {
   }
 }
 
+/* Insights QR funnel — responds to the card width, not the viewport width. */
+.qr-funnel-container {
+  container-type: inline-size;
+}
+
+.qr-funnel-flow {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.qr-funnel-flow > div > div {
+  min-width: 0;
+}
+
+.qr-funnel-arrow svg {
+  transform: rotate(90deg);
+}
+
+@container (min-width: 620px) {
+  .qr-funnel-flow {
+    grid-template-columns:
+      minmax(0, 1fr) 52px minmax(0, 1fr) 52px minmax(0, 1fr);
+  }
+
+  .qr-funnel-arrow svg {
+    transform: none;
+  }
+}
+
 /* Mi Flikker — stacked wallet coupons */
 .mi-wallet {
   padding-bottom: 52vh;

@@ -312,9 +312,9 @@ function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
       title="Tu QR"
       description="Cómo se comportan las personas que escanean tu QR de captación."
     >
-      <div className="rounded-[18px] border border-[#E3E5F0] bg-[#F9FAFD]/85 p-3 sm:p-5">
-        <div className="grid items-center gap-2 sm:grid-cols-[1fr_82px_1fr_82px_1fr]">
-          <div className="group/step flex items-center gap-3 rounded-[14px] p-3 transition-colors duration-300 hover:bg-white hover:shadow-[0_8px_22px_rgba(56,45,125,0.08)]">
+      <div className="qr-funnel-container min-w-0 rounded-[18px] border border-[#E3E5F0] bg-[#F9FAFD]/85 p-3 sm:p-5">
+        <div className="qr-funnel-flow grid min-w-0 items-center gap-2">
+          <div className="group/step flex min-w-0 items-center gap-3 rounded-[14px] p-3 transition-colors duration-300 hover:bg-white hover:shadow-[0_8px_22px_rgba(56,45,125,0.08)]">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-[#EEF0FB] text-[#5C6BC0] transition-transform duration-300 group-hover/step:scale-105 group-hover/step:-rotate-3">
               <QrCode className="h-5 w-5" aria-hidden="true" />
             </span>
@@ -328,15 +328,15 @@ function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
             </div>
           </div>
 
-          <div className="hidden flex-col items-center gap-1 sm:flex">
+          <div className="qr-funnel-arrow flex flex-col items-center gap-1">
             <ArrowRight className="h-4 w-4 text-[#B0B8C9]" aria-hidden="true" />
             <span className="text-[10px] font-semibold text-[#5C6BC0]">
               {captureRate}%
             </span>
           </div>
 
-          <div className="group/step flex items-center gap-3 rounded-[14px] p-3 transition-colors duration-300 hover:bg-white hover:shadow-[0_8px_22px_rgba(56,45,125,0.08)]">
-            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-[#EAF6FB] text-[#4B98C8] transition-transform duration-300 group-hover/step:scale-105 group-hover/step:rotate-3">
+          <div className="group/step flex min-w-0 items-center gap-3 rounded-[14px] p-3 transition-colors duration-300 hover:bg-white hover:shadow-[0_8px_22px_rgba(56,45,125,0.08)]">
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-[#EEF0FB] text-[#5C6BC0] transition-transform duration-300 group-hover/step:scale-105 group-hover/step:rotate-3">
               <UserRoundCheck className="h-5 w-5" aria-hidden="true" />
             </span>
             <div>
@@ -351,11 +351,11 @@ function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
 
           {/* No percentage between contacts and reviews on purpose: these
               reviews are not attributed to those specific contacts. */}
-          <div className="hidden flex-col items-center gap-1.5 sm:flex">
+          <div className="qr-funnel-arrow flex flex-col items-center gap-1.5">
             <ArrowRight className="h-4 w-4 text-[#B0B8C9]" aria-hidden="true" />
           </div>
 
-          <div className="group/step flex items-center gap-3 rounded-[14px] p-3 transition-colors duration-300 hover:bg-white hover:shadow-[0_8px_22px_rgba(56,45,125,0.08)]">
+          <div className="group/step flex min-w-0 items-center gap-3 rounded-[14px] p-3 transition-colors duration-300 hover:bg-white hover:shadow-[0_8px_22px_rgba(56,45,125,0.08)]">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-[#FFF0E5] text-[#E07C3E] transition-transform duration-300 group-hover/step:scale-105 group-hover/step:rotate-6">
               <Star className="h-5 w-5" aria-hidden="true" />
             </span>
@@ -516,18 +516,18 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
       {/* Conversión + QR — antes apilados a lo largo de toda la página, ahora
           en la misma fila: son dos vistas de un mismo tema (qué tan bien
           convierte tu captación) y se leen mejor una al lado de la otra. */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className={qrFunnel ? undefined : "lg:col-span-2"}>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <div className={`min-w-0 ${qrFunnel ? "" : "xl:col-span-2"}`}>
           <ConversionCard conversion={conversion} />
         </div>
-        <div className={conversion ? undefined : "lg:col-span-2"}>
+        <div className={`min-w-0 ${conversion ? "" : "xl:col-span-2"}`}>
           <QrFunnelCard funnel={qrFunnel} />
         </div>
       </div>
 
       {/* Actividad + Comentarios — mismo motivo: "Comentarios para atender"
           vacío es una card chica, no necesita todo el ancho para sí sola. */}
-      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+      <div className="grid items-start gap-4 xl:grid-cols-[2fr_1fr]">
         <SectionCard
           interactive
           title="Tu actividad"

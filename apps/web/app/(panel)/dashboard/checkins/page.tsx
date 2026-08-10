@@ -2,14 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import {
-  Activity,
   Clock,
   Copy,
   Download,
   Loader2,
   Plus,
   QrCode,
-  Repeat2,
   Trash2,
   X,
 } from "lucide-react";
@@ -165,59 +163,6 @@ export default function CheckinsPage() {
           {error}
         </div>
       ) : null}
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {[
-          {
-            label: "Fuentes QR",
-            value: sources.length,
-            detail: "Puntos configurados",
-            icon: <QrCode className="h-5 w-5" aria-hidden="true" />,
-            tone: "bg-[#EEF0FF] text-[#5C6BC0]",
-          },
-          {
-            label: "Fuentes activas",
-            value: sources.filter((source) => source.isActive).length,
-            detail: "Disponibles para escanear",
-            icon: <Activity className="h-5 w-5" aria-hidden="true" />,
-            tone: "bg-[#EAF8F1] text-[#16805D]",
-          },
-          {
-            label: "Actividad reciente",
-            value: checkins.length,
-            detail: "Check-ins en esta vista",
-            icon: <Clock className="h-5 w-5" aria-hidden="true" />,
-            tone: "bg-[#FFF3E8] text-[#C76A2A]",
-          },
-          {
-            label: "Retornos",
-            value: checkins.filter((checkin) => checkin.isReturn).length,
-            detail: "Clientes que volvieron",
-            icon: <Repeat2 className="h-5 w-5" aria-hidden="true" />,
-            tone: "bg-[#F3EDFF] text-[#7653B6]",
-          },
-        ].map((metric) => (
-          <div
-            key={metric.label}
-            className="flex items-center gap-4 rounded-[20px] border border-white/80 bg-white/68 px-5 py-4 shadow-[0_10px_28px_rgba(56,45,125,0.07)] backdrop-blur-xl"
-          >
-            <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[14px] ${metric.tone}`}>
-              {metric.icon}
-            </span>
-            <div className="min-w-0">
-              <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8B93A7]">
-                {metric.label}
-              </p>
-              <div className="mt-0.5 flex items-baseline gap-2">
-                <span className="text-2xl font-bold tracking-[-0.03em] text-[#202333]">
-                  {metric.value}
-                </span>
-                <span className="truncate text-xs text-[#9299AA]">{metric.detail}</span>
-              </div>
-            </div>
-          </div>
-        ))}
-      </section>
 
       <SourcesSection
         sources={sources}
