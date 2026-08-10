@@ -55,8 +55,22 @@ export function useLogoPalette(
   logoUrl: string | null,
   configuredColor: string | null,
 ): BrandPalette {
+  return useImagePalette(
+    `${businessId}:${logoUrl ?? ""}`,
+    `/api/mi-flikker/places/${encodeURIComponent(businessId)}/logo`,
+    logoUrl,
+    configuredColor,
+  );
+}
+
+export function useImagePalette(
+  imageKey: string,
+  imageSrc: string,
+  logoUrl: string | null,
+  configuredColor: string | null,
+): BrandPalette {
   const fallback = configuredColor ?? "#596273";
-  const logoKey = logoUrl ? `${businessId}:${logoUrl}` : "";
+  const logoKey = logoUrl ? imageKey : "";
   const [extracted, setExtracted] = useState<{ key: string; color: string | null }>({
     key: "",
     color: null,
@@ -76,13 +90,13 @@ export function useLogoPalette(
         setExtracted({ key: logoKey, color: null });
       }
     };
-    image.src = `/api/mi-flikker/places/${encodeURIComponent(businessId)}/logo`;
+    image.src = imageSrc;
 
     return () => {
       cancelled = true;
       image.onload = null;
     };
-  }, [businessId, logoKey, logoUrl]);
+  }, [imageSrc, logoKey, logoUrl]);
 
   const logoColor = extracted.key === logoKey ? extracted.color : null;
   return useMemo(() => paletteFromColor(logoColor ?? fallback), [fallback, logoColor]);

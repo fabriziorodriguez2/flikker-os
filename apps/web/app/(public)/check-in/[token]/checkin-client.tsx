@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import PoweredByFlikker from "@/components/ui/powered-by-flikker";
 import { normalizeUruguayNationalPhone } from "@/components/ui/phone-input";
+import { useImagePalette } from "@/lib/use-logo-palette";
 import type { CheckinLanding, PublicBenefit } from "./page";
 
 // ── Types shared with the API responses ──────────────────────────────────────
@@ -232,7 +233,13 @@ function RegisterScreen({
   onExists: (phone: string) => void;
   onRecoverInstead: (phone: string) => void;
 }) {
-  const brand = brandOf(landing);
+  const palette = useImagePalette(
+    `${token}:${landing.business.logoUrl ?? ""}`,
+    `/api/checkin/${encodeURIComponent(token)}/logo`,
+    landing.business.logoUrl,
+    landing.business.primaryColor,
+  );
+  const brand = palette.primary;
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [birthDay, setBirthDay] = useState("");
@@ -289,7 +296,7 @@ function RegisterScreen({
   }
 
   return (
-    <Shell landing={landing}>
+    <Shell landing={landing} brandOverride={palette}>
       <h1 className="text-center text-2xl font-bold leading-tight text-white">
         {title}
       </h1>
@@ -434,7 +441,13 @@ function RecoverScreen({
   onRecovered: (data: PersonalSpace) => void;
   onBack: () => void;
 }) {
-  const brand = brandOf(landing);
+  const palette = useImagePalette(
+    `${token}:${landing.business.logoUrl ?? ""}`,
+    `/api/checkin/${encodeURIComponent(token)}/logo`,
+    landing.business.logoUrl,
+    landing.business.primaryColor,
+  );
+  const brand = palette.primary;
   const [phone, setPhone] = useState(initialPhone);
   const [codeSent, setCodeSent] = useState(false);
   const [code, setCode] = useState("");
@@ -481,7 +494,7 @@ function RecoverScreen({
   }
 
   return (
-    <Shell landing={landing}>
+    <Shell landing={landing} brandOverride={palette}>
       <h1 className="text-center text-2xl font-bold leading-tight text-white">
         Recuperá tu perfil
       </h1>
@@ -781,7 +794,13 @@ function PersonalScreen({
   checkinStatus: CheckinStatus;
   onSwitchAccount: () => void;
 }) {
-  const brand = brandOf(landing);
+  const palette = useImagePalette(
+    `${token}:${landing.business.logoUrl ?? ""}`,
+    `/api/checkin/${encodeURIComponent(token)}/logo`,
+    landing.business.logoUrl,
+    landing.business.primaryColor,
+  );
+  const brand = palette.primary;
   const promptShown = useRef(false);
   const benefitViewed = useRef(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -828,27 +847,17 @@ function PersonalScreen({
   const firstName = personal.customer.name.split(" ")[0] || personal.customer.name;
 
   return (
-    <Shell landing={landing}>
+    <Shell landing={landing} brandOverride={palette}>
       <div className="flex w-full max-w-md flex-col items-center">
         <div
-          className="checkin-success-pop checkin-success-halo relative mb-3 flex h-12 w-12 items-center justify-center rounded-full"
-          style={{
-            backgroundColor: colorWithAlpha(
-              brand,
-              "18",
-              "rgba(92,107,192,0.1)",
-            ),
-          }}
+          className="checkin-success-pop mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/14 text-white"
         >
-          <CheckCircle2
-            className="relative h-7 w-7"
-            style={{ color: brand }}
-          />
+          <CheckCircle2 className="h-6 w-6" />
         </div>
-        <h1 className="checkin-enter text-center text-[30px] font-bold tracking-[-0.04em] text-white">
+        <h1 className="checkin-enter text-center text-[28px] font-bold tracking-[-0.035em] text-white">
           ¡Hola, {firstName}! <span aria-hidden="true">👋</span>
         </h1>
-        <p className="checkin-enter mt-3 flex items-center gap-1.5 rounded-full border border-[#BCEAD9] bg-[#EAF9F3]/85 px-3.5 py-2 text-center text-[13px] font-semibold text-[#138563] shadow-[0_5px_14px_rgba(19,133,99,0.08)]">
+        <p className="checkin-enter mt-3 flex items-center gap-1.5 rounded-full bg-white/12 px-3.5 py-2 text-center text-[13px] font-semibold text-white/90">
           <Check className="h-3.5 w-3.5 stroke-[2.5]" aria-hidden="true" />
           {checkinStatus === "duplicate"
             ? "Tu visita de hoy ya estaba guardada"
@@ -856,12 +865,7 @@ function PersonalScreen({
         </p>
 
         <div className="mt-6 grid w-full grid-cols-1 gap-4">
-          <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[26px] border border-white/85 bg-white/68 px-5 py-4 shadow-[0_14px_34px_rgba(66,61,105,0.08)] backdrop-blur-md">
-            <span
-              aria-hidden="true"
-              className="absolute -right-8 -top-10 h-28 w-28 rounded-full opacity-10 blur-xl"
-              style={{ backgroundColor: brand }}
-            />
+          <div className="checkin-enter relative overflow-hidden rounded-[24px] bg-white px-5 py-4 shadow-[0_10px_24px_rgba(12,16,30,0.14)]">
             <div className="relative flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <span
@@ -899,21 +903,11 @@ function PersonalScreen({
 
           {personal.benefit && (
             <div
-              className="checkin-enter-delay checkin-benefit-shine relative overflow-hidden rounded-[28px] p-5 text-left text-white shadow-[0_18px_42px_rgba(70,65,130,0.2)]"
+              className="checkin-enter-delay relative overflow-hidden rounded-[24px] border border-white/12 bg-black/20 p-5 text-left text-white shadow-[0_10px_24px_rgba(12,16,30,0.16)]"
               style={{
-                background: `linear-gradient(145deg, ${brand} 0%, #8B82ED 100%)`,
+                backgroundColor: "rgba(14, 17, 29, 0.24)",
               }}
             >
-              <span
-                aria-hidden="true"
-                className="absolute -right-14 -top-16 h-44 w-44 rounded-full bg-white/14 blur-2xl"
-              />
-              <span
-                aria-hidden="true"
-                className="absolute -bottom-20 -left-12 h-40 w-40 rounded-full bg-[#FFB36B]/25 blur-2xl"
-              />
-              <span aria-hidden="true" className="absolute right-8 top-5 h-2.5 w-2.5 rotate-12 rounded-[3px] bg-[#FFD66B]/80" />
-              <span aria-hidden="true" className="absolute right-16 top-12 h-2 w-2 rounded-full bg-white/45" />
               <div className="relative flex items-start gap-3">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/35 bg-white/20 backdrop-blur-sm">
                   <BenefitIcon type={personal.benefit.type} />
@@ -982,7 +976,7 @@ function PersonalScreen({
 
         <Link
           href="/mi-flikker"
-          className="checkin-enter-delay mt-5 inline-flex w-full items-center justify-center gap-2 rounded-full border border-white/75 bg-white/65 py-3.5 text-sm font-semibold text-[#4A4960] shadow-[0_8px_22px_rgba(66,61,105,0.06)] transition-all hover:-translate-y-0.5 hover:bg-white/85"
+          className="checkin-enter-delay mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[16px] bg-white py-3.5 text-sm font-semibold text-[#24283A] shadow-[0_8px_18px_rgba(12,16,30,0.12)] transition-colors hover:bg-white/90"
         >
           Mis lugares y premios
         </Link>
@@ -1068,46 +1062,32 @@ function RewardGoalCard({
 
 function Shell({
   landing,
+  brandOverride,
   children,
 }: {
   landing: CheckinLanding;
+  brandOverride?: { primary: string; secondary: string };
   children: React.ReactNode;
 }) {
-  const brand = brandOf(landing);
+  const brand = brandOverride?.primary ?? brandOf(landing);
+  const secondary =
+    brandOverride?.secondary ?? `color-mix(in srgb, ${brand} 58%, #20233D)`;
 
   return (
     <div
-      className="relative flex min-h-screen flex-col overflow-hidden bg-[#F5F6FB]"
+      className="relative flex min-h-screen flex-col overflow-hidden"
       style={{
-        backgroundImage:
-          "linear-gradient(155deg, #17132D 0%, #241B49 52%, #120F26 100%)",
+        backgroundImage: `linear-gradient(145deg, ${brand} 0%, ${secondary} 100%)`,
       }}
     >
-      <div
-        aria-hidden="true"
-        className="checkin-aurora checkin-aurora-primary pointer-events-none absolute -left-24 -top-20 h-[460px] w-[460px] rounded-full bg-[#7059E8]/65 blur-[68px]"
-      />
-      <div
-        aria-hidden="true"
-        className="checkin-aurora checkin-aurora-warm pointer-events-none absolute -bottom-24 -right-24 h-[500px] w-[500px] rounded-full bg-[#51368F]/60 blur-[72px]"
-      />
-      <div
-        aria-hidden="true"
-        className="checkin-aurora checkin-aurora-soft pointer-events-none absolute left-[34%] top-[34%] h-[360px] w-[360px] rounded-full bg-[#9A82F5]/38 blur-[70px]"
-      />
-      <div className="relative flex flex-1 flex-col items-center justify-center px-5 py-10 sm:px-6 sm:py-12">
+      <div className="relative flex flex-1 flex-col items-center justify-start px-5 py-8 sm:px-6 sm:py-10">
         {landing.business.logoUrl && (
-          <div className="checkin-logo-float relative mb-6">
-            <span
-              aria-hidden="true"
-              className="absolute inset-1 rounded-full opacity-25 blur-xl"
-              style={{ backgroundColor: brand }}
-            />
+          <div className="relative mb-5 rounded-[18px] bg-white p-2 shadow-[0_8px_18px_rgba(12,16,30,0.14)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={landing.business.logoUrl}
               alt={landing.business.businessName}
-              className="relative h-16 w-16 rounded-full object-contain drop-shadow-[0_10px_18px_rgba(31,35,58,0.13)]"
+              className="h-14 w-14 rounded-[12px] object-contain"
             />
           </div>
         )}
