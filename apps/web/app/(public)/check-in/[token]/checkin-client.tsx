@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import PoweredByFlikker from "@/components/ui/powered-by-flikker";
 import { normalizeUruguayNationalPhone } from "@/components/ui/phone-input";
+import OtpInput from "@/components/ui/otp-input";
 import { useImagePalette } from "@/lib/use-logo-palette";
 import type { CheckinLanding, PublicBenefit } from "./page";
 
@@ -239,7 +240,6 @@ function RegisterScreen({
     landing.business.logoUrl,
     landing.business.primaryColor,
   );
-  const brand = palette.primary;
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [birthDay, setBirthDay] = useState("");
@@ -408,8 +408,8 @@ function RegisterScreen({
         <button
           type="submit"
           disabled={saving || !name.trim() || phone.length < 8}
-          className="w-full rounded-2xl py-4 text-sm font-bold text-white transition-opacity disabled:opacity-60"
-          style={{ backgroundColor: brand }}
+          className="w-full rounded-2xl py-4 text-base font-bold shadow-[0_10px_24px_rgba(12,16,30,0.2)] transition-all hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-45"
+          style={{ backgroundColor: palette.accent, color: palette.accentText }}
         >
           {saving ? "Registrando…" : btnLabel}
         </button>
@@ -447,7 +447,6 @@ function RecoverScreen({
     landing.business.logoUrl,
     landing.business.primaryColor,
   );
-  const brand = palette.primary;
   const [phone, setPhone] = useState(initialPhone);
   const [codeSent, setCodeSent] = useState(false);
   const [code, setCode] = useState("");
@@ -524,31 +523,26 @@ function RecoverScreen({
               type="button"
               disabled={busy || phone.length < 8}
               onClick={() => void sendCode(phone)}
-              className="w-full rounded-2xl py-4 text-sm font-bold text-white transition-opacity disabled:opacity-60"
-              style={{ backgroundColor: brand }}
+              className="w-full rounded-2xl py-4 text-base font-bold shadow-[0_10px_24px_rgba(12,16,30,0.2)] transition-opacity disabled:opacity-45"
+              style={{ backgroundColor: palette.accent, color: palette.accentText }}
             >
               {busy ? "Enviando…" : "Enviar código"}
             </button>
           </>
         ) : (
           <>
-            <input
-              type="tel"
-              inputMode="numeric"
+            <OtpInput
               value={code}
-              onChange={(e) =>
-                setCode(e.target.value.replace(/\D/g, "").slice(0, 6))
-              }
-              placeholder="000000"
-              maxLength={6}
-              className="w-full rounded-2xl border border-[#d0d5dd] bg-white px-4 py-4 text-center text-lg font-semibold tracking-[0.3em] text-[#101828] placeholder:tracking-[0.3em] placeholder:text-[#cbd5e1] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0]"
+              onChange={setCode}
+              tone="dark"
+              autoFocus
             />
             <button
               type="button"
               disabled={busy || code.length !== 6}
               onClick={() => void verify()}
-              className="w-full rounded-2xl py-4 text-sm font-bold text-white transition-opacity disabled:opacity-60"
-              style={{ backgroundColor: brand }}
+              className="w-full rounded-2xl py-4 text-base font-bold shadow-[0_10px_24px_rgba(12,16,30,0.2)] transition-opacity disabled:opacity-45"
+              style={{ backgroundColor: palette.accent, color: palette.accentText }}
             >
               {busy ? "Verificando…" : "Confirmar"}
             </button>
@@ -966,8 +960,8 @@ function PersonalScreen({
           <button
             type="button"
             onClick={onReviewClick}
-            className="group checkin-enter-delay mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[18px] py-4 text-sm font-bold text-white shadow-[0_12px_28px_rgba(31,35,58,0.16)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(31,35,58,0.22)]"
-            style={{ backgroundColor: brand }}
+            className="group checkin-enter-delay mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[18px] py-4 text-sm font-bold shadow-[0_12px_28px_rgba(12,16,30,0.2)] transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_16px_34px_rgba(12,16,30,0.26)]"
+            style={{ backgroundColor: palette.accent, color: palette.accentText }}
           >
             <Star className="h-4 w-4 transition-transform duration-300 group-hover:rotate-12 group-hover:scale-110" />
             Contá tu experiencia en Google
@@ -1075,19 +1069,19 @@ function Shell({
 
   return (
     <div
-      className="relative flex min-h-screen flex-col overflow-hidden"
+      className="relative flex min-h-[100dvh] w-full flex-col overflow-hidden"
       style={{
         backgroundImage: `linear-gradient(145deg, ${brand} 0%, ${secondary} 100%)`,
       }}
     >
       <div className="relative flex flex-1 flex-col items-center justify-start px-5 py-8 sm:px-6 sm:py-10">
         {landing.business.logoUrl && (
-          <div className="relative mb-5">
+          <div className="relative mb-6">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={landing.business.logoUrl}
               alt={landing.business.businessName}
-              className="h-20 w-20 object-contain"
+              className="h-28 w-28 object-contain sm:h-32 sm:w-32"
             />
           </div>
         )}

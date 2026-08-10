@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronRight, Loader2, MapPin, Sparkles } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
 import PhoneInput, { isValidNationalPhone } from "@/components/ui/phone-input";
+import OtpInput from "@/components/ui/otp-input";
 
 interface MyFlikkerPlace {
   businessId: string;
@@ -34,7 +35,7 @@ function MiFlikkerTitle() {
         alt="Flikker"
         width={920}
         height={290}
-        className="h-[27px] w-auto"
+        className="h-[34px] w-auto"
       />
     </h1>
   );
@@ -68,6 +69,7 @@ export default function MiFlikkerClient({ hasSession }: { hasSession: boolean })
     if (!wallet || places.length === 0) return;
 
     let frame = 0;
+    let activeIndex = 0;
     const updateDepth = () => {
       frame = 0;
       const cards = Array.from(
@@ -77,8 +79,9 @@ export default function MiFlikkerClient({ hasSession }: { hasSession: boolean })
       if (rects.length === 0) return;
 
       const focusLine = window.innerHeight * 0.46;
-      let activeIndex = 0;
+      let candidateIndex = activeIndex;
       let closestDistance = Number.POSITIVE_INFINITY;
+      let activeDistance = Number.POSITIVE_INFINITY;
       rects.forEach((rect, index) => {
         if (rect.bottom < 0 || rect.top > window.innerHeight) return;
         const currentOffset = Number.parseFloat(
@@ -87,17 +90,29 @@ export default function MiFlikkerClient({ hasSession }: { hasSession: boolean })
         const distance = Math.abs(
           rect.top + rect.height / 2 - currentOffset - focusLine,
         );
+        if (index === activeIndex) activeDistance = distance;
         if (distance < closestDistance) {
           closestDistance = distance;
-          activeIndex = index;
+          candidateIndex = index;
         }
       });
+
+      // Keep the current card until its neighbour is clearly closer to the
+      // focus line. This hysteresis prevents two cards from flickering when
+      // the user scrolls slowly around their midpoint.
+      if (
+        candidateIndex !== activeIndex &&
+        (activeDistance === Number.POSITIVE_INFINITY ||
+          closestDistance + 34 < activeDistance)
+      ) {
+        activeIndex = candidateIndex;
+      }
 
       cards.forEach((card, index) => {
         const distance = Math.abs(activeIndex - index);
         const scale =
-          index === activeIndex ? 1.035 : Math.max(0.93, 0.98 - distance * 0.014);
-        const offset = index < activeIndex ? -42 : index > activeIndex ? 42 : 0;
+          index === activeIndex ? 1.065 : Math.max(0.925, 0.975 - distance * 0.016);
+        const offset = index < activeIndex ? -58 : index > activeIndex ? 58 : 0;
 
         card.style.setProperty("--mi-card-scale", scale.toFixed(4));
         card.style.setProperty("--mi-card-offset", `${offset}px`);
@@ -184,7 +199,7 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
     <Link
       href={`/mi-flikker/${place.businessId}`}
       data-wallet-card
-      className="mi-coupon mi-wallet-card sticky block min-h-[148px] overflow-hidden rounded-[24px] p-5 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      className="mi-coupon mi-wallet-card sticky block min-h-[176px] overflow-hidden rounded-[26px] p-6 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
       style={{
         top: 88 + Math.min(index, 8) * 10,
         zIndex: index + 1,
@@ -199,7 +214,7 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
             backgroundImage: `url("/api/mi-flikker/places/${encodeURIComponent(place.businessId)}/logo")`,
             backgroundPosition: "14px 12px",
             backgroundRepeat: "repeat",
-            backgroundSize: "64px 64px",
+            backgroundSize: "72px 72px",
             filter: "grayscale(1) contrast(0.8)",
           }}
         />
@@ -210,7 +225,7 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
           <img
             src={place.logoUrl}
             alt=""
-            className="h-14 w-14 shrink-0 object-contain"
+            className="h-[72px] w-[72px] shrink-0 object-contain"
           />
         ) : (
           <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[15px] bg-white/12">
@@ -319,19 +334,16 @@ function VerifyScreen({ onVerified }: { onVerified: () => void }) {
           </>
         ) : (
           <>
-            <input
-              type="text"
-              inputMode="numeric"
+            <OtpInput
               value={code}
-              onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-              placeholder="Código de 6 dígitos"
-              className="w-full rounded-[14px] border border-white/80 bg-white/80 px-4 py-3 text-center text-lg tracking-[0.3em] outline-none focus:border-[#5C6BC0]"
+              onChange={setCode}
+              autoFocus
             />
             <button
               type="button"
               disabled={sending || code.length !== 6}
               onClick={() => void confirmCode()}
-              className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#5C6BC0] py-3 text-sm font-bold text-white disabled:opacity-50"
+              className="flex w-full items-center justify-center gap-2 rounded-[16px] bg-[#5C6BC0] py-4 text-base font-bold text-white shadow-[0_10px_22px_rgba(92,107,192,0.22)] disabled:opacity-50"
             >
               {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Confirmar
@@ -353,7 +365,7 @@ function VerifyScreen({ onVerified }: { onVerified: () => void }) {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-screen flex-col items-center bg-[#F5F6FB] px-5 py-10">
+    <div className="flex min-h-[100dvh] w-full flex-col items-center bg-[#F5F6FB] px-4 py-8 sm:px-5 sm:py-10">
       <div className="w-full max-w-md">{children}</div>
     </div>
   );

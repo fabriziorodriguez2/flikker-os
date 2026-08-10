@@ -126,7 +126,7 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
             <img
               src={place.logoUrl}
               alt=""
-              className="h-20 w-20 shrink-0 object-contain"
+              className="h-24 w-24 shrink-0 object-contain sm:h-28 sm:w-28"
             />
           ) : (
             <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] bg-white/12">
