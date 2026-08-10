@@ -134,7 +134,7 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
       {place.logoUrl ? (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute inset-0 opacity-[0.065] mix-blend-screen"
+          className="pointer-events-none absolute -inset-[35%] rotate-45 opacity-[0.065] mix-blend-screen"
           style={{
             backgroundImage: `url("/api/mi-flikker/places/${encodeURIComponent(place.businessId)}/logo")`,
             backgroundPosition: "14px 12px",

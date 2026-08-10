@@ -110,7 +110,7 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
         {place.logoUrl ? (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 opacity-[0.06] mix-blend-screen"
+            className="pointer-events-none absolute -inset-[35%] rotate-45 opacity-[0.06] mix-blend-screen"
             style={{
               backgroundImage: `url("/api/mi-flikker/places/${encodeURIComponent(place.businessId)}/logo")`,
               backgroundPosition: "18px 14px",
