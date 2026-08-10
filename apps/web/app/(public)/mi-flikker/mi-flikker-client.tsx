@@ -108,9 +108,9 @@ export default function MiFlikkerClient({ hasSession }: { hasSession: boolean })
           para empezar.
         </p>
       ) : (
-        <div className="mt-6 w-full space-y-3">
-          {places.map((place) => (
-            <PlaceCard key={place.businessId} place={place} />
+        <div className="mi-wallet mt-7 w-full pb-16">
+          {places.map((place, index) => (
+            <PlaceCard key={place.businessId} place={place} index={index} />
           ))}
         </div>
       )}
@@ -118,39 +118,66 @@ export default function MiFlikkerClient({ hasSession }: { hasSession: boolean })
   );
 }
 
-function PlaceCard({ place }: { place: MyFlikkerPlace }) {
+function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
   const brand = place.primaryColor ?? "#5C6BC0";
   return (
     <Link
       href={`/mi-flikker/${place.businessId}`}
-      className="flex items-center gap-3 rounded-[18px] border border-white/80 bg-white/72 px-4 py-3.5 shadow-[0_10px_28px_rgba(31,35,58,0.08)] backdrop-blur-md transition-transform hover:-translate-y-0.5"
+      className="mi-coupon mi-wallet-card sticky block min-h-[148px] overflow-hidden rounded-[24px] border border-white/25 p-5 text-white shadow-[0_16px_36px_rgba(31,27,58,0.2)] transition-transform duration-300 hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      style={{
+        top: 88 + Math.min(index, 8) * 10,
+        zIndex: index + 1,
+        background: `linear-gradient(135deg, ${brand} 0%, #29213F 115%)`,
+      }}
     >
-      <span
-        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[12px]"
-        style={{ backgroundColor: `${brand}18`, color: brand }}
-      >
-        <MapPin className="h-5 w-5" />
-      </span>
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold text-[#24283A]">{place.businessName}</p>
-        <p className="mt-0.5 text-xs text-[#8A91A3]">
-          {place.visitsTotal} {place.visitsTotal === 1 ? "visita" : "visitas"}
-        </p>
+      <span aria-hidden="true" className="absolute -right-10 -top-14 h-36 w-36 rounded-full bg-white/12 blur-xl" />
+      <div className="relative flex items-center gap-3.5">
+        <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[15px] border border-white/35 bg-white/18 backdrop-blur-sm">
+          {place.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={place.logoUrl} alt="" className="h-full w-full object-contain" />
+          ) : (
+            <MapPin className="h-5 w-5" aria-hidden="true" />
+          )}
+        </span>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-[17px] font-bold tracking-[-0.02em]">
+            {place.businessName}
+          </p>
+          <p className="mt-0.5 text-[13px] font-medium text-white/70">
+            {place.visitsTotal} {place.visitsTotal === 1 ? "visita" : "visitas"}
+          </p>
+        </div>
+        <ChevronRight className="h-5 w-5 shrink-0 text-white/70" />
+      </div>
+
+      <div className="relative mt-4 border-t border-dashed border-white/30 pt-3">
         {place.benefitAvailable ? (
-          <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-[#15966D]">
-            <Sparkles className="h-3.5 w-3.5" /> Recompensa disponible: {place.benefitAvailable.name}
+          <p className="flex items-center gap-2 text-[14px] font-semibold">
+            <Sparkles className="h-4 w-4 text-[#FFE08A]" aria-hidden="true" />
+            <span className="truncate">Tenés disponible: {place.benefitAvailable.name}</span>
           </p>
         ) : place.rewardGoal ? (
-          <p className="mt-1 text-xs font-semibold" style={{ color: brand }}>
-            Te falta{place.rewardGoal.remainingVisits === 1 ? "" : "n"}{" "}
-            {place.rewardGoal.remainingVisits} visita
-            {place.rewardGoal.remainingVisits === 1 ? "" : "s"}
-          </p>
+          <div>
+            <div className="flex items-center justify-between gap-3 text-[13px] font-semibold">
+              <span className="truncate">Próximo premio: {place.rewardGoal.incentiveName}</span>
+              <span className="shrink-0 text-white/75">
+                {place.rewardGoal.progressVisits}/{place.rewardGoal.targetAdditionalVisits}
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/20">
+              <div
+                className="h-full rounded-full bg-white/85"
+                style={{
+                  width: `${Math.min(100, (place.rewardGoal.progressVisits / Math.max(1, place.rewardGoal.targetAdditionalVisits)) * 100)}%`,
+                }}
+              />
+            </div>
+          </div>
         ) : (
-          <p className="mt-1 text-xs text-[#8A91A3]">Sin recompensa activa</p>
+          <p className="text-[13px] font-medium text-white/65">Todavía no hay un premio activo</p>
         )}
       </div>
-      <ChevronRight className="h-4 w-4 shrink-0 text-[#B7BCCB]" />
     </Link>
   );
 }
