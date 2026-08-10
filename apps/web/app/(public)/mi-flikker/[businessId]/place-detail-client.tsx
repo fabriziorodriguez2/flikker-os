@@ -108,6 +108,19 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
         style={{ background: `linear-gradient(140deg, ${brand} 0%, ${palette.secondary} 115%)` }}
       >
         <span aria-hidden="true" className="absolute -right-12 -top-16 h-48 w-48 rounded-full bg-white/12 blur-2xl" />
+        {place.logoUrl ? (
+          <span
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 opacity-[0.06] mix-blend-screen"
+            style={{
+              backgroundImage: `url("/api/mi-flikker/places/${encodeURIComponent(place.businessId)}/logo")`,
+              backgroundPosition: "18px 14px",
+              backgroundRepeat: "repeat",
+              backgroundSize: "76px 76px",
+              filter: "grayscale(1) contrast(0.8)",
+            }}
+          />
+        ) : null}
         <div className="relative flex items-center gap-4">
           <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[20px] border border-white/35 bg-white/18 backdrop-blur-sm">
             {place.logoUrl ? (

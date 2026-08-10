@@ -132,6 +132,19 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
       }}
     >
       <span aria-hidden="true" className="absolute -right-10 -top-14 h-36 w-36 rounded-full bg-white/12 blur-xl" />
+      {place.logoUrl ? (
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 opacity-[0.065] mix-blend-screen"
+          style={{
+            backgroundImage: `url("/api/mi-flikker/places/${encodeURIComponent(place.businessId)}/logo")`,
+            backgroundPosition: "14px 12px",
+            backgroundRepeat: "repeat",
+            backgroundSize: "64px 64px",
+            filter: "grayscale(1) contrast(0.8)",
+          }}
+        />
+      ) : null}
       <div className="relative flex items-center gap-3.5">
         <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[15px] border border-white/35 bg-white/18 backdrop-blur-sm">
           {place.logoUrl ? (
