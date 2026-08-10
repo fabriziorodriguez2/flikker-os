@@ -124,14 +124,13 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
   return (
     <Link
       href={`/mi-flikker/${place.businessId}`}
-      className="mi-coupon mi-wallet-card sticky block min-h-[148px] overflow-hidden rounded-[24px] p-5 text-white shadow-[0_16px_36px_rgba(31,27,58,0.2)] transition-transform duration-300 hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      className="mi-coupon mi-wallet-card sticky block min-h-[148px] overflow-hidden rounded-[24px] p-5 text-white shadow-[0_8px_18px_rgba(20,24,40,0.14)] transition-transform duration-300 hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
       style={{
         top: 88 + Math.min(index, 8) * 10,
         zIndex: index + 1,
         background: `linear-gradient(135deg, ${palette.primary} 0%, ${palette.secondary} 115%)`,
       }}
     >
-      <span aria-hidden="true" className="absolute -right-10 -top-14 h-36 w-36 rounded-full bg-white/12 blur-xl" />
       {place.logoUrl ? (
         <span
           aria-hidden="true"

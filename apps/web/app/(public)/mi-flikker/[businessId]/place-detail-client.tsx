@@ -104,10 +104,9 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
       </Link>
 
       <section
-        className="mi-coupon relative overflow-hidden rounded-[28px] p-6 text-white shadow-[0_20px_46px_rgba(31,27,58,0.22)]"
+        className="mi-coupon relative overflow-hidden rounded-[28px] p-6 text-white shadow-[0_10px_22px_rgba(20,24,40,0.14)]"
         style={{ background: `linear-gradient(140deg, ${brand} 0%, ${palette.secondary} 115%)` }}
       >
-        <span aria-hidden="true" className="absolute -right-12 -top-16 h-48 w-48 rounded-full bg-white/12 blur-2xl" />
         {place.logoUrl ? (
           <span
             aria-hidden="true"
