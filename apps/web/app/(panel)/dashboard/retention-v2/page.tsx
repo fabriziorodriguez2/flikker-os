@@ -73,7 +73,7 @@ export default function RetentionV2Page() {
         setDryRunReport(null);
       }
     } catch (e) {
-      setLoadError(e instanceof Error ? e.message : "No pudimos cargar Retención V2.");
+      setLoadError(e instanceof Error ? e.message : "No pudimos cargar Retención.");
     } finally {
       setLoading(false);
     }
@@ -142,15 +142,11 @@ export default function RetentionV2Page() {
     await load();
   }
 
-  async function goLive() {
-    await saveSettings({ dryRunEnabled: false, automaticCampaignsEnabled: true });
-  }
-
   if (!isCheckinV2) {
     return (
       <div className="space-y-6">
         <PageHeader
-          title="Retención V2"
+          title="Retención"
           subtitle="Esta función solo está disponible para negocios en Check-in V2."
         />
       </div>
@@ -160,7 +156,7 @@ export default function RetentionV2Page() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Retención V2"
+        title="Retención"
         subtitle="Configurá cuándo y cómo Flikker contacta automáticamente a los clientes que se están alejando."
       />
 
@@ -195,8 +191,6 @@ export default function RetentionV2Page() {
           <DryRunPanel
             report={dryRunReport}
             dryRunEnabled={settings.dryRunEnabled}
-            canMutate={canMutate}
-            onGoLive={goLive}
           />
 
           <button

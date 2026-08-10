@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Clock, Loader2, Plus, Trash2 } from "lucide-react";
 import Switch from "@/components/ui/switch";
 import { useCanMutate } from "../../role-context";
+import { useIsCheckinV2 } from "../../experience-context";
 import RetentionMetrics from "./retention-metrics";
 import PageHeader from "@/components/ui/page-header";
 
@@ -109,6 +111,7 @@ const inputClass =
 
 export default function RetentionPage() {
   const canMutate = useCanMutate();
+  const isCheckinV2 = useIsCheckinV2();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -142,8 +145,12 @@ export default function RetentionPage() {
   }
 
   useEffect(() => {
-    void load();
-  }, []);
+    // Pre-piloto #3 — un negocio en Check-in V2 nunca debe quedar con dos
+    // motores de retención potencialmente activos: si llegó a esta URL
+    // (bookmark, link viejo), ni siquiera cargamos la secuencia legacy.
+    if (!isCheckinV2) void load();
+    else setLoading(false);
+  }, [isCheckinV2]);
 
   function updateStep(key: string, patch: Partial<StepDraft>) {
     setSteps((prev) =>
@@ -222,6 +229,34 @@ export default function RetentionPage() {
   }
 
   const sortedSteps = [...steps].sort((a, b) => a.offsetDays - b.offsetDays);
+
+  // Pre-piloto #3 — una sola "Retención" por negocio. La secuencia legacy
+  // (este motor) queda oculta apenas el negocio pasa a Check-in V2; el
+  // worker backend ya deja de procesarla en ese momento (ver
+  // retention.processor.ts) — esta pantalla solo evita que el dueño la vea
+  // o la siga editando pensando que todavía hace algo.
+  if (isCheckinV2) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-5">
+        <PageHeader
+          title="Retención"
+          subtitle="Esta pantalla se movió."
+        />
+        <div className="rounded-[12px] border border-[#E8EAF0] bg-white px-6 py-8 text-center">
+          <p className="text-sm text-[#1A202C]">
+            Tu negocio ya usa la Retención nueva — la secuencia automática de
+            acá quedó reemplazada y no envía nada.
+          </p>
+          <Link
+            href="/dashboard/retention-v2"
+            className="mt-4 inline-flex h-10 items-center justify-center rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
+          >
+            Ir a Retención
+          </Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-3xl space-y-5">

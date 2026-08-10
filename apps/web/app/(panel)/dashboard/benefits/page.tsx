@@ -314,9 +314,12 @@ function BenefitCard({
           ? `Hasta ${to}`
           : null;
 
-  const [bridgeBusy, setBridgeBusy] = useState<"recovery" | "reward" | null>(
+  const [bridgeBusy, setBridgeBusy] = useState<"recovery" | "reward" | "cost" | null>(
     null,
   );
+  // Pre-piloto #2 — el costo estimado ya NUNCA es obligatorio para activar
+  // recuperación/recompensa (antes bloqueaba con NEEDS_ESTIMATED_COST). Este
+  // campo es una mejora opcional para economía, no un requisito de puerta.
   const [costPromptOpen, setCostPromptOpen] = useState(false);
   const [costInput, setCostInput] = useState("");
   const [bridgeError, setBridgeError] = useState<string | null>(null);
@@ -326,36 +329,23 @@ function BenefitCard({
     setBridgeBusy("recovery");
     try {
       await onSetRetentionBridge({ recoveryEnabled: nextValue });
-      setCostPromptOpen(false);
-      setCostInput("");
     } catch (e) {
-      const message = e instanceof Error ? e.message : "No pudimos guardar.";
-      // El backend pide un costo estimado la primera vez que se activa
-      // recuperación sobre un beneficio sin descuento (ej. un regalo) — en
-      // vez de un error genérico, abrimos el campo para completarlo.
-      if (nextValue && message === "NEEDS_ESTIMATED_COST") {
-        setCostPromptOpen(true);
-      } else {
-        setBridgeError(message);
-      }
+      setBridgeError(e instanceof Error ? e.message : "No pudimos guardar.");
     } finally {
       setBridgeBusy(null);
     }
   }
 
-  async function confirmCostAndEnableRecovery() {
+  async function saveEstimatedCost() {
     const cost = Number(costInput);
     if (!costInput.trim() || Number.isNaN(cost) || cost < 0) {
       setBridgeError("Ingresá un costo válido.");
       return;
     }
     setBridgeError(null);
-    setBridgeBusy("recovery");
+    setBridgeBusy("cost");
     try {
-      await onSetRetentionBridge({
-        recoveryEnabled: true,
-        estimatedCost: cost,
-      });
+      await onSetRetentionBridge({ estimatedCost: cost });
       setCostPromptOpen(false);
       setCostInput("");
     } catch (e) {
@@ -455,7 +445,11 @@ function BenefitCard({
       {showRetentionBridge ? (
         <div className="mt-4 space-y-2.5 rounded-[10px] border border-[#F0F2FA] bg-[#FAFBFC] px-3.5 py-3">
           <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
-            Retención V2
+            Retención
+          </p>
+          <p className="text-xs text-[#8891A4]">
+            Independiente de &quot;Activo&quot; — activar/desactivar solo
+            cambia qué se muestra en el check-in.
           </p>
 
           <label className="flex items-start gap-2 text-sm">
@@ -469,43 +463,6 @@ function BenefitCard({
             <span className="text-[#1A202C]">Usar para recuperar clientes</span>
           </label>
 
-          {costPromptOpen ? (
-            <div className="ml-6 flex flex-wrap items-center gap-2 rounded-[8px] bg-white px-3 py-2 ring-1 ring-[#E8EAF0]">
-              <span className="text-xs text-[#8891A4]">
-                ¿Cuánto le cuesta este beneficio al negocio?
-              </span>
-              <input
-                type="number"
-                min={0}
-                value={costInput}
-                onChange={(e) => setCostInput(e.target.value)}
-                placeholder="$"
-                className="h-8 w-24 rounded-[6px] border border-[#E8EAF0] px-2 text-sm outline-none focus:border-[#5C6BC0]"
-              />
-              <button
-                type="button"
-                onClick={() => void confirmCostAndEnableRecovery()}
-                disabled={bridgeBusy !== null}
-                className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-[#5C6BC0] px-3 text-xs font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
-              >
-                {bridgeBusy === "recovery" ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : null}
-                Confirmar
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setCostPromptOpen(false);
-                  setCostInput("");
-                }}
-                className="text-xs font-semibold text-[#8891A4] hover:text-[#1A202C]"
-              >
-                Cancelar
-              </button>
-            </div>
-          ) : null}
-
           <label className="flex items-start gap-2 text-sm">
             <input
               type="checkbox"
@@ -518,6 +475,58 @@ function BenefitCard({
               Usar como recompensa por visitas
             </span>
           </label>
+
+          {/* El costo NUNCA es obligatorio para autorizar — esto es
+              puramente opcional, solo mejora la estimación económica y solo
+              importa si más adelante querés presupuestar por MONTO. */}
+          {(benefit.retentionBridge.recoveryEnabled ||
+            benefit.retentionBridge.rewardGoalEnabled) &&
+          !benefit.retentionBridge.hasKnownValue ? (
+            costPromptOpen ? (
+              <div className="flex flex-wrap items-center gap-2 rounded-[8px] bg-white px-3 py-2 ring-1 ring-[#E8EAF0]">
+                <span className="text-xs text-[#8891A4]">
+                  Costo estimado (opcional):
+                </span>
+                <input
+                  type="number"
+                  min={0}
+                  value={costInput}
+                  onChange={(e) => setCostInput(e.target.value)}
+                  placeholder="$"
+                  className="h-8 w-24 rounded-[6px] border border-[#E8EAF0] px-2 text-sm outline-none focus:border-[#5C6BC0]"
+                />
+                <button
+                  type="button"
+                  onClick={() => void saveEstimatedCost()}
+                  disabled={bridgeBusy !== null}
+                  className="inline-flex h-8 items-center gap-1.5 rounded-[6px] bg-[#5C6BC0] px-3 text-xs font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+                >
+                  {bridgeBusy === "cost" ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : null}
+                  Guardar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCostPromptOpen(false);
+                    setCostInput("");
+                  }}
+                  className="text-xs font-semibold text-[#8891A4] hover:text-[#1A202C]"
+                >
+                  Cancelar
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setCostPromptOpen(true)}
+                className="text-xs font-semibold text-[#5C6BC0] hover:underline"
+              >
+                + Agregar costo estimado (opcional)
+              </button>
+            )
+          ) : null}
 
           {bridgeError ? (
             <p className="text-xs text-[#C0392B]">{bridgeError}</p>
@@ -885,7 +894,11 @@ export default function BenefitsPage() {
     <div className="mx-auto max-w-3xl space-y-5">
       <PageHeader
         title="Beneficios"
-        subtitle="Ofrecé un incentivo para que tus clientes vuelvan. Solo uno puede estar activo a la vez."
+        subtitle={
+          isCheckinV2
+            ? "Ofrecé incentivos para que tus clientes vuelvan. \"Activo\" decide cuál se muestra en el check-in — podés autorizar varios para recuperación o recompensa al mismo tiempo, estén activos o no."
+            : "Ofrecé un incentivo para que tus clientes vuelvan. Solo uno puede estar activo a la vez."
+        }
         actions={canMutate && !showForm ? (
           <button
             type="button"

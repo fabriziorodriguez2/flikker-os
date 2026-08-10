@@ -18,6 +18,7 @@ function generateRedemptionCode(): string {
 export type ConsumeRedemptionResult =
   | { status: 'not_found' }
   | { status: 'already' }
+  | { status: 'expired' }
   | {
       status: 'ok';
       participationId: string;
@@ -27,6 +28,20 @@ export type ConsumeRedemptionResult =
       benefitType: BenefitType;
       customerName: string;
     };
+
+/**
+ * Piloto V2 (#5) — read-only counterpart to `consumeRedemption`, for the
+ * "scan → show confirmation card → Confirmar canje" flow. Never mutates
+ * anything, so scanning (or re-scanning) a QR is always safe; only the
+ * explicit confirm step calls `consumeRedemption`. Deliberately returns no
+ * internal ids (`participationId`/`customerId`/`benefitId`) — just enough to
+ * render "Beneficio: X / Cliente: Y" to the employee.
+ */
+export type PreviewRedemptionResult =
+  | { status: 'not_found' }
+  | { status: 'already' }
+  | { status: 'expired' }
+  | { status: 'ok'; benefitTitle: string; customerName: string };
 
 export interface BenefitData {
   type: BenefitType;
@@ -123,10 +138,13 @@ export class BenefitsRepository {
       if (!existing) return null;
 
       if (data.active === true) await this.deactivateAll(tx, businessId, id);
-      // Piloto V2 — deactivating a Benefit can never leave its linked
-      // incentive automation-eligible by accident (see setActive below for
-      // the same rule applied to the dedicated activate/deactivate actions).
-      if (data.active === false) await this.deauthorizeBridge(tx, id);
+      // Piloto V2 (ajuste #2, revertido) — "active" ya NO desautoriza el
+      // bridge. `active` solo decide qué se muestra como la promo actual del
+      // check-in (el slot legacy de "un solo activo"); la elegibilidad para
+      // recuperación/recompensa es una autorización independiente que el
+      // dueño puede querer mantener en varios beneficios a la vez aunque
+      // solo uno esté "activo". Deauthorize solo ocurre en `remove()` (borrado
+      // real) — ver comentario ahí.
 
       return tx.benefit.update({ where: { id }, data });
     });
@@ -142,11 +160,10 @@ export class BenefitsRepository {
       if (!existing) return null;
 
       if (active) await this.deactivateAll(tx, businessId, id);
-      // Piloto V2 — a deactivated Benefit can never leave a bridged
-      // RetentionIncentiveDefinition usable by the automation. The row
-      // itself is kept (never deleted) so re-activating later does not lose
-      // its cost/value; only the two eligibility flags are forced off.
-      else await this.deauthorizeBridge(tx, id);
+      // Piloto V2 (ajuste #2, revertido) — desactivar ya NO desautoriza el
+      // bridge (ver el mismo comentario en `update()` arriba). Varios
+      // beneficios pueden quedar autorizados para recuperación/recompensa
+      // simultáneamente aunque solo uno esté "activo" en el slot del QR.
 
       return tx.benefit.update({ where: { id }, data: { active } });
     });
@@ -380,6 +397,13 @@ export class BenefitsRepository {
    * conditional `updateMany ... where redeemedAt IS NULL`: under concurrency the
    * row lock lets only one transaction flip it, so a code is redeemed at most
    * once. Runs in a transaction so the read + guarded update are consistent.
+   *
+   * Piloto V2 (#5) — now also enforces `expiresAt` (previously read but
+   * never checked here: a code past its window redeemed the same as a valid
+   * one). QR-flow benefits leave `expiresAt` null (no expiry, unchanged
+   * behaviour); Retention V2/Reward-Goal-issued ones set it, and it is now
+   * actually honored at redemption time — the "expiración corta razonable"
+   * the QR canje flow needs is exactly this already-existing field.
    */
   async consumeRedemption(
     businessId: string,
@@ -397,6 +421,7 @@ export class BenefitsRepository {
       });
       if (!found) return { status: 'not_found' };
       if (found.redeemedAt) return { status: 'already' };
+      if (found.expiresAt && found.expiresAt < now) return { status: 'expired' };
 
       const updated = await tx.benefitParticipation.updateMany({
         where: { id: found.id, redeemedAt: null },
@@ -414,6 +439,36 @@ export class BenefitsRepository {
         customerName: found.customer.name,
       };
     });
+  }
+
+  /**
+   * Read-only lookup for the "scan → preview → confirm" flow — see
+   * `PreviewRedemptionResult`. Never mutates; the confirm step re-looks-up
+   * by the same code via `consumeRedemption`, so there is no id to pass
+   * forward and no window for the preview itself to go stale in a way that
+   * matters (the atomic guard in `consumeRedemption` is what's authoritative).
+   */
+  async previewRedemption(
+    businessId: string,
+    code: string,
+    now: Date = new Date(),
+  ): Promise<PreviewRedemptionResult> {
+    const found = await this.prisma.benefitParticipation.findFirst({
+      where: { businessId, redemptionCode: code },
+      include: {
+        benefit: { select: { title: true } },
+        customer: { select: { name: true } },
+      },
+    });
+    if (!found) return { status: 'not_found' };
+    if (found.redeemedAt) return { status: 'already' };
+    if (found.expiresAt && found.expiresAt < now) return { status: 'expired' };
+
+    return {
+      status: 'ok',
+      benefitTitle: found.benefit.title,
+      customerName: found.customer.name,
+    };
   }
 
   attachRedeemedVisit(participationId: string, visitId: string) {

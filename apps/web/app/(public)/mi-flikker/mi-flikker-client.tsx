@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ChevronRight, Loader2, MapPin, Sparkles } from "lucide-react";
+import PhoneInput, { isValidNationalPhone } from "@/components/ui/phone-input";
 
 interface MyFlikkerPlace {
   businessId: string;
@@ -162,6 +163,12 @@ function VerifyScreen({ onVerified }: { onVerified: () => void }) {
   const [error, setError] = useState<string | null>(null);
 
   async function sendCode() {
+    // Piloto V2 (#7) — el backend ya normaliza y valida el E.164 real, pero
+    // no vale la pena gastar un OTP en un número con formato inválido.
+    if (!isValidNationalPhone(phone)) {
+      setError("Ingresá un número válido (7 a 9 dígitos).");
+      return;
+    }
     setSending(true);
     setError(null);
     const { ok } = await postJson("/api/mi-flikker/verify/start", { phone });
@@ -190,16 +197,15 @@ function VerifyScreen({ onVerified }: { onVerified: () => void }) {
       <div className="mt-6 w-full space-y-3">
         {step === "phone" ? (
           <>
-            <input
-              type="tel"
+            <PhoneInput
               value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="Tu número de WhatsApp"
-              className="w-full rounded-[14px] border border-white/80 bg-white/80 px-4 py-3 text-sm outline-none focus:border-[#5C6BC0]"
+              onChange={setPhone}
+              placeholder="91 624 988"
+              className="rounded-[14px] [&>div]:rounded-[14px] [&>div]:border-white/80 [&>div]:bg-white/80"
             />
             <button
               type="button"
-              disabled={sending || phone.trim().length < 6}
+              disabled={sending || !isValidNationalPhone(phone)}
               onClick={() => void sendCode()}
               className="flex w-full items-center justify-center gap-2 rounded-[14px] bg-[#5C6BC0] py-3 text-sm font-bold text-white disabled:opacity-50"
             >

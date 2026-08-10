@@ -1,35 +1,24 @@
 "use client";
 
-import { useState } from "react";
-import { Eye, Loader2 } from "lucide-react";
+import { Eye } from "lucide-react";
 import type { DryRunReport } from "./types";
 import { REWARD_GOAL_REASON_LABEL } from "./types";
 
+/**
+ * Pre-piloto #4 — deja de tener su propio botón "Pasar a automático": esa
+ * transición (Observación → En vivo) ahora se hace desde el radio de
+ * `SettingsSection`, con su propia confirmación — tener dos controles para
+ * la misma acción era confuso. Este panel queda solo como el reporte de
+ * "qué habría hecho hoy".
+ */
 export default function DryRunPanel({
   report,
   dryRunEnabled,
-  canMutate,
-  onGoLive,
 }: {
   report: DryRunReport | null;
   dryRunEnabled: boolean;
-  canMutate: boolean;
-  onGoLive: () => Promise<void>;
 }) {
-  const [confirming, setConfirming] = useState(false);
-  const [switching, setSwitching] = useState(false);
-
   if (!dryRunEnabled) return null;
-
-  async function goLive() {
-    setSwitching(true);
-    try {
-      await onGoLive();
-    } finally {
-      setSwitching(false);
-      setConfirming(false);
-    }
-  }
 
   return (
     <section className="rounded-[14px] border border-[#DCE3F7] bg-[#F5F7FF] p-5">
@@ -72,51 +61,17 @@ export default function DryRunPanel({
               </p>
             </div>
           ) : null}
+
+          <p className="mt-3 text-xs text-[#8891A4]">
+            Para pasar a enviar de verdad, elegí &quot;En vivo&quot; arriba, en
+            Retención.
+          </p>
         </>
       ) : (
         <p className="mt-2 text-sm text-[#8891A4]">
           Todavía no corrió ninguna evaluación hoy.
         </p>
       )}
-
-      {canMutate ? (
-        <div className="mt-4">
-          {confirming ? (
-            <div className="flex flex-wrap items-center gap-3 rounded-[10px] border border-[#DCE3F7] bg-white px-4 py-3">
-              <p className="text-sm text-[#1A202C]">
-                ¿Pasar a automático? Flikker va a empezar a enviar mensajes y
-                otorgar beneficios de verdad.
-              </p>
-              <div className="ml-auto flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setConfirming(false)}
-                  className="h-9 rounded-[8px] border border-[#E8EAF0] px-3 text-sm font-semibold text-[#1A202C]"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={goLive}
-                  disabled={switching}
-                  className="inline-flex h-9 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-3 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
-                >
-                  {switching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Sí, activar automático
-                </button>
-              </div>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => setConfirming(true)}
-              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-white border border-[#5C6BC0] px-4 text-sm font-semibold text-[#5C6BC0] hover:bg-[#EEF0FB]"
-            >
-              Pasar a automático
-            </button>
-          )}
-        </div>
-      ) : null}
     </section>
   );
 }

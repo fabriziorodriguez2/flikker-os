@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import QRCode from "qrcode";
 import {
   BadgePercent,
   Check,
@@ -16,6 +17,7 @@ import {
   Ticket,
 } from "lucide-react";
 import PoweredByFlikker from "@/components/ui/powered-by-flikker";
+import { normalizeUruguayNationalPhone } from "@/components/ui/phone-input";
 import type { CheckinLanding, PublicBenefit } from "./page";
 
 // ── Types shared with the API responses ──────────────────────────────────────
@@ -331,11 +333,13 @@ function RegisterScreen({
             type="tel"
             inputMode="numeric"
             value={phone}
-            onChange={(e) =>
-              setPhone(e.target.value.replace(/\D/g, "").replace(/^0+/, ""))
-            }
+            // Pre-piloto #7 — bug real: el `maxLength` en el DOM truncaba el
+            // valor pegado (ej. "+59891624988") a 9 caracteres CRUDOS antes
+            // de limpiarlo, perdiendo dígitos reales. `normalizeUruguayNationalPhone`
+            // ya limpia y recorta el prefijo "598"/"0" ANTES de recortar a 9
+            // — mismo helper que ya usa PhoneInput en onboarding.
+            onChange={(e) => setPhone(normalizeUruguayNationalPhone(e.target.value))}
             placeholder="91624988"
-            maxLength={9}
             required
             className="w-full bg-transparent py-4 pl-3 pr-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:outline-none"
           />
@@ -498,13 +502,8 @@ function RecoverScreen({
                 type="tel"
                 inputMode="numeric"
                 value={phone}
-                onChange={(e) =>
-                  setPhone(
-                    e.target.value.replace(/\D/g, "").replace(/^0+/, ""),
-                  )
-                }
+                onChange={(e) => setPhone(normalizeUruguayNationalPhone(e.target.value))}
                 placeholder="91624988"
-                maxLength={9}
                 className="w-full bg-transparent py-4 pl-3 pr-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:outline-none"
               />
             </div>
@@ -608,12 +607,32 @@ function SlideToReveal({
   const [breaking, setBreaking] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Piloto V2 (#5) — el mismo código que ya se mostraba como texto también
+  // se codifica como QR: el empleado lo escanea con "Escanear recompensa"
+  // en vez de tipearlo. Nada nuevo del lado del servidor — es el mismo
+  // `redemptionCode`, solo renderizado distinto.
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
       if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
     };
   }, []);
+
+  useEffect(() => {
+    if (!revealed) return;
+    let cancelled = false;
+    void QRCode.toDataURL(code, {
+      errorCorrectionLevel: "M",
+      margin: 2,
+      width: 220,
+    }).then((url) => {
+      if (!cancelled) setQrDataUrl(url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [revealed, code]);
 
   function maxDrag() {
     return Math.max(0, (trackRef.current?.clientWidth ?? 0) - 60);
@@ -657,10 +676,21 @@ function SlideToReveal({
           ¡Premio desbloqueado!
         </div>
         <p className="mt-1 text-[11px] text-white/65">
-          Mostrá este código en el local
+          Mostrá este QR en el local
         </p>
-        <p className="mt-2 font-mono text-[26px] font-bold tracking-[0.2em] text-white">
+        {qrDataUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={qrDataUrl}
+            alt="QR para canjear tu recompensa"
+            className="mx-auto mt-3 h-[140px] w-[140px] rounded-[12px] bg-white p-2"
+          />
+        ) : null}
+        <p className="mt-2 font-mono text-[15px] font-bold tracking-[0.15em] text-white/80">
           {code}
+        </p>
+        <p className="mt-0.5 text-[10px] text-white/55">
+          O decile este código al personal
         </p>
       </div>
     );

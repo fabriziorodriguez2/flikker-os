@@ -87,20 +87,24 @@ describe('RetentionIncentivesService.create', () => {
     expect(data.automationEligible).toBe(false);
   });
 
-  it('rejects automation without a concrete value to grant', async () => {
+  it('Piloto V2 (#2) — accepts automation with NO known value at all (cost is never required to authorize)', async () => {
     const prisma = makePrisma();
     const service = new RetentionIncentivesService(prisma as never);
 
-    await expect(
-      service.create('biz-1', {
-        name: 'Upgrade gratis',
-        type: BenefitType.gift,
-        automationEligible: true,
-      }),
-    ).rejects.toThrow(
-      'An incentive authorized for automation needs a percentageValue, a fixedValue, or an estimatedCost',
-    );
-    expect(prisma.retentionIncentiveDefinition.create).not.toHaveBeenCalled();
+    await service.create('biz-1', {
+      name: 'Upgrade gratis',
+      type: BenefitType.gift,
+      automationEligible: true,
+    });
+
+    expect(prisma.retentionIncentiveDefinition.create).toHaveBeenCalledTimes(1);
+    const data = (
+      prisma.retentionIncentiveDefinition.create.mock.calls[0][0] as {
+        data: Record<string, unknown>;
+      }
+    ).data;
+    expect(data.automationEligible).toBe(true);
+    expect(data.estimatedCost).toBeUndefined();
   });
 
   it('accepts automation with only an estimatedCost — a gift has no percentage/fixed value', async () => {
@@ -172,7 +176,7 @@ describe('RetentionIncentivesService.update', () => {
     });
   });
 
-  it('rejects turning automation on when no value is set anywhere', async () => {
+  it('Piloto V2 (#2) — accepts turning automation on with no value set anywhere', async () => {
     const prisma = makePrisma({
       definition: {
         id: 'inc-1',
@@ -184,11 +188,12 @@ describe('RetentionIncentivesService.update', () => {
     });
     const service = new RetentionIncentivesService(prisma as never);
 
-    await expect(
-      service.update('biz-1', 'inc-1', { automationEligible: true }),
-    ).rejects.toThrow(
-      'An incentive authorized for automation needs a percentageValue, a fixedValue, or an estimatedCost',
-    );
+    await service.update('biz-1', 'inc-1', { automationEligible: true });
+
+    expect(prisma.retentionIncentiveDefinition.update).toHaveBeenCalledWith({
+      where: { id: 'inc-1' },
+      data: { automationEligible: true },
+    });
   });
 
   it('scopes the lookup to the business before writing anything', async () => {

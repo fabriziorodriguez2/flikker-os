@@ -140,7 +140,19 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest --silent)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest benefits retention-incentives retention-v2 simulation --silent)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx ts-node -r tsconfig-paths/register scripts-scratch/smoke-benefit-retention-bridge.ts)",
-      "Bash(DATABASE_URL=postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public node -e ' *)"
+      "Bash(DATABASE_URL=postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public node -e ' *)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest benefits retention-incentives --silent)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest benefits retention-incentives visit-sources --silent)",
+      "Bash(grep -v \"^\\\\s*\\\\*\\\\|^\\\\s*//\\\\|Piloto V2\\\\|Fase [A-Z]\")",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest legacy-ownership engine-ownership --silent)",
+      "Bash(npm view *)",
+      "Bash(npm install *)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest redemption --silent)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest reward-goal-multi-visit --silent)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest reward-goal --silent)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest visit-sources.service.spec --silent)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest visit-sources benefits retention-incentives redemption reward-goal checkin --silent)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest reward-goal-multi-visit visit-sources --silent)"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

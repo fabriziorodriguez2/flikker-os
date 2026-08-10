@@ -1,8 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Download, Save } from "lucide-react";
+import { Check, Copy, Download, Save } from "lucide-react";
+import Link from "next/link";
 import QRCode from "qrcode";
+import { useIsCheckinV2 } from "../../experience-context";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -68,8 +70,8 @@ const FLIKKER_MARK_DATA_URL = `data:image/svg+xml;charset=utf-8,${encodeURICompo
 
 // ─── QR generation ────────────────────────────────────────────────────────────
 
-async function generateQrDataUrl(businessId: string, color: string): Promise<string> {
-  const url = `${QR_BASE_URL}/${businessId}`;
+async function generateQrDataUrl(targetUrl: string, color: string): Promise<string> {
+  const url = targetUrl;
   const canvas = document.createElement("canvas");
   canvas.width = 800;
   canvas.height = 800;
@@ -100,11 +102,11 @@ function clipRoundRect(
 }
 
 async function generateStickerQrDataUrl(
-  businessId: string,
+  targetUrl: string,
   color: string,
   logoUrl: string | null,
 ): Promise<string> {
-  const url = `${QR_BASE_URL}/${businessId}`;
+  const url = targetUrl;
   const size = 800;
   const canvas = document.createElement("canvas");
   canvas.width = size;
@@ -444,9 +446,18 @@ const PREVIEW_LABEL: Record<Version, string> = {
 };
 
 export default function QrPage() {
+  const isCheckinV2 = useIsCheckinV2();
   const [business, setBusiness] = useState<BusinessData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Piloto V2 — para negocios en Check-in V2, el QR de esta página deja de
+  // apuntar al flujo legacy (`/qr/{businessId}`) y apunta a la fuente
+  // "Principal" de VisitSource (`/check-in/{token}`) — misma pantalla, mismo
+  // diseño imprimible, el dueño nunca ve la distinción V1/V2. Para LEGACY,
+  // `checkinUrl` queda null y todo sigue exactamente igual que antes.
+  const [checkinUrl, setCheckinUrl] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Config state
   const [version, setVersion] = useState<Version>("mesa");
@@ -470,23 +481,23 @@ export default function QrPage() {
   const [saved, setSaved] = useState(false);
   const [downloading, setDownloading] = useState(false);
 
-  const regenerateQr = useCallback(async (bizId: string, qrColor: string) => {
+  const regenerateQr = useCallback(async (targetUrl: string, qrColor: string) => {
     if (generatingRef.current) return;
     generatingRef.current = true;
     try {
-      setQrDataUrl(await generateQrDataUrl(bizId, qrColor));
+      setQrDataUrl(await generateQrDataUrl(targetUrl, qrColor));
     } finally {
       generatingRef.current = false;
     }
   }, []);
 
   const regenerateStickerQr = useCallback(async (
-    bizId: string, qrColor: string, logo: string | null,
+    targetUrl: string, qrColor: string, logo: string | null,
   ) => {
     if (generatingStickerRef.current) return;
     generatingStickerRef.current = true;
     try {
-      setStickerQrDataUrl(await generateStickerQrDataUrl(bizId, qrColor, logo));
+      setStickerQrDataUrl(await generateStickerQrDataUrl(targetUrl, qrColor, logo));
     } finally {
       generatingStickerRef.current = false;
     }
@@ -510,8 +521,31 @@ export default function QrPage() {
         setA4BgColor(biz.qrA4BgColor ?? "#000000");
         if (biz.logoUrl) setLogoPreviewUrl(biz.logoUrl);
 
-        void regenerateQr(biz.id, initColor);
-        void regenerateStickerQr(biz.id, initColor, biz.logoUrl ?? null);
+        // Negocios en Check-in V2: el QR de esta pantalla pasa a apuntar a
+        // la fuente "Principal" de VisitSource, no al flujo legacy /qr/{id}.
+        let resolvedCheckinUrl: string | null = null;
+        if (isCheckinV2) {
+          try {
+            const sourcesRes = await fetch("/api/proxy/visit-sources");
+            if (sourcesRes.ok) {
+              const sources = (await sourcesRes.json()) as Array<{
+                token: string;
+                isDefault: boolean;
+              }>;
+              const principal = sources.find((s) => s.isDefault) ?? sources[0];
+              if (principal) {
+                resolvedCheckinUrl = `${window.location.origin}/check-in/${principal.token}`;
+                setCheckinUrl(resolvedCheckinUrl);
+              }
+            }
+          } catch {
+            // Si falla, cae al comportamiento legacy — nunca bloquea la página.
+          }
+        }
+
+        const targetUrl = resolvedCheckinUrl ?? `${QR_BASE_URL}/${biz.id}`;
+        void regenerateQr(targetUrl, initColor);
+        void regenerateStickerQr(targetUrl, initColor, biz.logoUrl ?? null);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Error al cargar");
       } finally {
@@ -519,17 +553,18 @@ export default function QrPage() {
       }
     }
     void load();
-  }, [regenerateQr, regenerateStickerQr]);
+  }, [isCheckinV2, regenerateQr, regenerateStickerQr]);
 
   // Regenerate QRs when color or logo changes
   useEffect(() => {
     if (!business) return;
+    const targetUrl = checkinUrl ?? `${QR_BASE_URL}/${business.id}`;
     const t = setTimeout(() => {
-      void regenerateQr(business.id, color);
-      void regenerateStickerQr(business.id, color, logoPreviewUrl);
+      void regenerateQr(targetUrl, color);
+      void regenerateStickerQr(targetUrl, color, logoPreviewUrl);
     }, 300);
     return () => clearTimeout(t);
-  }, [color, logoPreviewUrl, business, regenerateQr, regenerateStickerQr]);
+  }, [color, logoPreviewUrl, business, checkinUrl, regenerateQr, regenerateStickerQr]);
 
   function handleLogoFile(file: File) {
     if (file.size > 2 * 1024 * 1024) {
@@ -601,13 +636,45 @@ export default function QrPage() {
     );
   }
 
+  const qrTargetUrl = checkinUrl ?? `${QR_BASE_URL}/${business.id}`;
+
+  async function copyLink() {
+    await navigator.clipboard.writeText(qrTargetUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   return (
     <div className="relative mx-auto max-w-5xl space-y-6">
       <div>
-        <h1 className="font-display text-2xl font-bold text-[#1A202C]">Tu QR de captación</h1>
+        <h1 className="font-display text-2xl font-bold text-[#1A202C]">
+          {isCheckinV2 ? "Tu QR y NFC" : "Tu QR de captación"}
+        </h1>
         <p className="mt-1 text-sm text-[#8891A4]">
           Personalizá el diseño y descargá el PDF listo para imprimir.
         </p>
+        {isCheckinV2 ? (
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => void copyLink()}
+              className="inline-flex h-9 items-center gap-1.5 rounded-[8px] border border-[#E8EAF0] bg-white px-3 text-xs font-semibold text-[#1A202C] hover:border-[#5C6BC0]"
+            >
+              {copied ? (
+                <Check className="h-3.5 w-3.5 text-[#639922]" />
+              ) : (
+                <Copy className="h-3.5 w-3.5" />
+              )}
+              {copied ? "Copiado" : "Copiar link"}
+            </button>
+            <Link
+              href="/dashboard/checkins"
+              className="text-xs font-semibold text-[#5C6BC0] hover:underline"
+            >
+              Administrar fuentes adicionales →
+            </Link>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">

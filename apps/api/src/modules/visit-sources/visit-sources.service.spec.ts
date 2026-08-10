@@ -37,6 +37,24 @@ describe('VisitSourcesService', () => {
     expect(result).toHaveLength(1);
   });
 
+  it('getQrPng returns real PNG bytes pointing at /check-in/{token}', async () => {
+    // Real QR encoding (not mocked) — under heavy parallel test load the
+    // default 5s Jest timeout can be tight; this is otherwise fast (ms).
+    const repo = makeRepo();
+    repo.findOne.mockResolvedValue({ id: 's1', token: 'abc123' });
+    const service = makeService(repo);
+
+    const buffer = await service.getQrPng('biz-1', 's1');
+
+    // PNG signature: 89 50 4E 47 0D 0A 1A 0A — this is what a real decoder
+    // checks first. A JSON-serialized Buffer (the pre-fix bug) never starts
+    // with these bytes.
+    expect(buffer).toBeInstanceOf(Buffer);
+    expect(buffer.subarray(0, 8)).toEqual(
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    );
+  }, 15000);
+
   it('create trims the name and forwards the type', async () => {
     const repo = makeRepo();
     repo.create.mockResolvedValue({ id: 's1' });

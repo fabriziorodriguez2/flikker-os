@@ -129,6 +129,7 @@ const MAIN_NAV_ITEMS: Array<{
   onboardingKey?: string;
   impersonatorOnly?: boolean;
   checkinV2Only?: boolean;
+  legacyOnly?: boolean;
 }> = [
   { href: "/dashboard", label: "Panel", icon: <HomeIcon />, onboardingKey: "panel" },
   { href: "/dashboard/insights", label: "Insights", icon: <InsightsIcon /> },
@@ -136,8 +137,12 @@ const MAIN_NAV_ITEMS: Array<{
   { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon />, onboardingKey: "campaigns" },
   { href: "/dashboard/reviews", label: "Reseñas", icon: <GoogleLogo className="h-[18px] w-[18px]" /> },
   { href: "/dashboard/benefits", label: "Beneficios", icon: <BenefitsIcon /> },
-  { href: "/dashboard/retention", label: "Retención", icon: <RetentionIcon /> },
-  { href: "/dashboard/retention-v2", label: "Retención V2", icon: <RetentionV2Icon />, checkinV2Only: true },
+  // Pre-piloto #3 — una sola "Retención" visible por negocio: el motor V1
+  // ("Secuencia automática") solo se muestra en LEGACY; en Check-in V2 el
+  // dueño ve exactamente un ítem llamado "Retención" (la pantalla que por
+  // dentro sigue siendo /dashboard/retention-v2 — nunca ve "V2" en la UI).
+  { href: "/dashboard/retention", label: "Retención", icon: <RetentionIcon />, legacyOnly: true },
+  { href: "/dashboard/retention-v2", label: "Retención", icon: <RetentionV2Icon />, checkinV2Only: true },
   { href: "/dashboard/checkins", label: "Check-ins", icon: <CheckinIcon />, checkinV2Only: true },
   { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon />, impersonatorOnly: true },
   { href: "/dashboard/qr", label: "QR", icon: <QrIcon />, onboardingKey: "qr", impersonatorOnly: true },
@@ -246,7 +251,12 @@ export default function Sidebar(props: SidebarProps) {
       </div>
 
       <nav className={`relative mt-8 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-3 ${showFull ? "px-5" : "px-4"}`}>
-        {MAIN_NAV_ITEMS.filter((item) => (!item.impersonatorOnly || props.isImpersonating) && (!item.checkinV2Only || props.isCheckinV2)).map((item) => {
+        {MAIN_NAV_ITEMS.filter(
+          (item) =>
+            (!item.impersonatorOnly || props.isImpersonating) &&
+            (!item.checkinV2Only || props.isCheckinV2) &&
+            (!item.legacyOnly || !props.isCheckinV2),
+        ).map((item) => {
           const active = isItemActive(pathname, item.href);
           return (
             <Link

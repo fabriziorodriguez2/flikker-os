@@ -17,6 +17,7 @@ function makeDeps(options: { rewardGoal?: unknown } = {}) {
   };
   const benefits = {
     consumeRedemption: jest.fn(),
+    previewRedemption: jest.fn(),
     attachRedeemedVisit: jest.fn().mockResolvedValue(undefined),
   };
   const visits = {
@@ -119,6 +120,84 @@ describe('RedemptionService', () => {
     ).rejects.toBeInstanceOf(ConflictException);
     expect(deps.visits.registerRedemptionVisit).not.toHaveBeenCalled();
     expect(deps.events.emit).not.toHaveBeenCalled();
+  });
+
+  it('Piloto V2 (#5) — throws Conflict for an expired code, never registers a visit', async () => {
+    const deps = makeDeps();
+    deps.benefits.consumeRedemption.mockResolvedValue({ status: 'expired' });
+    const service = makeService(deps);
+
+    await expect(
+      service.redeem('biz-1', 'user-1', 'ABCD1234'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(deps.visits.registerRedemptionVisit).not.toHaveBeenCalled();
+  });
+});
+
+describe('RedemptionService.preview — Piloto V2 (#5), escaneo por QR', () => {
+  it('returns benefitTitle/customerName without consuming anything', async () => {
+    const deps = makeDeps();
+    deps.benefits.previewRedemption.mockResolvedValue({
+      status: 'ok',
+      benefitTitle: 'Capuccino gratis',
+      customerName: 'Ana',
+    });
+    const service = makeService(deps);
+
+    const result = await service.preview('biz-1', ' abcd1234 ');
+
+    expect(deps.benefits.previewRedemption).toHaveBeenCalledWith(
+      'biz-1',
+      'ABCD1234',
+    );
+    expect(deps.benefits.consumeRedemption).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      benefitTitle: 'Capuccino gratis',
+      customerName: 'Ana',
+    });
+  });
+
+  it('throws NotFound for an unknown code', async () => {
+    const deps = makeDeps();
+    deps.benefits.previewRedemption.mockResolvedValue({ status: 'not_found' });
+    const service = makeService(deps);
+
+    await expect(service.preview('biz-1', 'XXXX')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('throws Conflict for an already-redeemed code', async () => {
+    const deps = makeDeps();
+    deps.benefits.previewRedemption.mockResolvedValue({ status: 'already' });
+    const service = makeService(deps);
+
+    await expect(
+      service.preview('biz-1', 'ABCD1234'),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('throws Conflict for an expired code', async () => {
+    const deps = makeDeps();
+    deps.benefits.previewRedemption.mockResolvedValue({ status: 'expired' });
+    const service = makeService(deps);
+
+    await expect(
+      service.preview('biz-1', 'ABCD1234'),
+    ).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('rejects a LEGACY business the same way redeem does', async () => {
+    const deps = makeDeps();
+    deps.prisma.business.findUnique.mockResolvedValue({
+      experienceVersion: 'LEGACY',
+    });
+    const service = makeService(deps);
+
+    await expect(
+      service.preview('biz-1', 'ABCD1234'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(deps.benefits.previewRedemption).not.toHaveBeenCalled();
   });
 });
 

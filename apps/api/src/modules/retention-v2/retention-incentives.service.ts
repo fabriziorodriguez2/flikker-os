@@ -112,36 +112,22 @@ export class RetentionIncentivesService {
   }
 
   /**
-   * "automationEligible requiere configuración válida": the engine must have
-   * something concrete to grant and hand over. A percentage/fixed value with
-   * no number, or an incentive whose validity window closes before it can
-   * ever be redeemed, would let the message promise something empty.
-   *
-   * `estimatedCost` alone also satisfies this — it already is the
-   * highest-priority signal `estimateIncentiveCost` (incentive-cost.ts) reads
-   * when it exists, precisely for non-discount incentives (a free item) that
-   * have no percentage/fixed value at all. Requiring percentage/fixed here
-   * regardless was an inconsistency with that priority order, not a
-   * deliberate stricter rule — closing it, not loosening intent.
+   * Piloto V2 (ajuste #2) — REVERTIDO: hasta esta tanda, `automationEligible`
+   * exigía conocer un `percentageValue`/`fixedValue`/`estimatedCost` antes de
+   * autorizar. Eso confundía dos preguntas distintas: "¿qué le decimos al
+   * cliente?" (siempre resuelto por `name`, obligatorio, ej. "Capuccino
+   * gratis" — `message-templates.ts` solo usa `incentiveLabel`, nunca estos
+   * campos numéricos) vs. "¿cuánto nos cuesta?" (una pregunta de economía,
+   * no de autorización). Pedido explícito: el costo NUNCA debe ser requisito
+   * para autorizar — si se desconoce, `estimateIncentiveCost`
+   * (incentive-cost.ts) ya devuelve `null` y la UI ya muestra "costo no
+   * configurado" en vez de fallar. Solo queda la regla de integridad de
+   * datos: no combinar % y $ fijo a la vez.
    */
   private validateConfiguration(dto: {
-    automationEligible?: boolean;
     percentageValue?: number | null;
     fixedValue?: number | Prisma.Decimal | null;
-    estimatedCost?: number | Prisma.Decimal | null;
-    expiresInDays?: number;
   }) {
-    if (!dto.automationEligible) return;
-
-    if (
-      dto.percentageValue == null &&
-      dto.fixedValue == null &&
-      dto.estimatedCost == null
-    ) {
-      throw new BadRequestException(
-        'An incentive authorized for automation needs a percentageValue, a fixedValue, or an estimatedCost',
-      );
-    }
     if (dto.percentageValue != null && dto.fixedValue != null) {
       throw new BadRequestException(
         'An incentive cannot combine percentageValue and fixedValue',

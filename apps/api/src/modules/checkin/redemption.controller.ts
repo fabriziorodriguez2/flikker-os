@@ -25,6 +25,17 @@ class RedeemDto {
 export class RedemptionController {
   constructor(private readonly service: RedemptionService) {}
 
+  // Piloto V2 (#5) — lectura, nunca consume. El "Escanear recompensa" del
+  // empleado llama esto primero para mostrar "Beneficio: X / Cliente: Y";
+  // recién al tocar "Confirmar canje" el frontend llama /redeem con el
+  // mismo código.
+  @Post('preview')
+  @UseGuards(RolesGuard)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.OPERATOR)
+  preview(@Req() req: AuthenticatedRequest, @Body() dto: RedeemDto) {
+    return this.service.preview(req.currentBusinessId!, dto.code);
+  }
+
   @Post('redeem')
   @UseGuards(RolesGuard)
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.OPERATOR)

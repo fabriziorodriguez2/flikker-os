@@ -25,6 +25,38 @@ export class RedemptionService {
   ) {}
 
   /**
+   * Read-only "scan → preview" step — see PreviewRedemptionResult. Used by
+   * the employee-facing camera scan (Piloto V2 #5): shows "Beneficio: X /
+   * Cliente: Y" before anything is consumed. Manual code entry skips this
+   * and calls `redeem` directly, same as always.
+   */
+  async preview(businessId: string, rawCode: string) {
+    const code = rawCode.trim().toUpperCase();
+    if (!code) throw new NotFoundException('Código inválido');
+
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { experienceVersion: true },
+    });
+    if (!business || !isCheckinV2(business)) throw new NotFoundException();
+
+    const result = await this.benefits.previewRedemption(businessId, code);
+    if (result.status === 'not_found') {
+      throw new NotFoundException('Código no encontrado');
+    }
+    if (result.status === 'already') {
+      throw new ConflictException('Este beneficio ya fue canjeado');
+    }
+    if (result.status === 'expired') {
+      throw new ConflictException('Este código venció');
+    }
+    return {
+      benefitTitle: result.benefitTitle,
+      customerName: result.customerName,
+    };
+  }
+
+  /**
    * Staff validates a redemption code. In one flow it: (1) atomically consumes
    * the code (no double redemption), (2) records/upgrades the visit to
    * confirmed_redemption, (3) links the visit and emits the timeline event.
@@ -54,6 +86,9 @@ export class RedemptionService {
     }
     if (consumed.status === 'already') {
       throw new ConflictException('Este beneficio ya fue canjeado');
+    }
+    if (consumed.status === 'expired') {
+      throw new ConflictException('Este código venció');
     }
 
     const visit = await this.visits.registerRedemptionVisit({

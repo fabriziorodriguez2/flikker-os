@@ -3,13 +3,14 @@ import {
   Controller,
   Delete,
   Get,
-  Header,
   Param,
   Patch,
   Post,
   Req,
+  Res,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { MembershipRole } from '@prisma/client';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -36,11 +37,23 @@ export class VisitSourcesController {
     return this.service.getOne(req.currentBusinessId!, id);
   }
 
+  // Bug real (pre-piloto #1): sin @Res(), Nest ve el Buffer devuelto como un
+  // "object" y responde con `response.json(buffer)` en vez de
+  // `response.send(buffer)` — el archivo descargado terminaba siendo el
+  // texto `{"type":"Buffer","data":[...]}`, no bytes PNG reales. Mismo
+  // patrón correcto que ya usa qr-codes.controller.ts.
   @Get(':id/qr')
-  @Header('Content-Type', 'image/png')
-  @Header('Content-Disposition', 'attachment; filename="checkin-qr.png"')
-  getQr(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    return this.service.getQrPng(req.currentBusinessId!, id);
+  async getQr(
+    @Req() req: AuthenticatedRequest,
+    @Param('id') id: string,
+    @Res() res: Response,
+  ) {
+    const buffer = await this.service.getQrPng(req.currentBusinessId!, id);
+    res.set({
+      'Content-Type': 'image/png',
+      'Content-Disposition': 'attachment; filename="checkin-qr.png"',
+    });
+    res.send(buffer);
   }
 
   @Post()

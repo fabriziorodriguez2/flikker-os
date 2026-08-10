@@ -218,7 +218,7 @@ describe('BenefitsService.setRetentionBridge — puente Benefit ↔ RetentionInc
     });
   });
 
-  it('rejects enabling recovery without any known value (gift/promotion/other with no cost yet)', async () => {
+  it('Piloto V2 (#2, revertido) — enables recovery with NO known value at all; cost is never required to authorize', async () => {
     const repo = makeRepo();
     repo.findRetentionBridge.mockResolvedValue({
       id: 'b1',
@@ -226,12 +226,30 @@ describe('BenefitsService.setRetentionBridge — puente Benefit ↔ RetentionInc
       title: 'Capuccino gratis',
       retentionIncentiveDefinition: null,
     });
+    repo.setRetentionBridge.mockResolvedValue({
+      automationEligible: true,
+      rewardGoalEligible: false,
+      percentageValue: null,
+      fixedValue: null,
+      estimatedCost: null,
+    });
     const service = makeService(repo);
 
-    await expect(
-      service.setRetentionBridge('biz-1', 'b1', { recoveryEnabled: true }),
-    ).rejects.toThrow('NEEDS_ESTIMATED_COST');
-    expect(repo.setRetentionBridge).not.toHaveBeenCalled();
+    const result = await service.setRetentionBridge('biz-1', 'b1', {
+      recoveryEnabled: true,
+    });
+
+    expect(repo.setRetentionBridge).toHaveBeenCalledWith('biz-1', 'b1', {
+      automationEligible: true,
+      rewardGoalEligible: undefined,
+      estimatedCost: undefined,
+    });
+    expect(result).toEqual({
+      recoveryEnabled: true,
+      rewardGoalEnabled: false,
+      // La economía queda "no disponible" — nunca bloquea la autorización.
+      hasKnownValue: false,
+    });
   });
 
   it('enables recovery without asking for a cost again once one is already known', async () => {

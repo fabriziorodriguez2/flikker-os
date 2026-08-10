@@ -58,7 +58,7 @@ export default function IncentivesSection({
 
       {incentives.length === 0 ? (
         <p className="mt-4 text-sm text-[#8891A4]">
-          Todavía no hay ningún incentivo configurado para Retención V2.
+          Todavía no hay ningún incentivo configurado para Retención.
         </p>
       ) : (
         <div className="mt-4 overflow-x-auto">
@@ -90,13 +90,17 @@ export default function IncentivesSection({
                     )}
                   </td>
                   <td className="px-4 py-3 text-[#1A202C]">
-                    {incentive.percentageValue
-                      ? `${incentive.percentageValue}%`
-                      : incentive.fixedValue
-                        ? `$${incentive.fixedValue}`
-                        : incentive.estimatedCost
-                          ? `$${incentive.estimatedCost} (costo est.)`
-                          : "—"}
+                    {incentive.percentageValue ? (
+                      `${incentive.percentageValue}%`
+                    ) : incentive.fixedValue ? (
+                      `$${incentive.fixedValue}`
+                    ) : incentive.estimatedCost ? (
+                      `$${incentive.estimatedCost} (costo est.)`
+                    ) : (
+                      <span className="text-[#8891A4]">
+                        No disponible / costo no configurado
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <label className="flex items-center gap-2">

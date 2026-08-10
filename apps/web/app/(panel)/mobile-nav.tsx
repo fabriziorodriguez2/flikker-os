@@ -9,6 +9,7 @@ const MAIN_NAV_ITEMS: Array<{
   onboardingKey?: string;
   impersonatorOnly?: boolean;
   checkinV2Only?: boolean;
+  legacyOnly?: boolean;
 }> = [
   { href: "/dashboard", label: "Panel", onboardingKey: "panel" },
   { href: "/dashboard/insights", label: "Insights" },
@@ -16,8 +17,9 @@ const MAIN_NAV_ITEMS: Array<{
   { href: "/dashboard/campaigns", label: "Campañas", onboardingKey: "campaigns" },
   { href: "/dashboard/reviews", label: "Reseñas" },
   { href: "/dashboard/benefits", label: "Beneficios" },
-  { href: "/dashboard/retention", label: "Retención" },
-  { href: "/dashboard/retention-v2", label: "Retención V2", checkinV2Only: true },
+  // Pre-piloto #3 — un solo ítem "Retención" por negocio, ver sidebar.tsx.
+  { href: "/dashboard/retention", label: "Retención", legacyOnly: true },
+  { href: "/dashboard/retention-v2", label: "Retención", checkinV2Only: true },
   { href: "/dashboard/checkins", label: "Check-ins", checkinV2Only: true },
   { href: "/dashboard/widgets", label: "Widget", impersonatorOnly: true },
   { href: "/dashboard/qr", label: "QR", onboardingKey: "qr", impersonatorOnly: true },
@@ -25,7 +27,12 @@ const MAIN_NAV_ITEMS: Array<{
 
 export default function MobileNav({ isImpersonating, isCheckinV2 }: { isImpersonating: boolean; isCheckinV2: boolean }) {
   const pathname = usePathname();
-  const items = MAIN_NAV_ITEMS.filter((item) => (!item.impersonatorOnly || isImpersonating) && (!item.checkinV2Only || isCheckinV2));
+  const items = MAIN_NAV_ITEMS.filter(
+    (item) =>
+      (!item.impersonatorOnly || isImpersonating) &&
+      (!item.checkinV2Only || isCheckinV2) &&
+      (!item.legacyOnly || !isCheckinV2),
+  );
 
   return (
     <nav className="relative z-20 overflow-hidden rounded-[18px] border border-white/75 bg-white/58 px-2.5 py-2 shadow-[0_10px_28px_rgba(56,45,125,0.10),inset_0_1px_0_rgba(255,255,255,0.86)] backdrop-blur-[24px] backdrop-saturate-[175%] lg:hidden">

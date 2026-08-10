@@ -86,34 +86,28 @@ describe('BenefitsRepository single-active invariant', () => {
   });
 });
 
-describe('BenefitsRepository — deactivating/deleting never leaves the bridge usable', () => {
-  it('setActive(false) forces both eligibility flags off on the linked incentive', async () => {
+describe('BenefitsRepository — pre-piloto #2: solo remove() desautoriza el bridge', () => {
+  it('setActive(false) no toca el bridge — varios beneficios pueden quedar autorizados aunque solo uno esté activo', async () => {
     const { prisma, tx } = makePrisma();
     tx.benefit.findFirst.mockResolvedValue({ id: 'b1' });
     const repo = new BenefitsRepository(prisma as never);
 
     await repo.setActive('biz-1', 'b1', false);
 
-    expect(tx.retentionIncentiveDefinition.updateMany).toHaveBeenCalledWith({
-      where: { benefitId: 'b1' },
-      data: { automationEligible: false, rewardGoalEligible: false },
-    });
+    expect(tx.retentionIncentiveDefinition.updateMany).not.toHaveBeenCalled();
   });
 
-  it('update(active: false) also forces both eligibility flags off', async () => {
+  it('update(active: false) tampoco desautoriza el bridge', async () => {
     const { prisma, tx } = makePrisma();
     tx.benefit.findFirst.mockResolvedValue({ id: 'b1' });
     const repo = new BenefitsRepository(prisma as never);
 
     await repo.update('biz-1', 'b1', { active: false });
 
-    expect(tx.retentionIncentiveDefinition.updateMany).toHaveBeenCalledWith({
-      where: { benefitId: 'b1' },
-      data: { automationEligible: false, rewardGoalEligible: false },
-    });
+    expect(tx.retentionIncentiveDefinition.updateMany).not.toHaveBeenCalled();
   });
 
-  it('remove deauthorizes the bridge before deleting the Benefit', async () => {
+  it('remove (borrado real) sí deauthorizes the bridge before deleting the Benefit', async () => {
     const { prisma, tx } = makePrisma();
     const repo = new BenefitsRepository(prisma as never);
 

@@ -80,6 +80,14 @@ export class BenefitsService {
    * "Usar como recompensa por visitas" on a Benefit card. /dashboard/
    * beneficios is the only caller: Retention V2's own UI only ever lists and
    * authorizes what already exists (never creates).
+   *
+   * Ajuste #2 (pre-piloto) — REVERTIDO: hasta esta tanda, activar
+   * "recuperación" sin ningún `percentageValue`/`fixedValue`/`estimatedCost`
+   * conocido lanzaba `NEEDS_ESTIMATED_COST`. Pedido explícito: el costo NUNCA
+   * es requisito para autorizar un beneficio — solo importa para estimar
+   * economía (y, si el dueño más adelante quiere presupuestar por MONTO en
+   * vez de por cantidad, ahí sí necesita configurarlo). Ver el mismo cambio,
+   * misma razón, en `RetentionIncentivesService.validateConfiguration`.
    */
   async setRetentionBridge(
     businessId: string,
@@ -91,20 +99,6 @@ export class BenefitsService {
       benefitId,
     );
     if (!current) throw new NotFoundException('Benefit not found');
-
-    if (dto.recoveryEnabled === true) {
-      const alreadyHasValue = toBridgeView(
-        current.retentionIncentiveDefinition,
-      ).hasKnownValue;
-      if (!alreadyHasValue && dto.estimatedCost == null) {
-        // Matches the same rule `RetentionIncentivesService` enforces on
-        // direct catalogue writes — a definition can't be authorized for
-        // automation with nothing concrete to grant. Distinct, matchable
-        // message so the frontend can show a cost prompt instead of a
-        // generic error.
-        throw new BadRequestException('NEEDS_ESTIMATED_COST');
-      }
-    }
 
     const updated = await this.repository.setRetentionBridge(
       businessId,

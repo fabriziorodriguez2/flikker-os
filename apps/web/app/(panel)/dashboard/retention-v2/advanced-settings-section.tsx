@@ -152,7 +152,7 @@ export default function AdvancedSettingsSection({
           />
         </label>
 
-        <label className="block">
+        <label className="block sm:col-span-2 lg:col-span-1">
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
             Presupuesto promocional mensual ($)
           </span>
@@ -164,6 +164,12 @@ export default function AdvancedSettingsSection({
             className={inputClass}
             placeholder="Sin límite = no se ofrece ninguno"
           />
+          <span className="mt-1 block text-[11px] text-[#8891A4]">
+            Limita por monto ($). Los beneficios con costo no configurado no
+            se cuentan acá — para que sí cuenten, configurales un costo
+            estimado desde Beneficios. El límite por cantidad de arriba
+            siempre los cuenta a todos, con o sin costo.
+          </span>
         </label>
       </div>
 
