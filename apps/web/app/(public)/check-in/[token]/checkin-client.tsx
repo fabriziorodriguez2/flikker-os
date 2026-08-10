@@ -1082,12 +1082,12 @@ function Shell({
     >
       <div className="relative flex flex-1 flex-col items-center justify-start px-5 py-8 sm:px-6 sm:py-10">
         {landing.business.logoUrl && (
-          <div className="relative mb-5 rounded-[18px] bg-white p-2 shadow-[0_8px_18px_rgba(12,16,30,0.14)]">
+          <div className="relative mb-5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={landing.business.logoUrl}
               alt={landing.business.businessName}
-              className="h-14 w-14 rounded-[12px] object-contain"
+              className="h-20 w-20 object-contain"
             />
           </div>
         )}

@@ -670,8 +670,24 @@ textarea {
 }
 
 .mi-wallet-card {
+  --mi-card-scale: 0.955;
   scroll-snap-align: start;
   transform-origin: center top;
+  transform: scale(var(--mi-card-scale));
+  box-shadow: 0 7px 18px rgba(15, 19, 34, 0.16);
+  transition:
+    transform 180ms linear,
+    box-shadow 320ms ease,
+    filter 220ms ease;
+  will-change: transform;
+}
+
+.mi-wallet-card[data-active="true"] {
+  box-shadow: 0 16px 34px rgba(15, 19, 34, 0.24);
+}
+
+.mi-wallet-card:hover {
+  filter: brightness(1.035);
 }
 
 .mi-wallet-card + .mi-wallet-card {

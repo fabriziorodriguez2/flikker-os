@@ -110,7 +110,7 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
         {place.logoUrl ? (
           <span
             aria-hidden="true"
-            className="pointer-events-none absolute -inset-full rotate-45 opacity-[0.06] mix-blend-screen"
+            className="pointer-events-none absolute -inset-full rotate-45 opacity-[0.045] mix-blend-screen"
             style={{
               backgroundImage: `url("/api/mi-flikker/places/${encodeURIComponent(place.businessId)}/logo")`,
               backgroundPosition: "18px 14px",
@@ -121,14 +121,18 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
           />
         ) : null}
         <div className="relative flex items-center gap-4">
-          <span className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-[20px] border border-white/35 bg-white/18 backdrop-blur-sm">
-            {place.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={place.logoUrl} alt="" className="h-full w-full object-contain" />
-            ) : (
+          {place.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={place.logoUrl}
+              alt=""
+              className="h-20 w-20 shrink-0 object-contain"
+            />
+          ) : (
+            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] bg-white/12">
               <Gift className="h-7 w-7" aria-hidden="true" />
-            )}
-          </span>
+            </span>
+          )}
           <div className="min-w-0">
             <p className="text-sm font-medium text-white/70">Tu tarjeta en</p>
             <h1 className="mt-0.5 text-[26px] font-bold leading-tight tracking-[-0.035em]">

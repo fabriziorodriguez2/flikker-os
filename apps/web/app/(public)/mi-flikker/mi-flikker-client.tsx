@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ChevronRight, Loader2, MapPin, Sparkles } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
 import PhoneInput, { isValidNationalPhone } from "@/components/ui/phone-input";
@@ -56,11 +56,66 @@ export default function MiFlikkerClient({ hasSession }: { hasSession: boolean })
   );
   const [places, setPlaces] = useState<MyFlikkerPlace[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const walletRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!hasSession) return;
     void load();
   }, [hasSession]);
+
+  useEffect(() => {
+    const wallet = walletRef.current;
+    if (!wallet || places.length === 0) return;
+
+    let frame = 0;
+    const updateDepth = () => {
+      frame = 0;
+      const cards = Array.from(
+        wallet.querySelectorAll<HTMLElement>("[data-wallet-card]"),
+      );
+      const rects = cards.map((card) => card.getBoundingClientRect());
+      if (rects.length === 0) return;
+
+      const focusLine = Math.min(210, window.innerHeight * 0.28);
+      const entryLine = Math.max(focusLine + 120, window.innerHeight * 0.72);
+      let activeIndex = 0;
+      rects.forEach((rect, index) => {
+        if (rect.top <= focusLine) activeIndex = index;
+      });
+
+      const nextRect = rects[activeIndex + 1];
+      const nextProgress = nextRect
+        ? Math.min(1, Math.max(0, (entryLine - nextRect.top) / (entryLine - focusLine)))
+        : 0;
+
+      cards.forEach((card, index) => {
+        const depth = Math.max(0, activeIndex - index);
+        let scale = 0.955;
+        if (index <= activeIndex) {
+          scale = 1 - Math.min(4, depth + nextProgress) * 0.018;
+        } else if (index === activeIndex + 1) {
+          scale = 0.955 + nextProgress * 0.045;
+        }
+
+        card.style.setProperty("--mi-card-scale", scale.toFixed(4));
+        card.dataset.active = index === activeIndex && nextProgress < 0.55 ? "true" : "false";
+      });
+    };
+
+    const scheduleUpdate = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(updateDepth);
+    };
+
+    updateDepth();
+    window.addEventListener("scroll", scheduleUpdate, { passive: true });
+    window.addEventListener("resize", scheduleUpdate);
+    return () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener("scroll", scheduleUpdate);
+      window.removeEventListener("resize", scheduleUpdate);
+    };
+  }, [places.length]);
 
   async function load() {
     setStatus("loading");
@@ -109,7 +164,7 @@ export default function MiFlikkerClient({ hasSession }: { hasSession: boolean })
           para empezar.
         </p>
       ) : (
-        <div className="mi-wallet mt-7 w-full pb-16">
+        <div ref={walletRef} className="mi-wallet mt-7 w-full pb-16">
           {places.map((place, index) => (
             <PlaceCard key={place.businessId} place={place} index={index} />
           ))}
@@ -124,7 +179,8 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
   return (
     <Link
       href={`/mi-flikker/${place.businessId}`}
-      className="mi-coupon mi-wallet-card sticky block min-h-[148px] overflow-hidden rounded-[24px] p-5 text-white shadow-[0_8px_18px_rgba(20,24,40,0.14)] transition-transform duration-300 hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      data-wallet-card
+      className="mi-coupon mi-wallet-card sticky block min-h-[148px] overflow-hidden rounded-[24px] p-5 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
       style={{
         top: 88 + Math.min(index, 8) * 10,
         zIndex: index + 1,
@@ -134,7 +190,7 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
       {place.logoUrl ? (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute -inset-full rotate-45 opacity-[0.065] mix-blend-screen"
+          className="pointer-events-none absolute -inset-full rotate-45 opacity-[0.045] mix-blend-screen"
           style={{
             backgroundImage: `url("/api/mi-flikker/places/${encodeURIComponent(place.businessId)}/logo")`,
             backgroundPosition: "14px 12px",
@@ -145,14 +201,18 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
         />
       ) : null}
       <div className="relative flex items-center gap-3.5">
-        <span className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[15px] border border-white/35 bg-white/18 backdrop-blur-sm">
-          {place.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={place.logoUrl} alt="" className="h-full w-full object-contain" />
-          ) : (
+        {place.logoUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={place.logoUrl}
+            alt=""
+            className="h-14 w-14 shrink-0 object-contain"
+          />
+        ) : (
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[15px] bg-white/12">
             <MapPin className="h-5 w-5" aria-hidden="true" />
-          )}
-        </span>
+          </span>
+        )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[17px] font-bold tracking-[-0.02em]">
             {place.businessName}
