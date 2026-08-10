@@ -671,19 +671,20 @@ textarea {
 
 .mi-wallet-card {
   --mi-card-scale: 0.955;
+  --mi-card-offset: 0px;
   scroll-snap-align: start;
-  transform-origin: center top;
-  transform: scale(var(--mi-card-scale));
+  transform-origin: center center;
+  transform: translateY(var(--mi-card-offset)) scale(var(--mi-card-scale));
   box-shadow: 0 7px 18px rgba(15, 19, 34, 0.16);
   transition:
-    transform 180ms linear,
+    transform 340ms cubic-bezier(0.22, 1, 0.36, 1),
     box-shadow 320ms ease,
     filter 220ms ease;
   will-change: transform;
 }
 
 .mi-wallet-card[data-active="true"] {
-  box-shadow: 0 16px 34px rgba(15, 19, 34, 0.24);
+  box-shadow: 0 20px 42px rgba(15, 19, 34, 0.28);
 }
 
 .mi-wallet-card:hover {

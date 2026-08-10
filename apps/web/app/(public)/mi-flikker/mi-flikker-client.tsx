@@ -76,29 +76,33 @@ export default function MiFlikkerClient({ hasSession }: { hasSession: boolean })
       const rects = cards.map((card) => card.getBoundingClientRect());
       if (rects.length === 0) return;
 
-      const focusLine = Math.min(210, window.innerHeight * 0.28);
-      const entryLine = Math.max(focusLine + 120, window.innerHeight * 0.72);
+      const focusLine = window.innerHeight * 0.46;
       let activeIndex = 0;
+      let closestDistance = Number.POSITIVE_INFINITY;
       rects.forEach((rect, index) => {
-        if (rect.top <= focusLine) activeIndex = index;
+        if (rect.bottom < 0 || rect.top > window.innerHeight) return;
+        const currentOffset = Number.parseFloat(
+          cards[index].style.getPropertyValue("--mi-card-offset") || "0",
+        );
+        const distance = Math.abs(
+          rect.top + rect.height / 2 - currentOffset - focusLine,
+        );
+        if (distance < closestDistance) {
+          closestDistance = distance;
+          activeIndex = index;
+        }
       });
 
-      const nextRect = rects[activeIndex + 1];
-      const nextProgress = nextRect
-        ? Math.min(1, Math.max(0, (entryLine - nextRect.top) / (entryLine - focusLine)))
-        : 0;
-
       cards.forEach((card, index) => {
-        const depth = Math.max(0, activeIndex - index);
-        let scale = 0.955;
-        if (index <= activeIndex) {
-          scale = 1 - Math.min(4, depth + nextProgress) * 0.018;
-        } else if (index === activeIndex + 1) {
-          scale = 0.955 + nextProgress * 0.045;
-        }
+        const distance = Math.abs(activeIndex - index);
+        const scale =
+          index === activeIndex ? 1.035 : Math.max(0.93, 0.98 - distance * 0.014);
+        const offset = index < activeIndex ? -42 : index > activeIndex ? 42 : 0;
 
         card.style.setProperty("--mi-card-scale", scale.toFixed(4));
-        card.dataset.active = index === activeIndex && nextProgress < 0.55 ? "true" : "false";
+        card.style.setProperty("--mi-card-offset", `${offset}px`);
+        card.style.zIndex = index === activeIndex ? "100" : `${index + 1}`;
+        card.dataset.active = index === activeIndex ? "true" : "false";
       });
     };
 
