@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, CalendarDays, Footprints, Gift, Loader2, Sparkles } from "lucide-react";
-import { getBusinessPalette } from "@/lib/brand-color";
+import { useLogoPalette } from "@/lib/use-logo-palette";
 
 interface MyFlikkerPlace {
   businessId: string;
@@ -30,6 +30,11 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
   const [place, setPlace] = useState<MyFlikkerPlace | null>(null);
   const [status, setStatus] = useState<"loading" | "ok" | "error" | "unauthorized">(
     "loading",
+  );
+  const palette = useLogoPalette(
+    place?.businessId ?? businessId,
+    place?.logoUrl ?? null,
+    place?.primaryColor ?? null,
   );
 
   useEffect(() => {
@@ -87,7 +92,6 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
     );
   }
 
-  const palette = getBusinessPalette(place.primaryColor, place.businessName);
   const brand = palette.primary;
 
   return (
@@ -100,7 +104,7 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
       </Link>
 
       <section
-        className="mi-coupon relative overflow-hidden rounded-[28px] border border-white/25 p-6 text-white shadow-[0_20px_46px_rgba(31,27,58,0.22)]"
+        className="mi-coupon relative overflow-hidden rounded-[28px] p-6 text-white shadow-[0_20px_46px_rgba(31,27,58,0.22)]"
         style={{ background: `linear-gradient(140deg, ${brand} 0%, ${palette.secondary} 115%)` }}
       >
         <span aria-hidden="true" className="absolute -right-12 -top-16 h-48 w-48 rounded-full bg-white/12 blur-2xl" />
@@ -121,7 +125,7 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
           </div>
         </div>
 
-        <div className="relative mt-6 grid grid-cols-2 gap-3 border-t border-white/15 pt-5">
+        <div className="relative mt-6 grid grid-cols-2 gap-3 pt-5">
           <div className="rounded-[16px] bg-white/12 p-3.5 backdrop-blur-sm">
             <Footprints className="h-5 w-5 text-white/75" aria-hidden="true" />
             <p className="mt-2 text-[28px] font-bold leading-none">{place.visitsTotal}</p>
@@ -142,7 +146,7 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
       </section>
 
       {place.benefitAvailable ? (
-        <section className="mi-coupon mt-5 overflow-hidden rounded-[28px] border border-white/85 bg-white/80 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
+        <section className="mt-5 overflow-hidden rounded-[28px] bg-white/80 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
           <p className="flex items-center gap-2 text-sm font-bold" style={{ color: brand }}>
             <span className="flex h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: `color-mix(in srgb, ${brand} 12%, white)` }}>
               <Sparkles className="h-4 w-4" aria-hidden="true" />
@@ -167,7 +171,7 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
           </p>
         </section>
       ) : place.rewardGoal ? (
-        <section className="mi-coupon mt-5 overflow-hidden rounded-[28px] border border-white/85 bg-white/80 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
+        <section className="mt-5 overflow-hidden rounded-[28px] bg-white/80 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
           <p className="flex items-center gap-2 text-sm font-bold text-[#24283A]">
             <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ backgroundColor: `color-mix(in srgb, ${brand} 12%, white)`, color: brand }}>
               <Gift className="h-4 w-4" aria-hidden="true" />
@@ -201,7 +205,7 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
           </p>
         </section>
       ) : (
-        <section className="mi-coupon mt-5 rounded-[28px] border border-white/85 bg-white/80 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
+        <section className="mt-5 rounded-[28px] bg-white/80 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
           <span className="flex h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: `color-mix(in srgb, ${brand} 12%, white)`, color: brand }}>
             <Gift className="h-5 w-5" aria-hidden="true" />
           </span>

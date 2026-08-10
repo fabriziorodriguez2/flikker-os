@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ChevronRight, Loader2, MapPin, Sparkles } from "lucide-react";
-import { getBusinessPalette } from "@/lib/brand-color";
+import { useLogoPalette } from "@/lib/use-logo-palette";
 import PhoneInput, { isValidNationalPhone } from "@/components/ui/phone-input";
 
 interface MyFlikkerPlace {
@@ -120,11 +120,11 @@ export default function MiFlikkerClient({ hasSession }: { hasSession: boolean })
 }
 
 function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
-  const palette = getBusinessPalette(place.primaryColor, place.businessName);
+  const palette = useLogoPalette(place.businessId, place.logoUrl, place.primaryColor);
   return (
     <Link
       href={`/mi-flikker/${place.businessId}`}
-      className="mi-coupon mi-wallet-card sticky block min-h-[148px] overflow-hidden rounded-[24px] border border-white/25 p-5 text-white shadow-[0_16px_36px_rgba(31,27,58,0.2)] transition-transform duration-300 hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
+      className="mi-coupon mi-wallet-card sticky block min-h-[148px] overflow-hidden rounded-[24px] p-5 text-white shadow-[0_16px_36px_rgba(31,27,58,0.2)] transition-transform duration-300 hover:-translate-y-1 focus-visible:-translate-y-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
       style={{
         top: 88 + Math.min(index, 8) * 10,
         zIndex: index + 1,
@@ -152,7 +152,7 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
         <ChevronRight className="h-5 w-5 shrink-0 text-white/70" />
       </div>
 
-      <div className="relative mt-4 border-t border-white/15 pt-3">
+      <div className="relative mt-4 pt-3">
         {place.benefitAvailable ? (
           <p className="flex items-center gap-2 text-[14px] font-semibold">
             <Sparkles className="h-4 w-4 text-[#FFE08A]" aria-hidden="true" />
