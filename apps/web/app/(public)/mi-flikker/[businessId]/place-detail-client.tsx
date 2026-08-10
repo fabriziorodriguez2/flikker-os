@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, CalendarDays, Footprints, Gift, Loader2, Sparkles } from "lucide-react";
+import { getBusinessPalette } from "@/lib/brand-color";
 
 interface MyFlikkerPlace {
   businessId: string;
@@ -86,7 +87,8 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
     );
   }
 
-  const brand = place.primaryColor ?? "#5C6BC0";
+  const palette = getBusinessPalette(place.primaryColor, place.businessName);
+  const brand = palette.primary;
 
   return (
     <Shell brand={brand}>
@@ -99,7 +101,7 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
 
       <section
         className="mi-coupon relative overflow-hidden rounded-[28px] border border-white/25 p-6 text-white shadow-[0_20px_46px_rgba(31,27,58,0.22)]"
-        style={{ background: `linear-gradient(140deg, ${brand} 0%, #29213F 115%)` }}
+        style={{ background: `linear-gradient(140deg, ${brand} 0%, ${palette.secondary} 115%)` }}
       >
         <span aria-hidden="true" className="absolute -right-12 -top-16 h-48 w-48 rounded-full bg-white/12 blur-2xl" />
         <div className="relative flex items-center gap-4">
@@ -119,7 +121,7 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
           </div>
         </div>
 
-        <div className="relative mt-6 grid grid-cols-2 gap-3 border-t border-dashed border-white/30 pt-5">
+        <div className="relative mt-6 grid grid-cols-2 gap-3 border-t border-white/15 pt-5">
           <div className="rounded-[16px] bg-white/12 p-3.5 backdrop-blur-sm">
             <Footprints className="h-5 w-5 text-white/75" aria-hidden="true" />
             <p className="mt-2 text-[28px] font-bold leading-none">{place.visitsTotal}</p>

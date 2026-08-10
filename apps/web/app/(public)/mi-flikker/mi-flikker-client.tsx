@@ -4,6 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ChevronRight, Loader2, MapPin, Sparkles } from "lucide-react";
+import { getBusinessPalette } from "@/lib/brand-color";
 import PhoneInput, { isValidNationalPhone } from "@/components/ui/phone-input";
 
 interface MyFlikkerPlace {
@@ -119,7 +120,7 @@ export default function MiFlikkerClient({ hasSession }: { hasSession: boolean })
 }
 
 function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
-  const brand = place.primaryColor ?? "#5C6BC0";
+  const palette = getBusinessPalette(place.primaryColor, place.businessName);
   return (
     <Link
       href={`/mi-flikker/${place.businessId}`}
@@ -127,7 +128,7 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
       style={{
         top: 88 + Math.min(index, 8) * 10,
         zIndex: index + 1,
-        background: `linear-gradient(135deg, ${brand} 0%, #29213F 115%)`,
+        background: `linear-gradient(135deg, ${palette.primary} 0%, ${palette.secondary} 115%)`,
       }}
     >
       <span aria-hidden="true" className="absolute -right-10 -top-14 h-36 w-36 rounded-full bg-white/12 blur-xl" />
@@ -151,7 +152,7 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
         <ChevronRight className="h-5 w-5 shrink-0 text-white/70" />
       </div>
 
-      <div className="relative mt-4 border-t border-dashed border-white/30 pt-3">
+      <div className="relative mt-4 border-t border-white/15 pt-3">
         {place.benefitAvailable ? (
           <p className="flex items-center gap-2 text-[14px] font-semibold">
             <Sparkles className="h-4 w-4 text-[#FFE08A]" aria-hidden="true" />
