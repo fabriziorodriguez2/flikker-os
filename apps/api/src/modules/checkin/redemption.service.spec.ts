@@ -201,12 +201,15 @@ describe('RedemptionService', () => {
     );
   });
 
-  it('rechaza con Forbidden si el empleado no tiene membership activa en el negocio del código, y nunca consume', async () => {
+  it('rechaza con NotFound (no Forbidden) si el empleado no tiene NINGUNA membership en el negocio del código, y nunca consume', async () => {
+    // Hardening #4 — mismo 404 genérico que un código inexistente: alguien
+    // sin ninguna relación con ese negocio no puede distinguir "código de
+    // otro negocio" de "código inexistente" a partir de la respuesta.
     const deps = makeDeps({ membership: null });
     const service = makeService(deps);
 
     await expect(service.redeem('user-1', 'ABCD1234')).rejects.toBeInstanceOf(
-      ForbiddenException,
+      NotFoundException,
     );
     expect(deps.benefits.consumeRedemption).not.toHaveBeenCalled();
   });
@@ -314,7 +317,7 @@ describe('RedemptionService.preview — canje por URL', () => {
     );
   });
 
-  it('rechaza con Forbidden — nunca revela already/expired — si el empleado no tiene acceso a ese negocio', async () => {
+  it('rechaza con NotFound — nunca revela already/expired ni Forbidden — si el empleado no tiene NINGUNA membership en ese negocio', async () => {
     const deps = makeDeps({ membership: null });
     deps.benefits.previewRedemption.mockResolvedValue({
       status: 'already',
@@ -323,7 +326,38 @@ describe('RedemptionService.preview — canje por URL', () => {
     const service = makeService(deps);
 
     await expect(service.preview('user-1', 'ABCD1234')).rejects.toBeInstanceOf(
-      ForbiddenException,
+      NotFoundException,
+    );
+  });
+
+  it('código inexistente y código de otro negocio (sin membership ahí) son indistinguibles: mismo NotFound con el mismo mensaje', async () => {
+    const notFoundDeps = makeDeps({ membership: null });
+    notFoundDeps.benefits.previewRedemption.mockResolvedValue({
+      status: 'not_found',
+    });
+    const notFoundService = makeService(notFoundDeps);
+
+    const foreignDeps = makeDeps({ membership: null });
+    foreignDeps.benefits.previewRedemption.mockResolvedValue({
+      status: 'ok',
+      businessId: 'biz-OTHER',
+      benefitTitle: 'Capuccino gratis',
+      customerName: 'Ana',
+    });
+    const foreignService = makeService(foreignDeps);
+
+    const [notFoundError, foreignError] = await Promise.all([
+      notFoundService.preview('user-1', 'AAAA1111').catch((e: unknown) => e),
+      foreignService.preview('user-1', 'BBBB2222').catch((e: unknown) => e),
+    ]);
+
+    expect(notFoundError).toBeInstanceOf(NotFoundException);
+    expect(foreignError).toBeInstanceOf(NotFoundException);
+    expect((notFoundError as NotFoundException).message).toBe(
+      (foreignError as NotFoundException).message,
+    );
+    expect((notFoundError as NotFoundException).getStatus()).toBe(
+      (foreignError as NotFoundException).getStatus(),
     );
   });
 });

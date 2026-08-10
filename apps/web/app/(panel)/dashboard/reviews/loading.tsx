@@ -1,6 +1,6 @@
 export default function ReviewsLoading() {
   return (
-    <div className="mx-auto max-w-7xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 xl:max-w-7xl 2xl:max-w-[1600px]">
       <div className="space-y-3">
         <div className="h-3 w-28 animate-pulse rounded-full bg-[color:var(--surface-subtle)]" />
         <div className="h-12 w-72 animate-pulse rounded-[18px] bg-[color:var(--surface-subtle)]" />

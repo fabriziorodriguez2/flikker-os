@@ -52,14 +52,26 @@ export class RedemptionService {
       where: { id: businessId },
       select: { experienceVersion: true, timezone: true },
     });
-    if (!business || !isCheckinV2(business)) throw new NotFoundException();
+    if (!business || !isCheckinV2(business)) {
+      throw new NotFoundException('Código no encontrado');
+    }
 
     const membership = await this.prisma.membership.findUnique({
       where: { userId_businessId: { userId, businessId } },
       select: { role: true, status: true },
     });
+    // Hardening pre-piloto (#4): sin ninguna membership en este negocio, el
+    // mismo 404 genérico que un código inexistente -- nunca el 403 "no
+    // tenés acceso". Ese 403 sería un oráculo de enumeración: alguien sin
+    // relación con ningún negocio podría usarlo para confirmar "este código
+    // existe en algún negocio real" sin poder redimirlo. Quien SÍ es staff
+    // ahí (membership inactiva o rol insuficiente) sigue viendo el 403
+    // informativo -- no es dato sensible para alguien que ya sabe que
+    // trabaja ahí.
+    if (!membership) {
+      throw new NotFoundException('Código no encontrado');
+    }
     if (
-      !membership ||
       membership.status !== MembershipStatus.ACTIVE ||
       !ALLOWED_ROLES.includes(membership.role)
     ) {

@@ -6,7 +6,7 @@ function Bone({ className }: { className?: string }) {
 
 export default function InsightsLoading() {
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
+    <div className="mx-auto max-w-6xl space-y-5 xl:max-w-7xl 2xl:max-w-[1600px]">
       {/* Title */}
       <div className="space-y-2">
         <Bone className="h-7 w-28" />

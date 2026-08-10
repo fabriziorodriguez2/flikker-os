@@ -459,7 +459,7 @@ export default async function InsightsPage({ searchParams }: InsightsPageProps) 
       : `Este mes sumaste ${rev.current} ${rev.current === 1 ? "reseña" : "reseñas"} (${rev.previous} el mes pasado). Buen momento para pedir algunas más 🙌`;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
+    <div className="mx-auto max-w-6xl space-y-5 xl:max-w-7xl 2xl:max-w-[1600px]">
       <PageHeader
         title="Insights"
         subtitle="Evolución de tu reputación y rendimiento de las reseñas."

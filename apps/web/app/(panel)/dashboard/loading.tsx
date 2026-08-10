@@ -6,7 +6,7 @@ function Bone({ className }: { className?: string }) {
 
 export default function DashboardLoading() {
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 xl:max-w-7xl 2xl:max-w-[1600px]">
       {/* Header + selector de período */}
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="space-y-2">

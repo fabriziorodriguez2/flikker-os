@@ -6,7 +6,7 @@ function Bone({ className }: { className?: string }) {
 
 export default function CampaignsLoading() {
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
+    <div className="mx-auto max-w-6xl space-y-5 xl:max-w-7xl 2xl:max-w-[1600px]">
       {/* Header */}
       <div className="flex items-center justify-between gap-3">
         <Bone className="h-7 w-32" />

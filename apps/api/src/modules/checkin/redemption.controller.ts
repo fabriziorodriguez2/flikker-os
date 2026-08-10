@@ -1,4 +1,5 @@
 import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import { ThrottlerGuard } from '@nestjs/throttler';
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
 import type { AuthenticatedRequest } from '../../common/types/request.types';
 import { JwtGuard } from '../auth/guards/jwt.guard';
@@ -23,9 +24,16 @@ class RedeemDto {
  * al que pertenece el código, cualquiera sea el negocio activo del
  * empleado. Solo requiere estar logueado (`JwtGuard`); todo el resto de la
  * autorización vive en el service, con acceso a `req.user.id`.
+ *
+ * Hardening pre-piloto: `ThrottlerGuard` en las dos rutas (mismo límite
+ * global que ya usa `recoverVerify` para el código de recupero — el otro
+ * endpoint del repo que valida un código corto adivinable). `preview` y
+ * `redeem` son la misma superficie de ataque para enumeración/fuerza bruta
+ * de códigos — no importa si el intento llega escaneando un QR o tipeando
+ * el código manual (`RedeemValidator`), ambos caminos terminan acá.
  */
 @Controller('redemptions')
-@UseGuards(JwtGuard)
+@UseGuards(JwtGuard, ThrottlerGuard)
 export class RedemptionController {
   constructor(private readonly service: RedemptionService) {}
 

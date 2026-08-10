@@ -218,7 +218,7 @@ export default async function DashboardPage({ searchParams }: DashboardPageProps
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
+    <div className="mx-auto max-w-6xl space-y-6 xl:max-w-7xl 2xl:max-w-[1600px]">
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-2xl font-bold text-[#1A202C] sm:text-[28px]">

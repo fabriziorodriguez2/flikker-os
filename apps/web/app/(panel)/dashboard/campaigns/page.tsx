@@ -105,7 +105,7 @@ export default async function CampaignsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-5">
+    <div className="mx-auto max-w-6xl space-y-5 xl:max-w-7xl 2xl:max-w-[1600px]">
       <PageHeader
         title="Campañas"
         subtitle="Automatizá mensajes y mantené el vínculo con tus clientes."

@@ -905,7 +905,7 @@ export default function CustomersPage() {
     customers.length > 0 && selectedIds.size === customers.length;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-6xl space-y-4 xl:max-w-7xl 2xl:max-w-[1600px]">
       <PageHeader
         title="Clientes"
         subtitle="Gestioná tus contactos, su origen y la relación con tu negocio."

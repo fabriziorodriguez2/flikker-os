@@ -149,7 +149,7 @@ export default async function ReviewsPage({ searchParams }: PageProps) {
   }
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4">
+    <div className="mx-auto max-w-6xl space-y-4 xl:max-w-7xl 2xl:max-w-[1600px]">
       <PageHeader
         title="Reseñas de Google"
         subtitle="Lo que tus clientes dicen de tu negocio."

@@ -9,6 +9,7 @@ import {
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, Sparkles } from "lucide-react";
+import { getSafeInternalPath } from "@/lib/safe-redirect";
 
 export default function LoginPage() {
   return (
@@ -24,6 +25,12 @@ function LoginPageContent() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Canje por URL — si vinimos de "/redeem/{token}" sin sesión, volvemos
+  // exactamente ahí después del login en vez de al dashboard. Validado una
+  // sola vez acá y reutilizado tanto para el aviso como para el redirect,
+  // para no repetir la lógica de seguridad en dos lugares.
+  const safeNext = getSafeInternalPath(searchParams.get("next"));
 
   function handleVisualPointerMove(event: ReactPointerEvent<HTMLElement>) {
     const bounds = event.currentTarget.getBoundingClientRect();
@@ -74,12 +81,6 @@ function LoginPageContent() {
         setError(data.message ?? "Email o contraseña incorrectos");
         return;
       }
-
-      // Canje por URL (#1) — si vinimos de "/redeem/{token}" sin sesión,
-      // volvemos exactamente ahí después del login en vez de al dashboard.
-      // Solo se acepta una ruta interna (evita open-redirect vía "//host").
-      const next = searchParams.get("next");
-      const safeNext = next && next.startsWith("/") && !next.startsWith("//") ? next : null;
 
       router.push(safeNext ?? data.redirectTo ?? "/dashboard");
       router.refresh();
@@ -191,7 +192,7 @@ function LoginPageContent() {
                 <div className="rounded-xl border border-[#E4E0FA] bg-[#F6F4FF] px-4 py-3 text-sm text-[#625B80]">
                   Tu sesión expiró. Iniciá sesión de nuevo.
                 </div>
-              ) : searchParams.get("next")?.startsWith("/redeem/") ? (
+              ) : safeNext?.startsWith("/redeem/") ? (
                 <div className="rounded-xl border border-[#E4E0FA] bg-[#F6F4FF] px-4 py-3 text-sm text-[#625B80]">
                   Iniciá sesión para continuar con el canje.
                 </div>

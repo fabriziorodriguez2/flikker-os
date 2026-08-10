@@ -237,7 +237,7 @@ export default function RetentionPage() {
   // o la siga editando pensando que todavía hace algo.
   if (isCheckinV2) {
     return (
-      <div className="mx-auto max-w-3xl space-y-5">
+      <div className="mx-auto max-w-3xl space-y-5 xl:max-w-4xl 2xl:max-w-5xl">
         <PageHeader
           title="Retención"
           subtitle="Esta pantalla se movió."
@@ -259,7 +259,7 @@ export default function RetentionPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl space-y-5">
+    <div className="mx-auto max-w-3xl space-y-5 xl:max-w-4xl 2xl:max-w-5xl">
       <PageHeader
         title="Retención"
         subtitle="Cómo vuelven tus clientes y qué podés hacer para que vuelvan más."
