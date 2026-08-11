@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, CalendarDays, Footprints, Gift, Loader2, Sparkles } from "lucide-react";
+import QRCode from "qrcode";
+import { ArrowLeft, Footprints, Gift, Loader2 } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
 import RewardGoalStamps from "@/components/public/reward-goal-stamps";
 
@@ -144,95 +145,40 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
           </div>
         </div>
 
-        <div className="relative mt-6 grid grid-cols-2 gap-3 pt-5">
-          <div className="rounded-[16px] bg-white/12 p-3.5 backdrop-blur-sm">
-            <Footprints className="h-5 w-5 text-white/75" aria-hidden="true" />
-            <p className="mt-2 text-[28px] font-bold leading-none">{place.visitsTotal}</p>
-            <p className="mt-1 text-xs font-medium text-white/65">
-              {place.visitsTotal === 1 ? "visita acumulada" : "visitas acumuladas"}
-            </p>
-          </div>
-          <div className="rounded-[16px] bg-white/12 p-3.5 backdrop-blur-sm">
-            <CalendarDays className="h-5 w-5 text-white/75" aria-hidden="true" />
-            <p className="mt-2 text-base font-bold">
-              {place.lastVisitAt
-                ? new Date(place.lastVisitAt).toLocaleDateString("es-UY")
-                : "—"}
-            </p>
-            <p className="mt-1 text-xs font-medium text-white/65">Última visita</p>
-          </div>
+        <div
+          className="relative mt-6 flex items-center gap-2.5 border-t border-white/15 pt-5"
+          aria-label={`${place.visitsTotal} ${place.visitsTotal === 1 ? "visita" : "visitas"}`}
+        >
+          <Footprints className="h-6 w-6 text-white/75" aria-hidden="true" />
+          <span className="text-[30px] font-bold leading-none">{place.visitsTotal}</span>
         </div>
-      </section>
 
-      {place.benefitAvailable ? (
-        <section className="mt-5 overflow-hidden rounded-[28px] bg-white/80 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
-          <p className="flex items-center gap-2 text-sm font-bold" style={{ color: brand }}>
-            <span className="flex h-8 w-8 items-center justify-center rounded-full" style={{ backgroundColor: `color-mix(in srgb, ${brand} 12%, white)` }}>
-              <Sparkles className="h-4 w-4" aria-hidden="true" />
-            </span>
-            Recompensa lista para usar
-          </p>
-          <p className="mt-4 text-[24px] font-bold leading-tight tracking-[-0.03em] text-[#171A2B]">
-            {place.benefitAvailable.name}
-          </p>
-          <p className="mt-5 text-xs font-semibold uppercase tracking-[0.12em] text-[#8A91A3]">Código de canje</p>
-          <p className="mt-2 rounded-[16px] border border-dashed border-[#D8DBE7] bg-[#F7F7FB] px-4 py-4 text-center font-mono text-[28px] font-bold tracking-[0.2em] text-[#24283A]">
-            {place.benefitAvailable.code}
-          </p>
-          {place.benefitAvailable.expiresAt ? (
-            <p className="mt-2 text-center text-xs text-[#8A91A3]">
-              Válido hasta{" "}
-              {new Date(place.benefitAvailable.expiresAt).toLocaleDateString("es-UY")}
-            </p>
-          ) : null}
-          <p className="mt-4 text-center text-sm font-medium text-[#697084]">
-            Mostrá este código al personal para disfrutar tu premio.
-          </p>
-        </section>
-      ) : place.rewardGoal ? (
-        <section className="mt-5 overflow-hidden rounded-[28px] bg-white/80 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
-          <p className="flex items-center gap-2 text-sm font-bold text-[#24283A]">
-            <span className="flex h-9 w-9 items-center justify-center rounded-full" style={{ backgroundColor: `color-mix(in srgb, ${brand} 12%, white)`, color: brand }}>
-              <Gift className="h-4 w-4" aria-hidden="true" />
-            </span>
-            {place.rewardGoal.remainingVisits === 1
-              ? "Te falta 1 sello para tu"
-              : `Te faltan ${place.rewardGoal.remainingVisits} sellos para tu`}
-          </p>
-          <p className="mt-4 text-[24px] font-bold leading-tight tracking-[-0.03em]" style={{ color: brand }}>
-            {place.rewardGoal.incentiveName}
-          </p>
-          <div className="mt-5">
+        {place.rewardGoal ? (
+          <div className="relative mt-5 rounded-[22px] bg-black/16 p-4 backdrop-blur-sm">
             <RewardGoalStamps
               progress={place.rewardGoal.progressVisits}
               target={place.rewardGoal.targetAdditionalVisits}
               brand={brand}
             />
+            <div className="mt-3 flex items-center justify-between gap-3 text-xs font-semibold text-white/75">
+              <span>
+                Faltan {place.rewardGoal.remainingVisits}{" "}
+                {place.rewardGoal.remainingVisits === 1 ? "visita" : "visitas"}
+              </span>
+              <span>
+                {place.rewardGoal.progressVisits}/{place.rewardGoal.targetAdditionalVisits} sellos
+              </span>
+            </div>
           </div>
-          <div className="mt-4 h-3 w-full overflow-hidden rounded-full bg-[#E7E9F1]">
-            <div
-              className="h-full rounded-full"
-              style={{
-                width: `${Math.min(
-                  100,
-                  Math.round(
-                    (place.rewardGoal.progressVisits /
-                      Math.max(1, place.rewardGoal.targetAdditionalVisits)) *
-                      100,
-                  ),
-                )}%`,
-                backgroundColor: brand,
-              }}
-            />
-          </div>
-          <p className="mt-2.5 text-sm font-semibold text-[#697084]">
-            {place.rewardGoal.progressVisits} de{" "}
-            {place.rewardGoal.targetAdditionalVisits} sellos
-            {place.rewardGoal.bonusStamps
-              ? ` (incluye ${place.rewardGoal.bonusStamps} por tu feedback)`
-              : ""}
-          </p>
-        </section>
+        ) : null}
+      </section>
+
+      {place.benefitAvailable ? (
+        <GiftReveal benefit={place.benefitAvailable} brand={brand} />
+      ) : place.rewardGoal ? (
+        <p className="mt-4 text-center text-sm font-semibold text-[#697084]">
+          Tu próximo regalo: {place.rewardGoal.incentiveName}
+        </p>
       ) : (
         <section className="mt-5 rounded-[28px] bg-white/80 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
           <span className="flex h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: `color-mix(in srgb, ${brand} 12%, white)`, color: brand }}>
@@ -245,6 +191,107 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
         </section>
       )}
     </Shell>
+  );
+}
+
+function GiftReveal({
+  benefit,
+  brand,
+}: {
+  benefit: NonNullable<MyFlikkerPlace["benefitAvailable"]>;
+  brand: string;
+}) {
+  const [revealed, setRevealed] = useState(false);
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!revealed) return;
+
+    let cancelled = false;
+    const redeemUrl = `${window.location.origin}/redeem/${benefit.code}`;
+    void QRCode.toDataURL(redeemUrl, {
+      errorCorrectionLevel: "M",
+      margin: 2,
+      width: 220,
+    }).then((url) => {
+      if (!cancelled) setQrDataUrl(url);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [benefit.code, revealed]);
+
+  if (!revealed) {
+    return (
+      <div className="mt-7 flex justify-center">
+        <button
+          type="button"
+          onClick={() => setRevealed(true)}
+          className="group flex h-24 w-24 items-center justify-center rounded-[28px] text-white shadow-[0_16px_34px_rgba(31,35,58,0.2)] transition-transform hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white focus-visible:ring-offset-2 active:scale-95"
+          style={{
+            background: `linear-gradient(145deg, ${brand}, color-mix(in srgb, ${brand} 70%, black))`,
+          }}
+          aria-label="Abrir regalo y mostrar el código de canje"
+        >
+          <Gift
+            className="h-11 w-11 transition-transform group-hover:rotate-6"
+            strokeWidth={1.8}
+            aria-hidden="true"
+          />
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <section className="mt-5 overflow-hidden rounded-[28px] bg-white/90 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
+      <div className="text-center">
+        <span
+          className="mx-auto flex h-12 w-12 items-center justify-center rounded-[16px] text-white"
+          style={{ backgroundColor: brand }}
+        >
+          <Gift className="h-6 w-6" aria-hidden="true" />
+        </span>
+        <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-[#8A91A3]">
+          Tu regalo
+        </p>
+        <h2 className="mt-1 text-[24px] font-bold leading-tight tracking-[-0.03em] text-[#171A2B]">
+          {benefit.name}
+        </h2>
+      </div>
+
+      <div className="mt-5 flex min-h-[220px] items-center justify-center">
+        {qrDataUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={qrDataUrl}
+            alt={`QR para canjear ${benefit.name}`}
+            className="h-[220px] w-[220px] rounded-[18px] bg-white p-2"
+          />
+        ) : (
+          <Loader2
+            className="h-7 w-7 animate-spin text-[#8A91A3]"
+            aria-label="Generando QR"
+          />
+        )}
+      </div>
+
+      <p className="mt-4 text-center text-xs font-semibold uppercase tracking-[0.12em] text-[#8A91A3]">
+        Código de canje
+      </p>
+      <p className="mt-2 rounded-[16px] border border-dashed border-[#D8DBE7] bg-[#F7F7FB] px-4 py-4 text-center font-mono text-[26px] font-bold tracking-[0.18em] text-[#24283A]">
+        {benefit.code}
+      </p>
+      {benefit.expiresAt ? (
+        <p className="mt-2 text-center text-xs text-[#8A91A3]">
+          Válido hasta {new Date(benefit.expiresAt).toLocaleDateString("es-UY")}
+        </p>
+      ) : null}
+      <p className="mt-4 text-center text-sm font-medium text-[#697084]">
+        Mostrá el QR o el código al personal para disfrutar tu regalo.
+      </p>
+    </section>
   );
 }
 
