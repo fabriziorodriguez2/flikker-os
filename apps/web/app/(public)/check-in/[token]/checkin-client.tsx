@@ -1003,14 +1003,25 @@ function RewardGoalCard({
 
   if (rewardGoal.unlockedNow && rewardGoal.benefit) {
     return (
-      <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[22px] border border-white/80 bg-white/72 px-5 py-4 shadow-[0_14px_36px_rgba(31,35,58,0.09)] backdrop-blur-md">
-        <p className="text-sm font-bold" style={{ color: brand }}>
-          🎉 ¡Recompensa desbloqueada!
-        </p>
-        <p className="mt-1 text-base font-bold text-[#171A2B]">
+      <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[24px] bg-white p-5 shadow-[0_10px_24px_rgba(12,16,30,0.14)]">
+        <div className="flex items-center gap-2.5">
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+            style={{
+              backgroundColor: `color-mix(in srgb, ${brand} 12%, white)`,
+              color: brand,
+            }}
+          >
+            <PartyPopper className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <p className="text-sm font-bold" style={{ color: brand }}>
+            ¡Recompensa desbloqueada!
+          </p>
+        </div>
+        <p className="mt-3 text-[20px] font-bold leading-tight text-[#171A2B]">
           {rewardGoal.benefit.name}
         </p>
-        <p className="mt-1 text-xs text-[#8A91A3]">
+        <p className="mt-1.5 text-xs text-[#8A91A3]">
           Ya la tenés disponible en tu cuenta Flikker.
         </p>
       </div>
@@ -1030,16 +1041,27 @@ function RewardGoalCard({
       Math.round((progressVisits / Math.max(1, targetAdditionalVisits)) * 100),
     );
     return (
-      <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[22px] border border-white/80 bg-white/72 px-5 py-4 shadow-[0_14px_36px_rgba(31,35,58,0.09)] backdrop-blur-md">
-        <p className="text-sm font-bold text-[#24283A]">
-          {remainingVisits === 1
-            ? "Te falta 1 sello para tu"
-            : `Te faltan ${remainingVisits} sellos para tu`}
-        </p>
-        <p className="mt-0.5 text-base font-bold" style={{ color: brand }}>
+      <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[24px] bg-white p-5 shadow-[0_10px_24px_rgba(12,16,30,0.14)]">
+        <div className="flex items-center gap-2.5">
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+            style={{
+              backgroundColor: `color-mix(in srgb, ${brand} 12%, white)`,
+              color: brand,
+            }}
+          >
+            <Gift className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <p className="text-sm font-bold text-[#24283A]">
+            {remainingVisits === 1
+              ? "Te falta 1 sello para tu"
+              : `Te faltan ${remainingVisits} sellos para tu`}
+          </p>
+        </div>
+        <p className="mt-3 text-[20px] font-bold leading-tight" style={{ color: brand }}>
           {incentiveName}
         </p>
-        <div className="mt-3">
+        <div className="mt-4">
           <RewardGoalStamps
             progress={progressVisits}
             target={targetAdditionalVisits}
@@ -1052,7 +1074,7 @@ function RewardGoalCard({
             style={{ width: `${pct}%`, backgroundColor: brand }}
           />
         </div>
-        <p className="mt-1.5 text-[11px] font-semibold text-[#8A91A3]">
+        <p className="mt-2 text-[11px] font-semibold text-[#8A91A3]">
           {progressVisits} de {targetAdditionalVisits} sellos
           {bonusStamps ? ` (incluye ${bonusStamps} por tu feedback)` : ""} ·
           Escaneá cada vez que vengas para avanzar.
