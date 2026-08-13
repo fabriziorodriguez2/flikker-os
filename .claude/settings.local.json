@@ -240,13 +240,21 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/common/guards/tenant.guard.spec.ts)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/metrics/metrics.service.spec.ts)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/metrics)",
-      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npm run test:smoke)"
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npm run test:smoke)",
+      "Bash(head -30 \"/tmp/orig_reviews_page.tsx\")",
+      "Bash(grep -n \"export default\" \"/tmp/orig_reviews_page.tsx\")",
+      "Bash(cp \"/tmp/orig_reviews_filters.tsx\" reviews-filters.tsx)",
+      "Bash(cp \"/tmp/orig_reviews_paginator.tsx\" reviews-paginator.tsx)",
+      "Bash(cp \"/tmp/orig_expandable_text.tsx\" expandable-text.tsx)",
+      "Bash(cygpath -w /tmp/orig_reviews_page.tsx)",
+      "Bash(grep -n \"interface PageProps\" -A 3 /tmp/orig_reviews_page.tsx)"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\api\\qr\\[businessId]",
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\mi-flikker",
-      "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(platform)\\platform\\simulations"
+      "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(platform)\\platform\\simulations",
+      "\\tmp"
     ]
   }
 }

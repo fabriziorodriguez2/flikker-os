@@ -124,7 +124,6 @@ describe("Navegación LEGACY", () => {
     "/dashboard/insights",
     "/dashboard/customers",
     "/dashboard/reviews",
-    "/dashboard/qr",
   ])("conserva %s", (href) => {
     expect(hrefsOf(legacy())).toContain(href);
   });
@@ -136,8 +135,42 @@ describe("Navegación LEGACY", () => {
     expect(hrefs).not.toContain("/dashboard/checkins");
   });
 
-  it("también llega a Configuración", () => {
-    expect(hrefsOf(legacy())).toContain("/dashboard/settings");
+  /**
+   * Sacados a pedido explícito: no aportan a la operación diaria de un
+   * negocio LEGACY. Las rutas siguen funcionando por URL directa — esto
+   * prueba solo que dejaron de tener una entrada visible en el sidebar para
+   * el dueño normal.
+   */
+  it.each(["/dashboard/qr", "/dashboard/settings"])(
+    "ya NO muestra %s para el dueño normal",
+    (href) => {
+      expect(hrefsOf(legacy())).not.toContain(href);
+    },
+  );
+
+  /**
+   * QR es la excepción: el dueño LEGACY no lo necesita en el nav, pero un
+   * operador de Flikker impersonando ese negocio sí — soporte y demos con el
+   * estudio de impresión. Mismo mecanismo que ya usa "Widget".
+   */
+  it("un operador de Flikker impersonando SÍ ve QR", () => {
+    const impersonatingLegacy = resolveNavSections({
+      isCheckinV2: false,
+      isImpersonating: true,
+      role: "OWNER",
+    });
+
+    expect(hrefsOf(impersonatingLegacy)).toContain("/dashboard/qr");
+  });
+
+  it("Configuración sigue oculta incluso impersonando", () => {
+    const impersonatingLegacy = resolveNavSections({
+      isCheckinV2: false,
+      isImpersonating: true,
+      role: "OWNER",
+    });
+
+    expect(hrefsOf(impersonatingLegacy)).not.toContain("/dashboard/settings");
   });
 });
 

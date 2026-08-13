@@ -287,11 +287,19 @@ const LEGACY_NAV: NavSection[] = [
         icon: <WidgetIcon />,
         impersonatorOnly: true,
       },
-      { href: "/dashboard/qr", label: "QR", icon: <QrIcon />, onboardingKey: "qr" },
+      // Configuración se sacó del nav LEGACY a pedido explícito: no aporta
+      // hoy a la operación diaria de esos negocios. La ruta sigue viva y
+      // funciona por URL directa — solo dejó de tener una entrada visible.
+      //
+      // QR (el estudio de impresión mesa/mostrador/sticker/A4) sigue oculto
+      // para el dueño LEGACY normal, pero vuelve durante impersonation: un
+      // operador de Flikker sí lo necesita para soporte y demos con el
+      // cliente. Mismo mecanismo que ya usa "Widget" un poco más arriba.
       {
-        href: "/dashboard/settings",
-        label: "Configuración",
-        icon: <SettingsIcon />,
+        href: "/dashboard/qr",
+        label: "QR",
+        icon: <QrIcon />,
+        impersonatorOnly: true,
       },
     ],
   },
