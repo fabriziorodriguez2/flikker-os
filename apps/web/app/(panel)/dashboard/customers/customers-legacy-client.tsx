@@ -476,7 +476,7 @@ const DATE_FILTER_OPTIONS = [
   { value: "lastMonth", label: "Último mes" },
 ];
 
-export default function CustomersPage() {
+export default function CustomersLegacyClient() {
   const canMutate = useCanMutate();
   const queryClient = useQueryClient();
   const router = useRouter();

@@ -2,7 +2,7 @@
 // `GET /dashboard/overview?period=7|30|90` (ver
 // apps/api/src/modules/dashboard/dashboard-overview.service.ts). No inventar
 // campos: si algo no está acá, no existe en el backend todavía.
-import type { GoalView, PlanType } from "./page";
+import type { GoalView, PlanType } from "./dashboard-legacy-page";
 
 export type ExperienceVersion = "LEGACY" | "CHECKIN_V2";
 export type PeriodDays = 7 | 30 | 90;

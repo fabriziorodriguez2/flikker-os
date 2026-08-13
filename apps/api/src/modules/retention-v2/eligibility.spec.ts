@@ -11,7 +11,7 @@ function facts(overrides: Partial<EligibilityFacts> = {}): EligibilityFacts {
       retentionEngineV2Enabled: true,
     },
     settings: {
-      automaticCampaignsEnabled: true,
+      automationEnabled: true,
       minimumDaysBetweenRetentionMessages: 14,
       maximumRetentionMessagesPer30Days: 2,
     },
@@ -59,7 +59,7 @@ describe('evaluateEligibility — kill switch', () => {
 
   it('the platform kill switch outranks the owner kill switch (Fase C.5 §7)', () => {
     // Two independent switches: retentionEngineV2Enabled is the platform's,
-    // automaticCampaignsEnabled is the owner's. When both are off, the reason
+    // automationEnabled is the owner's. When both are off, the reason
     // must be the platform one — an owner re-enabling their own switch must
     // never look like it did anything while the platform switch stays off.
     const result = evaluateEligibility(
@@ -70,7 +70,7 @@ describe('evaluateEligibility — kill switch', () => {
           retentionEngineV2Enabled: false,
         },
         settings: {
-          automaticCampaignsEnabled: false,
+          automationEnabled: false,
           minimumDaysBetweenRetentionMessages: 14,
           maximumRetentionMessagesPer30Days: 2,
         },
@@ -99,7 +99,7 @@ describe('evaluateEligibility — kill switch', () => {
     const result = evaluateEligibility(
       facts({
         settings: {
-          automaticCampaignsEnabled: false,
+          automationEnabled: false,
           minimumDaysBetweenRetentionMessages: 14,
           maximumRetentionMessagesPer30Days: 2,
         },

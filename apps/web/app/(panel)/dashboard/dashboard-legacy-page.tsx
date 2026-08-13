@@ -154,7 +154,7 @@ interface DashboardPageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }
 
-export default async function DashboardPage({ searchParams }: DashboardPageProps) {
+export default async function DashboardLegacyPage({ searchParams }: DashboardPageProps) {
   const session = await getSession();
   if (!session?.activeBusinessId) redirect("/login");
 

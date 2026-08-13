@@ -771,7 +771,7 @@ function buildPayload(form: FormState) {
   };
 }
 
-export default function BenefitsPage() {
+export default function BenefitsClient() {
   const canMutate = useCanMutate();
   const isCheckinV2 = useIsCheckinV2();
   const [benefits, setBenefits] = useState<Benefit[]>([]);

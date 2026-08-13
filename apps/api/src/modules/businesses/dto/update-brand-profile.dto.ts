@@ -74,6 +74,33 @@ export class UpdateBrandProfileDto {
   })
   qrA4BgColor?: string;
 
+  /**
+   * Programa → Diseño de tarjeta. Los colores de RELLENO/BORDE de cada sello
+   * no se guardan: se derivan por contraste desde `loyaltyCardColor` en el
+   * cliente (`lib/loyalty-card-theme.ts`), así el dueño no puede dejar una
+   * tarjeta con sellos ilegibles sobre su propio fondo.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(7)
+  @Matches(/^#[0-9A-Fa-f]{6}$/, {
+    message: 'loyaltyCardColor must be a hex color (e.g. #1A1040)',
+  })
+  loyaltyCardColor?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(7)
+  @Matches(/^#[0-9A-Fa-f]{6}$/, {
+    message: 'loyaltyStampColor must be a hex color (e.g. #FFAB76)',
+  })
+  loyaltyStampColor?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(24)
+  loyaltyStampIcon?: string;
+
   @IsOptional()
   @IsUrl()
   googleBusinessProfileUrl?: string;

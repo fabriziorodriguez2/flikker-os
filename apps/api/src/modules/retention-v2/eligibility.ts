@@ -17,7 +17,15 @@ export interface EligibilityFacts {
     retentionEngineV2Enabled: boolean;
   };
   settings: {
-    automaticCampaignsEnabled: boolean;
+    /**
+     * Interruptor de LA automatización que se está evaluando, no un flag
+     * global. El dueño prende por separado los recordatorios de progreso y la
+     * recuperación de inactivos, así que cada pase pasa el suyo:
+     * `RetentionSettings.progressReminderEnabled` para REWARD_GOAL_PROGRESS y
+     * `automaticCampaignsEnabled` para el resto. Cuando esto era un solo
+     * campo, apagar una apagaba la otra.
+     */
+    automationEnabled: boolean;
     minimumDaysBetweenRetentionMessages: number;
     maximumRetentionMessagesPer30Days: number;
   };
@@ -89,7 +97,7 @@ export function evaluateEligibility(
   if (!facts.business.retentionEngineV2Enabled) {
     return { eligible: false, reasonCode: 'ENGINE_DISABLED' };
   }
-  if (!facts.settings.automaticCampaignsEnabled) {
+  if (!facts.settings.automationEnabled) {
     return { eligible: false, reasonCode: 'AUTOMATION_DISABLED' };
   }
 

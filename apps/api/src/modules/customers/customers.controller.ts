@@ -25,11 +25,20 @@ import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { PreviewFilterDto } from './dto/preview-filter.dto';
 import { NotifyAppointmentDto } from './dto/notify-appointment.dto';
 import { CustomersService } from './customers.service';
+import {
+  CustomerLoyaltyService,
+  type LoyaltyFilter,
+} from './loyalty/customer-loyalty.service';
+import { CustomerOverviewService } from './loyalty/customer-overview.service';
 
 @Controller('customers')
 @UseGuards(JwtGuard, TenantGuard)
 export class CustomersController {
-  constructor(private readonly customersService: CustomersService) {}
+  constructor(
+    private readonly customersService: CustomersService,
+    private readonly loyaltyService: CustomerLoyaltyService,
+    private readonly overviewService: CustomerOverviewService,
+  ) {}
 
   @Get()
   list(
@@ -112,6 +121,50 @@ export class CustomersController {
       file,
       mapping,
     });
+  }
+
+  /**
+   * Lista de Clientes vista como fidelización: progreso, visitas, última
+   * visita y estado, en una sola llamada junto con los KPIs.
+   *
+   * Se declara ANTES que cualquier `:id` para que la palabra "loyalty" no sea
+   * capturada como un id de cliente.
+   *
+   * Solo lectura y sin `RolesGuard`: cualquier miembro activo del negocio
+   * puede mirar sus clientes. El rol viaja al service únicamente para decidir
+   * cuánto del teléfono se muestra.
+   */
+  @Get('loyalty')
+  loyalty(
+    @Req() req: AuthenticatedRequest,
+    @Query()
+    query: {
+      filter?: LoyaltyFilter;
+      search?: string;
+      page?: string;
+      limit?: string;
+    },
+  ) {
+    return this.loyaltyService.list(req.currentBusinessId!, {
+      filter: query.filter,
+      search: query.search,
+      page: query.page ? Number(query.page) : undefined,
+      limit: query.limit ? Number(query.limit) : undefined,
+      role: req.currentMembershipRole,
+    });
+  }
+
+  /**
+   * Detalle agregado de UN cliente. El `businessId` sale del tenant context,
+   * nunca del cliente: un id de otro negocio da 404.
+   */
+  @Get(':id/overview')
+  overview(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.overviewService.overview(
+      req.currentBusinessId!,
+      id,
+      req.currentMembershipRole,
+    );
   }
 
   @Get('filter-counts')

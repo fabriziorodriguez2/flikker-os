@@ -19,7 +19,7 @@ import PoweredByFlikker from "@/components/ui/powered-by-flikker";
 import { normalizeUruguayNationalPhone } from "@/components/ui/phone-input";
 import OtpInput from "@/components/ui/otp-input";
 import { useImagePalette } from "@/lib/use-logo-palette";
-import RewardGoalStamps from "@/components/public/reward-goal-stamps";
+import LoyaltyCard from "@/components/public/loyalty-card";
 import CheckinFeedbackCard from "@/components/public/checkin-feedback-card";
 import type { CheckinLanding, PublicBenefit } from "./page";
 
@@ -892,7 +892,11 @@ function PersonalScreen({
             </div>
           </div>
 
-          <RewardGoalCard rewardGoal={personal.rewardGoal} brand={brand} />
+          <RewardGoalCard
+            rewardGoal={personal.rewardGoal}
+            brand={brand}
+            landing={landing}
+          />
 
           {personal.benefit && (
             <div
@@ -995,9 +999,11 @@ function PersonalScreen({
 function RewardGoalCard({
   rewardGoal,
   brand,
+  landing,
 }: {
   rewardGoal: RewardGoalView | null | undefined;
   brand: string;
+  landing: CheckinLanding;
 }) {
   if (!rewardGoal) return null;
 
@@ -1032,53 +1038,24 @@ function RewardGoalCard({
     const {
       progressVisits,
       targetAdditionalVisits,
-      remainingVisits,
       incentiveName,
       bonusStamps,
     } = rewardGoal.goal;
-    const pct = Math.min(
-      100,
-      Math.round((progressVisits / Math.max(1, targetAdditionalVisits)) * 100),
-    );
     return (
-      <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[24px] bg-white p-5 shadow-[0_10px_24px_rgba(12,16,30,0.14)]">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-            style={{
-              backgroundColor: `color-mix(in srgb, ${brand} 12%, white)`,
-              color: brand,
-            }}
-          >
-            <Gift className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <p className="text-sm font-bold text-[#24283A]">
-            {remainingVisits === 1
-              ? "Te falta 1 sello para tu"
-              : `Te faltan ${remainingVisits} sellos para tu`}
-          </p>
-        </div>
-        <p className="mt-3 text-[20px] font-bold leading-tight" style={{ color: brand }}>
-          {incentiveName}
-        </p>
-        <div className="mt-4">
-          <RewardGoalStamps
-            progress={progressVisits}
-            target={targetAdditionalVisits}
-            brand={brand}
-          />
-        </div>
-        <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-[#EDEFF5]">
-          <div
-            className="h-full rounded-full transition-all"
-            style={{ width: `${pct}%`, backgroundColor: brand }}
-          />
-        </div>
-        <p className="mt-2 text-[11px] font-semibold text-[#8A91A3]">
-          {progressVisits} de {targetAdditionalVisits} sellos
-          {bonusStamps ? ` (incluye ${bonusStamps} por tu feedback)` : ""} ·
-          Escaneá cada vez que vengas para avanzar.
-        </p>
+      <div className="checkin-enter checkin-hover-lift">
+        <LoyaltyCard
+          rewardName={incentiveName}
+          progress={progressVisits}
+          target={targetAdditionalVisits}
+          bonusStamps={bonusStamps ?? 0}
+          appearance={{
+            cardColor: landing.business.loyaltyCardColor ?? brand,
+            stampColor: landing.business.loyaltyStampColor,
+            stampIcon: landing.business.loyaltyStampIcon,
+            logoUrl: landing.business.logoUrl,
+            businessName: landing.business.businessName,
+          }}
+        />
       </div>
     );
   }

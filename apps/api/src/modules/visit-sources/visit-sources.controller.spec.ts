@@ -1,3 +1,5 @@
+import { Reflector } from '@nestjs/core';
+import { MembershipRole } from '@prisma/client';
 import { VisitSourcesController } from './visit-sources.controller';
 import type { VisitSourcesService } from './visit-sources.service';
 
@@ -49,4 +51,36 @@ describe('VisitSourcesController.getQr — bug real #1 (PNG que no abre)', () =>
 
     expect(service.getQrPng).toHaveBeenCalledWith('biz-1', 'source-1');
   });
+});
+
+/**
+ * Permisos de "QR y NFC". La división es deliberada y NO se amplía:
+ * administrar puntos de acceso es de OWNER/ADMIN, pero mirar el QR y
+ * descargarlo lo puede hacer cualquier miembro — el OPERATOR que atiende el
+ * mostrador necesita poder reimprimirlo sin depender del dueño.
+ */
+describe('VisitSourcesController — permisos', () => {
+  const reflector = new Reflector();
+  const rolesOf = (method: keyof VisitSourcesController) =>
+    reflector.get<MembershipRole[] | undefined>(
+      'roles',
+      VisitSourcesController.prototype[method],
+    );
+
+  it.each(['create', 'update', 'remove'] as const)(
+    '%s exige OWNER o ADMIN',
+    (method) => {
+      expect(rolesOf(method)).toEqual([
+        MembershipRole.OWNER,
+        MembershipRole.ADMIN,
+      ]);
+    },
+  );
+
+  it.each(['list', 'getOne', 'getQr'] as const)(
+    '%s es de lectura: sin restricción de rol más allá de la membresía',
+    (method) => {
+      expect(rolesOf(method)).toBeUndefined();
+    },
+  );
 });

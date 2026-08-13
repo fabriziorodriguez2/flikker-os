@@ -8,6 +8,9 @@ export interface MyFlikkerPlace {
   businessName: string;
   logoUrl: string | null;
   primaryColor: string | null;
+  loyaltyCardColor: string | null;
+  loyaltyStampColor: string | null;
+  loyaltyStampIcon: string | null;
   visitsTotal: number;
   lastVisitAt: string | null;
   rewardGoal: {
@@ -50,7 +53,16 @@ export class MyFlikkerService {
       select: {
         id: true,
         businessId: true,
-        business: { select: { name: true, logoUrl: true, primaryColor: true } },
+        business: {
+          select: {
+            name: true,
+            logoUrl: true,
+            primaryColor: true,
+            loyaltyCardColor: true,
+            loyaltyStampColor: true,
+            loyaltyStampIcon: true,
+          },
+        },
       },
       orderBy: { updatedAt: 'desc' },
     });
@@ -72,7 +84,16 @@ export class MyFlikkerService {
       select: {
         id: true,
         businessId: true,
-        business: { select: { name: true, logoUrl: true, primaryColor: true } },
+        business: {
+          select: {
+            name: true,
+            logoUrl: true,
+            primaryColor: true,
+            loyaltyCardColor: true,
+            loyaltyStampColor: true,
+            loyaltyStampIcon: true,
+          },
+        },
       },
     });
     if (!customer) {
@@ -94,6 +115,9 @@ export class MyFlikkerService {
       name: string;
       logoUrl: string | null;
       primaryColor: string | null;
+      loyaltyCardColor: string | null;
+      loyaltyStampColor: string | null;
+      loyaltyStampIcon: string | null;
     },
   ): Promise<MyFlikkerPlace> {
     const [visitsTotal, lastVisit, rewardView, unclaimedBenefit] =
@@ -132,6 +156,9 @@ export class MyFlikkerService {
       businessName: business.name,
       logoUrl: business.logoUrl,
       primaryColor: business.primaryColor,
+      loyaltyCardColor: business.loyaltyCardColor,
+      loyaltyStampColor: business.loyaltyStampColor,
+      loyaltyStampIcon: business.loyaltyStampIcon,
       visitsTotal,
       lastVisitAt: lastVisit?.occurredAt.toISOString() ?? null,
       rewardGoal: rewardView.goal,

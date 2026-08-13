@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import WelcomeGoalPicker from "./welcome-goal-picker";
-import type { GoalView, PlanType } from "./page";
+import type { GoalView, PlanType } from "./dashboard-legacy-page";
 
 function ringColor(pct: number): string {
   if (pct >= 67) return "#1D9E75";

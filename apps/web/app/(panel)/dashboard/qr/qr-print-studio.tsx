@@ -445,7 +445,7 @@ const PREVIEW_LABEL: Record<Version, string> = {
   a4: "Cartel A4 (21×29.7 cm)",
 };
 
-export default function QrPage() {
+export default function QrPrintStudio() {
   const isCheckinV2 = useIsCheckinV2();
   const [business, setBusiness] = useState<BusinessData | null>(null);
   const [loading, setLoading] = useState(true);

@@ -74,7 +74,7 @@ function fmtDate(iso: string): string {
 
 // ─── Page ───────────────────────────────────────────────────────────────────
 
-export default function CheckinsPage() {
+export default function CheckinsClient() {
   const canMutate = useCanMutate();
   const isCheckinV2 = useIsCheckinV2();
   const [sources, setSources] = useState<VisitSource[]>([]);

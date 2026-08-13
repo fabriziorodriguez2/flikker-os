@@ -11,6 +11,7 @@ import { CampaignsRepository } from './campaigns.repository';
 import { BranchesRepository } from '../branches/branches.repository';
 import { PlansService } from '../plans/plans.service';
 import { AuditService } from '../../common/services/audit.service';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 
 const BUSINESS_ID = 'biz-1';
 const CAMPAIGN_ID = 'cmp-1';
@@ -67,6 +68,12 @@ const mockAuditService = {
   log: jest.fn(),
 };
 
+// Se agregó al constructor de CampaignsService (envío manual por WhatsApp)
+// después de que este archivo se escribiera.
+const mockWhatsAppBspService = {
+  sendText: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('CampaignsService', () => {
   let service: CampaignsService;
 
@@ -81,6 +88,7 @@ describe('CampaignsService', () => {
         { provide: BranchesRepository, useValue: mockBranchesRepo },
         { provide: PlansService, useValue: mockPlansService },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: WhatsAppBspService, useValue: mockWhatsAppBspService },
       ],
     }).compile();
 

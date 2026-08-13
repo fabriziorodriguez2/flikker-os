@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Settings, X } from "lucide-react";
+import { X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { SessionMembership } from "@/lib/auth";
 import BusinessLogo from "@/components/business/business-logo";
@@ -19,6 +19,8 @@ interface SidebarProps {
   businessLogoUrl: string | null;
   isImpersonating: boolean;
   isCheckinV2: boolean;
+  /** Rol en el negocio activo. Gobierna qué ítems se muestran. */
+  role?: string | null;
 }
 
 function Icon({ children }: { children: ReactNode }) {
@@ -115,6 +117,13 @@ const InsightsIcon = () => (
   </Icon>
 );
 
+const SettingsIcon = () => (
+  <Icon>
+    <circle cx="12" cy="12" r="3" />
+    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z" />
+  </Icon>
+);
+
 const CheckinIcon = () => (
   <Icon>
     <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />
@@ -122,7 +131,7 @@ const CheckinIcon = () => (
   </Icon>
 );
 
-const MAIN_NAV_ITEMS: Array<{
+export interface NavItem {
   href: string;
   label: string;
   icon: ReactNode;
@@ -130,23 +139,201 @@ const MAIN_NAV_ITEMS: Array<{
   impersonatorOnly?: boolean;
   checkinV2Only?: boolean;
   legacyOnly?: boolean;
-}> = [
-  { href: "/dashboard", label: "Panel", icon: <HomeIcon />, onboardingKey: "panel" },
-  { href: "/dashboard/insights", label: "Insights", icon: <InsightsIcon /> },
-  { href: "/dashboard/customers", label: "Clientes", icon: <CustomersIcon />, onboardingKey: "clientes" },
-  { href: "/dashboard/campaigns", label: "Campañas", icon: <CampaignsIcon />, onboardingKey: "campaigns" },
-  { href: "/dashboard/reviews", label: "Reseñas", icon: <GoogleLogo className="h-[18px] w-[18px]" /> },
-  { href: "/dashboard/benefits", label: "Beneficios", icon: <BenefitsIcon /> },
-  // Pre-piloto #3 — una sola "Retención" visible por negocio: el motor V1
-  // ("Secuencia automática") solo se muestra en LEGACY; en Check-in V2 el
-  // dueño ve exactamente un ítem llamado "Retención" (la pantalla que por
-  // dentro sigue siendo /dashboard/retention-v2 — nunca ve "V2" en la UI).
-  { href: "/dashboard/retention", label: "Retención", icon: <RetentionIcon />, legacyOnly: true },
-  { href: "/dashboard/retention-v2", label: "Retención", icon: <RetentionV2Icon />, checkinV2Only: true },
-  { href: "/dashboard/checkins", label: "Check-ins", icon: <CheckinIcon />, checkinV2Only: true },
-  { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon />, impersonatorOnly: true },
-  { href: "/dashboard/qr", label: "QR", icon: <QrIcon />, onboardingKey: "qr", impersonatorOnly: true },
+  /** Solo para roles que pueden usarla. Omitido = la ve cualquier miembro. */
+  roles?: string[];
+}
+
+export interface NavSection {
+  /** `null` = sin encabezado (Inicio va suelto arriba de todo). */
+  title: string | null;
+  items: NavItem[];
+}
+
+const MANAGERS = ["OWNER", "ADMIN"];
+
+/**
+ * Navegación de un negocio en Check-in V2 — el producto tal como lo entiende
+ * el dueño, agrupado por lo que quiere hacer y no por cómo está construido.
+ *
+ * Lo que NO está acá desapareció de la vista, no del código: Insights,
+ * Beneficios, Campañas, Retención, Check-ins y Widget siguen existiendo como
+ * rutas y responden con un redirect version-aware (ver
+ * `components/panel/absorbed-route.tsx`). Un link viejo guardado en el
+ * navegador sigue llevando a algún lado útil en vez de dar 404, y Platform
+ * Admin conserva acceso durante impersonation.
+ *
+ * Cada superficie absorbida y dónde vive ahora:
+ *   Insights      → Inicio (actividad) + Reseñas (reputación)
+ *   Beneficios    → Programa
+ *   Campañas      → Notificaciones · Promociones
+ *   Retención V2  → Notificaciones
+ *   Check-ins     → Clientes (actividad) + QR y NFC (puntos de acceso)
+ */
+const CHECKIN_V2_NAV: NavSection[] = [
+  {
+    title: null,
+    items: [
+      {
+        href: "/dashboard",
+        label: "Inicio",
+        icon: <HomeIcon />,
+        onboardingKey: "panel",
+      },
+    ],
+  },
+  {
+    title: "Fidelización",
+    items: [
+      {
+        href: "/dashboard/programa",
+        label: "Programa",
+        icon: <BenefitsIcon />,
+        // Configurar el programa (sellos, recompensa, beneficios) es de quien
+        // manda: el backend ya rechaza a OPERATOR, así que tampoco se muestra.
+        roles: MANAGERS,
+      },
+      {
+        href: "/dashboard/customers",
+        label: "Clientes",
+        icon: <CustomersIcon />,
+        onboardingKey: "clientes",
+      },
+    ],
+  },
+  {
+    title: "Comunicación",
+    items: [
+      {
+        href: "/dashboard/notificaciones",
+        label: "Notificaciones",
+        icon: <RetentionV2Icon />,
+        onboardingKey: "notificaciones",
+      },
+    ],
+  },
+  {
+    title: "Reseñas",
+    items: [
+      {
+        href: "/dashboard/reviews",
+        label: "Reseñas",
+        icon: <GoogleLogo className="h-[18px] w-[18px]" />,
+      },
+    ],
+  },
+  {
+    title: "Negocio",
+    items: [
+      {
+        href: "/dashboard/qr",
+        label: "QR y NFC",
+        icon: <QrIcon />,
+        onboardingKey: "qr",
+      },
+      {
+        href: "/dashboard/settings",
+        label: "Configuración",
+        icon: <SettingsIcon />,
+      },
+    ],
+  },
 ];
+
+/**
+ * Navegación LEGACY — intacta a propósito.
+ *
+ * Estos negocios no tienen Programa, ni puntos de acceso, ni Retention V2, y
+ * su operación diaria pasa por Campañas, Beneficios y la retención V1. La
+ * limpieza fuerte es para Check-in V2; acá reordenar por reordenar solo
+ * rompería la costumbre de gente que ya usa el panel.
+ */
+const LEGACY_NAV: NavSection[] = [
+  {
+    title: null,
+    items: [
+      {
+        href: "/dashboard",
+        label: "Panel",
+        icon: <HomeIcon />,
+        onboardingKey: "panel",
+      },
+      { href: "/dashboard/insights", label: "Insights", icon: <InsightsIcon /> },
+      {
+        href: "/dashboard/customers",
+        label: "Clientes",
+        icon: <CustomersIcon />,
+        onboardingKey: "clientes",
+      },
+      {
+        href: "/dashboard/campaigns",
+        label: "Campañas",
+        icon: <CampaignsIcon />,
+        onboardingKey: "campaigns",
+      },
+      {
+        href: "/dashboard/reviews",
+        label: "Reseñas",
+        icon: <GoogleLogo className="h-[18px] w-[18px]" />,
+      },
+      { href: "/dashboard/benefits", label: "Beneficios", icon: <BenefitsIcon /> },
+      {
+        href: "/dashboard/retention",
+        label: "Retención",
+        icon: <RetentionIcon />,
+      },
+      {
+        href: "/dashboard/widgets",
+        label: "Widget",
+        icon: <WidgetIcon />,
+        impersonatorOnly: true,
+      },
+      { href: "/dashboard/qr", label: "QR", icon: <QrIcon />, onboardingKey: "qr" },
+      {
+        href: "/dashboard/settings",
+        label: "Configuración",
+        icon: <SettingsIcon />,
+      },
+    ],
+  },
+];
+
+/**
+ * Herramientas internas. Solo aparecen durante impersonation, que es la única
+ * forma en que un operador de Flikker entra a un negocio: el dueño nunca las
+ * ve, y nosotros no perdemos acceso a nada.
+ */
+const OPERATOR_TOOLS: NavSection = {
+  title: "Herramientas Flikker",
+  items: [
+    { href: "/dashboard/retention-v2", label: "Retention V2", icon: <RetentionV2Icon /> },
+    { href: "/dashboard/checkins", label: "Check-ins", icon: <CheckinIcon /> },
+    { href: "/dashboard/insights", label: "Insights", icon: <InsightsIcon /> },
+    { href: "/dashboard/benefits", label: "Beneficios", icon: <BenefitsIcon /> },
+    { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon /> },
+  ],
+};
+
+/** Secciones visibles según versión, rol e impersonation. */
+export function resolveNavSections(options: {
+  isCheckinV2: boolean;
+  isImpersonating: boolean;
+  role: string | null;
+}): NavSection[] {
+  const base = options.isCheckinV2 ? CHECKIN_V2_NAV : LEGACY_NAV;
+
+  const sections = base
+    .map((section) => ({
+      ...section,
+      items: section.items.filter(
+        (item) =>
+          (!item.impersonatorOnly || options.isImpersonating) &&
+          (!item.roles || (options.role !== null && item.roles.includes(options.role))),
+      ),
+    }))
+    .filter((section) => section.items.length > 0);
+
+  return options.isImpersonating ? [...sections, OPERATOR_TOOLS] : sections;
+}
 
 function isItemActive(pathname: string, href: string) {
   return href === "/dashboard" ? pathname === href : pathname.startsWith(href);
@@ -161,6 +348,11 @@ export default function Sidebar(props: SidebarProps) {
   const activeBusiness = props.memberships.find(
     (membership) => membership.businessId === props.activeBusinessId,
   );
+  const sections = resolveNavSections({
+    isCheckinV2: props.isCheckinV2,
+    isImpersonating: props.isImpersonating,
+    role: props.role ?? null,
+  });
   // Show labels/wordmark when the mobile drawer is open or the desktop rail is
   // hovered. On desktop mobileOpen is always false, so this equals `hovered`.
   const showFull = mobileOpen || hovered;
@@ -251,37 +443,54 @@ export default function Sidebar(props: SidebarProps) {
       </div>
 
       <nav className={`relative mt-8 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-3 ${showFull ? "px-5" : "px-4"}`}>
-        {MAIN_NAV_ITEMS.filter(
-          (item) =>
-            (!item.impersonatorOnly || props.isImpersonating) &&
-            (!item.checkinV2Only || props.isCheckinV2) &&
-            (!item.legacyOnly || !props.isCheckinV2),
-        ).map((item) => {
-          const active = isItemActive(pathname, item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              data-onboarding={item.onboardingKey}
-              onClick={() => setMobileOpen(false)}
-              onMouseEnter={() => router.prefetch(item.href)}
-              className={`flex min-h-11 items-center rounded-[12px] border py-3 text-[15px] font-semibold transition-all duration-200 ${
-                showFull ? "gap-3.5 px-4" : "justify-center px-2"
-              } ${
-                active
-                  ? "border-[#5C6BC0]/25 bg-[#5C6BC0] text-white shadow-[0_8px_22px_rgba(92,107,192,0.25),inset_0_1px_0_rgba(255,255,255,0.24)]"
-                  : "border-transparent text-[#6F6A80] hover:border-white/70 hover:bg-white/55 hover:text-[#302A48] hover:shadow-[0_6px_18px_rgba(69,57,128,0.08)]"
-              }`}
-            >
-              <span className={active ? "text-white" : "text-[#817B94]"}>
-                {item.icon}
-              </span>
-              {showFull ? (
-                <span className="whitespace-nowrap">{item.label}</span>
-              ) : null}
-            </Link>
-          );
-        })}
+        {sections.map((section) => (
+          <div key={section.title ?? "principal"} className="flex flex-col gap-2">
+            {/*
+              El encabezado solo existe con el rail expandido. Colapsado se
+              convierte en un separador: un texto de 9px cortado no orienta a
+              nadie, pero la agrupación sí se sigue leyendo.
+            */}
+            {section.title ? (
+              showFull ? (
+                <p className="mt-3 px-4 pb-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#9690A5]">
+                  {section.title}
+                </p>
+              ) : (
+                <span
+                  aria-hidden="true"
+                  className="mx-auto my-2 h-px w-6 bg-[#CFC9DD]"
+                />
+              )
+            ) : null}
+
+            {section.items.map((item) => {
+              const active = isItemActive(pathname, item.href);
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  data-onboarding={item.onboardingKey}
+                  onClick={() => setMobileOpen(false)}
+                  onMouseEnter={() => router.prefetch(item.href)}
+                  className={`flex min-h-11 items-center rounded-[12px] border py-3 text-[15px] font-semibold transition-all duration-200 ${
+                    showFull ? "gap-3.5 px-4" : "justify-center px-2"
+                  } ${
+                    active
+                      ? "border-[#5C6BC0]/25 bg-[#5C6BC0] text-white shadow-[0_8px_22px_rgba(92,107,192,0.25),inset_0_1px_0_rgba(255,255,255,0.24)]"
+                      : "border-transparent text-[#6F6A80] hover:border-white/70 hover:bg-white/55 hover:text-[#302A48] hover:shadow-[0_6px_18px_rgba(69,57,128,0.08)]"
+                  }`}
+                >
+                  <span className={active ? "text-white" : "text-[#817B94]"}>
+                    {item.icon}
+                  </span>
+                  {showFull ? (
+                    <span className="whitespace-nowrap">{item.label}</span>
+                  ) : null}
+                </Link>
+              );
+            })}
+          </div>
+        ))}
       </nav>
 
       <div
@@ -320,19 +529,12 @@ export default function Sidebar(props: SidebarProps) {
           </div>
         ) : null}
 
+        {/*
+          El link a Configuración vivía acá abajo como "Cuenta". Ahora es un
+          ítem más de la sección Negocio, así que dejarlo duplicado daría dos
+          entradas al mismo lugar.
+        */}
         <div className="flex flex-col gap-1.5">
-          <Link
-            href="/dashboard/settings"
-            aria-label="Cuenta y seguridad"
-            title="Cuenta y seguridad"
-            onClick={() => setMobileOpen(false)}
-            className={`flex h-11 items-center rounded-[13px] text-sm font-semibold text-[#5F5972] transition-all hover:bg-white/62 hover:text-[#5C6BC0] ${
-              showFull ? "gap-3 px-3" : "justify-center px-2"
-            }`}
-          >
-            <Settings className="h-[18px] w-[18px] shrink-0" aria-hidden="true" />
-            {showFull ? <span>Cuenta</span> : null}
-          </Link>
           <LogoutButton compact={!showFull} sidebar />
         </div>
 

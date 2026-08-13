@@ -44,6 +44,9 @@ type BusinessForCheckin = Pick<
   | 'checkinMaxVisitsPerDay'
   | 'checkinReviewPromptEveryDays'
   | 'experienceVersion'
+  | 'loyaltyCardColor'
+  | 'loyaltyStampColor'
+  | 'loyaltyStampIcon'
 >;
 
 @Injectable()
@@ -178,6 +181,13 @@ export class CheckinService {
       customer.id,
       userAgent,
     );
+
+    // Regalo de bienvenida — SOLO acá, en el registro. Nunca en `checkin()`,
+    // así no puede volver a emitirse en visitas posteriores. Best-effort: si
+    // falla, el registro igual queda hecho.
+    await this.benefits
+      .grantWelcomeGift(business.id, customer.id)
+      .catch(() => null);
 
     const personal = await this.buildPersonalSpace(business, customer.id, {
       // First visit always asks for the review — it's the primary action.
@@ -489,6 +499,9 @@ export class CheckinService {
         checkinMaxVisitsPerDay: true,
         checkinReviewPromptEveryDays: true,
         experienceVersion: true,
+        loyaltyCardColor: true,
+        loyaltyStampColor: true,
+        loyaltyStampIcon: true,
       },
     });
     if (!business || !isCheckinV2(business)) {
@@ -609,6 +622,12 @@ export class CheckinService {
       ));
 
     const publicBenefit = toPublicBenefit(benefit);
+    // Regalo de bienvenida: campo propio, separado de `benefit`. Se apaga
+    // solo una vez canjeado, así que no reaparece como oferta.
+    const welcomeGift = await this.benefits.getWelcomeGiftState(
+      business.id,
+      customerId,
+    );
 
     return {
       customer: { name: customer.name },
@@ -617,6 +636,7 @@ export class CheckinService {
         lastAt: lastVisit?.occurredAt.toISOString() ?? null,
       },
       benefit: publicBenefit ? { ...publicBenefit, redemption } : null,
+      welcomeGift,
       rewardGoal,
       reviewPrompt: {
         show: showReview,
@@ -659,6 +679,11 @@ export class CheckinService {
       logoUrl: business.logoUrl ?? null,
       primaryColor: business.primaryColor ?? null,
       googleBusinessProfileUrl: business.googleBusinessProfileUrl ?? null,
+      // Apariencia de la tarjeta de sellos. Null = usar la marca del
+      // negocio, que es el comportamiento previo a Programa → Diseño.
+      loyaltyCardColor: business.loyaltyCardColor ?? null,
+      loyaltyStampColor: business.loyaltyStampColor ?? null,
+      loyaltyStampIcon: business.loyaltyStampIcon ?? null,
     };
   }
 }

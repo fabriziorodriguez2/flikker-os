@@ -174,9 +174,7 @@ export class CustomersService {
       return {
         success: false,
         message:
-          error instanceof Error
-            ? error.message
-            : 'No se pudo enviar el aviso',
+          error instanceof Error ? error.message : 'No se pudo enviar el aviso',
       };
     }
   }
@@ -519,11 +517,7 @@ export class CustomersService {
     return this.repository.getContactsStats(businessId);
   }
 
-  async previewFilter(
-    businessId: string,
-    mode: string,
-    origins?: string[],
-  ) {
+  async previewFilter(businessId: string, mode: string, origins?: string[]) {
     const recipients = await this.repository.findByFilter(
       businessId,
       mode,

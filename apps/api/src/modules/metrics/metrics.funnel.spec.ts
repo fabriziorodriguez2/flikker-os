@@ -91,7 +91,8 @@ function makePrisma(data: {
         return Promise.resolve(
           reviews.filter(
             (r) =>
-              r.businessId === w.businessId && matchesDate(r.postedAt, w.postedAt),
+              r.businessId === w.businessId &&
+              matchesDate(r.postedAt, w.postedAt),
           ).length,
         );
       }),

@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { redirectIfAbsorbed } from "@/components/panel/absorbed-route";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import RepeatCampaignsSection, {
@@ -74,6 +75,7 @@ function formatActivityDate(iso: string) {
 // ---------------------------------------------------------------------------
 
 export default async function CampaignsPage() {
+  await redirectIfAbsorbed("/dashboard/notificaciones?tab=promociones");
   const session = await getSession();
   if (!session?.activeBusinessId) redirect("/dashboard");
 

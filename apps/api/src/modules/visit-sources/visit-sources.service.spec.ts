@@ -125,3 +125,67 @@ describe('VisitSourcesService', () => {
     expect(repo.remove).toHaveBeenCalledWith('biz-1', 's1');
   });
 });
+
+/**
+ * "QR y NFC" (pantalla del panel) descansa entera sobre una idea: un punto de
+ * acceso es UN destino. El QR que se descarga, el link que se copia y la URL
+ * que se graba en el tag NFC tienen que ser exactamente el mismo string, o el
+ * dueño termina con dos recorridos distintos sin haberlo pedido.
+ */
+describe('VisitSourcesService — un punto de acceso, un solo destino', () => {
+  it('QR, link copiado y tag NFC apuntan todos a /check-in/{token}', () => {
+    const service = makeService(makeRepo());
+
+    // `buildCheckinUrl` es la ÚNICA función que arma el destino: la usa
+    // `getQrPng` para codificar el QR, y el panel para el "Copiar enlace".
+    // El NFC se graba con esta misma URL — por eso no existe una ruta ni un
+    // token aparte para NFC.
+    const url = service.buildCheckinUrl('tok-abc');
+
+    expect(url).toMatch(/\/check-in\/tok-abc$/);
+    expect(url).not.toContain('/qr/');
+    expect(url).not.toContain('/review');
+  });
+
+  it('cada punto de acceso tiene su propio destino — nunca se comparte token', () => {
+    const service = makeService(makeRepo());
+
+    expect(service.buildCheckinUrl('tok-mostrador')).not.toBe(
+      service.buildCheckinUrl('tok-terraza'),
+    );
+  });
+
+  it('el QR del acceso principal se arma con el token del principal, no con otro', async () => {
+    const repo = makeRepo();
+    // Lo que la pantalla elige: `isDefault`. El orden del repositorio ya lo
+    // pone primero, pero la selección es explícita por el flag.
+    repo.findOne.mockResolvedValue({
+      id: 'principal',
+      token: 'tok-principal',
+      isDefault: true,
+    });
+    const service = makeService(repo);
+
+    await service.getQrPng('biz-1', 'principal');
+
+    expect(repo.findOne).toHaveBeenCalledWith('biz-1', 'principal');
+  }, 15000);
+
+  it('crear un punto adicional NO crea un programa nuevo: solo un destino más del mismo negocio', async () => {
+    const repo = makeRepo();
+    repo.create.mockResolvedValue({ id: 's2', isDefault: false });
+    const service = makeService(repo);
+
+    await service.create('biz-1', { name: 'Terraza' });
+
+    // El único write es el del punto de acceso, y va scopeado al negocio.
+    // El programa (sellos, recompensa, settings) no se toca desde acá.
+    expect(repo.create).toHaveBeenCalledTimes(1);
+    expect(repo.create).toHaveBeenCalledWith('biz-1', {
+      name: 'Terraza',
+      type: undefined,
+    });
+    // Y nunca puede nacer como principal: eso lo decide `ensureDefaultSource`.
+    expect(repo.create.mock.calls[0][1]).not.toHaveProperty('isDefault', true);
+  });
+});

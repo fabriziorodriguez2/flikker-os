@@ -21,6 +21,8 @@ interface CurrentBusiness {
   /** Per-business rollout flags. Absent on older API builds → treated as LEGACY. */
   experienceVersion?: ExperienceVersion;
   retentionEngineV2Enabled?: boolean;
+  /** Nulo = el dueño todavía no terminó `/comenzar`. Ver el guard más abajo. */
+  onboardingCompletedAt?: string | null;
 }
 
 export default async function PanelLayout({
@@ -73,6 +75,27 @@ export default async function PanelLayout({
   }
 
   if (sessionExpired) redirect("/session-expired");
+
+  // Guard de onboarding — la contracara del guard de `/comenzar`.
+  //
+  // Las dos rutas leen el MISMO campo con condiciones opuestas
+  // (`onboardingCompletedAt` nulo manda acá → /comenzar; no nulo manda allá →
+  // /dashboard), así que no puede haber rebote entre ambas.
+  //
+  // Solo aplica al OWNER: quien fue invitado a un negocio ajeno no configura
+  // nada, y mandarlo al wizard sería mandarlo a reconfigurar el negocio de
+  // otro. Tampoco aplica bajo impersonation (el operador de plataforma no está
+  // haciendo el onboarding del cliente).
+  //
+  // `currentBusiness === null` (API caída) NO redirige: preferimos un panel
+  // degradado antes que mandar a un negocio ya configurado a rehacer el alta.
+  const needsOnboarding =
+    !session.impersonation &&
+    currentRole === "OWNER" &&
+    currentBusiness !== null &&
+    !currentBusiness.onboardingCompletedAt;
+
+  if (needsOnboarding) redirect("/comenzar");
 
   const businessDisplayName =
     currentBusiness?.name ??

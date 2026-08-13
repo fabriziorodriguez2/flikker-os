@@ -175,6 +175,12 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
       'businessName',
       'logoUrl',
       'primaryColor',
+      // Apariencia de la tarjeta: es cara-al-cliente por definición (el
+      // cliente literalmente la ve), así que no viola §20 — lo que nunca
+      // puede salir es segmento/assignment/experimento/uplift.
+      'loyaltyCardColor',
+      'loyaltyStampColor',
+      'loyaltyStampIcon',
       'visitsTotal',
       'lastVisitAt',
       'rewardGoal',

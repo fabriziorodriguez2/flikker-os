@@ -15,6 +15,8 @@ import { ResponsesModule } from './modules/responses/responses.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { WidgetsModule } from './modules/widgets/widgets.module';
 import { CustomersModule } from './modules/customers/customers.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { HomeModule } from './modules/home/home.module';
 import { FeedbackModule } from './modules/feedback/feedback.module';
 import { ServiceEventsModule } from './modules/service-events/service-events.module';
 import { BusinessGoalsModule } from './modules/business-goals/business-goals.module';
@@ -35,6 +37,7 @@ import { FlikkerAccountModule } from './modules/flikker-account/flikker-account.
 import { RewardGoalsModule } from './modules/reward-goals/reward-goals.module';
 import { SimulationModule } from './modules/simulation/simulation.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -55,6 +58,8 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     MetricsModule,
     WidgetsModule,
     CustomersModule,
+    NotificationsModule,
+    HomeModule,
     FeedbackModule,
     ServiceEventsModule,
     BusinessGoalsModule,
@@ -74,6 +79,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     RewardGoalsModule,
     SimulationModule,
     DashboardModule,
+    OnboardingModule,
   ],
   controllers: [AppController],
 })

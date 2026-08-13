@@ -2,8 +2,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
 import { JwtService } from '@nestjs/jwt';
+import { EmailService } from '../../jobs/email.service';
 import { UnauthorizedException, BadRequestException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import { SignupVertical } from './dto/signup.dto';
 
 const mockRepository = {
   findUserByEmail: jest.fn(),
@@ -26,6 +28,14 @@ const mockJwt = {
   verify: jest.fn(),
 };
 
+// `EmailService` se agregó al constructor de AuthService (envío del mail de
+// forgotPassword) después de que este archivo se escribiera — el módulo de
+// test nunca lo actualizó, así que las 89 pruebas de este archivo fallaban
+// por DI, no por comportamiento.
+const mockEmailService = {
+  send: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('AuthService', () => {
   let service: AuthService;
   const originalNodeEnv = process.env.NODE_ENV;
@@ -38,6 +48,7 @@ describe('AuthService', () => {
         AuthService,
         { provide: AuthRepository, useValue: mockRepository },
         { provide: JwtService, useValue: mockJwt },
+        { provide: EmailService, useValue: mockEmailService },
       ],
     }).compile();
 
@@ -78,7 +89,9 @@ describe('AuthService', () => {
         email: 'OWNER@EXAMPLE.COM',
         password: 'password1',
         businessName: 'Clinica Test',
-        vertical: 'dental',
+        // `vertical` es un enum (`SignupVertical`), no un string literal —
+        // el DTO cambió después de escrito este test.
+        vertical: SignupVertical.DENTAL,
         timezone: 'America/Montevideo',
       });
 

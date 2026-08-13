@@ -55,6 +55,8 @@ function makeDeps(experienceVersion: ExperienceVersion) {
   const events = { emit: jest.fn().mockResolvedValue(undefined) };
   const benefits = {
     resolveActiveBenefit: jest.fn().mockResolvedValue(null),
+    grantWelcomeGift: jest.fn().mockResolvedValue(null),
+    getWelcomeGiftState: jest.fn().mockResolvedValue(null),
     registerParticipation: jest.fn(),
     isRedeemable: jest.fn().mockReturnValue(false),
     ensureRedemptionCode: jest.fn(),

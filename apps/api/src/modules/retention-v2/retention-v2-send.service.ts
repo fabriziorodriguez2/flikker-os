@@ -105,9 +105,22 @@ export class RetentionV2SendService {
         this.retentionMessagesLast30Days(assignment.customerId, now),
       ]);
 
+    const isProgressReminder =
+      assignment.experiment.objective ===
+      RetentionObjective.REWARD_GOAL_PROGRESS;
+
     const eligibility = evaluateEligibility({
       business: assignment.business,
-      settings,
+      settings: {
+        ...settings,
+        // Mismo criterio que en el reclutamiento: cada automatización se
+        // revalida contra SU interruptor. Si el dueño apagó la recuperación
+        // entre el reclutamiento y el envío, los recordatorios de progreso ya
+        // reclutados siguen saliendo (y viceversa).
+        automationEnabled: isProgressReminder
+          ? settings.progressReminderEnabled
+          : settings.automaticCampaignsEnabled,
+      },
       customer: assignment.customer,
       // Pre-piloto fix (§1/§2) — REWARD_GOAL_PROGRESS recruitment never
       // gated on segment in the first place (it recruits by "has an active
@@ -118,11 +131,7 @@ export class RetentionV2SendService {
       // SEGMENT_NOT_TARGETABLE, undoing the whole recruitment fix at the
       // very last step. `segment: null` mirrors exactly what recruitment
       // itself passed.
-      segment:
-        assignment.experiment.objective ===
-        RetentionObjective.REWARD_GOAL_PROGRESS
-          ? null
-          : assignment.segmentAtAssignment,
+      segment: isProgressReminder ? null : assignment.segmentAtAssignment,
       lastRetentionMessageAt,
       retentionMessagesLast30Days: messagesLast30Days,
       // Already recruited by definition — this check belongs to recruitment.

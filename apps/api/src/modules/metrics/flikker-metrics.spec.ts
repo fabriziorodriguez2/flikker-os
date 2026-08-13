@@ -76,7 +76,10 @@ describe('resolveFlikkerStartAt', () => {
     expect(
       resolveFlikkerStartAt({
         businessCreatedAt,
-        firstPlan: { trialStart: new Date('2026-07-01T00:00:00Z'), startDate: null },
+        firstPlan: {
+          trialStart: new Date('2026-07-01T00:00:00Z'),
+          startDate: null,
+        },
       }),
     ).toEqual(businessCreatedAt);
   });

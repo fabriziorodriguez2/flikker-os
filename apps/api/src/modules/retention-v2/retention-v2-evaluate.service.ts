@@ -163,7 +163,12 @@ export class RetentionV2EvaluateService {
 
       const eligibility = evaluateEligibility({
         business,
-        settings,
+        settings: {
+          ...settings,
+          // Este pase es el de recuperación: su interruptor es el de campañas
+          // automáticas.
+          automationEnabled: settings.automaticCampaignsEnabled,
+        },
         customer,
         segment,
         lastRetentionMessageAt: lastInterventionAt,
@@ -288,7 +293,12 @@ export class RetentionV2EvaluateService {
     now: Date,
   ): Promise<{ assigned: number; dryRunCandidates: number }> {
     const none = { assigned: 0, dryRunCandidates: 0 };
-    if (!settings.automaticCampaignsEnabled) return none;
+    // Interruptor PROPIO, no `automaticCampaignsEnabled`: recordarle a alguien
+    // que le faltan 2 sellos y salir a recuperar a un cliente que se fue son
+    // dos decisiones distintas del dueño, y tienen que poder activarse por
+    // separado. Antes ambas colgaban del mismo flag, así que un toggle de UX
+    // era alias del otro.
+    if (!settings.progressReminderEnabled) return none;
 
     const running = await this.experiments.findUsableRunning(business.id);
     const experiment = running.find(
@@ -352,7 +362,12 @@ export class RetentionV2EvaluateService {
       // rather than a second frequency engine.
       const eligibility = evaluateEligibility({
         business,
-        settings,
+        settings: {
+          ...settings,
+          // Y este es el de progreso, con SU propio interruptor: apagar la
+          // recuperación no puede apagar los recordatorios de "te falta poco".
+          automationEnabled: settings.progressReminderEnabled,
+        },
         customer,
         segment: null,
         lastRetentionMessageAt: lastInterventionAt,

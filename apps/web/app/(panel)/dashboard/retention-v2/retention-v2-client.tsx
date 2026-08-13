@@ -31,7 +31,7 @@ async function readJson(res: Response) {
   return res.json();
 }
 
-export default function RetentionV2Page() {
+export default function RetentionV2Client() {
   const canMutate = useCanMutate();
   const isCheckinV2 = useIsCheckinV2();
 

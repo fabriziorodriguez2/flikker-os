@@ -57,6 +57,9 @@ describe('RetentionV2EvaluateService — REWARD_GOAL_PROGRESS recruitment (integ
         data: {
           businessId,
           automaticCampaignsEnabled: true,
+          // El pase de progreso tiene su propio interruptor desde que los dos
+          // toggles del onboarding dejaron de ser el mismo campo.
+          progressReminderEnabled: true,
           minimumDaysBetweenRetentionMessages: 14,
           maximumRetentionMessagesPer30Days: 2,
         },

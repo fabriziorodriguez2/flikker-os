@@ -38,7 +38,8 @@ export const REPEAT_TEMPLATES = [
   {
     slug: 'qr-captacion',
     name: 'QR Captación',
-    description: 'Captación de contactos vía QR. Activo = el landing funciona y se registran scans.',
+    description:
+      'Captación de contactos vía QR. Activo = el landing funciona y se registran scans.',
     templateKind: CampaignTemplateKind.qr_capture,
     triggerOffsetDays: 0,
     messageBody: '',

@@ -290,7 +290,17 @@ function LoginPageContent() {
               </button>
             </form>
 
-            <p className="mt-8 text-center text-xs leading-5 text-[#A09CAC]">
+            <p className="mt-7 text-center text-sm text-[#7E7A91]">
+              ¿Todavía no tenés cuenta?{" "}
+              <Link
+                href="/signup"
+                className="font-semibold text-[#6251DA] hover:underline"
+              >
+                Creá la tuya
+              </Link>
+            </p>
+
+            <p className="mt-6 text-center text-xs leading-5 text-[#A09CAC]">
               Al ingresar confirmás que aceptás los términos de uso de Flikker.
             </p>
           </div>

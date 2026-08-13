@@ -189,6 +189,92 @@ export class BenefitsService {
     return type !== BenefitType.none && type !== BenefitType.raffle;
   }
 
+  /**
+   * Elige (o limpia, con `null`) el regalo de bienvenida del negocio. No
+   * toca `Benefit.active`: un beneficio puede ser el regalo de bienvenida
+   * sin ser el beneficio visible del check-in, y viceversa.
+   */
+  async setWelcomeGift(businessId: string, benefitId: string | null) {
+    if (benefitId) {
+      const benefit = await this.repository.findOne(businessId, benefitId);
+      if (!benefit) throw new NotFoundException('Benefit not found');
+      if (!this.isRedeemable(benefit.type)) {
+        throw new BadRequestException(
+          'Ese tipo de beneficio no se puede entregar como regalo de bienvenida',
+        );
+      }
+    }
+    return this.repository.setWelcomeBenefit(businessId, benefitId);
+  }
+
+  /**
+   * Regalo de bienvenida — se entrega UNA sola vez, en el primer registro.
+   *
+   * Deliberadamente separado de `resolveActiveBenefit`/`Benefit.active`:
+   * `active` significa "beneficio visible en el check-in" y se re-asegura en
+   * cada visita, así que no puede representar "una sola vez, la primera vez".
+   * La fuente de verdad es `Business.welcomeBenefitId`.
+   *
+   * Idempotente por construcción: la unicidad de
+   * `BenefitParticipation(benefitId, customerId)` hace que un segundo intento
+   * (reintento, doble submit, refresh) devuelva el mismo código en vez de
+   * emitir otro. Nunca se llama desde `checkin()`, solo desde el registro.
+   */
+  async grantWelcomeGift(
+    businessId: string,
+    customerId: string,
+    now: Date = new Date(),
+  ): Promise<{ benefitId: string; code: string | null } | null> {
+    const business = await this.repository.findWelcomeBenefit(businessId);
+    const benefit = business?.welcomeBenefit;
+    if (!benefit) return null;
+    // `active` NO se chequea a propósito: significa "beneficio visible en el
+    // check-in", que es otro concepto. Quien gobierna la bienvenida es
+    // `Business.welcomeBenefitId`; para dejar de entregarla se limpia ese
+    // campo, no se desactiva el beneficio. (Chequear `active` acá volvía a
+    // acoplar las dos cosas — lo detectó el test e2e del onboarding, que
+    // crea el beneficio de bienvenida con `active: false`.)
+    if (!this.isRedeemable(benefit.type)) return null;
+    if (benefit.startDate && benefit.startDate > now) return null;
+    if (benefit.endDate && benefit.endDate < now) return null;
+
+    const participation = await this.repository.ensureRedemptionCode(
+      businessId,
+      benefit.id,
+      customerId,
+    );
+    return {
+      benefitId: benefit.id,
+      code: participation?.redemptionCode ?? null,
+    };
+  }
+
+  /**
+   * Estado del regalo de bienvenida para mostrar. Desaparece una vez
+   * canjeado — no vuelve a ofrecerse en visitas posteriores.
+   */
+  async getWelcomeGiftState(businessId: string, customerId: string) {
+    const business = await this.repository.findWelcomeBenefit(businessId);
+    const benefit = business?.welcomeBenefit;
+    if (!benefit) return null;
+
+    const participation = await this.repository.findRedemption(
+      businessId,
+      benefit.id,
+      customerId,
+    );
+    // Sin participación = nunca se le otorgó (cliente anterior a que el
+    // negocio configurara la bienvenida). Canjeado = ya lo usó.
+    if (!participation?.redemptionCode || participation.redeemedAt) return null;
+
+    return {
+      title: benefit.title,
+      description: benefit.description,
+      type: benefit.type,
+      code: participation.redemptionCode,
+    };
+  }
+
   /** Ensures the customer holds a redemption code for the benefit. */
   ensureRedemptionCode(
     businessId: string,

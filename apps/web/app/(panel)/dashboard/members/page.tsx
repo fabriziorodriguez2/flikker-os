@@ -8,6 +8,7 @@ import PageHeader from "@/components/ui/page-header";
 import SectionCard from "@/components/ui/section-card";
 import { FEATURES } from "@/src/config/features";
 import { useCanMutate } from "../../role-context";
+import SettingsTabs from "@/components/panel/settings-tabs";
 
 interface Member {
   id: string;
@@ -148,6 +149,8 @@ function MembersContent() {
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
+      {/* Barra común de Configuración: esta pantalla es una de sus pestañas. */}
+      <SettingsTabs />
       <PageHeader
         eyebrow="Equipo"
         title="Equipo"

@@ -71,6 +71,25 @@ export class BenefitsController {
     return this.service.activate(req.currentBusinessId!, id);
   }
 
+  /**
+   * Regalo de bienvenida. Endpoint propio y no `activate`, porque son cosas
+   * distintas: `active` = "visible en el check-in", bienvenida = "se entrega
+   * una vez, en el registro".
+   */
+  @Post(':id/welcome-gift')
+  @UseGuards(RolesGuard)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
+  setWelcomeGift(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
+    return this.service.setWelcomeGift(req.currentBusinessId!, id);
+  }
+
+  @Delete('welcome-gift/current')
+  @UseGuards(RolesGuard)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
+  clearWelcomeGift(@Req() req: AuthenticatedRequest) {
+    return this.service.setWelcomeGift(req.currentBusinessId!, null);
+  }
+
   @Post(':id/deactivate')
   @UseGuards(RolesGuard)
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)

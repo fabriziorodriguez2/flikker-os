@@ -1,27 +1,23 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import ChangePasswordForm from "./change-password-form";
+import SettingsTabs from "@/components/panel/settings-tabs";
+import SettingsClient from "./settings-client";
 
+/**
+ * Configuración — el único lugar visible de ajustes generales.
+ *
+ * La pestaña por defecto es el perfil del negocio, que hasta ahora vivía en
+ * `settings-client.tsx` sin que ninguna ruta lo renderizara. Equipo,
+ * Sucursales e Integraciones siguen en sus rutas y comparten esta barra.
+ */
 export default async function SettingsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
   return (
-    <div className="mx-auto max-w-2xl space-y-5">
-      <div>
-        <h1 className="font-display text-2xl font-bold text-[#1A202C]">
-          Cuenta y seguridad
-        </h1>
-        <p className="mt-1 text-sm text-[#8891A4]">
-          Sesión iniciada como{" "}
-          <span className="font-medium text-[#1A202C]">
-            {session.user.email}
-          </span>
-          .
-        </p>
-      </div>
-
-      <ChangePasswordForm />
+    <div className="space-y-6">
+      <SettingsTabs />
+      <SettingsClient />
     </div>
   );
 }

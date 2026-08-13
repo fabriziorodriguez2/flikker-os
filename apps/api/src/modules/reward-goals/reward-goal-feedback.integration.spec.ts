@@ -169,7 +169,9 @@ describe('Reward Goals — feedback bonus (integration)', () => {
         new Date('2026-09-01T10:05:00.000Z'),
       );
       expect(feedbackResult.bonusGranted).toBe(true);
-      expect(feedbackResult.offerGoogle).toBe(false); // score < 4
+      // La oferta de Google ya no depende del puntaje: un 2 recibe la misma
+      // invitación que un 5, y el cliente decide.
+      expect(feedbackResult.offerGoogle).toBe(true);
       expect(feedbackResult.rewardGoal.goal).toMatchObject({
         progressVisits: 1,
         bonusStamps: 1,

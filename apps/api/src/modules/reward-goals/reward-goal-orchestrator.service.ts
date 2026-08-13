@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { resolveCustomerSegment } from './resolve-customer-segment';
+import { computeGoalProgress } from './reward-goal-progress';
 import { RewardGoalEngineService } from './reward-goal-engine.service';
 import {
   RewardGoalUnlockService,
@@ -143,19 +144,14 @@ export class RewardGoalOrchestratorService {
         where: { rewardGoalId: goal.id },
       }),
     ]);
-    const progressVisits = visitProgress + bonusStamps;
-
     return {
       goal: {
         incentiveName: goal.incentiveDefinition.name,
-        progressVisits,
-        visitProgress,
-        bonusStamps,
-        targetAdditionalVisits: goal.targetAdditionalVisits,
-        remainingVisits: Math.max(
-          0,
-          goal.targetAdditionalVisits - progressVisits,
-        ),
+        ...computeGoalProgress({
+          visitProgress,
+          bonusStamps,
+          targetAdditionalVisits: goal.targetAdditionalVisits,
+        }),
       },
       unlockedNow: false,
       benefit: null,

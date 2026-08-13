@@ -46,7 +46,11 @@ const mockWidgetsRepository = {
   countDetectedReviewsForWidget: jest.fn(),
   findHighlightedReviewsForWidget: jest.fn(),
   getHighlightedReviewsAggregate: jest.fn(),
-  findActiveToastByBusinessId: jest.fn(),
+  // Renombrado en el repositorio real a `findActiveByMode(businessId, mode?)`
+  // — soporta más de un modo de widget, no solo "toast". El mock había
+  // quedado con el nombre viejo y rompía con un TypeError real, no una
+  // aserción: nunca se estaba probando el comportamiento actual.
+  findActiveByMode: jest.fn(),
   findDetectedReviewsForWidget: jest.fn(),
   getDetectedReviewsAggregate: jest.fn(),
   createEvent: jest.fn(),
@@ -221,7 +225,7 @@ describe('WidgetsService', () => {
   });
 
   it('returns embeddable toast payload from detected Google reviews', async () => {
-    mockWidgetsRepository.findActiveToastByBusinessId.mockResolvedValue({
+    mockWidgetsRepository.findActiveByMode.mockResolvedValue({
       ...mockWidget,
       business: { id: BUSINESS_ID, name: 'Gains Montevideo' },
     });

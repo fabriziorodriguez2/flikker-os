@@ -7,6 +7,7 @@ import {
 import { ReviewStatus, ReviewSource } from '@prisma/client';
 import { ReviewsController } from './reviews.controller';
 import { ReviewsService } from './reviews.service';
+import { ReviewsOverviewService } from './reviews-overview.service';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -82,7 +83,16 @@ describe('ReviewsController', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [ReviewsController],
-      providers: [{ provide: ReviewsService, useValue: mockService }],
+      providers: [
+        { provide: ReviewsService, useValue: mockService },
+        // La fachada de la pantalla de Resenas. Este spec cubre los endpoints
+        // viejos del controller, asi que alcanza con satisfacer la
+        // dependencia; su comportamiento se prueba en su propio spec.
+        {
+          provide: ReviewsOverviewService,
+          useValue: { forBusiness: jest.fn() },
+        },
+      ],
     })
       .overrideGuard(JwtGuard)
       .useValue(noopGuard)

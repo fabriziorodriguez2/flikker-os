@@ -128,7 +128,7 @@ describe('RewardGoalFeedbackService — feedback completado otorga el bonus (§9
     },
   );
 
-  it('el bonus no depende de si el puntaje habilita la oferta de Google', async () => {
+  it('el bonus se otorga igual con un puntaje bajo', async () => {
     const deps = makeDeps();
     const service = makeService(deps);
 
@@ -141,10 +141,34 @@ describe('RewardGoalFeedbackService — feedback completado otorga el bonus (§9
       NOW,
     );
     expect(low.bonusGranted).toBe(true);
-    expect(low.offerGoogle).toBe(false);
   });
 
-  it('offerGoogle es puro puntaje>=4 — abrir o no Google nunca pasa por este servicio', async () => {
+  /**
+   * La oferta de Google dejó de depender del puntaje. Filtrar por
+   * `score >= 4` era elegir a quién se le permite opinar en público, y
+   * convertía la reseña en premio por estar contento. Ahora la invitación es
+   * la misma para todos y decide el cliente.
+   */
+  it.each([1, 2, 3, 4, 5])(
+    'con puntaje %i se ofrece Google exactamente igual',
+    async (score) => {
+      const deps = makeDeps();
+      const service = makeService(deps);
+
+      const result = await service.submit(
+        'biz-1',
+        'cust-1',
+        'visit-1',
+        score,
+        undefined,
+        NOW,
+      );
+
+      expect(result.offerGoogle).toBe(true);
+    },
+  );
+
+  it('el sello extra es por el FEEDBACK, no por abrir Google', async () => {
     const deps = makeDeps();
     const service = makeService(deps);
 
@@ -160,7 +184,6 @@ describe('RewardGoalFeedbackService — feedback completado otorga el bonus (§9
     // No existe ningún método para "confirmar que abrió Google" — el bonus
     // ya quedó otorgado arriba, antes de que este resultado siquiera exista.
     expect(result.bonusGranted).toBe(true);
-    expect(result.offerGoogle).toBe(true);
   });
 });
 

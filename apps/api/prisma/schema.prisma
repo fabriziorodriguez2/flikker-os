@@ -284,6 +284,10 @@ enum BenefitType {
   raffle
   promotion
   other
+  /// Programa (CHECKIN_V2): "subí de tamaño / mejorá tu pedido gratis".
+  /// Aditivo — ningún switch existente enumera BenefitType de forma
+  /// exhaustiva, así que agregarlo no cambia comportamiento previo.
+  upgrade
 }
 
 // ---------------------------------------------------------------------------
@@ -422,6 +426,39 @@ model Business {
   qrA4Title                    String?           @map("qr_a4_title")
   qrA4Subtitle                 String?           @map("qr_a4_subtitle")
   qrA4BgColor                  String?           @map("qr_a4_bg_color")
+  /// Apariencia de la tarjeta de sellos que ve el cliente (Programa →
+  /// Diseño). Los tres son nullable: null = "usar la marca del negocio"
+  /// (`primaryColor` / sello por defecto), que es exactamente el
+  /// comportamiento anterior a que existiera esta pantalla.
+  /// El color de RELLENO y de BORDE de cada sello nunca se guarda: se
+  /// deriva por contraste desde `loyaltyCardColor` en tiempo de render
+  /// (ver `apps/web/lib/loyalty-card-theme.ts`), para que nunca pueda
+  /// quedar un sello ilegible sobre su propia tarjeta.
+  loyaltyCardColor             String?           @map("loyalty_card_color")
+  loyaltyStampColor            String?           @map("loyalty_stamp_color")
+  loyaltyStampIcon             String?           @map("loyalty_stamp_icon")
+  /// Regalo de bienvenida (Programa). Fuente de verdad EXPLÍCITA, separada
+  /// de `Benefit.active`: `active` significa "beneficio visible en el
+  /// check-in" y se re-asegura en cada visita, así que no puede representar
+  /// "se entrega una sola vez, en la primera visita". Null = sin regalo de
+  /// bienvenida, que es el comportamiento de todo negocio existente.
+  welcomeBenefitId             String?           @map("welcome_benefit_id")
+  /// True cuando el dueño YA decidió sobre el regalo de bienvenida, incluso
+  /// si decidió que no. Distingue "todavía no lo preguntamos" de "dijo que
+  /// no" — sin esto el wizard volvería a preguntar para siempre al reanudar,
+  /// porque  significa las dos cosas.
+  welcomeGiftDecided           Boolean           @default(false) @map("welcome_gift_decided")
+  /// Mismo problema que welcomeGiftDecided, en el paso de Automatizaciones:
+  /// "las dejé apagadas a propósito" y "todavía no llegué a ese paso" son
+  /// ambos dos flags en false. Sin este campo el wizard manda al dueño de
+  /// vuelta al paso 6 cada vez que refresca después de decir que no a todo.
+  notificationsDecided         Boolean           @default(false) @map("notifications_decided")
+  /// Onboarding self-service: null mientras el dueño lo está completando.
+  /// Es el ancla de reanudación — `POST /onboarding/business` reutiliza el
+  /// negocio incompleto del usuario en vez de crear otro si refresca o
+  /// vuelve atrás. Los negocios creados por Platform Admin nacen con fecha,
+  /// así que nunca son candidatos a reanudar.
+  onboardingCompletedAt        DateTime?         @map("onboarding_completed_at")
   googleBusinessProfileUrl     String?
   googlePlaceId                String?           @map("google_place_id")
   googleRefreshToken           String?           @map("google_refresh_token")
@@ -478,6 +515,7 @@ model Business {
   appointmentNotifications      AppointmentNotification[]
   messageTemplates              MessageTemplate[]
   benefits                      Benefit[]
+  welcomeBenefit                Benefit?                       @relation("BusinessWelcomeBenefit", fields: [welcomeBenefitId], references: [id], onDelete: SetNull)
   benefitParticipations         BenefitParticipation[]
   retentionSequences            RetentionSequence[]
   retentionSteps                RetentionStep[]
@@ -571,6 +609,12 @@ model RetentionSettings {
   /// asked for it. When false, `CheckinFeedback` is still saved as always;
   /// only the `RewardGoalBonusStamp` is skipped — never a partial/half bonus.
   rewardGoalFeedbackBonusEnabled     Boolean @default(false) @map("reward_goal_feedback_bonus_enabled")
+  /// Recordatorios de progreso hacia una tarjeta ya activa (objetivo
+  /// REWARD_GOAL_PROGRESS). Interruptor PROPIO, separado de
+  /// : sin esto los dos toggles del onboarding
+  /// ("recordar cerca del premio" y "reactivar clientes") serían alias del
+  /// mismo campo y no podrían activarse por separado.
+  progressReminderEnabled            Boolean @default(false) @map("progress_reminder_enabled")
   /// Days after a goal is UNLOCKED (or CANCELLED/EXPIRED) before the engine
   /// will consider creating another one for the same customer — the guard
   /// against "immediately after unlocking, infinite new goals" (Fase E §33).
@@ -2145,6 +2189,9 @@ model Benefit {
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
   business                     Business                      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  /// Negocios que eligieron este beneficio como regalo de bienvenida. En la
+  /// práctica 0 o 1: un Benefit pertenece a un solo negocio.
+  welcomeForBusinesses         Business[]                    @relation("BusinessWelcomeBenefit")
   participations               BenefitParticipation[]
   raffleDraws                  RaffleDraw[]
   /// Set only on the inert Benefit rows Retention V2 issues through.

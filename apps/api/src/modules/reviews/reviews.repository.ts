@@ -181,7 +181,13 @@ export class ReviewsRepository {
       }),
     ]);
 
-    const ratingDistribution: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    const ratingDistribution: Record<number, number> = {
+      1: 0,
+      2: 0,
+      3: 0,
+      4: 0,
+      5: 0,
+    };
     for (const row of distribution) {
       if (row.stars >= 1 && row.stars <= 5) {
         ratingDistribution[row.stars] = row._count.stars;

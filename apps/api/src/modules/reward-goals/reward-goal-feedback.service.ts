@@ -19,7 +19,21 @@ export interface SubmitFeedbackResult {
   alreadySubmitted: boolean;
   /** True only the one time a stamp was actually created for this feedback. */
   bonusGranted: boolean;
-  /** Pure score>=4 business rule — the caller pairs this with its own googleUrl. */
+  /**
+   * Si corresponde ofrecerle compartir la experiencia en Google.
+   *
+   * Ya NO depende del puntaje. Antes era `score >= 4`, o sea que solo se le
+   * ofrecía Google a quien había puntuado bien — eso es filtrar quién puede
+   * opinar públicamente, y además vuelve la reseña una consecuencia de haber
+   * estado contento en vez de una invitación neutral. El cliente que puntuó 2
+   * ve la misma oferta que el que puntuó 5, y decide él.
+   *
+   * El sello extra sigue siendo por completar el FEEDBACK, nunca por publicar
+   * en Google: son dos cosas independientes y así se mantienen.
+   *
+   * (Solo CHECKIN_V2. El camino LEGACY — `feedback.service.ts`, `/l/{slug}`,
+   * `/qr/{id}/review` — conserva su regla propia sin cambios.)
+   */
   offerGoogle: boolean;
   rewardGoal: RewardGoalPublicView;
 }
@@ -67,7 +81,8 @@ export class RewardGoalFeedbackService {
       return {
         alreadySubmitted: true,
         bonusGranted: false,
-        offerGoogle: existing.score >= 4,
+        // Neutral: no depende del puntaje (ver `offerGoogle` arriba).
+        offerGoogle: true,
         rewardGoal,
       };
     }
@@ -124,7 +139,7 @@ export class RewardGoalFeedbackService {
     return {
       alreadySubmitted: false,
       bonusGranted,
-      offerGoogle: score >= 4,
+      offerGoogle: true,
       rewardGoal,
     };
   }

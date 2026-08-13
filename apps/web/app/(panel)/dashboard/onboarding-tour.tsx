@@ -47,7 +47,9 @@ const STEPS: Step[] = [
     title: null,
     text: "Desde acá mandás mensajes a toda tu base cuando quieras. Promos, recordatorios, novedades.",
     buttonText: "Siguiente",
-    highlight: "campaigns",
+    // Antes apuntaba a "campaigns", que dejó de existir en la navegación de
+    // Check-in V2 cuando Campañas se absorbió en Notificaciones.
+    highlight: "notificaciones",
   },
   {
     pose: "celebrando",

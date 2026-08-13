@@ -116,6 +116,9 @@ export default function SettingsClient() {
 
   async function handleSaveBusiness(e: React.FormEvent) {
     e.preventDefault();
+    // Guard por las dudas, además de deshabilitar los inputs: el backend ya
+    // rechaza el PATCH para OPERATOR, esto solo evita el viaje de red inútil.
+    if (!canMutate) return;
     setBizSaving(true);
     setBizMessage(null);
     setBizError(null);
@@ -155,6 +158,7 @@ export default function SettingsClient() {
 
   async function handleSaveBrand(e: React.FormEvent) {
     e.preventDefault();
+    if (!canMutate) return;
     setBrandSaving(true);
     setBrandMessage(null);
     setBrandError(null);
@@ -189,8 +193,11 @@ export default function SettingsClient() {
     }
   }
 
+  // `disabled:` de Tailwind hace el resto solo: ni foco, ni cursor de texto,
+  // ni forma de escribir. Nada de mostrarle a un OPERATOR un campo que
+  // PARECE editable y termina en un 403 al guardar.
   const inputClass =
-    'mt-2 w-full rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-colors placeholder:text-[color:var(--text-soft)] focus:border-[color:var(--brand-accent)] focus:ring-2 focus:ring-[color:rgba(145,136,245,0.14)]';
+    'mt-2 w-full rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-colors placeholder:text-[color:var(--text-soft)] focus:border-[color:var(--brand-accent)] focus:ring-2 focus:ring-[color:rgba(145,136,245,0.14)] disabled:cursor-not-allowed disabled:border-[color:var(--surface-subtle)] disabled:bg-[color:var(--surface-muted)] disabled:text-[color:var(--text-muted)]';
   const textareaClass = `${inputClass} min-h-[112px] resize-y`;
   const actionButtonClass =
     'inline-flex items-center rounded-[16px] bg-[color:var(--brand-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,4,65,0.18)] transition-colors hover:bg-[color:var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60';
@@ -220,6 +227,13 @@ export default function SettingsClient() {
         title="Negocio y marca"
         subtitle="Datos del negocio y perfil de marca."
       />
+
+      {!canMutate ? (
+        <p className="rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface-muted)] px-4 py-3 text-sm text-[color:var(--text-muted)]">
+          Estás viendo esta información en modo lectura. Para cambiar algo,
+          pedile a un dueño o administrador del negocio.
+        </p>
+      ) : null}
 
       <section className="grid gap-4 lg:grid-cols-4">
         <MetricCard
@@ -287,37 +301,37 @@ export default function SettingsClient() {
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                         Nombre del negocio
                       </label>
-                      <input value={bizName} onChange={(e) => setBizName(e.target.value)} className={inputClass} />
+                      <input disabled={!canMutate} value={bizName} onChange={(e) => setBizName(e.target.value)} className={inputClass} />
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                         Industria
                       </label>
-                      <input value={bizIndustry} onChange={(e) => setBizIndustry(e.target.value)} className={inputClass} />
+                      <input disabled={!canMutate} value={bizIndustry} onChange={(e) => setBizIndustry(e.target.value)} className={inputClass} />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                         Descripción corta
                       </label>
-                      <textarea value={bizDescription} onChange={(e) => setBizDescription(e.target.value)} rows={4} className={textareaClass} />
+                      <textarea disabled={!canMutate} value={bizDescription} onChange={(e) => setBizDescription(e.target.value)} rows={4} className={textareaClass} />
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                         Sitio web
                       </label>
-                      <input value={bizWebsite} onChange={(e) => setBizWebsite(e.target.value)} className={inputClass} placeholder="https://..." />
+                      <input disabled={!canMutate} value={bizWebsite} onChange={(e) => setBizWebsite(e.target.value)} className={inputClass} placeholder="https://..." />
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                         Teléfono
                       </label>
-                      <input value={bizPhone} onChange={(e) => setBizPhone(e.target.value)} className={inputClass} />
+                      <input disabled={!canMutate} value={bizPhone} onChange={(e) => setBizPhone(e.target.value)} className={inputClass} />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                         Email de contacto
                       </label>
-                      <input type="email" value={bizEmail} onChange={(e) => setBizEmail(e.target.value)} className={inputClass} />
+                      <input disabled={!canMutate} type="email" value={bizEmail} onChange={(e) => setBizEmail(e.target.value)} className={inputClass} />
                     </div>
                   </div>
 
@@ -381,37 +395,38 @@ export default function SettingsClient() {
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                         URL del logo
                       </label>
-                      <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} className={inputClass} placeholder="https://..." />
+                      <input disabled={!canMutate} value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} className={inputClass} placeholder="https://..." />
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                         Color primario
                       </label>
-                      <input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className={inputClass} placeholder="#9188F5" />
+                      <input disabled={!canMutate} value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} className={inputClass} placeholder="#9188F5" />
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                         Color secundario
                       </label>
-                      <input value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} className={inputClass} placeholder="#000441" />
+                      <input disabled={!canMutate} value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} className={inputClass} placeholder="#000441" />
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                         Tono de voz
                       </label>
-                      <input value={toneOfVoice} onChange={(e) => setToneOfVoice(e.target.value)} className={inputClass} placeholder="cercano, profesional, directo..." />
+                      <input disabled={!canMutate} value={toneOfVoice} onChange={(e) => setToneOfVoice(e.target.value)} className={inputClass} placeholder="cercano, profesional, directo..." />
                     </div>
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                         URL de WhatsApp
                       </label>
-                      <input value={whatsappUrl} onChange={(e) => setWhatsappUrl(e.target.value)} className={inputClass} placeholder="https://wa.me/..." />
+                      <input disabled={!canMutate} value={whatsappUrl} onChange={(e) => setWhatsappUrl(e.target.value)} className={inputClass} placeholder="https://wa.me/..." />
                     </div>
                     <div className="sm:col-span-2">
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-[color:var(--text-soft)]">
                         Bio corta
                       </label>
                       <textarea
+                        disabled={!canMutate}
                         value={shortBio}
                         onChange={(e) => setShortBio(e.target.value)}
                         rows={4}
@@ -426,6 +441,7 @@ export default function SettingsClient() {
                         Firma
                       </label>
                       <input
+                        disabled={!canMutate}
                         value={signatureText}
                         onChange={(e) => setSignatureText(e.target.value)}
                         maxLength={120}
@@ -438,6 +454,7 @@ export default function SettingsClient() {
                         Google Business Profile
                       </label>
                       <input
+                        disabled={!canMutate}
                         value={googleBusinessProfileUrl}
                         onChange={(e) => setGoogleBusinessProfileUrl(e.target.value)}
                         className={inputClass}
@@ -449,6 +466,7 @@ export default function SettingsClient() {
                         URL por defecto para reseñas
                       </label>
                       <input
+                        disabled={!canMutate}
                         value={defaultReviewRedirectUrl}
                         onChange={(e) => setDefaultReviewRedirectUrl(e.target.value)}
                         className={inputClass}

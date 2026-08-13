@@ -145,6 +145,11 @@ describe('MetricsService', () => {
         id: 'feedback-1',
         createdAt: '2026-05-02T09:00:00.000Z',
         customerName: 'Maria Garcia',
+        // `customerPhone` se agregó a la salida real del servicio después de
+        // que este test se escribiera. El mock de `customer` no declara
+        // `phoneE164`, así que el servicio cae en `?? null` — es el valor
+        // real que produce el fixture actual, no un valor inventado.
+        customerPhone: null,
         score: 2,
         comment: 'Demora larga',
         acknowledgedByOwner: false,

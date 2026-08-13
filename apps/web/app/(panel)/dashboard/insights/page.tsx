@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { redirectIfAbsorbed } from "@/components/panel/absorbed-route";
 import { ArrowRight, QrCode, Star, UserRoundCheck } from "lucide-react";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
@@ -386,6 +387,10 @@ function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
 }
 
 export default async function InsightsPage({ searchParams }: InsightsPageProps) {
+  // Insights se repartió: la actividad quedó en Inicio y la reputación en
+  // Reseñas. El endpoint de métricas sigue existiendo intacto.
+  await redirectIfAbsorbed("/dashboard");
+
   const session = await getSession();
   if (!session?.activeBusinessId) redirect("/login");
 

@@ -18,6 +18,7 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
+    "test:smoke": "jest --testPathPatterns=\"(onboarding-smoke.e2e|onboarding.e2e|customer-loyalty.integration|reward-goal-issuer.service|redemption.service|notifications.integration|reviews-overview.integration|home.integration|checkin.rollout)\"",
     "seed": "ts-node -r tsconfig-paths/register prisma/seed.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate:deploy": "prisma migrate deploy",

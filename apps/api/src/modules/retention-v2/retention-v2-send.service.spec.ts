@@ -12,6 +12,9 @@ const NOW = new Date('2026-09-02T15:00:00.000Z'); // Wednesday, 12:00 Montevideo
 
 const DEFAULT_SETTINGS = {
   automaticCampaignsEnabled: true,
+  // Interruptor propio del recordatorio de progreso: el envío revalida cada
+  // automatización contra el suyo, no contra un flag compartido.
+  progressReminderEnabled: true,
   minimumDaysBetweenRetentionMessages: 14,
   maximumRetentionMessagesPer30Days: 2,
   sendingHourStart: 10,

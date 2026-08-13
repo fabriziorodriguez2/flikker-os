@@ -77,6 +77,10 @@ function makeDeps(
   const settings = {
     getOrCreate: jest.fn().mockResolvedValue({
       automaticCampaignsEnabled: true,
+      // Interruptor propio del pase de progreso — ya no cuelga de
+      // `automaticCampaignsEnabled` (los dos toggles del onboarding son
+      // decisiones distintas del dueño).
+      progressReminderEnabled: true,
       minimumDaysBetweenRetentionMessages: 14,
       maximumRetentionMessagesPer30Days: 2,
       dryRunEnabled: options.dryRunEnabled ?? false,
@@ -210,6 +214,7 @@ describe('RetentionV2EvaluateService — business selection', () => {
       .mockRejectedValueOnce(new Error('boom'))
       .mockResolvedValue({
         automaticCampaignsEnabled: true,
+        progressReminderEnabled: true,
         minimumDaysBetweenRetentionMessages: 14,
         maximumRetentionMessagesPer30Days: 2,
       });
@@ -511,6 +516,53 @@ describe('RetentionV2EvaluateService — REWARD_GOAL_PROGRESS recruitment (pre-p
       expect.objectContaining({ experimentId: 'exp-progress' }),
     );
     expect(result.assigned).toBe(0);
+  });
+
+  /**
+   * Los dos toggles del onboarding tienen que ser dos de verdad. Antes ambos
+   * pasaban por `automaticCampaignsEnabled`, así que el dueño que solo quería
+   * recordatorios de progreso terminaba, sin saberlo, saliendo a recuperar
+   * clientes inactivos — y apagar eso apagaba también lo que sí quería.
+   */
+  it('no recluta progreso si el dueño apagó ESE recordatorio, aunque la reactivación siga prendida', async () => {
+    const deps = makeDeps({
+      experiments: [PROGRESS_EXPERIMENT],
+      customers: [customer('c1', [])],
+    });
+    deps.settings.getOrCreate.mockResolvedValue({
+      automaticCampaignsEnabled: true,
+      progressReminderEnabled: false,
+      minimumDaysBetweenRetentionMessages: 14,
+      maximumRetentionMessagesPer30Days: 2,
+    });
+    const service = makeService(deps);
+
+    const result = await service.runDaily(NOW);
+
+    expect(deps.assignments.assign).not.toHaveBeenCalledWith(
+      expect.objectContaining({ experimentId: 'exp-progress' }),
+    );
+    expect(result.assigned).toBe(0);
+  });
+
+  it('sí recluta progreso con la reactivación apagada — el otro toggle no lo bloquea', async () => {
+    const deps = makeDeps({
+      experiments: [PROGRESS_EXPERIMENT],
+      customers: [customer('c1', [])],
+    });
+    deps.settings.getOrCreate.mockResolvedValue({
+      automaticCampaignsEnabled: false,
+      progressReminderEnabled: true,
+      minimumDaysBetweenRetentionMessages: 14,
+      maximumRetentionMessagesPer30Days: 2,
+    });
+    const service = makeService(deps);
+
+    await service.runDaily(NOW);
+
+    expect(deps.assignments.assign).toHaveBeenCalledWith(
+      expect.objectContaining({ experimentId: 'exp-progress' }),
+    );
   });
 
   it('still respects cooldown and monthly-limit — reuses evaluateEligibility, not a second frequency engine', async () => {

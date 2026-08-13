@@ -141,13 +141,23 @@ async function handler(
     await clearSession();
   }
 
-  const data = await res.text();
+  // `arrayBuffer` y no `text`: por acá también pasan respuestas binarias
+  // (el PNG de `/visit-sources/{id}/qr`, por ejemplo). `res.text()` las
+  // decodifica como UTF-8 y corrompe los bytes — el archivo descargado deja
+  // de ser un PNG válido. Para JSON el resultado es idéntico, así que esto no
+  // cambia nada del resto del panel.
+  const data = await res.arrayBuffer();
+
+  const responseHeaders: Record<string, string> = {
+    "Content-Type": res.headers.get("Content-Type") ?? "application/json",
+  };
+  // Se reenvía para que la descarga conserve el nombre que puso la API.
+  const disposition = res.headers.get("Content-Disposition");
+  if (disposition) responseHeaders["Content-Disposition"] = disposition;
 
   return new Response(data, {
     status: res.status,
-    headers: {
-      "Content-Type": res.headers.get("Content-Type") ?? "application/json",
-    },
+    headers: responseHeaders,
   });
 }
 

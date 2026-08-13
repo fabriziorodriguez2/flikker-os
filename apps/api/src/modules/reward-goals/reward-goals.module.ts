@@ -7,6 +7,8 @@ import { RewardGoalUnlockService } from './reward-goal-unlock.service';
 import { RewardGoalOrchestratorService } from './reward-goal-orchestrator.service';
 import { RewardGoalSweepService } from './reward-goal-sweep.service';
 import { RewardGoalFeedbackService } from './reward-goal-feedback.service';
+import { LoyaltyProgramService } from './loyalty-program.service';
+import { LoyaltyProgramController } from './loyalty-program.controller';
 
 /**
  * Reward Goals (Fase E). Imports `RetentionV2Module` for its shared
@@ -15,7 +17,9 @@ import { RewardGoalFeedbackService } from './reward-goal-feedback.service';
  */
 @Module({
   imports: [PrismaModule, RetentionV2Module],
+  controllers: [LoyaltyProgramController],
   providers: [
+    LoyaltyProgramService,
     RewardGoalEngineService,
     RewardGoalIssuerService,
     RewardGoalUnlockService,
@@ -30,6 +34,7 @@ import { RewardGoalFeedbackService } from './reward-goal-feedback.service';
     RewardGoalOrchestratorService,
     RewardGoalSweepService,
     RewardGoalFeedbackService,
+    LoyaltyProgramService,
   ],
 })
 export class RewardGoalsModule {}

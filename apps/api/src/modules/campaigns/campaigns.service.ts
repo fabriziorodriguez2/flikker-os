@@ -279,8 +279,9 @@ export class CampaignsService {
       { messageBody: dto.messageBody, recipients: dto.recipients },
     );
 
-    const contacts =
-      await this.campaignsRepository.findManualCampaignContacts(campaign.id);
+    const contacts = await this.campaignsRepository.findManualCampaignContacts(
+      campaign.id,
+    );
 
     let sent = 0;
     let failed = 0;

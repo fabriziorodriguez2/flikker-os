@@ -115,6 +115,23 @@ export class BenefitsRepository {
     });
   }
 
+  /** El beneficio elegido como regalo de bienvenida, si hay alguno. */
+  findWelcomeBenefit(businessId: string) {
+    return this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { welcomeBenefit: true },
+    });
+  }
+
+  /** Fija (o limpia, con null) el regalo de bienvenida del negocio. */
+  setWelcomeBenefit(businessId: string, benefitId: string | null) {
+    return this.prisma.business.update({
+      where: { id: businessId },
+      data: { welcomeBenefitId: benefitId },
+      select: { welcomeBenefitId: true },
+    });
+  }
+
   findOne(businessId: string, id: string) {
     return this.prisma.benefit.findFirst({
       where: { id, businessId },

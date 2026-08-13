@@ -125,6 +125,10 @@ export class PlatformRepository {
           phone: input.phone,
           messageQuotaMonthly: 600,
           messageCountCurrentMonth: 0,
+          // El alta la hace Platform Admin, no el dueño: este negocio no pasa
+          // por /comenzar. Se marca completo para que el guard del panel no
+          // mande a su OWNER al onboarding self-service.
+          onboardingCompletedAt: new Date(),
           // Falls back to the schema default (LEGACY) when not supplied.
           ...(input.experienceVersion
             ? { experienceVersion: input.experienceVersion }

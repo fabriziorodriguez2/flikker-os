@@ -2,9 +2,15 @@ import { ForbiddenException } from '@nestjs/common';
 import type { ExecutionContext } from '@nestjs/common';
 import { MembershipRole } from '@prisma/client';
 import { TenantGuard } from './tenant.guard';
+import type { AuthenticatedRequest } from '../types/request.types';
 
 function createContext(headers: Record<string, string>, user: unknown) {
-  const request = { headers, user };
+  // Tipado como `AuthenticatedRequest`: el guard escribe
+  // `currentBusinessId`/`currentMembershipRole` sobre este objeto en tiempo
+  // de ejecución (y siempre funcionó), pero el literal `{ headers, user }`
+  // no declaraba esos campos opcionales — los asserts de abajo no
+  // tipaban, aunque el test corría bien.
+  const request = { headers, user } as unknown as AuthenticatedRequest;
 
   return {
     request,

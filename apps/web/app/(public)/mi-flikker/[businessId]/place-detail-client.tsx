@@ -11,6 +11,10 @@ interface MyFlikkerPlace {
   businessId: string;
   businessName: string;
   logoUrl: string | null;
+  /** Apariencia de la tarjeta. Null = usar la marca del negocio. */
+  loyaltyCardColor?: string | null;
+  loyaltyStampColor?: string | null;
+  loyaltyStampIcon?: string | null;
   primaryColor: string | null;
   visitsTotal: number;
   lastVisitAt: string | null;
@@ -155,10 +159,15 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
 
         {place.rewardGoal ? (
           <div className="relative mt-5 rounded-[22px] bg-black/16 p-4 backdrop-blur-sm">
+            {/* Los sellos van sobre el hero (degradado de marca + velo
+                oscuro), así que el fondo real contra el que se calcula el
+                contraste es ese, no el blanco de la página. */}
             <RewardGoalStamps
               progress={place.rewardGoal.progressVisits}
               target={place.rewardGoal.targetAdditionalVisits}
-              brand={brand}
+              cardColor={place.loyaltyCardColor ?? brand}
+              stampColor={place.loyaltyStampColor}
+              icon={place.loyaltyStampIcon}
             />
             <div className="mt-3 flex items-center justify-between gap-3 text-xs font-semibold text-white/75">
               <span>

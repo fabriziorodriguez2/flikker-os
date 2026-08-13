@@ -36,6 +36,9 @@ export class BusinessesRepository {
         qrA4Title: true,
         qrA4Subtitle: true,
         qrA4BgColor: true,
+        loyaltyCardColor: true,
+        loyaltyStampColor: true,
+        loyaltyStampIcon: true,
         googleBusinessProfileUrl: true,
         defaultReviewRedirectUrl: true,
       },
@@ -106,7 +109,15 @@ export class BusinessesRepository {
       if (existing) return null;
 
       const created = await tx.business.create({
-        data: { ...data, status: BusinessStatus.DRAFT },
+        // `onboardingCompletedAt` se marca acá aunque no haya habido wizard:
+        // este negocio lo configura un operador, no su dueño, y el guard de
+        // `/dashboard` usa NULL para decir "falta terminar /comenzar".
+        // Dejarlo nulo mandaría al OWNER al onboarding self-service.
+        data: {
+          ...data,
+          status: BusinessStatus.DRAFT,
+          onboardingCompletedAt: new Date(),
+        },
       });
 
       await tx.membership.create({

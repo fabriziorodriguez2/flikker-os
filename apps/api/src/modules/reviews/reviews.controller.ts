@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { MembershipRole } from '@prisma/client';
 import { ReviewsService } from './reviews.service';
+import { ReviewsOverviewService } from './reviews-overview.service';
 import { CreateReviewDto } from './dto/create-review.dto';
 import { UpdateReviewDto } from './dto/update-review.dto';
 import { UpdateReviewStatusDto } from './dto/update-review-status.dto';
@@ -24,7 +25,26 @@ import type { AuthenticatedRequest } from '../../common/types/request.types';
 @Controller('reviews')
 @UseGuards(JwtGuard, TenantGuard)
 export class ReviewsController {
-  constructor(private readonly reviewsService: ReviewsService) {}
+  constructor(
+    private readonly reviewsService: ReviewsService,
+    private readonly overview: ReviewsOverviewService,
+  ) {}
+
+  /**
+   * Todo lo que necesita la pantalla de Resenas, en una sola llamada.
+   * Solo lectura: cualquier miembro activo del negocio puede mirarlas.
+   *
+   * Se declara ANTES que :id para que la palabra no se capture como un id.
+   */
+  @Get('overview')
+  overviewForBusiness(
+    @Req() req: AuthenticatedRequest,
+    @Query('days') days?: string,
+  ) {
+    const parsed = Number(days);
+    const period = [7, 30, 90].includes(parsed) ? parsed : 30;
+    return this.overview.forBusiness(req.currentBusinessId!, period);
+  }
 
   /**
    * Lists reviews for the current business with filtering, sorting and pagination.

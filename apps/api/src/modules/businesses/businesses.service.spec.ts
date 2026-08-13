@@ -12,6 +12,9 @@ import {
   MembershipStatus,
 } from '@prisma/client';
 import { AuditService } from '../../common/services/audit.service';
+import { GoogleReviewsProvider } from '../../jobs/google-reviews.provider';
+import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.queue';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 
 const OWNER_ID = 'user-owner';
 const OTHER_USER_ID = 'user-other';
@@ -77,6 +80,21 @@ const mockAuditService = {
   log: jest.fn(),
 };
 
+// Estas tres dependencias se agregaron al constructor de BusinessesService
+// (verificación de reseñas de Google al configurar el negocio, encolar la
+// primera detección, y mandar el WhatsApp de bienvenida) después de que este
+// archivo se escribiera — el módulo de test nunca las siguió, así que las
+// 30 pruebas de este archivo fallaban por DI antes de correr un solo assert.
+const mockGoogleReviewsProvider = {
+  fetchReviews: jest.fn(),
+};
+const mockGoogleReviewDetectionQueue = {
+  enqueueInitialScrape: jest.fn().mockResolvedValue(undefined),
+};
+const mockWhatsAppBspService = {
+  sendText: jest.fn().mockResolvedValue(undefined),
+};
+
 describe('BusinessesService', () => {
   let service: BusinessesService;
 
@@ -87,6 +105,12 @@ describe('BusinessesService', () => {
         BusinessesService,
         { provide: BusinessesRepository, useValue: mockRepository },
         { provide: AuditService, useValue: mockAuditService },
+        { provide: GoogleReviewsProvider, useValue: mockGoogleReviewsProvider },
+        {
+          provide: GoogleReviewDetectionQueue,
+          useValue: mockGoogleReviewDetectionQueue,
+        },
+        { provide: WhatsAppBspService, useValue: mockWhatsAppBspService },
       ],
     }).compile();
 
