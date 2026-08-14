@@ -2,6 +2,9 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { BenefitType } from '@prisma/client';
 import { BenefitsService } from './benefits.service';
 import type { BenefitsRepository } from './benefits.repository';
+import type { ProgramAuditService } from '../program-audit/program-audit.service';
+import type { RetentionSettingsService } from '../retention-v2/retention-settings.service';
+import type { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
 
 // Plain object of jest mocks (not typed as the class) so eslint's unbound-method
 // rule doesn't flag the assertions below. Cast to the repo type only at the seam.
@@ -19,11 +22,43 @@ function makeRepo() {
     findLatestDraw: jest.fn(),
     findRetentionBridge: jest.fn(),
     setRetentionBridge: jest.fn(),
+    countLiveGoalsForDefinition: jest.fn().mockResolvedValue(0),
   };
 }
 
-function makeService(repo: ReturnType<typeof makeRepo>) {
-  return new BenefitsService(repo as unknown as BenefitsRepository);
+function makeProgramAudit() {
+  return { record: jest.fn().mockResolvedValue({}) };
+}
+
+// Defaults to "budget is ready" so every existing test here — about the
+// bridge write itself, not about budgeting — keeps passing unmodified. The
+// guard's own behaviour is covered by its dedicated describe block below.
+function makeRetentionSettings() {
+  return {
+    assertBudgetReadyToAuthorize: jest.fn().mockResolvedValue(undefined),
+  };
+}
+
+function makeRetentionBootstrap() {
+  return { ensureDefaultRetentionSetup: jest.fn().mockResolvedValue([]) };
+}
+
+function makeService(
+  repo: ReturnType<typeof makeRepo>,
+  programAudit: ReturnType<typeof makeProgramAudit> = makeProgramAudit(),
+  retentionSettings: ReturnType<
+    typeof makeRetentionSettings
+  > = makeRetentionSettings(),
+  retentionBootstrap: ReturnType<
+    typeof makeRetentionBootstrap
+  > = makeRetentionBootstrap(),
+) {
+  return new BenefitsService(
+    repo as unknown as BenefitsRepository,
+    programAudit as unknown as ProgramAuditService,
+    retentionSettings as unknown as RetentionSettingsService,
+    retentionBootstrap as unknown as RetentionV2BootstrapService,
+  );
 }
 
 describe('BenefitsService', () => {
@@ -180,6 +215,137 @@ describe('BenefitsService', () => {
     });
     // The raw relation never leaks to the frontend.
     expect(result[0]).not.toHaveProperty('retentionIncentiveDefinition');
+  });
+});
+
+describe('BenefitsService.setRetentionBridge — presupuesto (fase de budget)', () => {
+  function makeAuthorizeAttempt(
+    overrides: { wasAutomationEligible?: boolean } = {},
+  ) {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue({
+      id: 'b1',
+      type: BenefitType.gift,
+      title: 'Café gratis',
+      retentionIncentiveDefinition: overrides.wasAutomationEligible
+        ? { automationEligible: true, rewardGoalEligible: false }
+        : null,
+    });
+    repo.setRetentionBridge.mockResolvedValue({
+      automationEligible: true,
+      rewardGoalEligible: false,
+      percentageValue: null,
+      fixedValue: null,
+      estimatedCost: null,
+    });
+    return repo;
+  }
+
+  it('rechaza autorizar (false→true) sin presupuesto configurado, sin escribir nada', async () => {
+    const repo = makeAuthorizeAttempt();
+    const retentionSettings = {
+      assertBudgetReadyToAuthorize: jest
+        .fn()
+        .mockRejectedValue(new Error('Configurá un límite mensual')),
+    };
+    const service = makeService(repo, makeProgramAudit(), retentionSettings);
+
+    await expect(
+      service.setRetentionBridge('biz-1', 'b1', { recoveryEnabled: true }),
+    ).rejects.toThrow('Configurá un límite mensual');
+    expect(repo.setRetentionBridge).not.toHaveBeenCalled();
+  });
+
+  it('permite autorizar cuando el presupuesto ya está configurado', async () => {
+    const repo = makeAuthorizeAttempt();
+    const service = makeService(repo); // default: guard resuelve OK
+
+    await expect(
+      service.setRetentionBridge('biz-1', 'b1', { recoveryEnabled: true }),
+    ).resolves.toBeDefined();
+    expect(repo.setRetentionBridge).toHaveBeenCalled();
+  });
+
+  it('no vuelve a chequear presupuesto si ya estaba autorizado (no es una transición)', async () => {
+    const repo = makeAuthorizeAttempt({ wasAutomationEligible: true });
+    const retentionSettings = {
+      assertBudgetReadyToAuthorize: jest.fn(),
+    };
+    const service = makeService(repo, makeProgramAudit(), retentionSettings);
+
+    await service.setRetentionBridge('biz-1', 'b1', { recoveryEnabled: true });
+
+    expect(
+      retentionSettings.assertBudgetReadyToAuthorize,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('desautorizar (true→false) nunca necesita presupuesto', async () => {
+    const repo = makeAuthorizeAttempt({ wasAutomationEligible: true });
+    repo.setRetentionBridge.mockResolvedValue({
+      automationEligible: false,
+      rewardGoalEligible: false,
+      percentageValue: null,
+      fixedValue: null,
+      estimatedCost: null,
+    });
+    const retentionSettings = {
+      assertBudgetReadyToAuthorize: jest.fn(),
+    };
+    const service = makeService(repo, makeProgramAudit(), retentionSettings);
+
+    await service.setRetentionBridge('biz-1', 'b1', { recoveryEnabled: false });
+
+    expect(
+      retentionSettings.assertBudgetReadyToAuthorize,
+    ).not.toHaveBeenCalled();
+  });
+
+  it('§12 — dispara el mismo bootstrap que Notificaciones cuando la autorización realmente cambia', async () => {
+    const repo = makeAuthorizeAttempt();
+    const retentionBootstrap = {
+      ensureDefaultRetentionSetup: jest.fn().mockResolvedValue([]),
+    };
+    const service = makeService(
+      repo,
+      makeProgramAudit(),
+      makeRetentionSettings(),
+      retentionBootstrap,
+    );
+
+    await service.setRetentionBridge('biz-1', 'b1', { recoveryEnabled: true });
+
+    expect(retentionBootstrap.ensureDefaultRetentionSetup).toHaveBeenCalledWith(
+      'biz-1',
+    );
+  });
+
+  it('no dispara bootstrap si recoveryEnabled no viene en el patch (solo rewardGoalEnabled, por ejemplo)', async () => {
+    const repo = makeAuthorizeAttempt({ wasAutomationEligible: true });
+    repo.setRetentionBridge.mockResolvedValue({
+      automationEligible: true,
+      rewardGoalEligible: true,
+      percentageValue: null,
+      fixedValue: null,
+      estimatedCost: null,
+    });
+    const retentionBootstrap = {
+      ensureDefaultRetentionSetup: jest.fn().mockResolvedValue([]),
+    };
+    const service = makeService(
+      repo,
+      makeProgramAudit(),
+      makeRetentionSettings(),
+      retentionBootstrap,
+    );
+
+    await service.setRetentionBridge('biz-1', 'b1', {
+      rewardGoalEnabled: true,
+    });
+
+    expect(
+      retentionBootstrap.ensureDefaultRetentionSetup,
+    ).not.toHaveBeenCalled();
   });
 });
 
@@ -420,5 +586,193 @@ describe('BenefitsService.setRetentionBridge — puente Benefit ↔ RetentionInc
       service.setRetentionBridge('biz-1', 'foreign', { recoveryEnabled: true }),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(repo.setRetentionBridge).not.toHaveBeenCalled();
+  });
+
+  it('Historial: autorizar reactivación (false→true) queda auditado', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue({
+      id: 'b1',
+      type: BenefitType.gift,
+      title: 'Capuccino gratis',
+      retentionIncentiveDefinition: null,
+    });
+    repo.setRetentionBridge.mockResolvedValue({
+      automationEligible: true,
+      rewardGoalEligible: false,
+      percentageValue: null,
+      fixedValue: null,
+      estimatedCost: null,
+    });
+    const audit = makeProgramAudit();
+    const service = makeService(repo, audit);
+
+    await service.setRetentionBridge(
+      'biz-1',
+      'b1',
+      { recoveryEnabled: true },
+      'user-1',
+    );
+
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: 'biz-1',
+        actorUserId: 'user-1',
+        type: 'benefit_reactivation_authorized',
+      }),
+    );
+  });
+
+  it('Historial: reafirmar el mismo valor NO genera un evento nuevo', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue({
+      id: 'b1',
+      type: BenefitType.gift,
+      title: 'Capuccino gratis',
+      retentionIncentiveDefinition: {
+        id: 'def-1',
+        automationEligible: true,
+        rewardGoalEligible: false,
+        percentageValue: null,
+        fixedValue: null,
+        estimatedCost: null,
+      },
+    });
+    repo.setRetentionBridge.mockResolvedValue({
+      automationEligible: true,
+      rewardGoalEligible: false,
+      percentageValue: null,
+      fixedValue: null,
+      estimatedCost: null,
+    });
+    const audit = makeProgramAudit();
+    const service = makeService(repo, audit);
+
+    await service.setRetentionBridge('biz-1', 'b1', { recoveryEnabled: true });
+
+    expect(audit.record).not.toHaveBeenCalled();
+  });
+});
+
+describe('BenefitsService — "no cambiar una promesa que ya tiene un cliente"', () => {
+  const BRIDGED = {
+    id: 'b1',
+    type: BenefitType.gift,
+    title: 'Café gratis',
+    retentionIncentiveDefinition: {
+      id: 'def-1',
+      automationEligible: false,
+      rewardGoalEligible: true,
+      percentageValue: null,
+      fixedValue: null,
+      estimatedCost: null,
+    },
+  };
+
+  it('rewardGoalEligible + 0 goals vivos → edición permitida', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue(BRIDGED);
+    repo.countLiveGoalsForDefinition.mockResolvedValue(0);
+    repo.update.mockResolvedValue({ id: 'b1', title: '2x1' });
+    const service = makeService(repo);
+
+    await service.update('biz-1', 'b1', { title: '2x1' });
+
+    expect(repo.countLiveGoalsForDefinition).toHaveBeenCalledWith(
+      'biz-1',
+      'def-1',
+    );
+    expect(repo.update).toHaveBeenCalled();
+  });
+
+  it('ACTIVE → bloqueada', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue(BRIDGED);
+    repo.countLiveGoalsForDefinition.mockResolvedValue(1); // simula 1 ACTIVE
+    const service = makeService(repo);
+
+    await expect(
+      service.update('biz-1', 'b1', { title: '2x1' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('UNLOCKED → bloqueada', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue(BRIDGED);
+    repo.countLiveGoalsForDefinition.mockResolvedValue(1); // simula 1 UNLOCKED
+    const service = makeService(repo);
+
+    await expect(
+      service.update('biz-1', 'b1', { type: BenefitType.discount }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.update).not.toHaveBeenCalled();
+  });
+
+  it('solo REDEEMED/EXPIRED/CANCELLED (0 vivos) → NO bloquea el catálogo actual', async () => {
+    // El repo real filtra por status ACTIVE/UNLOCKED — un negocio con solo
+    // goals cerrados ve `countLiveGoalsForDefinition` en 0, igual que uno sin
+    // ningún goal. Este test fija esa expectativa del lado del service.
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue(BRIDGED);
+    repo.countLiveGoalsForDefinition.mockResolvedValue(0);
+    repo.update.mockResolvedValue({ id: 'b1', title: '2x1' });
+    const service = makeService(repo);
+
+    await service.update('biz-1', 'b1', { title: '2x1' });
+
+    expect(repo.update).toHaveBeenCalled();
+  });
+
+  it('sin ningún bridge (nunca fue recompensa de nada) → permite sin ni siquiera contar goals', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue({
+      id: 'b1',
+      type: BenefitType.gift,
+      title: 'Café gratis',
+      retentionIncentiveDefinition: null,
+    });
+    repo.update.mockResolvedValue({ id: 'b1', title: '2x1' });
+    const service = makeService(repo);
+
+    await service.update('biz-1', 'b1', { title: '2x1' });
+
+    expect(repo.countLiveGoalsForDefinition).not.toHaveBeenCalled();
+    expect(repo.update).toHaveBeenCalled();
+  });
+
+  it('permite editar campos que NO son título/tipo aunque haya goals vivos', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue(BRIDGED);
+    repo.update.mockResolvedValue({ id: 'b1', title: 'Café gratis' });
+    const service = makeService(repo);
+
+    await service.update('biz-1', 'b1', { description: 'Nuevo texto' });
+
+    expect(repo.findRetentionBridge).not.toHaveBeenCalled();
+    expect(repo.countLiveGoalsForDefinition).not.toHaveBeenCalled();
+    expect(repo.update).toHaveBeenCalled();
+  });
+
+  it('registra la auditoría al editar cuando la edición sí procede', async () => {
+    const repo = makeRepo();
+    repo.findRetentionBridge.mockResolvedValue({
+      id: 'b1',
+      type: BenefitType.gift,
+      title: 'Café gratis',
+      retentionIncentiveDefinition: null,
+    });
+    repo.update.mockResolvedValue({ id: 'b1', title: 'Nuevo nombre' });
+    const audit = makeProgramAudit();
+    const service = makeService(repo, audit);
+
+    await service.update('biz-1', 'b1', { title: 'Nuevo nombre' }, 'user-1');
+
+    expect(repo.update).toHaveBeenCalled();
+    expect(audit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'benefit_edited',
+        actorUserId: 'user-1',
+      }),
+    );
   });
 });

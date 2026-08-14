@@ -50,7 +50,7 @@ export class BenefitsController {
   @UseGuards(RolesGuard)
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
   create(@Req() req: AuthenticatedRequest, @Body() dto: CreateBenefitDto) {
-    return this.service.create(req.currentBusinessId!, dto);
+    return this.service.create(req.currentBusinessId!, dto, req.user.id);
   }
 
   @Patch(':id')
@@ -61,7 +61,7 @@ export class BenefitsController {
     @Param('id') id: string,
     @Body() dto: UpdateBenefitDto,
   ) {
-    return this.service.update(req.currentBusinessId!, id, dto);
+    return this.service.update(req.currentBusinessId!, id, dto, req.user.id);
   }
 
   @Post(':id/activate')
@@ -107,7 +107,12 @@ export class BenefitsController {
     @Param('id') id: string,
     @Body() dto: UpdateBenefitRetentionBridgeDto,
   ) {
-    return this.service.setRetentionBridge(req.currentBusinessId!, id, dto);
+    return this.service.setRetentionBridge(
+      req.currentBusinessId!,
+      id,
+      dto,
+      req.user.id,
+    );
   }
 
   @Delete(':id')

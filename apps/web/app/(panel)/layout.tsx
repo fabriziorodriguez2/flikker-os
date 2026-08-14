@@ -174,6 +174,7 @@ export default async function PanelLayout({
         businessLogoUrl={businessLogoUrl}
         isImpersonating={!!session.impersonation}
         isCheckinV2={isCheckinV2}
+        role={currentRole}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -183,7 +184,11 @@ export default async function PanelLayout({
         <div className="relative z-20 flex items-center gap-2 px-3 pt-3 lg:hidden">
           <MobileMenuButton />
           <div className="min-w-0 flex-1">
-            <MobileNav isImpersonating={!!session.impersonation} isCheckinV2={isCheckinV2} />
+            <MobileNav
+              isImpersonating={!!session.impersonation}
+              isCheckinV2={isCheckinV2}
+              role={currentRole}
+            />
           </div>
         </div>
 

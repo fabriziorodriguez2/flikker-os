@@ -37,11 +37,15 @@ import {
 
 export type TimelineKind =
   | 'registro'
+  | 'escaneo'
   | 'visita'
   | 'feedback'
   | 'desbloqueo'
   | 'canje'
-  | 'mensaje';
+  | 'beneficio_ofrecido'
+  | 'beneficio_canjeado'
+  | 'mensaje'
+  | 'reactivacion';
 
 /** Qué sumó el evento a la tarjeta. `null` = no sumó nada. */
 export type StampKind = 'visita' | 'bonus' | null;
@@ -50,10 +54,14 @@ export type StampKind = 'visita' | 'bonus' | null;
 const CAUSAL_ORDER: Record<TimelineKind, number> = {
   registro: 0,
   mensaje: 1,
-  visita: 2,
-  feedback: 3,
-  desbloqueo: 4,
-  canje: 5,
+  escaneo: 2,
+  visita: 3,
+  feedback: 4,
+  beneficio_ofrecido: 5,
+  desbloqueo: 6,
+  canje: 7,
+  beneficio_canjeado: 8,
+  reactivacion: 9,
 };
 
 export interface TimelineEvent {
@@ -62,6 +70,9 @@ export interface TimelineEvent {
   stamp: StampKind;
   /** Nombre de la recompensa, en desbloqueo/canje. */
   rewardName?: string;
+  /** Título del beneficio (el que se prometió, no el actual del catálogo),
+   *  en beneficio_ofrecido/beneficio_canjeado. */
+  benefitName?: string;
   /** Puntaje y comentario, en feedback. */
   score?: number;
   comment?: string | null;
@@ -81,12 +92,24 @@ export class CustomerOverviewService {
     const customer = await this.repository.findCustomer(businessId, customerId);
     if (!customer) throw new NotFoundException('Cliente no encontrado');
 
-    const [visits, goals, feedback, messages, lastSends] = await Promise.all([
+    const [
+      visits,
+      goals,
+      feedback,
+      messages,
+      lastSends,
+      scans,
+      directBenefits,
+      reactivationReturns,
+    ] = await Promise.all([
       this.repository.findCustomerVisits(businessId, customerId),
       this.repository.findCustomerGoals(businessId, customerId),
       this.repository.findCustomerFeedback(businessId, customerId),
       this.repository.findCustomerMessages(businessId, customerId),
       this.repository.findLastInterventionAt(businessId),
+      this.repository.findCustomerScans(businessId, customerId),
+      this.repository.findCustomerDirectBenefits(businessId, customerId),
+      this.repository.findCustomerReactivationReturns(businessId, customerId),
     ]);
 
     const visitDates = visits.map((v) => v.occurredAt);
@@ -162,6 +185,16 @@ export class CustomerOverviewService {
         rewardsRedeemed: goals.filter(
           (g) => g.status === RewardGoalStatus.REDEEMED,
         ).length,
+        // Beneficios recibidos POR FUERA de la tarjeta — bienvenida,
+        // reactivación, canje directo. Mismo criterio que `benefits` abajo.
+        benefitsReceived: directBenefits.length,
+        // Canjes totales del cliente: tarjeta + beneficios directos. No es
+        // "recompensas canjeadas" a secas — eso deja afuera un beneficio de
+        // Retention o de una promoción, y el dueño lee ese número como si el
+        // cliente no hubiera canjeado nada.
+        redemptionsCount:
+          goals.filter((g) => g.status === RewardGoalStatus.REDEEMED).length +
+          directBenefits.filter((b) => b.redeemedAt !== null).length,
         recurrence: recurrenceKeyFor({ segment, frequency }),
         // `null` si el cliente no tiene historial suficiente. Preferimos no
         // decir nada antes que inventar una frecuencia con una sola visita.
@@ -186,6 +219,19 @@ export class CustomerOverviewService {
 
       history,
 
+      /**
+       * Beneficios recibidos POR FUERA de la tarjeta — bienvenida,
+       * reactivación, canje directo del catálogo. Separado de `currentCard`/
+       * `history` a propósito (ver comentario de `findCustomerDirectBenefits`):
+       * una persona puede tener beneficios sin tarjeta.
+       */
+      benefits: directBenefits.map((p) => ({
+        id: p.id,
+        title: p.benefitTitleSnapshot ?? p.benefit.title,
+        offeredAt: p.createdAt,
+        redeemedAt: p.redeemedAt,
+      })),
+
       feedback: feedback.map((f) => ({
         id: f.id,
         score: f.score,
@@ -209,6 +255,9 @@ export class CustomerOverviewService {
         goals,
         feedback,
         messages,
+        scans,
+        directBenefits,
+        reactivationReturns,
       }),
     };
   }
@@ -242,6 +291,14 @@ export class CustomerOverviewService {
         experiment: { objective: RetentionObjective };
       } | null;
     }[];
+    scans: { createdAt: Date }[];
+    directBenefits: {
+      createdAt: Date;
+      redeemedAt: Date | null;
+      benefitTitleSnapshot: string | null;
+      benefit: { title: string };
+    }[];
+    reactivationReturns: { returnedAt: Date | null }[];
   }): TimelineEvent[] {
     const events: TimelineEvent[] = [];
 
@@ -309,6 +366,43 @@ export class CustomerOverviewService {
         stamp: null,
         messageKind: messageKindOf(m.retentionAssignment?.experiment.objective),
       });
+    }
+
+    // Escaneó de nuevo (identificado), sin importar si sumó visita — eso ya
+    // se ve por separado como 'visita' si corresponde.
+    for (const scan of input.scans) {
+      events.push({ at: scan.createdAt, kind: 'escaneo', stamp: null });
+    }
+
+    // Beneficios recibidos por FUERA de la tarjeta — bienvenida,
+    // reactivación, canje directo. El título es el que se le prometió a este
+    // cliente, no el título actual del catálogo.
+    for (const p of input.directBenefits) {
+      const title = p.benefitTitleSnapshot ?? p.benefit.title;
+      events.push({
+        at: p.createdAt,
+        kind: 'beneficio_ofrecido',
+        stamp: null,
+        benefitName: title,
+      });
+      if (p.redeemedAt) {
+        events.push({
+          at: p.redeemedAt,
+          kind: 'beneficio_canjeado',
+          stamp: null,
+          benefitName: title,
+        });
+      }
+    }
+
+    for (const outcome of input.reactivationReturns) {
+      if (outcome.returnedAt) {
+        events.push({
+          at: outcome.returnedAt,
+          kind: 'reactivacion',
+          stamp: null,
+        });
+      }
     }
 
     // Más reciente arriba. El desempate importa de verdad: una visita y su

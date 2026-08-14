@@ -2,37 +2,35 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { resolveNavSections } from "./sidebar";
 
-const MAIN_NAV_ITEMS: Array<{
-  href: string;
-  label: string;
-  onboardingKey?: string;
-  impersonatorOnly?: boolean;
-  checkinV2Only?: boolean;
-  legacyOnly?: boolean;
-}> = [
-  { href: "/dashboard", label: "Panel", onboardingKey: "panel" },
-  { href: "/dashboard/insights", label: "Insights" },
-  { href: "/dashboard/customers", label: "Clientes", onboardingKey: "clientes" },
-  { href: "/dashboard/campaigns", label: "Campañas", onboardingKey: "campaigns" },
-  { href: "/dashboard/reviews", label: "Reseñas" },
-  { href: "/dashboard/benefits", label: "Beneficios" },
-  // Pre-piloto #3 — un solo ítem "Retención" por negocio, ver sidebar.tsx.
-  { href: "/dashboard/retention", label: "Retención", legacyOnly: true },
-  { href: "/dashboard/retention-v2", label: "Retención", checkinV2Only: true },
-  { href: "/dashboard/checkins", label: "Check-ins", checkinV2Only: true },
-  { href: "/dashboard/widgets", label: "Widget", impersonatorOnly: true },
-  { href: "/dashboard/qr", label: "QR", onboardingKey: "qr", impersonatorOnly: true },
-];
-
-export default function MobileNav({ isImpersonating, isCheckinV2 }: { isImpersonating: boolean; isCheckinV2: boolean }) {
+/**
+ * Antes tenía su propia lista de ítems (`MAIN_NAV_ITEMS`), escrita a mano y
+ * nunca actualizada cuando se rediseñó la navegación de Check-in V2: seguía
+ * mostrando rutas absorbidas (Insights, Beneficios, Campañas...) sin filtrar
+ * por rol, y directamente NO tenía entrada para `/dashboard/programa` — un
+ * dueño en mobile no tenía forma de llegar ahí ni por accidente.
+ *
+ * Ahora se deriva de `resolveNavSections`, la MISMA fuente que usa el
+ * sidebar de escritorio: una sola lista de navegación, no dos que pueden
+ * desincronizarse.
+ */
+export default function MobileNav({
+  isImpersonating,
+  isCheckinV2,
+  role,
+}: {
+  isImpersonating: boolean;
+  isCheckinV2: boolean;
+  role?: string | null;
+}) {
   const pathname = usePathname();
-  const items = MAIN_NAV_ITEMS.filter(
-    (item) =>
-      (!item.impersonatorOnly || isImpersonating) &&
-      (!item.checkinV2Only || isCheckinV2) &&
-      (!item.legacyOnly || !isCheckinV2),
-  );
+  const sections = resolveNavSections({
+    isCheckinV2,
+    isImpersonating,
+    role: role ?? null,
+  });
+  const items = sections.flatMap((section) => section.items);
 
   return (
     <nav className="relative z-20 overflow-hidden rounded-[18px] border border-white/75 bg-white/58 px-2.5 py-2 shadow-[0_10px_28px_rgba(56,45,125,0.10),inset_0_1px_0_rgba(255,255,255,0.86)] backdrop-blur-[24px] backdrop-saturate-[175%] lg:hidden">

@@ -9,6 +9,9 @@ import {
   type BenefitData,
   type RetentionBridgeSnapshot,
 } from './benefits.repository';
+import { ProgramAuditService } from '../program-audit/program-audit.service';
+import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
+import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
 import { CreateBenefitDto } from './dto/create-benefit.dto';
 import { UpdateBenefitDto } from './dto/update-benefit.dto';
 import { UpdateBenefitRetentionBridgeDto } from './dto/update-benefit-retention-bridge.dto';
@@ -56,7 +59,12 @@ function toBridgeView(
 
 @Injectable()
 export class BenefitsService {
-  constructor(private readonly repository: BenefitsRepository) {}
+  constructor(
+    private readonly repository: BenefitsRepository,
+    private readonly programAudit: ProgramAuditService,
+    private readonly retentionSettings: RetentionSettingsService,
+    private readonly retentionBootstrap: RetentionV2BootstrapService,
+  ) {}
 
   async list(businessId: string) {
     const benefits = await this.repository.findMany(businessId);
@@ -93,12 +101,28 @@ export class BenefitsService {
     businessId: string,
     benefitId: string,
     dto: UpdateBenefitRetentionBridgeDto,
+    actorUserId?: string,
   ): Promise<RetentionBridgeView> {
     const current = await this.repository.findRetentionBridge(
       businessId,
       benefitId,
     );
     if (!current) throw new NotFoundException('Benefit not found');
+
+    // Historial — solo se registran las transiciones REALES (patch trae el
+    // campo Y cambia respecto al estado anterior), nunca un patch que
+    // reafirma lo que ya estaba.
+    const wasAutomationEligible =
+      current.retentionIncentiveDefinition?.automationEligible ?? false;
+
+    // Mismo guardrail que Notificaciones (§12: "centralizar la operación en
+    // backend" — no dos caminos con distinta semántica). Programa no tiene
+    // un input de límite propio (vive en Notificaciones — §4), así que acá
+    // solo puede fallar pidiendo que se configure ahí; nunca autoriza un
+    // beneficio que después no puede emitirse.
+    if (dto.recoveryEnabled === true && !wasAutomationEligible) {
+      await this.retentionSettings.assertBudgetReadyToAuthorize(businessId);
+    }
 
     const updated = await this.repository.setRetentionBridge(
       businessId,
@@ -109,12 +133,57 @@ export class BenefitsService {
         estimatedCost: dto.estimatedCost,
       },
     );
+
+    if (
+      dto.recoveryEnabled !== undefined &&
+      dto.recoveryEnabled !== wasAutomationEligible
+    ) {
+      await this.programAudit.record({
+        businessId,
+        actorUserId,
+        type: dto.recoveryEnabled
+          ? 'benefit_reactivation_authorized'
+          : 'benefit_reactivation_revoked',
+        message: dto.recoveryEnabled
+          ? `Autorizaste "${current.title}" para reactivación`
+          : `Revocaste "${current.title}" de reactivación`,
+        metadata: { benefitId },
+      });
+    }
+
+    const wasRewardGoalEligible =
+      current.retentionIncentiveDefinition?.rewardGoalEligible ?? false;
+    if (dto.rewardGoalEnabled === true && !wasRewardGoalEligible) {
+      await this.programAudit.record({
+        businessId,
+        actorUserId,
+        type: 'card_config_changed',
+        message: `Cambiaste la recompensa de la tarjeta a "${current.title}"`,
+        metadata: { benefitId },
+      });
+    }
+
+    // §12 — Programa autoriza para reactivación exactamente igual que
+    // Notificaciones, así que también dispara el mismo bootstrap: la nueva
+    // generación con (o sin) este beneficio se arma acá, no solo cuando el
+    // dueño pasa por Notificaciones. No-op si la forma deseada no cambió.
+    if (
+      dto.recoveryEnabled !== undefined &&
+      dto.recoveryEnabled !== wasAutomationEligible
+    ) {
+      await this.retentionBootstrap.ensureDefaultRetentionSetup(businessId);
+    }
+
     return toBridgeView(updated);
   }
 
-  async create(businessId: string, dto: CreateBenefitDto) {
+  async create(
+    businessId: string,
+    dto: CreateBenefitDto,
+    actorUserId?: string,
+  ) {
     const dates = this.resolveDates(dto.startDate, dto.endDate);
-    return this.repository.create(businessId, {
+    const created = await this.repository.create(businessId, {
       type: dto.type,
       title: dto.title,
       description: dto.description,
@@ -123,9 +192,54 @@ export class BenefitsService {
       active: dto.active ?? false,
       ...dates,
     });
+    await this.programAudit.record({
+      businessId,
+      actorUserId,
+      type: 'benefit_created',
+      message: `Creaste el beneficio "${created.title}"`,
+      metadata: { benefitId: created.id },
+    });
+    return created;
   }
 
-  async update(businessId: string, id: string, dto: UpdateBenefitDto) {
+  async update(
+    businessId: string,
+    id: string,
+    dto: UpdateBenefitDto,
+    actorUserId?: string,
+  ) {
+    // Regla de producto: "no cambiar una promesa que ya tiene un cliente".
+    // Bloquear el rename/retipado NO es por `rewardGoalEligible` (eso es
+    // demasiado amplio: un beneficio recién autorizado como recompensa, sin
+    // ningún cliente todavía juntando sellos para él, no le rompe nada a
+    // nadie) — es por si existe al menos un `CustomerRewardGoal` VIVO
+    // (ACTIVE o UNLOCKED) que promete ESTA definición ahora mismo. Un
+    // REDEEMED/EXPIRED/CANCELLED viejo no bloquea: ya no hay ninguna promesa
+    // pendiente colgando de él, y el catálogo tiene que poder seguir
+    // evolucionando.
+    //
+    // El historial de esos clientes viejos queda a salvo de todas formas:
+    // `RetentionIncentiveDefinition.name` se fija al autorizar y nunca sigue
+    // un rename posterior del Benefit (`BenefitsRepository.createBridge
+    // Definition` solo hace `create`), y cada `BenefitParticipation` guarda
+    // su propio `benefitTitleSnapshot` — ninguna de las dos lecturas
+    // históricas depende del título ACTUAL del Benefit.
+    if (dto.title !== undefined || dto.type !== undefined) {
+      const current = await this.repository.findRetentionBridge(businessId, id);
+      const definitionId = current?.retentionIncentiveDefinition?.id;
+      if (definitionId) {
+        const liveGoals = await this.repository.countLiveGoalsForDefinition(
+          businessId,
+          definitionId,
+        );
+        if (liveGoals > 0) {
+          throw new BadRequestException(
+            'Hay clientes con una tarjeta en curso o una recompensa lista para retirar que promete este beneficio. Creá uno nuevo y asignalo desde Sellos en vez de editar este.',
+          );
+        }
+      }
+    }
+
     const data: Partial<BenefitData> = {};
     if (dto.type !== undefined) data.type = dto.type;
     if (dto.title !== undefined) data.title = dto.title;
@@ -139,6 +253,13 @@ export class BenefitsService {
 
     const updated = await this.repository.update(businessId, id, data);
     if (!updated) throw new NotFoundException('Benefit not found');
+    await this.programAudit.record({
+      businessId,
+      actorUserId,
+      type: 'benefit_edited',
+      message: `Editaste el beneficio "${updated.title}"`,
+      metadata: { benefitId: updated.id },
+    });
     return updated;
   }
 

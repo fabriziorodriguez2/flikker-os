@@ -1,15 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronRight, Gift, Loader2, QrCode, Search } from "lucide-react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ChevronRight, Gift, Loader2, QrCode, Search, Tag } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
-import {
-  RECURRENCE,
-  StampDots,
-  relativeDay,
-  type RecurrenceKey,
-} from "./loyalty-ui";
+import CustomerModal from "./customer-modal";
+import { RECURRENCE, relativeDay, type RecurrenceKey } from "./loyalty-ui";
 
 /**
  * Clientes, vistos como fidelización.
@@ -36,6 +33,7 @@ interface LoyaltyRow {
     remainingVisits: number;
   } | null;
   rewardAvailable: { rewardName: string } | null;
+  benefitAvailable: boolean;
   recurrence: RecurrenceKey | null;
 }
 
@@ -62,12 +60,42 @@ const FILTERS = [
 
 type FilterKey = (typeof FILTERS)[number]["key"];
 
+/**
+ * `?customer=` es opcional y deliberadamente simple: sin intercepting
+ * routes (de más para lo que hace falta acá) — solo un query param que se
+ * lee al montar para reabrir el modal en un refresh o un link compartido, y
+ * se sincroniza con `router.replace` (sin agregar entradas al historial por
+ * cada clic) mientras el modal está abierto.
+ */
 export default function CustomersLoyaltyClient() {
+  return (
+    <Suspense fallback={null}>
+      <CustomersLoyaltyContent />
+    </Suspense>
+  );
+}
+
+function CustomersLoyaltyContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [filter, setFilter] = useState<FilterKey>("todos");
   const [search, setSearch] = useState("");
   const [response, setResponse] = useState<LoyaltyResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(
+    searchParams.get("customer"),
+  );
+
+  function openCustomer(id: string) {
+    setSelectedCustomerId(id);
+    router.replace(`/dashboard/customers?customer=${id}`, { scroll: false });
+  }
+
+  function closeCustomer() {
+    setSelectedCustomerId(null);
+    router.replace("/dashboard/customers", { scroll: false });
+  }
 
   const load = useCallback(async (nextFilter: FilterKey, term: string) => {
     setLoading(true);
@@ -208,16 +236,17 @@ export default function CustomersLoyaltyClient() {
         <ul className="divide-y divide-[#EFF1F7] overflow-hidden rounded-[16px] border border-[#E8EAF0] bg-white">
           {rows.map((row) => (
             <li key={row.id}>
-              <Link
-                href={`/dashboard/customers/${row.id}`}
-                className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-[#FAFBFE]"
+              {/*
+                Click abre el modal, no navega — ver `openCustomer`. Formato
+                de la fila, en el orden pedido: nombre → visitas (+ sellos si
+                el negocio usa tarjeta) → última visita. Nada de columnas de
+                CRM (sin pipeline, notas ni tags).
+              */}
+              <button
+                type="button"
+                onClick={() => openCustomer(row.id)}
+                className="flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-[#FAFBFE]"
               >
-                {/*
-                  Orden de prioridad visual: nombre → progreso/recompensa →
-                  visitas → última visita. En mobile las dos últimas se apilan
-                  debajo del nombre en vez de empujar una tabla a scroll
-                  horizontal.
-                */}
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
                     <span className="truncate text-[15px] font-semibold text-[#202333]">
@@ -230,62 +259,59 @@ export default function CustomersLoyaltyClient() {
                         {RECURRENCE[row.recurrence].label}
                       </span>
                     ) : null}
-                  </div>
-                  <p className="mt-0.5 truncate text-xs text-[#8891A4]">
-                    {row.phone}
-                  </p>
-
-                  <div className="mt-2.5">
                     {row.rewardAvailable ? (
-                      <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EAF7EF] px-2.5 py-1 text-xs font-semibold text-[#147A5B]">
-                        <Gift className="h-3.5 w-3.5" />
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#EAF7EF] px-2 py-0.5 text-[11px] font-semibold text-[#147A5B]">
+                        <Gift className="h-3 w-3" />
                         Recompensa disponible
                       </span>
-                    ) : row.card ? (
-                      <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                        <StampDots
-                          progress={row.card.progressVisits}
-                          target={row.card.targetAdditionalVisits}
-                        />
-                        <span className="text-xs text-[#7F879C]">
-                          {row.card.progressVisits} de{" "}
-                          {row.card.targetAdditionalVisits} sellos
-                        </span>
+                    ) : row.benefitAvailable ? (
+                      // Un solo badge por fila — si ya tiene recompensa de
+                      // tarjeta esperando, no se suma este (no llenar la fila).
+                      <span className="inline-flex items-center gap-1 rounded-full bg-[#EEF0FB] px-2 py-0.5 text-[11px] font-semibold text-[#4A56A6]">
+                        <Tag className="h-3 w-3" />
+                        Beneficio disponible
                       </span>
-                    ) : (
-                      <span className="text-xs text-[#B0B8C9]">
-                        Sin tarjeta activa
-                      </span>
-                    )}
+                    ) : null}
                   </div>
 
-                  {/* Visitas y última visita: en mobile van acá, en desktop a la derecha. */}
-                  <p className="mt-2 text-xs text-[#8891A4] lg:hidden">
-                    {visitLabel(row.visitCount)} · {relativeDay(row.lastVisitAt)}
-                  </p>
-                </div>
-
-                <div className="hidden w-32 shrink-0 text-right lg:block">
-                  <p className="text-sm font-semibold text-[#202333]">
+                  {/* "4 visitas · 3/5 sellos" — o solo "4 visitas" si el
+                      negocio no usa tarjeta. Nunca se inventa un "0/0". */}
+                  <p className="mt-1 text-sm text-[#5F6780]">
                     {visitLabel(row.visitCount)}
+                    {row.card
+                      ? ` · ${row.card.progressVisits}/${row.card.targetAdditionalVisits} sellos`
+                      : ""}
                   </p>
                   <p className="mt-0.5 text-xs text-[#8891A4]">
-                    {relativeDay(row.lastVisitAt)}
+                    {lastVisitLabel(row.lastVisitAt)}
                   </p>
                 </div>
 
                 <ChevronRight className="h-4 w-4 shrink-0 text-[#C8D0E0]" />
-              </Link>
+              </button>
             </li>
           ))}
         </ul>
       )}
+
+      {selectedCustomerId ? (
+        <CustomerModal
+          customerId={selectedCustomerId}
+          onClose={closeCustomer}
+        />
+      ) : null}
     </div>
   );
 }
 
 function visitLabel(count: number): string {
   return count === 1 ? "1 visita" : `${count} visitas`;
+}
+
+function lastVisitLabel(value: string | null): string {
+  if (!value) return "Sin visitas todavía";
+  const label = relativeDay(value);
+  return `Última visita ${label.charAt(0).toLowerCase()}${label.slice(1)}`;
 }
 
 function Kpi({

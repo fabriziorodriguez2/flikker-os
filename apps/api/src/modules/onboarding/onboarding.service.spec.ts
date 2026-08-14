@@ -9,6 +9,7 @@ const DRAFT = {
   welcomeBenefitId: null,
   welcomeGiftDecided: false,
   notificationsDecided: false,
+  retentionProgramDecided: false,
 };
 
 function makeDeps(options: { draft?: unknown } = {}) {
@@ -46,7 +47,10 @@ function makeDeps(options: { draft?: unknown } = {}) {
     ensureDefaultSource: jest.fn().mockResolvedValue({ token: 'tok-1' }),
   };
   const benefits = { setRetentionBridge: jest.fn().mockResolvedValue({}) };
-  return { prisma, visitSources, benefits };
+  const retentionBootstrap = {
+    ensureDefaultRetentionSetup: jest.fn().mockResolvedValue([]),
+  };
+  return { prisma, visitSources, benefits, retentionBootstrap };
 }
 
 const service = (d: ReturnType<typeof makeDeps>) =>
@@ -54,6 +58,7 @@ const service = (d: ReturnType<typeof makeDeps>) =>
     d.prisma as never,
     d.visitSources as never,
     d.benefits as never,
+    d.retentionBootstrap as never,
   );
 
 const BUSINESS_DTO = { name: 'Café Uno', category: 'cafeteria' };
@@ -130,7 +135,15 @@ describe('Onboarding — paso 2 configura el programa', () => {
           rewardGoalMinVisits: 5,
           rewardGoalMaxVisits: 5,
           rewardGoalFeedbackBonusEnabled: true,
+          // Default del onboarding nuevo: con tarjeta de sellos, el
+          // recordatorio de progreso se prende solo, sin preguntarlo.
+          progressReminderEnabled: true,
         }),
+      }),
+    );
+    expect(deps.prisma.business.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { retentionProgramDecided: true },
       }),
     );
   });
@@ -178,6 +191,94 @@ describe('Onboarding — paso 2 configura el programa', () => {
   });
 });
 
+describe('Onboarding — paso 2 camino "Beneficios" (sin sellos)', () => {
+  it('0 beneficios es válido: decide el paso igual, sin tarjeta de sellos', async () => {
+    const deps = makeDeps();
+
+    await service(deps).saveBenefitsOnlyProgram('user-1', {});
+
+    expect(deps.prisma.retentionSettings.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { rewardGoalsEnabled: false, progressReminderEnabled: false },
+      }),
+    );
+    expect(deps.prisma.benefit.create).not.toHaveBeenCalled();
+    expect(deps.prisma.business.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: { retentionProgramDecided: true },
+      }),
+    );
+  });
+
+  it('crea cada beneficio de la lista', async () => {
+    const deps = makeDeps();
+
+    await service(deps).saveBenefitsOnlyProgram('user-1', {
+      benefits: [
+        { title: '2x1 en corte', type: 'promotion' },
+        { title: '10% off', type: 'discount' },
+      ],
+    });
+
+    expect(deps.prisma.benefit.create).toHaveBeenCalledTimes(2);
+  });
+
+  it('apaga cualquier tarjeta de sellos que hubiera quedado de un intento anterior', async () => {
+    const deps = makeDeps();
+
+    await service(deps).saveBenefitsOnlyProgram('user-1', {});
+
+    expect(
+      deps.prisma.retentionIncentiveDefinition.updateMany,
+    ).toHaveBeenCalledWith({
+      where: { businessId: 'biz-1', rewardGoalEligible: true },
+      data: { rewardGoalEligible: false },
+    });
+  });
+});
+
+describe('Onboarding — getState refleja el camino elegido en el paso 2', () => {
+  it('sin decidir: program.mode es null y el paso está pendiente', async () => {
+    const deps = makeDeps();
+
+    const state = await service(deps).getState('user-1');
+
+    expect(state.steps.program).toBe(false);
+    expect(state.program?.mode).toBeNull();
+  });
+
+  it('con tarjeta de sellos: program.mode es "benefits_stamps"', async () => {
+    const deps = makeDeps({
+      draft: { ...DRAFT, retentionProgramDecided: true },
+    });
+    deps.prisma.retentionSettings.findUnique.mockResolvedValue({
+      rewardGoalsEnabled: true,
+      rewardGoalMinVisits: 5,
+      rewardGoalFeedbackBonusEnabled: false,
+    });
+    deps.prisma.retentionIncentiveDefinition.findFirst.mockResolvedValue({
+      name: 'Café gratis',
+      benefitId: 'ben-1',
+    });
+
+    const state = await service(deps).getState('user-1');
+
+    expect(state.steps.program).toBe(true);
+    expect(state.program?.mode).toBe('benefits_stamps');
+  });
+
+  it('sin tarjeta de sellos pero decidido: program.mode es "benefits"', async () => {
+    const deps = makeDeps({
+      draft: { ...DRAFT, retentionProgramDecided: true },
+    });
+
+    const state = await service(deps).getState('user-1');
+
+    expect(state.steps.program).toBe(true);
+    expect(state.program?.mode).toBe('benefits');
+  });
+});
+
 describe('Onboarding — paso 3 regalo de bienvenida (reanudación)', () => {
   /**
    * El punto de todo este paso: "no quiero regalo" tiene que ser una decisión
@@ -222,30 +323,12 @@ describe('Onboarding — paso 3 regalo de bienvenida (reanudación)', () => {
     expect(deps.prisma.business.update).not.toHaveBeenCalled();
   });
 
-  it('REANUDACIÓN: getState distingue los tres estados de la bienvenida', async () => {
-    // (a) programa guardado, bienvenida sin decidir
-    const pending = makeDeps();
-    let state = await service(pending).getState('user-1');
-    expect(state.steps.welcomeGift).toBe(false);
-    expect(state.program?.welcomeGiftDecided).toBe(false);
-
-    // (b) dijo explícitamente que NO
-    const said_no = makeDeps({
-      draft: { ...DRAFT, welcomeGiftDecided: true, welcomeBenefitId: null },
-    });
-    state = await service(said_no).getState('user-1');
-    expect(state.steps.welcomeGift).toBe(true);
-    expect(state.program?.welcomeBenefitId).toBeNull();
-
-    // (c) eligió un regalo
-    const chose = makeDeps({
-      draft: { ...DRAFT, welcomeGiftDecided: true, welcomeBenefitId: 'ben-x' },
-    });
-    state = await service(chose).getState('user-1');
-    expect(state.steps.welcomeGift).toBe(true);
-    expect(state.program?.welcomeBenefitId).toBe('ben-x');
-  });
-
+  /**
+   * El regalo de bienvenida ya no forma parte del wizard self-service
+   * (`getState` no lo expone más — ver el describe de `getState` más abajo),
+   * pero `saveWelcomeGift` en sí se mantiene funcional para quien lo siga
+   * llamando directamente.
+   */
   it('saveProgram ya NO toca la bienvenida: son pasos separados', async () => {
     const deps = makeDeps();
 
@@ -429,74 +512,11 @@ describe('Onboarding — paso 6 notificaciones', () => {
     );
   });
 
-  it('REANUDACIÓN: sin decidir el paso está pendiente; decidido no vuelve a preguntar', async () => {
-    // Sin decidir — aunque los flags estén en false por defecto.
-    const pending = makeDeps();
-    expect(
-      (await service(pending).getState('user-1')).steps.notifications,
-    ).toBe(false);
-
-    // Decidido con TODO apagado: el paso está completo igual. Es la
-    // diferencia que este campo existe para expresar.
-    const decidedOff = makeDeps({
-      draft: { ...DRAFT, notificationsDecided: true },
-    });
-    expect(
-      (await service(decidedOff).getState('user-1')).steps.notifications,
-    ).toBe(true);
-  });
-
-  /**
-   * `RetentionSettings.automaticCampaignsEnabled` tiene default `true` en el
-   * schema. `ensureSettings` crea esa fila apenas se guarda el paso 1, mucho
-   * antes de que el dueño llegue al paso 6 — sin este gate, "Reactivar
-   * clientes" aparecería pre-tildado la primera vez que abre el paso, sin que
-   * nadie lo haya elegido todavía.
-   */
-  it('sin decidir, los toggles del wizard arrancan en false aunque el default del schema sea true', async () => {
-    const sinDecidir = makeDeps({
-      draft: {
-        ...DRAFT,
-        notificationsDecided: false,
-      },
-    });
-    // El mock simula la fila real: automaticCampaignsEnabled ya en true
-    // (default del schema) porque `ensureSettings` la creó en el paso 1.
-    sinDecidir.prisma.retentionSettings.findUnique.mockResolvedValue({
-      rewardGoalsEnabled: false,
-      rewardGoalMinVisits: null,
-      rewardGoalFeedbackBonusEnabled: false,
-      automaticCampaignsEnabled: true,
-      progressReminderEnabled: false,
-    });
-
-    const state = await service(sinDecidir).getState('user-1');
-
-    expect(state.automations).toEqual({
-      remindNearReward: false,
-      reactivateInactive: false,
-    });
-  });
-
-  it('una vez decidido, el wizard SÍ refleja lo que el dueño eligió', async () => {
-    const decidido = makeDeps({
-      draft: { ...DRAFT, notificationsDecided: true },
-    });
-    decidido.prisma.retentionSettings.findUnique.mockResolvedValue({
-      rewardGoalsEnabled: false,
-      rewardGoalMinVisits: null,
-      rewardGoalFeedbackBonusEnabled: false,
-      automaticCampaignsEnabled: true,
-      progressReminderEnabled: false,
-    });
-
-    const state = await service(decidido).getState('user-1');
-
-    expect(state.automations).toEqual({
-      remindNearReward: false,
-      reactivateInactive: true,
-    });
-  });
+  // `getState` ya no expone `steps.notifications` ni `automations`: las
+  // automatizaciones ya no son un paso del wizard self-service (ver
+  // `OnboardingService.complete`, que ahora las prende con los defaults del
+  // producto). `saveNotifications` en sí se mantiene y sigue cubierto por
+  // los tests de arriba.
 });
 
 describe('Onboarding — scoping y cierre', () => {
@@ -515,14 +535,17 @@ describe('Onboarding — scoping y cierre', () => {
     );
   });
 
-  it('complete marca onboardingCompletedAt — deja de ser borrador', async () => {
+  it('complete marca onboardingCompletedAt Y prende la reactivación por defecto', async () => {
     const deps = makeDeps();
 
     const result = await service(deps).complete('user-1');
 
     expect(deps.prisma.business.update).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: { onboardingCompletedAt: expect.any(Date) },
+        data: {
+          onboardingCompletedAt: expect.any(Date),
+          retentionEngineV2Enabled: true,
+        },
       }),
     );
     expect(result).toEqual({ businessId: 'biz-1', completed: true });

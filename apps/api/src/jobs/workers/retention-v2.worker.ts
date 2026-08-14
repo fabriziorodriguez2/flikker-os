@@ -14,22 +14,29 @@ import {
   RUN_RETENTION_V2_EVALUATE_JOB,
   RUN_RETENTION_V2_OUTCOMES_JOB,
   SEND_RETENTION_V2_ASSIGNMENT_JOB,
+  SEND_RETENTION_V2_MESSAGE_JOB,
   RetentionV2Queue,
   type SendRetentionV2AssignmentJobData,
+  type SendRetentionV2MessageJobData,
 } from '../retention-v2.queue';
 import { RetentionV2EvaluateService } from '../../modules/retention-v2/retention-v2-evaluate.service';
 import { RetentionV2SendService } from '../../modules/retention-v2/retention-v2-send.service';
 import { RetentionOutcomeService } from '../../modules/retention-v2/retention-outcome.service';
+import { RetentionV2MessageDispatchService } from '../../modules/retention-v2/retention-v2-message-dispatch.service';
 
 /**
- * Runs all three halves of the Retention V2 loop:
+ * Runs all four halves of the Retention V2 loop:
  *   evaluate → recruit customers into experiments (no sending)
- *   send     → process one assignment, re-validating everything first
+ *   send     → process one assignment, re-validating everything, queues a
+ *              Message
+ *   dispatch → deliver that Message over WhatsApp, re-validating again
  *   outcomes → detect returns for assignments already exposed (Fase D)
  *
- * All three are retry-safe: send is idempotent by construction (a retry can
- * never produce a second message or reward) and outcomes is a pure upsert
- * keyed on assignmentId.
+ * All four are retry-safe: send is idempotent by construction (a retry can
+ * never produce a second message or reward), dispatch claims its Message
+ * atomically before calling the provider (so two workers racing the same
+ * message can't both send it), and outcomes is a pure upsert keyed on
+ * assignmentId.
  */
 @Injectable()
 export class RetentionV2Worker implements OnModuleInit, OnModuleDestroy {
@@ -42,6 +49,7 @@ export class RetentionV2Worker implements OnModuleInit, OnModuleDestroy {
     private readonly evaluateService: RetentionV2EvaluateService,
     private readonly sendService: RetentionV2SendService,
     private readonly outcomeService: RetentionOutcomeService,
+    private readonly dispatchService: RetentionV2MessageDispatchService,
     private readonly queue: RetentionV2Queue,
   ) {}
 
@@ -58,15 +66,46 @@ export class RetentionV2Worker implements OnModuleInit, OnModuleDestroy {
       return this.runEvaluate();
     }
     if (job.name === SEND_RETENTION_V2_ASSIGNMENT_JOB) {
-      return this.sendService.processAssignment(
+      const result = await this.sendService.processAssignment(
         (job.data as SendRetentionV2AssignmentJobData).assignmentId,
       );
+      // A Message was just queued — hand it to the dispatcher so it
+      // actually reaches WhatsApp. Queued here, not inside
+      // RetentionV2SendService, so that service stays about the assignment
+      // decision only and never depends on the queue.
+      if (result.status === 'sent') {
+        await this.queue.enqueueSendMessage({ messageId: result.messageId });
+      }
+      return result;
+    }
+    if (job.name === SEND_RETENTION_V2_MESSAGE_JOB) {
+      return this.dispatchMessage(job);
     }
     if (job.name === RUN_RETENTION_V2_OUTCOMES_JOB) {
       return this.outcomeService.runOnce();
     }
     this.logger.warn(`Unknown retention-v2 job: ${job.name}`);
     return null;
+  }
+
+  /**
+   * Dispatches one Message, marking it permanently `failed` (instead of
+   * leaving it `queued` forever) once BullMQ has exhausted every retry —
+   * `job.attemptsMade` is 0-indexed during the run itself, so the current
+   * attempt is `attemptsMade + 1`.
+   */
+  private async dispatchMessage(job: Job) {
+    const { messageId } = job.data as SendRetentionV2MessageJobData;
+    try {
+      return await this.dispatchService.dispatch(messageId);
+    } catch (error) {
+      const attempts = job.opts.attempts ?? 1;
+      const isLastAttempt = job.attemptsMade + 1 >= attempts;
+      if (isLastAttempt) {
+        await this.dispatchService.markPermanentlyFailed(messageId, error);
+      }
+      throw error;
+    }
   }
 
   /**

@@ -92,6 +92,50 @@ export class RetentionSettingsService {
   }
 
   /**
+   * True when ANY cap — quantity or monetary — is configured. This is
+   * exactly the condition `RetentionBudgetService.checkWithinCaps` uses to
+   * leave deny-by-default: with neither cap set, no automated incentive can
+   * ever be issued, no matter how many benefits are authorized.
+   */
+  hasIncentiveBudgetConfigured(
+    settings: Pick<
+      RetentionSettings,
+      'maxAutomatedIncentivesPerMonth' | 'maxEstimatedIncentiveCostPerMonth'
+    >,
+  ): boolean {
+    return (
+      settings.maxAutomatedIncentivesPerMonth !== null ||
+      settings.maxEstimatedIncentiveCostPerMonth !== null
+    );
+  }
+
+  /**
+   * Guards against the exact contradiction this closes: a benefit marked
+   * "authorized for reactivation" that can never actually be issued because
+   * no budget cap exists. Called by every path that can turn a benefit's
+   * `automationEligible` on — Notificaciones' `updateAutomations` and
+   * Programa's `BenefitsService.setRetentionBridge` — so the two never
+   * diverge on this rule.
+   *
+   * `proposedMonthlyLimit`, when given, is treated as "a cap is being set in
+   * this same call" even before it is persisted — this is what lets the
+   * owner authorize a benefit and configure the limit in one atomic action
+   * instead of being blocked on a chicken-and-egg order of operations.
+   */
+  async assertBudgetReadyToAuthorize(
+    businessId: string,
+    proposedMonthlyLimit?: number,
+  ): Promise<void> {
+    if (proposedMonthlyLimit !== undefined) return;
+    const settings = await this.getOrCreate(businessId);
+    if (!this.hasIncentiveBudgetConfigured(settings)) {
+      throw new BadRequestException(
+        'Configurá un límite mensual de beneficios automáticos antes de autorizar uno para reactivación (Notificaciones → Te extrañamos).',
+      );
+    }
+  }
+
+  /**
    * Whether the owner has authorized any active variant that carries an
    * incentive without configuring either budget cap — the exact situation
    * Fase C.5 §6 requires the UI to warn about before automation is turned on.
@@ -102,9 +146,7 @@ export class RetentionSettingsService {
     budgetConfigured: boolean;
   }> {
     const settings = await this.getOrCreate(businessId);
-    const budgetConfigured =
-      settings.maxAutomatedIncentivesPerMonth !== null ||
-      settings.maxEstimatedIncentiveCostPerMonth !== null;
+    const budgetConfigured = this.hasIncentiveBudgetConfigured(settings);
 
     const incentiveVariant = await this.prisma.retentionVariant.findFirst({
       where: {

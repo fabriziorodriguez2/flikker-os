@@ -108,6 +108,11 @@ export class PlatformRepository {
             firstName: input.ownerFirstName,
             lastName: input.ownerLastName,
             isActive: true,
+            // Alta asistida por Platform Admin: no pasa por el flujo de
+            // confirmación por correo del self-service, así que se marca
+            // verificada de entrada — de lo contrario un dueño dado de alta
+            // así quedaría sin poder loguearse.
+            emailVerifiedAt: new Date(),
           },
         });
       }

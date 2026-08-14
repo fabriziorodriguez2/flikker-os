@@ -1,7 +1,17 @@
 import { Injectable } from '@nestjs/common';
 import { randomInt } from 'crypto';
-import { BenefitType, Prisma } from '@prisma/client';
+import { BenefitType, Prisma, RewardGoalStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+
+/// "Vivo" = todavía es una promesa pendiente de honrar. ACTIVE (tarjeta en
+/// curso) y UNLOCKED (ganada, esperando que el cliente la retire) — los dos
+/// casos donde el cliente cuenta con recibir exactamente lo que la tarjeta
+/// dice hoy. REDEEMED/EXPIRED/CANCELLED ya son historia cerrada: no bloquean
+/// para siempre la edición del catálogo actual.
+const LIVE_REWARD_GOAL_STATUSES: RewardGoalStatus[] = [
+  RewardGoalStatus.ACTIVE,
+  RewardGoalStatus.UNLOCKED,
+];
 
 // Unambiguous alphabet for redemption codes (no 0/O/1/I/L) — easy to read/type.
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -244,6 +254,28 @@ export class BenefitsRepository {
   }
 
   /**
+   * Cuántos `CustomerRewardGoal` VIVOS (ver `LIVE_REWARD_GOAL_STATUSES`)
+   * prometen esta definición hoy — "no cambiar una promesa que ya tiene un
+   * cliente". Un REDEEMED/EXPIRED/CANCELLED viejo no cuenta: ya no hay nada
+   * pendiente que ese cliente esté esperando recibir.
+   *
+   * `businessId` es cinturón y tirantes: `definitionId` ya llega tenant-
+   * verificado (sale de `findRetentionBridge(businessId, ...)`, que solo
+   * resuelve bridges del propio negocio), pero filtrar también acá evita que
+   * un futuro caller que no pase por ese camino pueda, por error, contar
+   * goals de otro negocio.
+   */
+  countLiveGoalsForDefinition(businessId: string, definitionId: string) {
+    return this.prisma.customerRewardGoal.count({
+      where: {
+        businessId,
+        incentiveDefinitionId: definitionId,
+        status: { in: LIVE_REWARD_GOAL_STATUSES },
+      },
+    });
+  }
+
+  /**
    * Applies a patch to the RetentionIncentiveDefinition bridged to this
    * Benefit, lazily creating it (looked up by the unique `benefitId`, so it
    * can never be duplicated) the first time either flag is turned on. If
@@ -360,15 +392,33 @@ export class BenefitsRepository {
    * cycle. If their prior entry was already closed by a raffle draw, this
    * re-opens it for the new cycle instead of leaving them stuck out of it.
    */
-  registerParticipation(
+  async registerParticipation(
     businessId: string,
     benefitId: string,
     customerId: string,
   ) {
+    // Snapshot del título VIGENTE al momento de esta participación — nunca
+    // una referencia viva (ver el comentario del campo en schema.prisma).
+    // Se relee también al reabrir para un ciclo nuevo: es, en los hechos,
+    // una promesa nueva.
+    const benefit = await this.prisma.benefit.findUnique({
+      where: { id: benefitId },
+      select: { title: true },
+    });
+
     return this.prisma.benefitParticipation.upsert({
       where: { benefitId_customerId: { benefitId, customerId } },
-      create: { businessId, benefitId, customerId },
-      update: { raffleDrawId: null, createdAt: new Date() },
+      create: {
+        businessId,
+        benefitId,
+        customerId,
+        benefitTitleSnapshot: benefit?.title,
+      },
+      update: {
+        raffleDrawId: null,
+        createdAt: new Date(),
+        benefitTitleSnapshot: benefit?.title,
+      },
     });
   }
 
@@ -395,12 +445,20 @@ export class BenefitsRepository {
             data: { redemptionCode: generateRedemptionCode() },
           });
         }
+        // Snapshot del título VIGENTE — es la primera vez que esta
+        // participación existe, así que este es exactamente el momento en
+        // que se le está haciendo la promesa al cliente.
+        const benefit = await this.prisma.benefit.findUnique({
+          where: { id: benefitId },
+          select: { title: true },
+        });
         return await this.prisma.benefitParticipation.create({
           data: {
             businessId,
             benefitId,
             customerId,
             redemptionCode: generateRedemptionCode(),
+            benefitTitleSnapshot: benefit?.title,
           },
         });
       } catch (error) {
@@ -475,7 +533,10 @@ export class BenefitsRepository {
         participationId: found.id,
         benefitId: found.benefitId,
         customerId: found.customerId,
-        benefitTitle: found.benefit.title,
+        // Lo que se le prometió a este cliente cuando se le otorgó esta
+        // participación — no el título actual del catálogo, que puede haber
+        // cambiado desde entonces.
+        benefitTitle: found.benefitTitleSnapshot ?? found.benefit.title,
         benefitType: found.benefit.type,
         customerName: found.customer.name,
       };
@@ -513,7 +574,7 @@ export class BenefitsRepository {
     return {
       status: 'ok',
       businessId: found.businessId,
-      benefitTitle: found.benefit.title,
+      benefitTitle: found.benefitTitleSnapshot ?? found.benefit.title,
       customerName: found.customer.name,
     };
   }

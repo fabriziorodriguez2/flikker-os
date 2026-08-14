@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { RetentionV2Module } from '../retention-v2/retention-v2.module';
+import { BenefitsModule } from '../benefits/benefits.module';
+import { ProgramAuditModule } from '../program-audit/program-audit.module';
 import { RewardGoalEngineService } from './reward-goal-engine.service';
 import { RewardGoalIssuerService } from './reward-goal-issuer.service';
 import { RewardGoalUnlockService } from './reward-goal-unlock.service';
@@ -16,7 +18,12 @@ import { LoyaltyProgramController } from './loyalty-program.controller';
  * duplicating that logic, per Fase E §1/§24.
  */
 @Module({
-  imports: [PrismaModule, RetentionV2Module],
+  imports: [
+    PrismaModule,
+    RetentionV2Module,
+    BenefitsModule,
+    ProgramAuditModule,
+  ],
   controllers: [LoyaltyProgramController],
   providers: [
     LoyaltyProgramService,

@@ -8,7 +8,15 @@ import { useIsOwnerOrAdmin } from "../../role-context";
 /**
  * Automáticas — los mensajes que Flikker manda solo.
  *
- * Solo se muestran las automatizaciones que EXISTEN de verdad. Hoy son dos.
+ * Solo se muestran las automatizaciones que EXISTEN de verdad, y solo cuando
+ * tienen sentido para ESTE negocio. Hoy son dos como máximo:
+ *  - "Te extrañamos" — siempre puede mostrarse. No depende de tarjeta de
+ *    sellos ni de tener beneficios: sin nada de eso, manda un recordatorio
+ *    simple.
+ *  - "Cerca del premio" — solo si el negocio tiene tarjeta de sellos activa
+ *    (`overview.automations` directamente no la incluye si no). Mostrarla
+ *    apagada igual sería confuso: no es que esté desactivada, es que no
+ *    aplica.
  * Hubo una tercera candidata ("recordar recompensa disponible") que no se
  * incluye porque el motor no tiene con qué ejecutarla: su único objetivo de
  * progreso recluta tarjetas en curso y excluye las ya desbloqueadas. Un
@@ -17,8 +25,23 @@ import { useIsOwnerOrAdmin } from "../../role-context";
 
 interface Overview {
   automations: { key: "cerca_del_premio" | "te_extranamos"; enabled: boolean }[];
-  status: { activeCount: number; testMode: boolean; engineEnabled: boolean };
+  status: {
+    activeCount: number;
+    testMode: boolean;
+    engineEnabled: boolean;
+    /** El único estado de canal que existe de verdad — ver `## Canal`. */
+    channel: "activo" | "no_conectado";
+  };
   benefits: { id: string; name: string; authorized: boolean }[];
+  /**
+   * El único presupuesto que el dueño ve — nunca el tope monetario, que
+   * sigue siendo configuración avanzada de Platform Admin.
+   */
+  benefitsAutomation: {
+    status: "sin_autorizar" | "necesita_limite" | "listo" | "limite_alcanzado";
+    monthlyLimit: number | null;
+    usedThisMonth: number;
+  };
   results: {
     // Dos métricas, no tres: "Detectados" salía del mismo número que
     // "Contactados", y dos KPIs que siempre coinciden hacen creer que son
@@ -45,6 +68,16 @@ const SIGNAL_COPY: Record<Overview["results"]["signal"], string> = {
 
 const DAY_NAMES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
+/**
+ * No hay un default de producto existente para reutilizar (el panel
+ * avanzado de Platform Admin tampoco sugiere ninguno — el input llega
+ * vacío). 10/mes es un valor conservador para el volumen típico de un
+ * negocio chico recién arrancando — se usa solo como sugerencia inicial al
+ * autorizar el primer beneficio; el dueño lo puede cambiar en cualquier
+ * momento.
+ */
+const SUGGESTED_MONTHLY_LIMIT = 10;
+
 export default function AutomationsTab() {
   const canManage = useIsOwnerOrAdmin();
 
@@ -54,6 +87,10 @@ export default function AutomationsTab() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  // Input controlado del límite mensual — se sincroniza con el valor real
+  // cada vez que llega uno nuevo, pero el dueño puede escribir libremente
+  // antes de guardar.
+  const [limitDraft, setLimitDraft] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -76,6 +113,12 @@ export default function AutomationsTab() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    if (data?.benefitsAutomation.monthlyLimit != null) {
+      setLimitDraft(String(data.benefitsAutomation.monthlyLimit));
+    }
+  }, [data?.benefitsAutomation.monthlyLimit]);
 
   async function patch(body: Record<string, unknown>) {
     setSaving(true);
@@ -102,6 +145,34 @@ export default function AutomationsTab() {
       body: JSON.stringify(body),
     });
     if (res.ok) setSettings((await res.json()) as Settings);
+  }
+
+  /**
+   * Autorizar/desautorizar un beneficio. Si esta es la primera autorización
+   * y todavía no hay ningún límite configurado, el límite viaja en la MISMA
+   * llamada — el backend exige exactamente eso (nunca dejar un beneficio
+   * autorizado sin forma de emitirse), y así el dueño nunca ve un error por
+   * un paso que no sabía que faltaba.
+   */
+  function toggleBenefit(id: string, checked: boolean, authorizedIds: string[]) {
+    const nextIds = checked
+      ? [...authorizedIds, id]
+      : authorizedIds.filter((x) => x !== id);
+    const body: Record<string, unknown> = { benefitIds: nextIds };
+    if (nextIds.length > 0 && data?.benefitsAutomation.monthlyLimit == null) {
+      const suggested = limitDraft.trim()
+        ? Number(limitDraft)
+        : SUGGESTED_MONTHLY_LIMIT;
+      body.automaticIncentiveMonthlyLimit = suggested;
+      setLimitDraft(String(suggested));
+    }
+    void patch(body);
+  }
+
+  function saveLimit() {
+    const n = Number(limitDraft);
+    if (!Number.isInteger(n) || n < 1) return;
+    void patch({ automaticIncentiveMonthlyLimit: n });
   }
 
   if (loading) {
@@ -186,6 +257,19 @@ export default function AutomationsTab() {
             contactaría, pero todavía no envía mensajes.
           </p>
         ) : null}
+
+        {/*
+          El canal es la única condición real de "puede mandar WhatsApp" (ver
+          `## Canal`). Sin esto un dueño con todo bien configurado vería 0
+          mensajes y pensaría que rompió algo — acá se le explica por qué.
+        */}
+        {data.status.channel === "no_conectado" ? (
+          <p className="mt-3 rounded-[10px] bg-[#FDEEEE] px-3.5 py-2.5 text-sm leading-5 text-[#B3261E]">
+            <strong>Flikker no puede enviar mensajes por ahora.</strong> Tus
+            automatizaciones quedan configuradas, pero no van a salir mensajes
+            hasta que se resuelva. Escribinos si necesitás ayuda.
+          </p>
+        ) : null}
       </div>
 
       {data.status.activeCount === 0 ? (
@@ -195,15 +279,22 @@ export default function AutomationsTab() {
         </p>
       ) : null}
 
-      {/* ── A. Cerca del premio ───────────────────────────────────────── */}
-      <AutomationCard
-        title="Cerca del premio"
-        description="Recordale al cliente cuando esté cerca de completar su tarjeta."
-        example="“Te falta 1 sello para tus 3 medialunas gratis.”"
-        enabled={progreso?.enabled ?? false}
-        disabled={!canManage || saving}
-        onToggle={(value) => void patch({ cercaDelPremio: value })}
-      />
+      {/*
+        ── A. Cerca del premio ─────────────────────────────────────────
+        Solo existe como concepto si el negocio usa tarjeta de sellos — sin
+        `progreso` en `automations` (sellos apagados), ni se muestra: no es
+        "Desactivado", es una automatización que no aplica a este negocio.
+      */}
+      {progreso ? (
+        <AutomationCard
+          title="Cerca del premio"
+          description="Recordale al cliente cuando esté cerca de completar su tarjeta."
+          example="“Te falta 1 sello para tus 3 medialunas gratis.”"
+          enabled={progreso.enabled}
+          disabled={!canManage || saving}
+          onToggle={(value) => void patch({ cercaDelPremio: value })}
+        />
+      ) : null}
 
       {/* ── B. Te extrañamos ──────────────────────────────────────────── */}
       <AutomationCard
@@ -234,9 +325,12 @@ export default function AutomationsTab() {
             </div>
 
             <div>
-              <p className="text-sm font-semibold text-[#202333]">
-                Beneficios que Flikker puede ofrecer
-              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-sm font-semibold text-[#202333]">
+                  Beneficios que Flikker puede usar
+                </p>
+                <BenefitsStatusBadge status={data.benefitsAutomation.status} />
+              </div>
               {data.benefits.length > 0 ? (
                 <div className="mt-2.5 space-y-2">
                   {data.benefits.map((benefit) => (
@@ -249,11 +343,7 @@ export default function AutomationsTab() {
                         checked={benefit.authorized}
                         disabled={!canManage || saving}
                         onChange={(e) =>
-                          void patch({
-                            benefitIds: e.target.checked
-                              ? [...authorizedIds, benefit.id]
-                              : authorizedIds.filter((id) => id !== benefit.id),
-                          })
+                          toggleBenefit(benefit.id, e.target.checked, authorizedIds)
                         }
                         className="h-4 w-4 accent-[#5C6BC0]"
                       />
@@ -267,7 +357,9 @@ export default function AutomationsTab() {
                 </p>
               )}
               <p className="mt-3 text-xs leading-5 text-[#8891A4]">
-                Flikker nunca ofrecerá un beneficio que no hayas autorizado.
+                Si no seleccionás ninguno, Flikker igual puede enviar
+                recordatorios sin beneficio. Nunca va a ofrecer uno que no
+                hayas autorizado.
               </p>
               {/* El catálogo es de Programa. Acá solo se autoriza. */}
               <Link
@@ -277,6 +369,66 @@ export default function AutomationsTab() {
                 Crear beneficio en Programa →
               </Link>
             </div>
+
+            {/*
+              §10/§11 — el límite solo importa (y solo se muestra) una vez
+              que hay al menos un beneficio autorizado. Con 0 autorizados,
+              "solo recordatorios" ya lo dice todo — un límite acá sería un
+              requisito inventado para algo que no lo necesita.
+            */}
+            {authorizedIds.length > 0 ? (
+              <div>
+                <p className="text-sm font-semibold text-[#202333]">
+                  Límite mensual de beneficios automáticos
+                </p>
+                <p className="mt-1 text-xs leading-5 text-[#8891A4]">
+                  ¿Cuántos beneficios como máximo puede ofrecer Flikker por
+                  mes?
+                </p>
+                <div className="mt-2.5 flex items-center gap-2">
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    value={limitDraft}
+                    disabled={!canManage || saving}
+                    onChange={(e) => setLimitDraft(e.target.value)}
+                    className="h-10 w-24 rounded-[9px] border border-[#E3E5F0] bg-white px-3 text-sm text-[#202333] outline-none focus:border-[#5C6BC0] disabled:opacity-60"
+                  />
+                  {String(data.benefitsAutomation.monthlyLimit ?? "") !==
+                  limitDraft.trim() ? (
+                    <button
+                      type="button"
+                      disabled={!canManage || saving}
+                      onClick={saveLimit}
+                      className="inline-flex h-10 items-center rounded-[9px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-60"
+                    >
+                      Guardar
+                    </button>
+                  ) : null}
+                </div>
+                {data.benefitsAutomation.monthlyLimit != null ? (
+                  <p className="mt-2 text-xs leading-5 text-[#8891A4]">
+                    Flikker nunca entregará más de{" "}
+                    {data.benefitsAutomation.monthlyLimit} beneficios
+                    automáticos por mes. Los recordatorios sin beneficio no
+                    cuentan para este límite.
+                  </p>
+                ) : null}
+                {data.benefitsAutomation.status === "limite_alcanzado" ? (
+                  <p className="mt-2 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-xs leading-5 text-[#8A520D]">
+                    Ya se alcanzó el límite de este mes (
+                    {data.benefitsAutomation.usedThisMonth}/
+                    {data.benefitsAutomation.monthlyLimit}). Los recordatorios
+                    sin beneficio siguen saliendo con normalidad.
+                  </p>
+                ) : null}
+              </div>
+            ) : (
+              <p className="text-sm text-[#8891A4]">
+                Flikker está usando solo recordatorios.
+              </p>
+            )}
 
             {/* ── Resultados ────────────────────────────────────────── */}
             <div className="rounded-[12px] bg-[#F7F8FC] px-4 py-3.5">
@@ -457,6 +609,41 @@ function AutomationCard({
       </div>
       {children}
     </section>
+  );
+}
+
+/**
+ * §11 — un estado separado del "Activo/Preparando" de la automatización en
+ * sí: "Te extrañamos" puede estar mandando reminders perfectamente mientras
+ * esto dice "Necesitan límite" — son dos preguntas distintas.
+ */
+function BenefitsStatusBadge({
+  status,
+}: {
+  status: Overview["benefitsAutomation"]["status"];
+}) {
+  if (status === "sin_autorizar") return null;
+  const copy: Record<
+    Exclude<Overview["benefitsAutomation"]["status"], "sin_autorizar">,
+    { label: string; className: string }
+  > = {
+    listo: { label: "Listos", className: "bg-[#EAF7EF] text-[#147A5B]" },
+    necesita_limite: {
+      label: "Necesitan límite",
+      className: "bg-[#FDEEEE] text-[#B3261E]",
+    },
+    limite_alcanzado: {
+      label: "Límite alcanzado",
+      className: "bg-[#FFF7EE] text-[#8A520D]",
+    },
+  };
+  const { label, className } = copy[status];
+  return (
+    <span
+      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${className}`}
+    >
+      {label}
+    </span>
   );
 }
 

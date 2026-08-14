@@ -13,6 +13,12 @@ import { CustomerLoyaltyRepository } from '../customers/loyalty/customer-loyalty
 import { CustomerLoyaltyService } from '../customers/loyalty/customer-loyalty.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RetentionResultsOverviewService } from '../retention-v2/retention-results-overview.service';
+import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
+import { RetentionExperimentService } from '../retention-v2/retention-experiment.service';
+import { RetentionExperimentsAdminService } from '../retention-v2/retention-experiments-admin.service';
+import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
+import { RetentionBudgetService } from '../retention-v2/retention-budget.service';
+import { ProgramAuditService } from '../program-audit/program-audit.service';
 import { ReviewsOverviewService } from '../reviews/reviews-overview.service';
 import { HomeService } from './home.service';
 
@@ -26,11 +32,20 @@ import { HomeService } from './home.service';
 describe('Inicio — portada (integration)', () => {
   let prisma: PrismaService;
   let home: HomeService;
+  let bootstrap: RetentionV2BootstrapService;
   let loyalty: CustomerLoyaltyService;
   let reviews: ReviewsOverviewService;
 
   const businesses: string[] = [];
   const daysAgo = (n: number) => new Date(Date.now() - n * 86_400_000);
+  const ORIGINAL_WHAPI_TOKEN = process.env.WHAPI_TOKEN;
+
+  // El canal está "conectado" en todo este archivo — estos tests prueban
+  // qué automatización se muestra activa, no el canal en sí (ver
+  // `## Canal` en notifications.integration.spec.ts para ese caso).
+  beforeEach(() => {
+    process.env.WHAPI_TOKEN = 'test-token';
+  });
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
@@ -40,6 +55,12 @@ describe('Inicio — portada (integration)', () => {
         CustomerLoyaltyService,
         ReviewsOverviewService,
         NotificationsService,
+        RetentionSettingsService,
+        RetentionExperimentService,
+        RetentionExperimentsAdminService,
+        RetentionV2BootstrapService,
+        RetentionBudgetService,
+        ProgramAuditService,
         HomeService,
         {
           provide: RetentionResultsOverviewService,
@@ -50,6 +71,7 @@ describe('Inicio — portada (integration)', () => {
 
     prisma = moduleRef.get(PrismaService);
     home = moduleRef.get(HomeService);
+    bootstrap = moduleRef.get(RetentionV2BootstrapService);
     loyalty = moduleRef.get(CustomerLoyaltyService);
     reviews = moduleRef.get(ReviewsOverviewService);
     await prisma.$connect();
@@ -57,6 +79,7 @@ describe('Inicio — portada (integration)', () => {
 
   afterAll(async () => {
     await prisma.$disconnect();
+    process.env.WHAPI_TOKEN = ORIGINAL_WHAPI_TOKEN;
   });
 
   afterEach(async () => {
@@ -67,6 +90,9 @@ describe('Inicio — portada (integration)', () => {
       await prisma.checkinFeedback.deleteMany({ where: { businessId: id } });
       await prisma.customerEvent.deleteMany({ where: { businessId: id } });
       await prisma.googleReview.deleteMany({ where: { businessId: id } });
+      await prisma.benefitParticipation.deleteMany({
+        where: { businessId: id },
+      });
       await prisma.customerRewardGoal.deleteMany({ where: { businessId: id } });
       await prisma.visit.deleteMany({ where: { businessId: id } });
       await prisma.customer.deleteMany({ where: { businessId: id } });
@@ -234,16 +260,22 @@ describe('Inicio — portada (integration)', () => {
           businessId,
           progressReminderEnabled: true,
           automaticCampaignsEnabled: false,
+          // Sin sellos, "cerca del premio" ni aparecería en `automations` —
+          // ver el test dedicado más abajo. Este test es sobre el estado
+          // EFECTIVO del flag propio, no sobre el gate de sellos.
+          rewardGoalsEnabled: true,
         },
         update: {
           progressReminderEnabled: true,
           automaticCampaignsEnabled: false,
+          rewardGoalsEnabled: true,
         },
       });
       await prisma.business.update({
         where: { id: businessId },
         data: { retentionEngineV2Enabled: true },
       });
+      await bootstrap.ensureDefaultRetentionSetup(businessId);
 
       const inicio = await home.overview(businessId);
 
@@ -285,12 +317,147 @@ describe('Inicio — portada (integration)', () => {
         expect(serialized).not.toContain(word);
       }
     });
+
+    /**
+     * §7 — Home no debe mostrar una automatización inexistente por contexto.
+     * Igual que en Notificaciones: sin sellos, "cerca del premio" no está en
+     * la lista (no es que esté "Desactivado" — no aplica a este negocio).
+     */
+    it('sin sellos activos, Inicio tampoco muestra "cerca del premio"', async () => {
+      const businessId = await makeBusiness();
+      await prisma.retentionSettings.upsert({
+        where: { businessId },
+        create: { businessId, automaticCampaignsEnabled: true },
+        update: { automaticCampaignsEnabled: true },
+      });
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { retentionEngineV2Enabled: true },
+      });
+
+      const inicio = await home.overview(businessId);
+
+      expect(inicio.automations?.items.map((i) => i.key)).toEqual([
+        'te_extranamos',
+      ]);
+    });
+
+    /**
+     * §8/§7 — sin canal, ninguna automatización puede leerse como "Activo"
+     * en Inicio tampoco: hereda directo de Notificaciones, sin recalcular.
+     */
+    it('sin canal de WhatsApp disponible, ninguna automatización se ve activa en Inicio', async () => {
+      const businessId = await makeBusiness();
+      await prisma.retentionSettings.upsert({
+        where: { businessId },
+        create: { businessId, automaticCampaignsEnabled: true },
+        update: { automaticCampaignsEnabled: true },
+      });
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { retentionEngineV2Enabled: true },
+      });
+      delete process.env.WHAPI_TOKEN;
+
+      const inicio = await home.overview(businessId);
+
+      expect(inicio.automations?.activeCount).toBe(0);
+
+      process.env.WHAPI_TOKEN = 'test-token';
+    });
+
+    /**
+     * §E — reminder-only: "Te extrañamos" tiene que poder leerse como
+     * genuinamente activo sin que exista un solo Benefit. Inicio hereda
+     * `benefitsAutomation`/el conteo de autorizados de Notificaciones sin
+     * recalcular nada — acá solo se confirma que el passthrough llega.
+     */
+    it('Retention reminder-only: Te extrañamos activo con 0 beneficios autorizados', async () => {
+      const businessId = await makeBusiness();
+      await prisma.retentionSettings.upsert({
+        where: { businessId },
+        create: { businessId, automaticCampaignsEnabled: true },
+        update: { automaticCampaignsEnabled: true },
+      });
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { retentionEngineV2Enabled: true },
+      });
+      await bootstrap.ensureDefaultRetentionSetup(businessId);
+
+      const inicio = await home.overview(businessId);
+
+      expect(
+        inicio.automations?.items.find((i) => i.key === 'te_extranamos')
+          ?.enabled,
+      ).toBe(true);
+      expect(inicio.automations?.authorizedBenefitsCount).toBe(0);
+      expect(inicio.automations?.benefitsAutomation.status).toBe(
+        'sin_autorizar',
+      );
+    });
+
+    /**
+     * §F — un beneficio autorizado sin límite mensual configurado (estado
+     * heredado de antes del guardrail de presupuesto — ver Notificaciones)
+     * tiene que reflejarse en `benefitsAutomation`, PERO nunca apagar "Te
+     * extrañamos": son dos preguntas distintas (§3/§11).
+     */
+    it('beneficio autorizado sin límite: se refleja en benefitsAutomation sin apagar Te extrañamos', async () => {
+      const businessId = await makeBusiness();
+      await prisma.retentionSettings.upsert({
+        where: { businessId },
+        create: { businessId, automaticCampaignsEnabled: true },
+        update: { automaticCampaignsEnabled: true },
+      });
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { retentionEngineV2Enabled: true },
+      });
+      const benefit = await prisma.benefit.create({
+        data: {
+          businessId,
+          title: 'Café gratis',
+          type: BenefitType.gift,
+          active: false,
+        },
+      });
+      const definition = await prisma.retentionIncentiveDefinition.create({
+        data: {
+          businessId,
+          benefitId: benefit.id,
+          name: 'Café gratis',
+          type: BenefitType.gift,
+          active: true,
+        },
+      });
+      // Escritura directa — el guardrail ya no permite llegar a este estado
+      // por la API real; esto reproduce un negocio de antes de esa regla.
+      await prisma.retentionIncentiveDefinition.update({
+        where: { id: definition.id },
+        data: { automationEligible: true },
+      });
+      await bootstrap.ensureDefaultRetentionSetup(businessId);
+
+      const inicio = await home.overview(businessId);
+
+      expect(inicio.automations?.benefitsAutomation.status).toBe(
+        'necesita_limite',
+      );
+      expect(inicio.automations?.authorizedBenefitsCount).toBe(1);
+      expect(
+        inicio.automations?.items.find((i) => i.key === 'te_extranamos')
+          ?.enabled,
+      ).toBe(true); // sigue activo — el beneficio sin límite no lo apaga
+    });
   });
 
   // ── Programa ────────────────────────────────────────────────────────────
+  // Beneficios y la tarjeta de sellos son dos herramientas independientes:
+  // Inicio nunca asume que la tarjeta está activa (`mode` lo dice siempre).
 
   describe('programa', () => {
-    it('muestra sellos, recompensa y el estado agregado', async () => {
+    it('con sellos activos: mode "stamps", con estado agregado y diseño', async () => {
       const businessId = await makeBusiness();
       const definition = await addProgram(businessId, '3 medialunas gratis');
       const a = await makeCustomer(businessId, 'Ana');
@@ -301,30 +468,199 @@ describe('Inicio — portada (integration)', () => {
       const inicio = await home.overview(businessId);
 
       expect(inicio.program).toMatchObject({
+        mode: 'stamps',
         stampsRequired: 5,
         rewardName: '3 medialunas gratis',
         participating: 1,
         available: 1,
+        // Nunca se tocó el diseño: sigue en default.
+        isDefaultDesign: true,
       });
     });
 
-    it('sin programa configurado devuelve null en vez de inventar uno', async () => {
+    it('con la tarjeta ya diseñada, isDefaultDesign es false', async () => {
       const businessId = await makeBusiness();
-      expect((await home.overview(businessId)).program).toBeNull();
+      await addProgram(businessId, 'Café gratis');
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { loyaltyCardColor: '#1A1040' },
+      });
+
+      const inicio = await home.overview(businessId);
+
+      expect(inicio.program).toMatchObject({
+        mode: 'stamps',
+        isDefaultDesign: false,
+      });
+      if (inicio.program.mode === 'stamps') {
+        expect(inicio.program.appearance.cardColor).toBe('#1A1040');
+      }
     });
 
-    it('cuenta las recompensas canjeadas del período', async () => {
+    it('sin sellos activos: mode "benefits", nunca un hueco vacío de tarjeta', async () => {
+      const businessId = await makeBusiness();
+      await prisma.benefit.create({
+        data: {
+          businessId,
+          title: '10% de descuento',
+          type: BenefitType.discount,
+          active: false,
+        },
+      });
+
+      const inicio = await home.overview(businessId);
+
+      expect(inicio.program).toEqual({
+        mode: 'benefits',
+        benefitsCount: 1,
+        authorizedForReactivationCount: 0,
+      });
+    });
+
+    it('sin sellos NI beneficios: sigue siendo "benefits", con todo en cero', async () => {
+      const businessId = await makeBusiness();
+
+      const inicio = await home.overview(businessId);
+
+      expect(inicio.program).toEqual({
+        mode: 'benefits',
+        benefitsCount: 0,
+        authorizedForReactivationCount: 0,
+      });
+    });
+
+    it('cuenta los beneficios autorizados para reactivación', async () => {
+      const businessId = await makeBusiness();
+      const benefit = await prisma.benefit.create({
+        data: {
+          businessId,
+          title: '10% de descuento',
+          type: BenefitType.discount,
+          active: false,
+        },
+      });
+      await prisma.retentionIncentiveDefinition.create({
+        data: {
+          businessId,
+          benefitId: benefit.id,
+          name: '10% de descuento',
+          type: BenefitType.discount,
+          active: true,
+          automationEligible: true,
+        },
+      });
+
+      const inicio = await home.overview(businessId);
+
+      expect(inicio.program).toMatchObject({
+        mode: 'benefits',
+        benefitsCount: 1,
+        authorizedForReactivationCount: 1,
+      });
+    });
+
+    /**
+     * Fase de Programa nuevo — un canje real SIEMPRE deja una
+     * `BenefitParticipation.redeemedAt`, tarjeta o no (ver
+     * `RedemptionService.closeRewardGoalIfRedeemed`, que sincroniza el
+     * `redeemedAt` de la tarjeta con el de la participación en el mismo
+     * momento). Por eso el fixture arma ambas filas juntas — un
+     * `CustomerRewardGoal.redeemedAt` sin su `BenefitParticipation`
+     * hermana no representa ningún canje real que el producto pueda
+     * producir.
+     */
+    async function makeCardRedemption(
+      businessId: string,
+      definitionId: string,
+      benefitId: string,
+      customerId: string,
+    ) {
+      const participation = await prisma.benefitParticipation.create({
+        data: {
+          benefitId,
+          businessId,
+          customerId,
+          redemptionCode: `TEST${randomUUID().slice(0, 8)}`,
+          redeemedAt: daysAgo(4),
+        },
+      });
+      await prisma.customerRewardGoal.create({
+        data: {
+          id: randomUUID(),
+          businessId,
+          customerId,
+          incentiveDefinitionId: definitionId,
+          benefitParticipationId: participation.id,
+          status: RewardGoalStatus.REDEEMED,
+          startingVisitCount: 0,
+          targetAdditionalVisits: 5,
+          activatedAt: daysAgo(20),
+          unlockedAt: daysAgo(5),
+          redeemedAt: daysAgo(4),
+          reasonCode: 'TEST',
+          segmentAtCreation: CustomerSegment.NEW,
+        },
+      });
+      return participation;
+    }
+
+    it('cuenta los beneficios canjeados del período — de una tarjeta', async () => {
       const businessId = await makeBusiness();
       const definition = await addProgram(businessId, 'Café gratis');
       const customer = await makeCustomer(businessId, 'Ana');
-      await addGoal(
+      await makeCardRedemption(
         businessId,
-        customer.id,
         definition.id,
-        RewardGoalStatus.REDEEMED,
+        definition.benefitId!,
+        customer.id,
       );
 
-      expect((await home.overview(businessId)).kpis.rewardsRedeemed).toBe(1);
+      expect((await home.overview(businessId)).kpis.benefitsRedeemed).toBe(1);
+    });
+
+    it('cuenta los beneficios canjeados del período — sin ninguna tarjeta de por medio', async () => {
+      const businessId = await makeBusiness();
+      const benefit = await prisma.benefit.create({
+        data: {
+          businessId,
+          title: '10% descuento',
+          type: BenefitType.discount,
+          active: false,
+        },
+      });
+      const customer = await makeCustomer(businessId, 'Ana');
+      await prisma.benefitParticipation.create({
+        data: {
+          benefitId: benefit.id,
+          businessId,
+          customerId: customer.id,
+          redemptionCode: `TEST${randomUUID().slice(0, 8)}`,
+          redeemedAt: daysAgo(4),
+        },
+      });
+
+      expect((await home.overview(businessId)).kpis.benefitsRedeemed).toBe(1);
+    });
+
+    it('no duplica un canje de tarjeta — cuenta 1, no 2', async () => {
+      const businessId = await makeBusiness();
+      const definition = await addProgram(businessId, 'Café gratis');
+      const customer = await makeCustomer(businessId, 'Ana');
+      await makeCardRedemption(
+        businessId,
+        definition.id,
+        definition.benefitId!,
+        customer.id,
+      );
+
+      // El único conteo real: BenefitParticipation.redeemedAt. Si además se
+      // contara CustomerRewardGoal.status=REDEEMED por separado, este mismo
+      // canje aparecería dos veces.
+      const goalCount = await prisma.customerRewardGoal.count({
+        where: { businessId, status: RewardGoalStatus.REDEEMED },
+      });
+      expect(goalCount).toBe(1); // existe la fila...
+      expect((await home.overview(businessId)).kpis.benefitsRedeemed).toBe(1); // ...pero se cuenta una sola vez
     });
   });
 
@@ -348,7 +684,7 @@ describe('Inicio — portada (integration)', () => {
       expect(activity.map((e) => e.kind)).toEqual([
         'canje',
         'desbloqueo',
-        'sello',
+        'visita',
       ]);
       const times = activity.map((e) => e.at.getTime());
       expect([...times].sort((a, b) => b - a)).toEqual(times);
@@ -362,17 +698,192 @@ describe('Inicio — portada (integration)', () => {
   });
 
   // ── Checklist ───────────────────────────────────────────────────────────
+  // Tareas de DESPUÉS del onboarding nuevo, no otro wizard: nunca pide
+  // "activar sellos" ni "configurar automatizaciones" — esas ya se
+  // resolvieron (o quedaron con su default) al terminar `/comenzar`.
 
   describe('checklist de puesta en marcha', () => {
-    it('un negocio recién creado tiene todo pendiente', async () => {
+    it('un negocio recién creado (solo beneficios, sin sellos) pide Google y el primer beneficio', async () => {
       const businessId = await makeBusiness();
+      // El onboarding nuevo ya crea el QR principal en el paso 1.
+      await prisma.visitSource.create({
+        data: {
+          businessId,
+          name: 'Principal',
+          token: randomUUID(),
+          isDefault: true,
+        },
+      });
 
       expect(await home.setupTasks(businessId)).toEqual([
-        'programa',
-        'qr',
         'google',
-        'automatizaciones',
+        'beneficio',
       ]);
+    });
+
+    it('NUNCA pide activar sellos: un negocio "solo beneficios" no tiene esa tarea', async () => {
+      const businessId = await makeBusiness({ google: 'https://g.page/x' });
+      await prisma.visitSource.create({
+        data: {
+          businessId,
+          name: 'Principal',
+          token: randomUUID(),
+          isDefault: true,
+        },
+      });
+      await prisma.benefit.create({
+        data: {
+          businessId,
+          title: '10% de descuento',
+          type: BenefitType.discount,
+          active: false,
+        },
+      });
+
+      const pending = await home.setupTasks(businessId);
+      expect(pending).not.toContain('sellos');
+      expect(pending).not.toContain('personalizar-tarjeta');
+    });
+
+    it('con sellos activos y diseño default: pide personalizar la tarjeta', async () => {
+      const businessId = await makeBusiness({ google: 'https://g.page/x' });
+      await addProgram(businessId, 'Café gratis');
+      await prisma.visitSource.create({
+        data: {
+          businessId,
+          name: 'Principal',
+          token: randomUUID(),
+          isDefault: true,
+        },
+      });
+
+      expect(await home.setupTasks(businessId)).toContain(
+        'personalizar-tarjeta',
+      );
+    });
+
+    it('con sellos activos y la tarjeta ya diseñada, NO pide personalizarla de nuevo', async () => {
+      const businessId = await makeBusiness({ google: 'https://g.page/x' });
+      await addProgram(businessId, 'Café gratis');
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { loyaltyCardColor: '#1A1040' },
+      });
+      await prisma.visitSource.create({
+        data: {
+          businessId,
+          name: 'Principal',
+          token: randomUUID(),
+          isDefault: true,
+        },
+      });
+
+      expect(await home.setupTasks(businessId)).not.toContain(
+        'personalizar-tarjeta',
+      );
+    });
+
+    it('con al menos un beneficio creado, NO pide crear el primero (es opcional, no obligatorio)', async () => {
+      const businessId = await makeBusiness({ google: 'https://g.page/x' });
+      await prisma.visitSource.create({
+        data: {
+          businessId,
+          name: 'Principal',
+          token: randomUUID(),
+          isDefault: true,
+        },
+      });
+      await prisma.benefit.create({
+        data: {
+          businessId,
+          title: '10% de descuento',
+          type: BenefitType.discount,
+          active: false,
+        },
+      });
+
+      expect(await home.setupTasks(businessId)).not.toContain('beneficio');
+    });
+
+    /**
+     * §F — un beneficio autorizado sin límite mensual configurado SÍ es una
+     * tarea pendiente real (bloqueante para ese beneficio, no opcional como
+     * "creá tu primer beneficio"). Reusa la conclusión de
+     * NotificationsService — el checklist no reevalúa la regla de
+     * presupuesto por su cuenta.
+     */
+    it('beneficio autorizado sin límite mensual: pide definir el límite', async () => {
+      const businessId = await makeBusiness({ google: 'https://g.page/x' });
+      await prisma.visitSource.create({
+        data: {
+          businessId,
+          name: 'Principal',
+          token: randomUUID(),
+          isDefault: true,
+        },
+      });
+      const benefit = await prisma.benefit.create({
+        data: {
+          businessId,
+          title: 'Café gratis',
+          type: BenefitType.gift,
+          active: false,
+        },
+      });
+      const definition = await prisma.retentionIncentiveDefinition.create({
+        data: {
+          businessId,
+          benefitId: benefit.id,
+          name: 'Café gratis',
+          type: BenefitType.gift,
+          active: true,
+        },
+      });
+      await prisma.retentionIncentiveDefinition.update({
+        where: { id: definition.id },
+        data: { automationEligible: true },
+      });
+
+      expect(await home.setupTasks(businessId)).toContain('limite-beneficios');
+    });
+
+    it('con el límite mensual configurado, NO pide definirlo', async () => {
+      const businessId = await makeBusiness({ google: 'https://g.page/x' });
+      await prisma.visitSource.create({
+        data: {
+          businessId,
+          name: 'Principal',
+          token: randomUUID(),
+          isDefault: true,
+        },
+      });
+      const benefit = await prisma.benefit.create({
+        data: {
+          businessId,
+          title: 'Café gratis',
+          type: BenefitType.gift,
+          active: false,
+        },
+      });
+      await prisma.retentionIncentiveDefinition.create({
+        data: {
+          businessId,
+          benefitId: benefit.id,
+          name: 'Café gratis',
+          type: BenefitType.gift,
+          active: true,
+          automationEligible: true,
+        },
+      });
+      await prisma.retentionSettings.upsert({
+        where: { businessId },
+        create: { businessId, maxAutomatedIncentivesPerMonth: 10 },
+        update: { maxAutomatedIncentivesPerMonth: 10 },
+      });
+
+      expect(await home.setupTasks(businessId)).not.toContain(
+        'limite-beneficios',
+      );
     });
 
     /**
@@ -382,9 +893,17 @@ describe('Inicio — portada (integration)', () => {
     it('DESAPARECE cuando no queda nada relevante pendiente', async () => {
       const businessId = await makeBusiness({ google: 'https://g.page/x' });
       await addProgram(businessId, 'Café gratis');
-      await prisma.retentionSettings.update({
-        where: { businessId },
-        data: { progressReminderEnabled: true },
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { loyaltyCardColor: '#1A1040' },
+      });
+      await prisma.benefit.create({
+        data: {
+          businessId,
+          title: '10% de descuento',
+          type: BenefitType.discount,
+          active: false,
+        },
       });
       await prisma.visitSource.create({
         data: {
@@ -406,25 +925,28 @@ describe('Inicio — portada (integration)', () => {
       expect(await home.setupTasks(businessId)).toEqual([]);
     });
 
-    it('el soporte físico QR+NFC no bloquea la configuración completa', async () => {
+    /**
+     * Caso de borde real, no el flujo normal: el onboarding ya crea el QR
+     * principal en el paso 1, así que esto solo pasa si la fuente activa se
+     * borró después. Ahí sí es bloqueante — el check-in no puede funcionar.
+     */
+    it('sin ninguna fuente QR/NFC activa, lo marca pendiente', async () => {
       const businessId = await makeBusiness({ google: 'https://g.page/x' });
       await addProgram(businessId, 'Café gratis');
-      await prisma.retentionSettings.update({
-        where: { businessId },
-        data: { automaticCampaignsEnabled: true },
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { loyaltyCardColor: '#1A1040' },
       });
-      await prisma.visitSource.create({
+      await prisma.benefit.create({
         data: {
           businessId,
-          name: 'Principal',
-          token: randomUUID(),
-          isDefault: true,
+          title: '10% de descuento',
+          type: BenefitType.discount,
+          active: false,
         },
       });
 
-      // Nunca pidió el soporte físico, y aun así lo único pendiente es el
-      // primer cliente — que no depende de él.
-      expect(await home.setupTasks(businessId)).toEqual(['primer-cliente']);
+      expect(await home.setupTasks(businessId)).toEqual(['qr']);
     });
 
     it('Google pendiente aparece como tarea y como estado', async () => {

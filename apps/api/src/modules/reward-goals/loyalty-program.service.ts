@@ -1,9 +1,17 @@
-import { Injectable } from '@nestjs/common';
-import { RewardGoalStatus } from '@prisma/client';
+import { BadRequestException, Injectable } from '@nestjs/common';
+import { BenefitType, RewardGoalStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
+import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
+import { BenefitsRepository } from '../benefits/benefits.repository';
+import { ProgramAuditService } from '../program-audit/program-audit.service';
+import type {
+  SetStampsCardEnabledDto,
+  UpdateStampsCardConfigDto,
+} from './dto/loyalty-program.dto';
 
 const RECENT_ACTIVITY_LIMIT = 12;
+const HISTORY_LIMIT = 40;
 
 export interface LoyaltyProgramActivityItem {
   id: string;
@@ -27,6 +35,9 @@ export class LoyaltyProgramService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: RetentionSettingsService,
+    private readonly benefits: BenefitsRepository,
+    private readonly programAudit: ProgramAuditService,
+    private readonly retentionBootstrap: RetentionV2BootstrapService,
   ) {}
 
   async getOverview(businessId: string) {
@@ -40,6 +51,7 @@ export class LoyaltyProgramService {
       rewardBenefit,
       welcomeBenefit,
       recentActivity,
+      benefitsCount,
     ] = await Promise.all([
       // Clientes distintos que alguna vez tuvieron una tarjeta.
       this.prisma.customerRewardGoal
@@ -72,6 +84,7 @@ export class LoyaltyProgramService {
         })
         .then((row) => row?.welcomeBenefit ?? null),
       this.buildRecentActivity(businessId),
+      this.prisma.benefit.count({ where: { businessId } }),
     ]);
 
     const stampsRequired =
@@ -94,7 +107,261 @@ export class LoyaltyProgramService {
         redeemedTotal,
       },
       recentActivity,
+      benefitsCount,
     };
+  }
+
+  /**
+   * ON/OFF simple — para cuando YA hay sellos y recompensa configurados
+   * (activar de nuevo tras una pausa, o pausar temporalmente). Prender por
+   * primera vez sin config previa no pasa por acá: `updateStampsCardConfig`
+   * configura Y activa en un solo paso, igual que el onboarding.
+   *
+   * Apagar SOLO cambia `rewardGoalsEnabled`/`progressReminderEnabled` — no
+   * cancela tarjetas en curso ni borra la recompensa configurada, así que
+   * volver a activar restaura el mismo programa sin pedir nada de nuevo.
+   */
+  async setStampsCardEnabled(
+    businessId: string,
+    dto: SetStampsCardEnabledDto,
+    actorUserId?: string,
+  ) {
+    const current = await this.settings.getOrCreate(businessId);
+    if (current.rewardGoalsEnabled === dto.enabled) {
+      return this.getOverview(businessId);
+    }
+
+    if (dto.enabled) {
+      const reward = await this.prisma.retentionIncentiveDefinition.findFirst({
+        where: { businessId, active: true, rewardGoalEligible: true },
+      });
+      if (!reward || !current.rewardGoalMinVisits) {
+        throw new BadRequestException(
+          'Configurá los sellos y la recompensa antes de activar la tarjeta',
+        );
+      }
+    }
+
+    await this.prisma.retentionSettings.update({
+      where: { businessId },
+      data: dto.enabled
+        ? { rewardGoalsEnabled: true }
+        : { rewardGoalsEnabled: false, progressReminderEnabled: false },
+    });
+
+    await this.programAudit.record({
+      businessId,
+      actorUserId,
+      type: dto.enabled ? 'card_activated' : 'card_deactivated',
+      message: dto.enabled
+        ? 'Activaste la tarjeta de sellos'
+        : 'Desactivaste la tarjeta de sellos',
+    });
+
+    return this.getOverview(businessId);
+  }
+
+  /**
+   * Configura sellos necesarios + recompensa (+ bonus feedback) y activa la
+   * tarjeta si todavía no lo estaba — misma lógica que el paso "Beneficios +
+   * sellos" del onboarding (`OnboardingService.saveProgram`), disponible acá
+   * para cuando el negocio ya terminó el alta y quiere cambiar la config.
+   *
+   * Snapshot de historia: esto NUNCA edita el `Benefit`/`RetentionIncentive
+   * Definition` que ya está autorizado como recompensa — crea o reusa (por
+   * título) uno nuevo y desautoriza el anterior. Los `CustomerRewardGoal` ya
+   * activos siguen apuntando por FK a la definición vieja, así que un cliente
+   * a mitad de tarjeta nunca ve cambiar su objetivo ni su recompensa.
+   */
+  async updateStampsCardConfig(
+    businessId: string,
+    dto: UpdateStampsCardConfigDto,
+    actorUserId?: string,
+  ) {
+    const before = await this.settings.getOrCreate(businessId);
+    const wasEnabled = before.rewardGoalsEnabled;
+
+    const rewardBenefitId = await this.resolveRewardBenefit(
+      businessId,
+      dto.rewardBenefitId,
+      dto.rewardTitle,
+      (dto.rewardType as BenefitType) ?? BenefitType.gift,
+    );
+    if (!rewardBenefitId) {
+      throw new BadRequestException(
+        'Elegí o creá una recompensa para la tarjeta',
+      );
+    }
+
+    await this.prisma.retentionIncentiveDefinition.updateMany({
+      where: { businessId, rewardGoalEligible: true },
+      data: { rewardGoalEligible: false },
+    });
+    await this.benefits.setRetentionBridge(businessId, rewardBenefitId, {
+      rewardGoalEligible: true,
+    });
+
+    await this.prisma.retentionSettings.update({
+      where: { businessId },
+      data: {
+        rewardGoalsEnabled: true,
+        rewardGoalMinVisits: dto.stampsRequired,
+        rewardGoalMaxVisits: dto.stampsRequired,
+        rewardGoalFeedbackBonusEnabled: dto.feedbackBonusEnabled ?? false,
+        progressReminderEnabled: true,
+      },
+    });
+
+    const reward = await this.prisma.benefit.findUnique({
+      where: { id: rewardBenefitId },
+      select: { title: true },
+    });
+
+    await this.programAudit.record({
+      businessId,
+      actorUserId,
+      type: wasEnabled ? 'card_config_changed' : 'card_activated',
+      message: wasEnabled
+        ? `Cambiaste la tarjeta a ${dto.stampsRequired} sellos → ${reward?.title ?? 'tu recompensa'}`
+        : `Activaste la tarjeta de sellos: ${dto.stampsRequired} sellos → ${reward?.title ?? 'tu recompensa'}`,
+      metadata: { stampsRequired: dto.stampsRequired, rewardBenefitId },
+    });
+
+    // §9 trigger C — this call always turns `progressReminderEnabled` on
+    // (see above), which is exactly the moment "Cerca del premio" needs its
+    // own infrastructure to exist. A no-op if it already does. If the
+    // business's engine kill switch happens to still be off (e.g. it was
+    // never onboarded through the self-service flow, or was explicitly
+    // turned off from Notificaciones), this safely reports
+    // `skipped_engine_not_ready` rather than throwing — Programa does not
+    // flip that switch on this business's behalf.
+    await this.retentionBootstrap.ensureDefaultRetentionSetup(businessId);
+
+    return this.getOverview(businessId);
+  }
+
+  /** Historial de Programa: eventos auditados + eventos reconstruibles con fecha real. */
+  async getHistory(businessId: string) {
+    const [audited, unlocked, redeemed, benefitIssued, benefitRedeemed] =
+      await Promise.all([
+        this.programAudit.list(businessId, HISTORY_LIMIT),
+        this.prisma.customerRewardGoal.findMany({
+          where: { businessId, unlockedAt: { not: null } },
+          orderBy: { unlockedAt: 'desc' },
+          take: HISTORY_LIMIT,
+          select: {
+            id: true,
+            unlockedAt: true,
+            customer: { select: { name: true } },
+            incentiveDefinition: { select: { name: true } },
+          },
+        }),
+        this.prisma.customerRewardGoal.findMany({
+          where: { businessId, redeemedAt: { not: null } },
+          orderBy: { redeemedAt: 'desc' },
+          take: HISTORY_LIMIT,
+          select: {
+            id: true,
+            redeemedAt: true,
+            customer: { select: { name: true } },
+            incentiveDefinition: { select: { name: true } },
+          },
+        }),
+        this.prisma.benefitParticipation.findMany({
+          where: { businessId },
+          orderBy: { createdAt: 'desc' },
+          take: HISTORY_LIMIT,
+          select: {
+            id: true,
+            createdAt: true,
+            customer: { select: { name: true } },
+            benefitTitleSnapshot: true,
+            benefit: { select: { title: true } },
+          },
+        }),
+        this.prisma.benefitParticipation.findMany({
+          where: { businessId, redeemedAt: { not: null } },
+          orderBy: { redeemedAt: 'desc' },
+          take: HISTORY_LIMIT,
+          select: {
+            id: true,
+            redeemedAt: true,
+            customer: { select: { name: true } },
+            benefitTitleSnapshot: true,
+            benefit: { select: { title: true } },
+          },
+        }),
+      ]);
+
+    const items = [
+      ...audited.map((e) => ({
+        id: `audit-${e.id}`,
+        message: e.message,
+        occurredAt: e.createdAt.toISOString(),
+      })),
+      ...unlocked.map((g) => ({
+        id: `unlocked-${g.id}`,
+        message: `${g.customer?.name ?? 'Un cliente'} completó su tarjeta (${g.incentiveDefinition?.name ?? 'recompensa'})`,
+        occurredAt: (g.unlockedAt as Date).toISOString(),
+      })),
+      ...redeemed.map((g) => ({
+        id: `card-redeemed-${g.id}`,
+        message: `${g.customer?.name ?? 'Un cliente'} canjeó la recompensa de la tarjeta (${g.incentiveDefinition?.name ?? 'recompensa'})`,
+        occurredAt: (g.redeemedAt as Date).toISOString(),
+      })),
+      // El título mostrado es SIEMPRE el que se prometió en el momento — no
+      // el título actual del catálogo, que puede haber cambiado desde
+      // entonces (ver `benefitTitleSnapshot` en schema.prisma).
+      ...benefitIssued.map((p) => ({
+        id: `benefit-issued-${p.id}`,
+        message: `${p.customer?.name ?? 'Un cliente'} recibió el beneficio "${p.benefitTitleSnapshot ?? p.benefit.title}"`,
+        occurredAt: p.createdAt.toISOString(),
+      })),
+      ...benefitRedeemed.map((p) => ({
+        id: `benefit-redeemed-${p.id}`,
+        message: `${p.customer?.name ?? 'Un cliente'} canjeó el beneficio "${p.benefitTitleSnapshot ?? p.benefit.title}"`,
+        occurredAt: (p.redeemedAt as Date).toISOString(),
+      })),
+    ];
+
+    return items
+      .sort((a, b) => b.occurredAt.localeCompare(a.occurredAt))
+      .slice(0, HISTORY_LIMIT);
+  }
+
+  /**
+   * Devuelve el id del beneficio a usar: el existente si se pasó uno, o uno
+   * nuevo creado con ese título (reusado por título si ya existe, para que
+   * reenviar el mismo formulario no duplique). Espejo de
+   * `OnboardingService['resolveBenefit']` — mismo criterio, distinto caller.
+   */
+  private async resolveRewardBenefit(
+    businessId: string,
+    benefitId: string | undefined,
+    title: string | undefined,
+    type: BenefitType,
+  ): Promise<string | null> {
+    if (benefitId) {
+      const existing = await this.prisma.benefit.findFirst({
+        where: { id: benefitId, businessId },
+        select: { id: true },
+      });
+      return existing?.id ?? null;
+    }
+    const name = title?.trim();
+    if (!name) return null;
+
+    const sameTitle = await this.prisma.benefit.findFirst({
+      where: { businessId, title: name },
+      select: { id: true },
+    });
+    if (sameTitle) return sameTitle.id;
+
+    const created = await this.prisma.benefit.create({
+      data: { businessId, title: name, type, active: false },
+      select: { id: true },
+    });
+    return created.id;
   }
 
   /**

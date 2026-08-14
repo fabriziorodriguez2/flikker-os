@@ -8,6 +8,7 @@ import { RetentionBudgetService } from './retention-budget.service';
 import { IncentiveIssuerService } from './incentive-issuer.service';
 import { RetentionV2EvaluateService } from './retention-v2-evaluate.service';
 import { RetentionV2SendService } from './retention-v2-send.service';
+import { RetentionV2MessageDispatchService } from './retention-v2-message-dispatch.service';
 import { RetentionSettingsController } from './retention-settings.controller';
 import { RetentionIncentivesService } from './retention-incentives.service';
 import { RetentionIncentivesController } from './retention-incentives.controller';
@@ -22,6 +23,8 @@ import { RetentionResultsController } from './retention-results.controller';
 import { AiModule } from '../ai/ai.module';
 import { AiRecommendationExplanationService } from '../ai/recommendation-explanation.service';
 import { RetentionOptimizationService } from './retention-optimization.service';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { RetentionV2BootstrapService } from './retention-v2-bootstrap.service';
 
 /**
  * Retention Engine V2 runtime, plus the Fase C.5 configuration surface
@@ -47,8 +50,15 @@ import { RetentionOptimizationService } from './retention-optimization.service';
     IncentiveIssuerService,
     RetentionV2EvaluateService,
     RetentionV2SendService,
+    // Provided here too (not imported from JobsModule) to avoid a circular
+    // module dependency — JobsModule already imports RetentionV2Module for
+    // the workers. WhatsAppBspService is stateless, so a second instance
+    // costs nothing.
+    WhatsAppBspService,
+    RetentionV2MessageDispatchService,
     RetentionIncentivesService,
     RetentionExperimentsAdminService,
+    RetentionV2BootstrapService,
     RetentionDryRunReportService,
     RetentionOutcomeService,
     RetentionExperimentMetricsService,
@@ -59,9 +69,13 @@ import { RetentionOptimizationService } from './retention-optimization.service';
   exports: [
     RetentionV2EvaluateService,
     RetentionV2SendService,
+    RetentionV2MessageDispatchService,
+    RetentionV2BootstrapService,
+    RetentionExperimentService,
     RetentionOutcomeService,
     RetentionDecisionLogService,
     RetentionSettingsService,
+    RetentionBudgetService,
     IncentiveIssuerService,
     AiRecommendationExplanationService,
     RetentionOptimizationService,

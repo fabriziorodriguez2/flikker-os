@@ -13,9 +13,11 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { VisitSourcesRepository } from '../visit-sources/visit-sources.repository';
 import { BenefitsRepository } from '../benefits/benefits.repository';
+import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
 import { ONBOARDING_DEFAULTS } from './onboarding.defaults';
 import { GoogleUrlError, normalizeGoogleBusinessUrl } from './google-url';
 import type {
+  OnboardingBenefitsOnlyDto,
   OnboardingBusinessDto,
   OnboardingDesignDto,
   OnboardingGoogleDto,
@@ -48,6 +50,7 @@ export class OnboardingService {
     private readonly prisma: PrismaService,
     private readonly visitSources: VisitSourcesRepository,
     private readonly benefits: BenefitsRepository,
+    private readonly retentionBootstrap: RetentionV2BootstrapService,
   ) {}
 
   /** El negocio que este usuario está onboardeando, si hay alguno. */
@@ -78,6 +81,17 @@ export class OnboardingService {
   /**
    * Estado para reanudar. El wizard lo pide al montar y sabe exactamente en
    * qué paso quedó, sin guardar nada en el browser.
+   *
+   * Onboarding self-service NUEVO: 2 pasos. `steps.program` se resuelve por
+   * `retentionProgramDecided`, no por `rewardGoalsEnabled` — así "eligió
+   * Beneficios sin sellos" y "todavía no llegó al paso 2" no se confunden
+   * (los dos dejan `rewardGoalsEnabled` en false).
+   *
+   * Los pasos viejos (regalo de bienvenida, diseño, Google, notificaciones)
+   * ya NO forman parte de este recorrido — se sacaron del wizard self-service
+   * a pedido explícito, aunque sus endpoints siguen existiendo por si algo
+   * más los necesita (ver `saveWelcomeGift`/`saveDesign`/`saveGoogle`/
+   * `saveNotifications` más abajo).
    */
   async getState(userId: string) {
     const draft = await this.findDraft(userId);
@@ -90,8 +104,6 @@ export class OnboardingService {
           rewardGoalsEnabled: true,
           rewardGoalMinVisits: true,
           rewardGoalFeedbackBonusEnabled: true,
-          automaticCampaignsEnabled: true,
-          progressReminderEnabled: true,
         },
       }),
       this.prisma.retentionIncentiveDefinition.findFirst({
@@ -105,6 +117,8 @@ export class OnboardingService {
       this.prisma.benefit.count({ where: { businessId: draft.id } }),
     ]);
 
+    const hasStampsCard = Boolean(settings?.rewardGoalsEnabled && reward);
+
     return {
       businessId: draft.id,
       businessName: draft.name,
@@ -112,40 +126,17 @@ export class OnboardingService {
       checkinToken: source?.token ?? null,
       steps: {
         business: true,
-        program: Boolean(settings?.rewardGoalsEnabled && reward),
-        design: Boolean(draft.loyaltyCardColor),
-        google: Boolean(draft.googleBusinessProfileUrl),
-        welcomeGift: draft.welcomeGiftDecided,
-        // La decisión, no el resultado: OFF/OFF explícito completa el paso.
-        notifications: draft.notificationsDecided,
+        program: draft.retentionProgramDecided,
       },
       program: {
+        mode: !draft.retentionProgramDecided
+          ? null
+          : hasStampsCard
+            ? ('benefits_stamps' as const)
+            : ('benefits' as const),
         rewardName: reward?.name ?? null,
         stampsRequired: settings?.rewardGoalMinVisits ?? null,
         feedbackBonusEnabled: settings?.rewardGoalFeedbackBonusEnabled ?? false,
-        welcomeBenefitId: draft.welcomeBenefitId,
-        welcomeGiftDecided: draft.welcomeGiftDecided,
-      },
-      // Flags CRUDOS a propósito, no el estado efectivo — este bloque le dice
-      // al wizard qué tenía marcado el dueño para poder reanudar con su
-      // selección intacta, no si el motor ya lo está ejecutando (eso es lo
-      // que muestra Notificaciones, vía `resolveEffectiveAutomationState`;
-      // acá mezclarlo confundiría "no elegiste nada todavía" con "el kill
-      // switch está apagado por otra razón").
-      //
-      // Sí gatea en `notificationsDecided`: `RetentionSettings.
-      // automaticCampaignsEnabled` tiene default `true` en el schema, así que
-      // antes de que el dueño llegue al paso 6, `ensureSettings` ya creó la
-      // fila con ese default — sin este gate, "Reactivar clientes" aparecería
-      // pre-tildado la primera vez que se abre el paso, sin que nadie lo haya
-      // elegido.
-      automations: {
-        remindNearReward: draft.notificationsDecided
-          ? (settings?.progressReminderEnabled ?? false)
-          : false,
-        reactivateInactive: draft.notificationsDecided
-          ? (settings?.automaticCampaignsEnabled ?? false)
-          : false,
       },
       benefitCount,
     };
@@ -165,7 +156,6 @@ export class OnboardingService {
       logoUrl: dto.logoUrl,
       country: ONBOARDING_DEFAULTS.country,
       timezone: ONBOARDING_DEFAULTS.timezone,
-      whatsappUrl: dto.whatsapp,
     };
 
     // El onboarding self-service SIEMPRE deja el negocio en la experiencia
@@ -201,7 +191,12 @@ export class OnboardingService {
     return this.getState(userId);
   }
 
-  /** Paso 2 — recompensa + sellos + bonus. */
+  /**
+   * Paso 2, camino "Beneficios + sellos" — recompensa + sellos + bonus.
+   * Marca `retentionProgramDecided` y prende el recordatorio de progreso por
+   * defecto: solo tiene sentido si hay una tarjeta de sellos activa (pedido
+   * explícito de los defaults del onboarding nuevo).
+   */
   async saveProgram(userId: string, dto: OnboardingProgramDto) {
     const draft = await this.requireDraft(userId);
 
@@ -234,7 +229,53 @@ export class OnboardingService {
         rewardGoalMinVisits: dto.stampsRequired,
         rewardGoalMaxVisits: dto.stampsRequired,
         rewardGoalFeedbackBonusEnabled: dto.feedbackBonusEnabled ?? false,
+        progressReminderEnabled: true,
       },
+    });
+    await this.prisma.business.update({
+      where: { id: draft.id },
+      data: { retentionProgramDecided: true },
+    });
+
+    return this.getState(userId);
+  }
+
+  /**
+   * Paso 2, camino "Beneficios" (sin tarjeta de sellos). 0 beneficios es una
+   * respuesta válida — no es obligatorio crear ninguno para terminar.
+   *
+   * Deja el negocio explícitamente SIN programa de sellos: si el dueño había
+   * pasado antes por el otro camino (fue y volvió) esto apaga cualquier
+   * `rewardGoalsEnabled`/recompensa autorizada que hubiera quedado, para que
+   * los dos caminos sean mutuamente excluyentes.
+   */
+  async saveBenefitsOnlyProgram(
+    userId: string,
+    dto: OnboardingBenefitsOnlyDto,
+  ) {
+    const draft = await this.requireDraft(userId);
+
+    await this.prisma.retentionIncentiveDefinition.updateMany({
+      where: { businessId: draft.id, rewardGoalEligible: true },
+      data: { rewardGoalEligible: false },
+    });
+    await this.prisma.retentionSettings.update({
+      where: { businessId: draft.id },
+      data: { rewardGoalsEnabled: false, progressReminderEnabled: false },
+    });
+
+    for (const item of dto.benefits ?? []) {
+      await this.resolveBenefit(
+        draft.id,
+        undefined,
+        item.title,
+        item.type as BenefitType,
+      );
+    }
+
+    await this.prisma.business.update({
+      where: { id: draft.id },
+      data: { retentionProgramDecided: true },
     });
 
     return this.getState(userId);
@@ -389,8 +430,28 @@ export class OnboardingService {
 
     await this.prisma.business.update({
       where: { id: draft.id },
-      data: { onboardingCompletedAt: new Date() },
+      data: {
+        onboardingCompletedAt: new Date(),
+        // Reactivación habilitada por defecto (pedido explícito de los
+        // defaults del onboarding nuevo — ya no hay un paso que la pregunte).
+        // `RetentionSettings.automaticCampaignsEnabled` ya es `true` por
+        // default de schema desde que `ensureSettings` crea la fila en el
+        // paso 1; lo que faltaba prender es el kill switch del negocio, sin
+        // el cual el motor nunca evalúa nada (`resolveEffectiveAutomationState`).
+        // El recordatorio de progreso, en cambio, NO se toca acá: ya quedó
+        // en su valor correcto (true solo con tarjeta de sellos) desde el
+        // paso 2 (`saveProgram`/`saveBenefitsOnlyProgram`).
+        retentionEngineV2Enabled: true,
+      },
     });
+
+    // §9 trigger A — the moment a self-service business is actually ready to
+    // run: the kill switch just turned on above, and every flag `saveProgram`
+    // / `saveBenefitsOnlyProgram` / `saveNotifications` set is already
+    // final. Idempotent, so a retried `complete()` call (see the docstring's
+    // "reanudar, nunca duplicar" principle) never builds a second generation.
+    await this.retentionBootstrap.ensureDefaultRetentionSetup(draft.id);
+
     return { businessId: draft.id, completed: true };
   }
 

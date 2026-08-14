@@ -1,27 +1,42 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
 import { useIsCheckinV2 } from "../../experience-context";
 import { useCanMutate } from "../../role-context";
 import ProgramSummaryTab from "./program-summary-tab";
-import ProgramConfigTab from "./program-config-tab";
 import ProgramBenefitsTab from "./program-benefits-tab";
-import ProgramDesignTab from "./program-design-tab";
+import ProgramStampsTab from "./program-stamps-tab";
+import ProgramHistoryTab from "./program-history-tab";
 import type {
   LoyaltyAppearance,
   LoyaltyProgramOverview,
   ProgramBenefit,
+  ProgramHistoryItem,
 } from "./types";
 
-type Tab = "resumen" | "configuracion" | "beneficios" | "diseno";
+/**
+ * Programa = "todo lo que este negocio ofrece para incentivar que sus
+ * clientes vuelvan". Dos herramientas independientes, no una sola:
+ * Beneficios y una tarjeta de sellos OPCIONAL. Un negocio puede tener
+ * beneficios sin sellos, beneficios + sellos, o (temporalmente) ninguno de
+ * los dos — Notificaciones sigue pudiendo mandar mensajes sin incentivo en
+ * ese último caso.
+ *
+ * Reemplaza la estructura anterior (Resumen/Configuración/Beneficios/Diseño,
+ * que asumía "Programa = tarjeta de sellos") por Resumen/Beneficios/Sellos/
+ * Historial. El diseño de la tarjeta se movió DENTRO de Sellos — no tiene
+ * sentido como pestaña propia si la tarjeta puede no existir.
+ */
+type Tab = "resumen" | "beneficios" | "sellos" | "historial";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "resumen", label: "Resumen" },
-  { key: "configuracion", label: "Configuración" },
   { key: "beneficios", label: "Beneficios" },
-  { key: "diseno", label: "Diseño" },
+  { key: "sellos", label: "Sellos" },
+  { key: "historial", label: "Historial" },
 ];
 
 async function readJson(res: Response) {
@@ -36,36 +51,62 @@ async function readJson(res: Response) {
   return data;
 }
 
+const TAB_VALUES = TABS.map((t) => t.key);
+
+function isTab(value: string | null): value is Tab {
+  return value !== null && (TAB_VALUES as string[]).includes(value);
+}
+
+/**
+ * `?tab=` para que Inicio (y cualquier otro lugar) pueda linkear directo a
+ * una pestaña — ej. `/dashboard/programa?tab=sellos` desde el CTA
+ * "Personalizar tarjeta". `useSearchParams` pide un límite de Suspense.
+ */
 export default function ProgramaClient() {
+  return (
+    <Suspense fallback={null}>
+      <ProgramaClientContent />
+    </Suspense>
+  );
+}
+
+function ProgramaClientContent() {
   const isCheckinV2 = useIsCheckinV2();
   const canMutate = useCanMutate();
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab");
 
   const [overview, setOverview] = useState<LoyaltyProgramOverview | null>(null);
   const [benefits, setBenefits] = useState<ProgramBenefit[]>([]);
   const [appearance, setAppearance] = useState<LoyaltyAppearance | null>(null);
+  const [history, setHistory] = useState<ProgramHistoryItem[]>([]);
   const [businessName, setBusinessName] = useState("");
-  const [tab, setTab] = useState<Tab>("resumen");
+  const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "resumen");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const [overviewRes, benefitsRes, brandRes] = await Promise.all([
+      const [overviewRes, benefitsRes, brandRes, historyRes] = await Promise.all([
         fetch("/api/proxy/loyalty-program/overview"),
         fetch("/api/proxy/benefits"),
         fetch("/api/proxy/businesses/current/brand"),
+        fetch("/api/proxy/loyalty-program/history"),
       ]);
-      const [overviewData, benefitsData, brandData] = await Promise.all([
-        readJson(overviewRes),
-        readJson(benefitsRes),
-        readJson(brandRes),
-      ]);
+      const [overviewData, benefitsData, brandData, historyData] =
+        await Promise.all([
+          readJson(overviewRes),
+          readJson(benefitsRes),
+          readJson(brandRes),
+          readJson(historyRes),
+        ]);
       setOverview(overviewData as LoyaltyProgramOverview);
       setBenefits(benefitsData as ProgramBenefit[]);
       const brand = brandData as LoyaltyAppearance & { name?: string };
       setAppearance(brand);
       setBusinessName(brand.name ?? "");
+      setHistory(historyData as ProgramHistoryItem[]);
     } catch (e) {
       setLoadError(
         e instanceof Error ? e.message : "No pudimos cargar el programa.",
@@ -80,15 +121,6 @@ export default function ProgramaClient() {
     else setLoading(false);
   }, [isCheckinV2, load]);
 
-  async function saveSettings(patch: Record<string, unknown>) {
-    const res = await fetch("/api/proxy/retention-v2/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
-    await readJson(res);
-  }
-
   async function saveBrand(patch: Record<string, unknown>) {
     const res = await fetch("/api/proxy/businesses/current/brand", {
       method: "PATCH",
@@ -97,6 +129,30 @@ export default function ProgramaClient() {
     });
     await readJson(res);
     await load();
+  }
+
+  async function toggleStampsCard(enabled: boolean) {
+    const res = await fetch("/api/proxy/loyalty-program/stamps-card", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    await readJson(res);
+  }
+
+  async function saveStampsCardConfig(patch: {
+    stampsRequired: number;
+    rewardBenefitId?: string;
+    rewardTitle?: string;
+    rewardType?: string;
+    feedbackBonusEnabled?: boolean;
+  }) {
+    const res = await fetch("/api/proxy/loyalty-program/stamps-card/config", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(patch),
+    });
+    await readJson(res);
   }
 
   /**
@@ -165,8 +221,8 @@ export default function ProgramaClient() {
         />
         <div className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
           <p className="text-sm text-[#8891A4]">
-            El programa de sellos funciona con el check-in digital. Escribinos
-            para activarlo en tu negocio.
+            El programa de beneficios y sellos funciona con el check-in
+            digital. Escribinos para activarlo en tu negocio.
           </p>
         </div>
       </div>
@@ -194,32 +250,12 @@ export default function ProgramaClient() {
     );
   }
 
-  const stampsRequired = overview.stampsRequired ?? 5;
-  const rewardName = overview.reward?.name ?? "Tu recompensa";
-
   return (
     <div className="mx-auto max-w-5xl space-y-5 xl:max-w-6xl">
       <PageHeader
         title="Programa"
-        subtitle="Tus clientes juntan sellos en cada visita y se llevan una recompensa."
-        actions={
-          <span
-            className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-              overview.enabled
-                ? "bg-[#EAF6EE] text-[#1D9E75]"
-                : "bg-[#F5F6FA] text-[#8891A4]"
-            }`}
-          >
-            {overview.enabled ? "Activo" : "Inactivo"}
-          </span>
-        }
+        subtitle="Todo lo que tu negocio ofrece para que tus clientes vuelvan."
       />
-
-      {overview.reward && overview.stampsRequired ? (
-        <p className="rounded-[14px] border border-[#5C6BC0]/20 bg-[#EEF0FB] px-5 py-4 text-base font-bold text-[#1A202C]">
-          {overview.stampsRequired} sellos → {overview.reward.name}
-        </p>
-      ) : null}
 
       <div className="flex w-fit overflow-hidden rounded-[10px] border border-[#E8EAF0] bg-white text-sm font-semibold">
         {TABS.map((option, i) => (
@@ -240,17 +276,8 @@ export default function ProgramaClient() {
         ))}
       </div>
 
-      {tab === "resumen" ? <ProgramSummaryTab overview={overview} /> : null}
-
-      {tab === "configuracion" ? (
-        <ProgramConfigTab
-          overview={overview}
-          benefits={benefits}
-          canMutate={canMutate}
-          onSaveSettings={saveSettings}
-          onSetBenefitUse={setBenefitUse}
-          onReload={load}
-        />
+      {tab === "resumen" ? (
+        <ProgramSummaryTab overview={overview} onGoToTab={setTab} />
       ) : null}
 
       {tab === "beneficios" ? (
@@ -265,16 +292,21 @@ export default function ProgramaClient() {
         />
       ) : null}
 
-      {tab === "diseno" ? (
-        <ProgramDesignTab
+      {tab === "sellos" ? (
+        <ProgramStampsTab
+          overview={overview}
+          benefits={benefits}
           appearance={appearance}
           businessName={businessName}
-          rewardName={rewardName}
-          stampsRequired={stampsRequired}
           canMutate={canMutate}
-          onSave={saveBrand}
+          onToggle={toggleStampsCard}
+          onSaveConfig={saveStampsCardConfig}
+          onSaveDesign={saveBrand}
+          onReload={load}
         />
       ) : null}
+
+      {tab === "historial" ? <ProgramHistoryTab items={history} /> : null}
     </div>
   );
 }

@@ -61,6 +61,16 @@ describe('Clientes — fidelización (integration)', () => {
 
   afterEach(async () => {
     for (const id of businesses.splice(0)) {
+      await prisma.message.deleteMany({ where: { businessId: id } });
+      await prisma.retentionOutcome.deleteMany({ where: { businessId: id } });
+      await prisma.retentionAssignment.deleteMany({
+        where: { businessId: id },
+      });
+      await prisma.retentionVariant.deleteMany({ where: { businessId: id } });
+      await prisma.retentionExperiment.deleteMany({
+        where: { businessId: id },
+      });
+      await prisma.customerEvent.deleteMany({ where: { businessId: id } });
       await prisma.rewardGoalBonusStamp.deleteMany({
         where: { businessId: id },
       });
@@ -433,6 +443,210 @@ describe('Clientes — fidelización (integration)', () => {
     });
   });
 
+  // ── Escaneo, beneficios directos y reactivación ────────────────────────
+  // Rediseño de /dashboard/customers (pedido explícito): un scan de un
+  // cliente YA identificado es un evento real, distinto de una visita; los
+  // beneficios pueden existir sin ninguna tarjeta de sellos; y "volvió
+  // después de una reactivación" es un evento real, no inventado.
+
+  describe('escaneo, beneficios directos y reactivación', () => {
+    it('escaneo (sesión restaurada) es un evento propio, distinto de una visita', async () => {
+      const businessId = await makeBusiness();
+      const customer = await makeCustomer(businessId, 'Lu', daysAgo(10));
+      // Escaneó de nuevo pero NO generó una visita nueva (deduplicada).
+      await prisma.customerEvent.create({
+        data: {
+          businessId,
+          customerId: customer.id,
+          type: 'customer_session_restored',
+          createdAt: daysAgo(2),
+        },
+      });
+
+      const { timeline, summary } = await overview(businessId, customer.id);
+
+      expect(timeline.map((e) => e.kind)).toEqual(['escaneo', 'registro']);
+      // El escaneo NUNCA cuenta como visita.
+      expect(summary.visitCount).toBe(0);
+    });
+
+    it('beneficio directo (sin tarjeta): ofrecido y canjeado quedan en la timeline y en "beneficios"', async () => {
+      const businessId = await makeBusiness();
+      const customer = await makeCustomer(businessId, 'Mati', daysAgo(15));
+      const benefit = await prisma.benefit.create({
+        data: {
+          businessId,
+          title: 'Café de bienvenida',
+          type: BenefitType.gift,
+          active: false,
+        },
+      });
+      await prisma.benefitParticipation.create({
+        data: {
+          businessId,
+          benefitId: benefit.id,
+          customerId: customer.id,
+          benefitTitleSnapshot: 'Café de bienvenida',
+          redemptionCode: 'ABCD1234',
+          createdAt: daysAgo(14),
+          redeemedAt: daysAgo(13),
+        },
+      });
+
+      const detail = await overview(businessId, customer.id);
+
+      // Sin tarjeta de sellos — el beneficio existe igual.
+      expect(detail.currentCard).toBeNull();
+      expect(detail.benefits).toEqual([
+        expect.objectContaining({
+          title: 'Café de bienvenida',
+          redeemedAt: daysAgo(13),
+        }),
+      ]);
+      expect(detail.timeline.map((e) => e.kind)).toEqual([
+        'beneficio_canjeado',
+        'beneficio_ofrecido',
+        'registro',
+      ]);
+    });
+
+    it('el título del beneficio en la timeline es el prometido, no el actual del catálogo', async () => {
+      const businessId = await makeBusiness();
+      const customer = await makeCustomer(businessId, 'Nadia', daysAgo(15));
+      const benefit = await prisma.benefit.create({
+        data: {
+          businessId,
+          title: 'Nombre nuevo',
+          type: BenefitType.gift,
+          active: false,
+        },
+      });
+      await prisma.benefitParticipation.create({
+        data: {
+          businessId,
+          benefitId: benefit.id,
+          customerId: customer.id,
+          benefitTitleSnapshot: 'Nombre original',
+          createdAt: daysAgo(14),
+        },
+      });
+
+      const detail = await overview(businessId, customer.id);
+      expect(detail.benefits[0].title).toBe('Nombre original');
+    });
+
+    it('reactivación exitosa: aparece como evento, y NUNCA si el motor solo observó (CONTROL)', async () => {
+      const businessId = await makeBusiness();
+      const customer = await makeCustomer(businessId, 'Oto', daysAgo(60));
+      const definition = await prisma.retentionIncentiveDefinition.create({
+        data: {
+          businessId,
+          name: 'Reactivación',
+          type: BenefitType.gift,
+          active: true,
+        },
+      });
+      const experiment = await prisma.retentionExperiment.create({
+        data: {
+          businessId,
+          name: 'Reactivar ausentes',
+          objective: 'AT_RISK_RECOVERY',
+        },
+      });
+      const variant = await prisma.retentionVariant.create({
+        data: {
+          businessId,
+          experimentId: experiment.id,
+          name: 'Mensaje',
+          strategyType: 'REMINDER',
+          incentiveDefinitionId: definition.id,
+          allocationPercent: 100,
+        },
+      });
+
+      const sentAssignment = await prisma.retentionAssignment.create({
+        data: {
+          businessId,
+          experimentId: experiment.id,
+          variantId: variant.id,
+          customerId: customer.id,
+          segmentAtAssignment: 'AT_RISK',
+          visitCountAtAssignment: 5,
+          daysSinceLastVisit: 40,
+          status: 'SENT',
+        },
+      });
+      await prisma.retentionOutcome.create({
+        data: {
+          businessId,
+          experimentId: experiment.id,
+          variantId: variant.id,
+          assignmentId: sentAssignment.id,
+          customerId: customer.id,
+          returned: true,
+          returnedAt: daysAgo(5),
+          observedWithinWindow: true,
+        },
+      });
+
+      // Un segundo cliente, en CONTROL (nunca se le mandó nada): "volvió"
+      // igual, pero no hay ninguna reactivación que atribuirle.
+      const control = await makeCustomer(businessId, 'Control', daysAgo(60));
+      const controlAssignment = await prisma.retentionAssignment.create({
+        data: {
+          businessId,
+          experimentId: experiment.id,
+          variantId: variant.id,
+          customerId: control.id,
+          segmentAtAssignment: 'AT_RISK',
+          visitCountAtAssignment: 5,
+          daysSinceLastVisit: 40,
+          status: 'OBSERVING',
+        },
+      });
+      await prisma.retentionOutcome.create({
+        data: {
+          businessId,
+          experimentId: experiment.id,
+          variantId: variant.id,
+          assignmentId: controlAssignment.id,
+          customerId: control.id,
+          returned: true,
+          returnedAt: daysAgo(5),
+          observedWithinWindow: true,
+        },
+      });
+
+      const detail = await overview(businessId, customer.id);
+      expect(detail.timeline.map((e) => e.kind)).toContain('reactivacion');
+
+      const controlDetail = await overview(businessId, control.id);
+      expect(controlDetail.timeline.map((e) => e.kind)).not.toContain(
+        'reactivacion',
+      );
+    });
+
+    it('mensaje enviado aparece en la timeline y en notificaciones', async () => {
+      const businessId = await makeBusiness();
+      const customer = await makeCustomer(businessId, 'Pau', daysAgo(20));
+      await prisma.message.create({
+        data: {
+          businessId,
+          customerId: customer.id,
+          channel: 'whatsapp',
+          trackingToken: randomUUID(),
+          status: 'sent',
+          sentAt: daysAgo(10),
+        },
+      });
+
+      const detail = await overview(businessId, customer.id);
+
+      expect(detail.timeline.map((e) => e.kind)).toContain('mensaje');
+      expect(detail.notifications).toHaveLength(1);
+    });
+  });
+
   // ── Casos vacíos ────────────────────────────────────────────────────────
 
   describe('clientes sin historial', () => {
@@ -481,6 +695,178 @@ describe('Clientes — fidelización (integration)', () => {
 
       const detail = await overview(businessId, customer.id);
       expect(detail.summary.cadencePhrase).toBeNull();
+    });
+  });
+
+  // ── Rediseño de /dashboard/customers: sellos opcionales, resumen ──────────
+  // Benefits son independientes de la tarjeta desde el nuevo modelo de
+  // Programa; un negocio con `rewardGoalsEnabled = false` nunca tuvo una
+  // tarjeta y el resumen no debe inventar ninguna.
+
+  describe('resumen con sellos desactivados y beneficios independientes', () => {
+    it('negocio con sellos desactivados: sin tarjeta, sin historial, resumen sin inventar sellos', async () => {
+      // `rewardGoalsEnabled` vive en RetentionSettings, no en Business, y su
+      // default ya es `false` — un negocio nuevo arranca así. Se deja
+      // explícito acá para no depender de un default que podría cambiar.
+      const businessId = await makeBusiness();
+      await prisma.retentionSettings.upsert({
+        where: { businessId },
+        create: { businessId, rewardGoalsEnabled: false },
+        update: { rewardGoalsEnabled: false },
+      });
+      const customer = await makeCustomer(businessId, 'Rocío');
+      await addVisit(businessId, customer.id, daysAgo(3));
+      await addVisit(businessId, customer.id, daysAgo(1));
+
+      const detail = await overview(businessId, customer.id);
+
+      // Ni tarjeta activa ni historial: la sección de Sellos no tiene nada
+      // que mostrar, y el resumen tampoco puede afirmar un "sellos actuales".
+      expect(detail.currentCard).toBeNull();
+      expect(detail.history).toEqual([]);
+      // El resto del resumen sigue siendo real y útil.
+      expect(detail.summary.visitCount).toBe(2);
+      expect(detail.summary.benefitsReceived).toBe(0);
+      expect(detail.summary.redemptionsCount).toBe(0);
+    });
+
+    it('beneficio recibido sin ninguna tarjeta: cuenta en "beneficios recibidos" y en "canjes" al canjearse', async () => {
+      const businessId = await makeBusiness();
+      const customer = await makeCustomer(businessId, 'Santi');
+      const benefit = await prisma.benefit.create({
+        data: {
+          businessId,
+          title: '10% de descuento',
+          type: BenefitType.gift,
+          active: false,
+        },
+      });
+      await prisma.benefitParticipation.create({
+        data: {
+          businessId,
+          benefitId: benefit.id,
+          customerId: customer.id,
+          benefitTitleSnapshot: '10% de descuento',
+          createdAt: daysAgo(10),
+          redeemedAt: null, // ofrecido, todavía sin canjear
+        },
+      });
+
+      const offered = await overview(businessId, customer.id);
+      expect(offered.summary.benefitsReceived).toBe(1);
+      // Emitido ≠ canjeado: todavía no cuenta como canje.
+      expect(offered.summary.redemptionsCount).toBe(0);
+
+      await prisma.benefitParticipation.updateMany({
+        where: { businessId, customerId: customer.id },
+        data: { redeemedAt: daysAgo(2) },
+      });
+
+      const redeemed = await overview(businessId, customer.id);
+      expect(redeemed.summary.benefitsReceived).toBe(1);
+      expect(redeemed.summary.redemptionsCount).toBe(1);
+    });
+
+    it('"canjes" suma tarjeta + beneficio directo sin duplicar', async () => {
+      const businessId = await makeBusiness();
+      const customer = await makeCustomer(businessId, 'Vale');
+      await addGoal(businessId, customer.id, {
+        rewardName: 'Café gratis',
+        target: 3,
+        activatedAt: daysAgo(40),
+        status: RewardGoalStatus.REDEEMED,
+        unlockedAt: daysAgo(20),
+        redeemedAt: daysAgo(19),
+      });
+      const benefit = await prisma.benefit.create({
+        data: {
+          businessId,
+          title: 'Postre de bienvenida',
+          type: BenefitType.gift,
+          active: false,
+        },
+      });
+      await prisma.benefitParticipation.create({
+        data: {
+          businessId,
+          benefitId: benefit.id,
+          customerId: customer.id,
+          benefitTitleSnapshot: 'Postre de bienvenida',
+          createdAt: daysAgo(15),
+          redeemedAt: daysAgo(14),
+        },
+      });
+
+      const detail = await overview(businessId, customer.id);
+
+      expect(detail.summary.rewardsRedeemed).toBe(1); // solo tarjeta
+      expect(detail.summary.benefitsReceived).toBe(1); // solo directo
+      expect(detail.summary.redemptionsCount).toBe(2); // los dos, sin duplicar
+    });
+  });
+
+  // ── Beneficio disponible en la lista ───────────────────────────────────
+
+  describe('badge "Beneficio disponible" en la lista', () => {
+    it('un beneficio directo sin canjear marca benefitAvailable en la fila', async () => {
+      const businessId = await makeBusiness();
+      const customer = await makeCustomer(businessId, 'Willy');
+      const benefit = await prisma.benefit.create({
+        data: {
+          businessId,
+          title: 'Postre gratis',
+          type: BenefitType.gift,
+          active: false,
+        },
+      });
+      await prisma.benefitParticipation.create({
+        data: {
+          businessId,
+          benefitId: benefit.id,
+          customerId: customer.id,
+          benefitTitleSnapshot: 'Postre gratis',
+          createdAt: daysAgo(5),
+        },
+      });
+
+      const list = await loyalty.list(businessId, {}, NOW);
+      expect(list.data[0].benefitAvailable).toBe(true);
+      expect(list.data[0].rewardAvailable).toBeNull();
+    });
+
+    it('canjeado deja de marcar benefitAvailable', async () => {
+      const businessId = await makeBusiness();
+      const customer = await makeCustomer(businessId, 'Xime');
+      const benefit = await prisma.benefit.create({
+        data: {
+          businessId,
+          title: 'Postre gratis',
+          type: BenefitType.gift,
+          active: false,
+        },
+      });
+      await prisma.benefitParticipation.create({
+        data: {
+          businessId,
+          benefitId: benefit.id,
+          customerId: customer.id,
+          benefitTitleSnapshot: 'Postre gratis',
+          createdAt: daysAgo(5),
+          redeemedAt: daysAgo(1),
+        },
+      });
+
+      const list = await loyalty.list(businessId, {}, NOW);
+      expect(list.data[0].benefitAvailable).toBe(false);
+    });
+
+    it('sin ningún beneficio ni recompensa, ningún badge', async () => {
+      const businessId = await makeBusiness();
+      await makeCustomer(businessId, 'Yago');
+
+      const list = await loyalty.list(businessId, {}, NOW);
+      expect(list.data[0].benefitAvailable).toBe(false);
+      expect(list.data[0].rewardAvailable).toBeNull();
     });
   });
 

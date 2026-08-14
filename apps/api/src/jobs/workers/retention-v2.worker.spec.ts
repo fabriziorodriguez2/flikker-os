@@ -5,6 +5,7 @@ import {
   RUN_RETENTION_V2_EVALUATE_JOB,
   RUN_RETENTION_V2_OUTCOMES_JOB,
   SEND_RETENTION_V2_ASSIGNMENT_JOB,
+  SEND_RETENTION_V2_MESSAGE_JOB,
 } from '../retention-v2.queue';
 
 function makeDeps(pending: { id: string }[] = []) {
@@ -20,7 +21,9 @@ function makeDeps(pending: { id: string }[] = []) {
         .mockResolvedValue({ businesses: 1, assigned: 3, ms: 5 }),
     },
     send: {
-      processAssignment: jest.fn().mockResolvedValue({ status: 'sent' }),
+      processAssignment: jest
+        .fn()
+        .mockResolvedValue({ status: 'sent', messageId: 'msg-1' }),
     },
     outcomes: {
       runOnce: jest.fn().mockResolvedValue({
@@ -31,7 +34,16 @@ function makeDeps(pending: { id: string }[] = []) {
         stillOpen: 1,
       }),
     },
-    queue: { enqueueSendAssignment: jest.fn().mockResolvedValue(undefined) },
+    dispatch: {
+      dispatch: jest
+        .fn()
+        .mockResolvedValue({ status: 'sent', whatsappMessageId: 'wa-1' }),
+      markPermanentlyFailed: jest.fn().mockResolvedValue(undefined),
+    },
+    queue: {
+      enqueueSendAssignment: jest.fn().mockResolvedValue(undefined),
+      enqueueSendMessage: jest.fn().mockResolvedValue(undefined),
+    },
   };
 }
 
@@ -41,11 +53,22 @@ function makeWorker(deps: ReturnType<typeof makeDeps>) {
     deps.evaluate as never,
     deps.send as never,
     deps.outcomes as never,
+    deps.dispatch as never,
     deps.queue as never,
   );
 }
 
-const job = (name: string, data: unknown = {}) => ({ name, data }) as Job;
+const job = (
+  name: string,
+  data: unknown = {},
+  opts: { attempts?: number; attemptsMade?: number } = {},
+) =>
+  ({
+    name,
+    data,
+    opts: { attempts: opts.attempts ?? 3 },
+    attemptsMade: opts.attemptsMade ?? 0,
+  }) as unknown as Job;
 
 describe('RetentionV2Worker — evaluate job', () => {
   it('recruits first, then queues one send per pending assignment', async () => {
@@ -132,7 +155,32 @@ describe('RetentionV2Worker — send job', () => {
     );
 
     expect(deps.send.processAssignment).toHaveBeenCalledWith('a1');
-    expect(result).toEqual({ status: 'sent' });
+    expect(result).toEqual({ status: 'sent', messageId: 'msg-1' });
+  });
+
+  it('queues the new Message for WhatsApp dispatch once it is sent', async () => {
+    const deps = makeDeps();
+    const worker = makeWorker(deps);
+
+    await worker.process(
+      job(SEND_RETENTION_V2_ASSIGNMENT_JOB, { assignmentId: 'a1' }),
+    );
+
+    expect(deps.queue.enqueueSendMessage).toHaveBeenCalledWith({
+      messageId: 'msg-1',
+    });
+  });
+
+  it('never queues a dispatch for CONTROL/skipped outcomes', async () => {
+    const deps = makeDeps();
+    deps.send.processAssignment.mockResolvedValue({ status: 'control' });
+    const worker = makeWorker(deps);
+
+    await worker.process(
+      job(SEND_RETENTION_V2_ASSIGNMENT_JOB, { assignmentId: 'a1' }),
+    );
+
+    expect(deps.queue.enqueueSendMessage).not.toHaveBeenCalled();
   });
 
   it('lets a send failure bubble up so BullMQ can retry it', async () => {
@@ -154,6 +202,59 @@ describe('RetentionV2Worker — send job', () => {
     expect(await worker.process(job('something-else'))).toBeNull();
     expect(deps.send.processAssignment).not.toHaveBeenCalled();
     expect(deps.evaluate.runDaily).not.toHaveBeenCalled();
+  });
+});
+
+describe('RetentionV2Worker — message dispatch job', () => {
+  it('delegates to the dispatch service', async () => {
+    const deps = makeDeps();
+    const worker = makeWorker(deps);
+
+    const result = await worker.process(
+      job(SEND_RETENTION_V2_MESSAGE_JOB, { messageId: 'msg-1' }),
+    );
+
+    expect(deps.dispatch.dispatch).toHaveBeenCalledWith('msg-1');
+    expect(result).toEqual({ status: 'sent', whatsappMessageId: 'wa-1' });
+  });
+
+  it('lets a transient failure bubble up so BullMQ retries it, without marking it permanently failed yet', async () => {
+    const deps = makeDeps();
+    deps.dispatch.dispatch.mockRejectedValue(new Error('provider down'));
+    const worker = makeWorker(deps);
+
+    await expect(
+      worker.process(
+        job(
+          SEND_RETENTION_V2_MESSAGE_JOB,
+          { messageId: 'msg-1' },
+          { attempts: 3, attemptsMade: 0 },
+        ),
+      ),
+    ).rejects.toThrow('provider down');
+
+    expect(deps.dispatch.markPermanentlyFailed).not.toHaveBeenCalled();
+  });
+
+  it('marks the message permanently failed once BullMQ has exhausted every attempt', async () => {
+    const deps = makeDeps();
+    deps.dispatch.dispatch.mockRejectedValue(new Error('provider down'));
+    const worker = makeWorker(deps);
+
+    await expect(
+      worker.process(
+        job(
+          SEND_RETENTION_V2_MESSAGE_JOB,
+          { messageId: 'msg-1' },
+          { attempts: 3, attemptsMade: 2 }, // this is the 3rd and last attempt
+        ),
+      ),
+    ).rejects.toThrow('provider down');
+
+    expect(deps.dispatch.markPermanentlyFailed).toHaveBeenCalledWith(
+      'msg-1',
+      expect.any(Error),
+    );
   });
 });
 

@@ -75,6 +75,46 @@ describe("Navegación CHECKIN_V2", () => {
   });
 });
 
+describe("Navegación real — regresión del bug de acceso a Programa", () => {
+  /**
+   * El bug reportado ("no puedo acceder a Programa") era esto exactamente:
+   * `(panel)/layout.tsx` nunca pasaba `role` a `<Sidebar>` — `resolveNavSections`
+   * recibía `role: null`, y CUALQUIER ítem con `roles` (hoy solo Programa)
+   * desaparecía para TODOS, incluido el propio OWNER. Este test documenta el
+   * síntoma para que, si alguien vuelve a olvidar pasar `role`, un test lo
+   * atrape en vez de un reporte de un dueño real.
+   */
+  it("sin rol (prop no pasado) Programa desaparece incluso para un negocio CHECKIN_V2 activo", () => {
+    const sinRol = resolveNavSections({
+      isCheckinV2: true,
+      isImpersonating: false,
+      role: null,
+    });
+    expect(hrefsOf(sinRol)).not.toContain("/dashboard/programa");
+  });
+
+  it.each(["OWNER", "ADMIN"])(
+    "con rol %s, Programa SÍ está disponible",
+    (role) => {
+      const sections = resolveNavSections({
+        isCheckinV2: true,
+        isImpersonating: false,
+        role,
+      });
+      expect(hrefsOf(sections)).toContain("/dashboard/programa");
+    },
+  );
+
+  it("OPERATOR no ve Programa (política actual: solo OWNER/ADMIN administran)", () => {
+    const sections = resolveNavSections({
+      isCheckinV2: true,
+      isImpersonating: false,
+      role: "OPERATOR",
+    });
+    expect(hrefsOf(sections)).not.toContain("/dashboard/programa");
+  });
+});
+
 describe("Navegación por rol", () => {
   /**
    * Programa configura sellos, recompensa y beneficios: el backend ya rechaza

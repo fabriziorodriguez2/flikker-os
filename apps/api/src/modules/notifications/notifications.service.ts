@@ -1,8 +1,16 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma, RetentionObjective } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RetentionResultsOverviewService } from '../retention-v2/retention-results-overview.service';
+import { RetentionExperimentService } from '../retention-v2/retention-experiment.service';
+import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
+import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
+import { RetentionBudgetService } from '../retention-v2/retention-budget.service';
 import { resolveEffectiveAutomationState } from '../retention-v2/effective-automation-state';
+import { RECOVERY_OBJECTIVES } from '../retention-v2/retention-v2-bootstrap-plan';
+import { ProgramAuditService } from '../program-audit/program-audit.service';
+import { resolveAutomationState } from './automation-state';
+import { resolveBenefitsAutomationStatus } from './benefits-automation-status';
 import { messageKindOf, type MessageKind } from './message-kind';
 import type { UpdateAutomationsDto } from './dto/update-automations.dto';
 import type { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
@@ -42,11 +50,16 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly results: RetentionResultsOverviewService,
+    private readonly experiments: RetentionExperimentService,
+    private readonly bootstrap: RetentionV2BootstrapService,
+    private readonly retentionSettings: RetentionSettingsService,
+    private readonly budget: RetentionBudgetService,
+    private readonly programAudit: ProgramAuditService,
   ) {}
 
   /** Todo lo que necesita la pestaña Automáticas, en una sola llamada. */
-  async overview(businessId: string) {
-    const [settings, incentives, resultsOverview] = await Promise.all([
+  async overview(businessId: string, now: Date = new Date()) {
+    const [settings, incentives, resultsOverview, running] = await Promise.all([
       this.settingsFor(businessId),
       // El catálogo es de Programa. Notificaciones NO tiene uno propio: solo
       // marca cuáles de esos beneficios están autorizados para reactivación.
@@ -61,7 +74,20 @@ export class NotificationsService {
         orderBy: { createdAt: 'desc' },
       }),
       this.results.forBusiness(businessId).catch(() => []),
+      // §16/§17 — un GET nunca crea infraestructura (eso es
+      // RetentionV2BootstrapService, llamado desde los triggers explícitos:
+      // onboarding, este mismo toggle, y Programa). Acá solo se LEE si ya
+      // existe un experiment válido y corriendo — "listo para funcionar",
+      // no "funcionando ahora mismo".
+      this.experiments.findUsableRunning(businessId),
     ]);
+
+    const recoverySetupReady = running.some((e) =>
+      RECOVERY_OBJECTIVES.includes(e.objective),
+    );
+    const progressSetupReady = running.some(
+      (e) => e.objective === RetentionObjective.REWARD_GOAL_PROGRESS,
+    );
 
     // Estado EFECTIVO, no el flag crudo: un negocio puede tener
     // `automaticCampaignsEnabled = true` (default del schema) con el kill
@@ -74,16 +100,70 @@ export class NotificationsService {
       progressReminderEnabled: settings.progressReminderEnabled,
     });
 
+    // Único hecho real detrás de "puede mandar WhatsApp": el proveedor está
+    // configurado a nivel plataforma (no hay un "conectar tu WhatsApp" por
+    // negocio en este sistema — todos los negocios comparten el mismo canal
+    // de envío). Sin esto, ninguna automatización manda nada sin importar lo
+    // que digan sus interruptores — y decir "Activo" en ese caso sería falso.
+    const whatsappAvailable = Boolean(process.env.WHAPI_TOKEN);
+
+    // "Cerca del premio" solo existe como concepto si el negocio usa tarjeta
+    // de sellos (`rewardGoalsEnabled`). Sin sellos no se muestra, no se
+    // evalúa desde acá y no aparece en el conteo — no es "Inactivo", es
+    // inexistente para este negocio.
     const automations = [
-      {
-        key: 'cerca_del_premio' as const,
-        enabled: effective.progressReminderEffective,
-      },
+      ...(settings.rewardGoalsEnabled
+        ? [
+            {
+              key: 'cerca_del_premio' as const,
+              state: resolveAutomationState({
+                toggledOn: effective.progressReminderEffective,
+                dryRunEnabled: settings.dryRunEnabled,
+                whatsappAvailable,
+                setupReady: progressSetupReady,
+              }),
+            },
+          ]
+        : []),
       {
         key: 'te_extranamos' as const,
-        enabled: effective.recoveryEnabled,
+        state: resolveAutomationState({
+          toggledOn: effective.recoveryEnabled,
+          dryRunEnabled: settings.dryRunEnabled,
+          whatsappAvailable,
+          setupReady: recoverySetupReady,
+        }),
       },
-    ];
+      // `enabled` kept alongside `state` for the existing consumers
+      // (activeCount, the toggle UI) — "Activo" is the only state that means
+      // "genuinely sending" (§16: a fresh self-service business must never
+      // read as eternally Activo con 0 infrastructure).
+    ].map((a) => ({ ...a, enabled: a.state === 'activo' }));
+
+    // §11 — a status independent of the automation's own on/off state.
+    // "Te extrañamos" can be `activo` (sending reminders) while benefits sit
+    // in any of these — reminder-only is a fully working product on its own.
+    const anyAuthorized = incentives.some((i) => i.automationEligible);
+    const hasAnyCap =
+      this.retentionSettings.hasIncentiveBudgetConfigured(settings);
+    const usage = anyAuthorized
+      ? await this.budget.usageThisMonth(
+          businessId,
+          settings.timezone,
+          now,
+          settings.averageTicketAmount,
+        )
+      : { count: 0, cost: 0 };
+    const benefitsAutomation = {
+      status: resolveBenefitsAutomationStatus({
+        anyAuthorized,
+        hasAnyCap,
+        quantityLimit: settings.maxAutomatedIncentivesPerMonth,
+        usedThisMonth: usage.count,
+      }),
+      monthlyLimit: settings.maxAutomatedIncentivesPerMonth,
+      usedThisMonth: usage.count,
+    };
 
     return {
       automations,
@@ -98,6 +178,17 @@ export class NotificationsService {
         testMode: settings.dryRunEnabled,
         /** El kill switch del negocio. Si está apagado no sale nada. */
         engineEnabled: settings.engineEnabled,
+        /**
+         * El único estado de canal que existe de verdad hoy (ver
+         * `## Canal` en el informe): "activo" si Flikker puede mandar
+         * WhatsApp en este momento, "no_conectado" si no. No hay un tercer
+         * estado "configurado pero no activo" que corresponda a algo real
+         * en este sistema — inventarlo sería tan engañoso como decir
+         * "Activo" sin canal.
+         */
+        channel: whatsappAvailable
+          ? ('activo' as const)
+          : ('no_conectado' as const),
       },
       benefits: incentives.map((i) => ({
         id: i.id,
@@ -105,6 +196,7 @@ export class NotificationsService {
         name: i.name,
         authorized: i.automationEligible,
       })),
+      benefitsAutomation,
       results: this.simpleResults(resultsOverview),
     };
   }
@@ -114,21 +206,50 @@ export class NotificationsService {
    * son alias, así que prender los recordatorios de progreso no sale a
    * recuperar clientes inactivos ni al revés.
    */
-  async updateAutomations(businessId: string, dto: UpdateAutomationsDto) {
+  async updateAutomations(
+    businessId: string,
+    dto: UpdateAutomationsDto,
+    actorUserId?: string,
+  ) {
     const current = await this.settingsFor(businessId);
 
     const progress = dto.cercaDelPremio ?? current.progressReminderEnabled;
     const reactivate = dto.teExtranamos ?? current.automaticCampaignsEnabled;
 
+    // El presupuesto se valida ANTES de escribir nada — nunca dejar un
+    // beneficio autorizado sin forma de emitirse. Cubre las dos formas en
+    // que este endpoint puede terminar con al menos un beneficio autorizado:
+    // el dueño lo manda explícito en `benefitIds`, o ya había alguno
+    // autorizado y este llamado no lo toca. Contra la base, no contra la
+    // lista cruda: un id de otro negocio nunca llega a autorizarse (ver
+    // `authorizeBenefits`), así que tampoco debe forzar a configurar un
+    // presupuesto que nada va a usar.
+    const willHaveAnyAuthorized =
+      dto.benefitIds !== undefined
+        ? dto.benefitIds.length > 0 &&
+          (await this.prisma.retentionIncentiveDefinition.count({
+            where: { businessId, id: { in: dto.benefitIds } },
+          })) > 0
+        : (await this.prisma.retentionIncentiveDefinition.count({
+            where: { businessId, automationEligible: true },
+          })) > 0;
+    if (willHaveAnyAuthorized) {
+      await this.retentionSettings.assertBudgetReadyToAuthorize(
+        businessId,
+        dto.automaticIncentiveMonthlyLimit,
+      );
+    }
+
     /**
      * Todo en UNA transacción, porque es una sola decisión del dueño.
      *
-     * Los tres writes están acoplados: los flags dicen qué automatizaciones
-     * quiere, el kill switch dice si el motor corre, y la autorización dice
-     * qué beneficios puede usar. Aplicados por separado, un fallo en el medio
-     * deja estados que no representan ninguna decisión — el peor es el motor
-     * apagado con los toggles prendidos, donde la pantalla dice "2 activas" y
-     * no sale un solo mensaje.
+     * Los cuatro writes están acoplados: los flags dicen qué automatizaciones
+     * quiere, el kill switch dice si el motor corre, la autorización dice qué
+     * beneficios puede usar y el límite dice cuántos por mes. Aplicados por
+     * separado, un fallo en el medio deja estados que no representan ninguna
+     * decisión — el peor es un beneficio autorizado sin presupuesto real para
+     * emitirlo, que es exactamente la contradicción que esto existe para
+     * cerrar.
      */
     await this.prisma.$transaction(async (tx) => {
       await tx.retentionSettings.upsert({
@@ -137,10 +258,22 @@ export class NotificationsService {
           businessId,
           progressReminderEnabled: progress,
           automaticCampaignsEnabled: reactivate,
+          ...(dto.automaticIncentiveMonthlyLimit !== undefined
+            ? {
+                maxAutomatedIncentivesPerMonth:
+                  dto.automaticIncentiveMonthlyLimit,
+              }
+            : {}),
         },
         update: {
           progressReminderEnabled: progress,
           automaticCampaignsEnabled: reactivate,
+          ...(dto.automaticIncentiveMonthlyLimit !== undefined
+            ? {
+                maxAutomatedIncentivesPerMonth:
+                  dto.automaticIncentiveMonthlyLimit,
+              }
+            : {}),
         },
       });
 
@@ -155,6 +288,38 @@ export class NotificationsService {
         await this.authorizeBenefits(tx, businessId, dto.benefitIds);
       }
     });
+
+    // Historial — solo si el número realmente cambió, mismo criterio que ya
+    // usa la autorización de beneficios (§13: no ampliar el audit log con
+    // reafirmaciones de lo que ya estaba).
+    if (
+      dto.automaticIncentiveMonthlyLimit !== undefined &&
+      dto.automaticIncentiveMonthlyLimit !==
+        current.maxAutomatedIncentivesPerMonth
+    ) {
+      await this.programAudit.record({
+        businessId,
+        actorUserId,
+        type: 'automation_incentive_limit_changed',
+        message: `Cambiaste el límite mensual de beneficios automáticos a ${dto.automaticIncentiveMonthlyLimit}`,
+        metadata: {
+          previous: current.maxAutomatedIncentivesPerMonth,
+          next: dto.automaticIncentiveMonthlyLimit,
+        },
+      });
+    }
+
+    // §9 trigger B — this is a real, explicit action (the owner touched
+    // Notificaciones), never a bare GET. Covers three cases in one call:
+    // turning "Te extrañamos" on, turning "Cerca del premio" on, and
+    // authorizing/de-authorizing a benefit (§6/§7 — a new generation only
+    // gets built when the desired shape actually changed; otherwise this is
+    // a fast no-op). A cap-only change never reaches this differently — the
+    // authorized benefit set is unchanged, so bootstrap reports
+    // `already_correct` and touches nothing (§14). Runs AFTER the
+    // transaction above commits, so the kill switch is already correctly
+    // set when `start()` re-checks it.
+    await this.bootstrap.ensureDefaultRetentionSetup(businessId);
 
     return this.overview(businessId);
   }
@@ -204,7 +369,10 @@ export class NotificationsService {
             select: {
               experiment: { select: { objective: true } },
               benefitParticipation: {
-                select: { benefit: { select: { title: true } } },
+                select: {
+                  benefitTitleSnapshot: true,
+                  benefit: { select: { title: true } },
+                },
               },
             },
           },
@@ -235,7 +403,9 @@ export class NotificationsService {
       recipientCount: 1,
       customer: m.customer,
       benefitName:
-        m.retentionAssignment?.benefitParticipation?.benefit.title ?? null,
+        m.retentionAssignment?.benefitParticipation?.benefitTitleSnapshot ??
+        m.retentionAssignment?.benefitParticipation?.benefit.title ??
+        null,
       sent: m.status !== 'failed' && m.status !== 'queued' ? 1 : 0,
       failed: m.status === 'failed' ? 1 : 0,
       state: stateOfMessage(m.status),
@@ -319,7 +489,7 @@ export class NotificationsService {
       this.prisma.retentionSettings.findUnique({ where: { businessId } }),
       this.prisma.business.findUnique({
         where: { id: businessId },
-        select: { retentionEngineV2Enabled: true },
+        select: { retentionEngineV2Enabled: true, timezone: true },
       }),
     ]);
 
@@ -328,6 +498,9 @@ export class NotificationsService {
     return {
       progressReminderEnabled: settings?.progressReminderEnabled ?? false,
       automaticCampaignsEnabled: settings?.automaticCampaignsEnabled ?? false,
+      // "Sellos activos" — la misma fuente de verdad que Programa usa para
+      // decidir si el negocio tiene tarjeta.
+      rewardGoalsEnabled: settings?.rewardGoalsEnabled ?? false,
       dryRunEnabled: settings?.dryRunEnabled ?? false,
       sendingHourStart: settings?.sendingHourStart ?? 10,
       sendingHourEnd: settings?.sendingHourEnd ?? 20,
@@ -338,6 +511,15 @@ export class NotificationsService {
         settings?.maximumRetentionMessagesPer30Days ?? 2,
       aiCopyEnabled: settings?.aiCopyEnabled ?? false,
       engineEnabled: business?.retentionEngineV2Enabled ?? false,
+      // El único presupuesto que este panel expone (§3/§4) — el tope
+      // monetario (`maxEstimatedIncentiveCostPerMonth`) sigue siendo
+      // configuración avanzada de Platform Admin, nunca mostrada acá.
+      maxAutomatedIncentivesPerMonth:
+        settings?.maxAutomatedIncentivesPerMonth ?? null,
+      maxEstimatedIncentiveCostPerMonth:
+        settings?.maxEstimatedIncentiveCostPerMonth ?? null,
+      averageTicketAmount: settings?.averageTicketAmount ?? null,
+      timezone: business?.timezone ?? 'America/Montevideo',
     };
   }
 
@@ -385,6 +567,8 @@ export class NotificationsService {
 /** Estado de un mensaje en palabras, sin exponer el enum de la API. */
 function stateOfMessage(status: string): 'enviado' | 'en_progreso' | 'fallo' {
   if (status === 'failed') return 'fallo';
-  if (status === 'queued') return 'en_progreso';
+  // `sending` es el claim atómico del dispatcher justo antes de llamar a
+  // WhatsApp (ver RetentionV2MessageDispatchService) — todavía no se mandó.
+  if (status === 'queued' || status === 'sending') return 'en_progreso';
   return 'enviado';
 }

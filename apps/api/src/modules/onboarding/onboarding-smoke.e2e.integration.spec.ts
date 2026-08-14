@@ -112,12 +112,11 @@ describe('Self-service — smoke end to end (integration)', () => {
     await prisma.user.delete({ where: { id: userId } }).catch(() => undefined);
   });
 
-  /** Los 7 pasos, en el mismo orden en que los recorre el wizard. */
+  /** Los 2 pasos, en el mismo orden en que los recorre el wizard nuevo. */
   async function runWizard(options: { welcome: boolean }) {
     await onboarding.saveBusiness(userId, {
       name: 'Café Smoke',
       category: 'cafeteria',
-      whatsapp: '+59899000222',
     });
     await onboarding.saveProgram(userId, {
       rewardTitle: 'Café gratis',
@@ -125,22 +124,15 @@ describe('Self-service — smoke end to end (integration)', () => {
       stampsRequired: 5,
       feedbackBonusEnabled: false,
     });
-    await onboarding.saveWelcomeGift(
-      userId,
-      options.welcome
-        ? { wantsGift: true, title: 'Medialuna de bienvenida' }
-        : { wantsGift: false },
-    );
-    await onboarding.saveDesign(userId, {
-      loyaltyCardColor: '#1A1040',
-      loyaltyStampColor: '#FFAB76',
-      loyaltyStampIcon: 'coffee',
-    });
-    // Google se salta a propósito: "configurar más tarde" es una salida válida.
-    await onboarding.saveNotifications(userId, {
-      remindNearReward: true,
-      reactivateInactive: false,
-    });
+    // El regalo de bienvenida ya no es parte del wizard self-service, pero el
+    // backend se mantiene: se configura acá "a mano", como lo haría cualquier
+    // otro caller directo del endpoint.
+    if (options.welcome) {
+      await onboarding.saveWelcomeGift(userId, {
+        wantsGift: true,
+        title: 'Medialuna de bienvenida',
+      });
+    }
     const state = await onboarding.getState(userId);
     await onboarding.complete(userId);
     return state;
@@ -154,11 +146,9 @@ describe('Self-service — smoke end to end (integration)', () => {
     // ── El cliente anónimo abre el QR ──────────────────────────────────────
     const landing = await checkin.resolveLanding(token!);
     expect(landing.business.businessName).toBe('Café Smoke');
-    // La tarjeta que diseñó en el paso 4 llega tal cual al cliente.
-    expect(landing.business.loyaltyCardColor).toBe('#1A1040');
-    expect(landing.business.loyaltyStampColor).toBe('#FFAB76');
-    expect(landing.business.loyaltyStampIcon).toBe('coffee');
-    // Saltó Google, así que no hay ficha que ofrecer.
+    // El wizard nuevo ya no pregunta diseño ni Google: quedan en sus
+    // defaults (marca del negocio, sin ficha) y el check-in funciona igual.
+    expect(landing.business.loyaltyCardColor).toBeNull();
     expect(landing.business.googleBusinessProfileUrl).toBeNull();
     // Y la vista pública no filtra el id interno del tenant.
     expect(JSON.stringify(landing)).not.toContain(state.businessId!);

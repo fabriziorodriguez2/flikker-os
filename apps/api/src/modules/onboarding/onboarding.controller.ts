@@ -3,6 +3,7 @@ import { JwtGuard } from '../auth/guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { OnboardingService } from './onboarding.service';
 import {
+  OnboardingBenefitsOnlyDto,
   OnboardingBusinessDto,
   OnboardingDesignDto,
   OnboardingGoogleDto,
@@ -39,12 +40,22 @@ export class OnboardingController {
     return this.onboarding.saveBusiness(user.id, dto);
   }
 
+  /** Paso 2, camino "Beneficios + sellos". */
   @Post('program')
   saveProgram(
     @CurrentUser() user: { id: string },
     @Body() dto: OnboardingProgramDto,
   ) {
     return this.onboarding.saveProgram(user.id, dto);
+  }
+
+  /** Paso 2, camino "Beneficios" (sin tarjeta de sellos). */
+  @Post('benefits-only')
+  saveBenefitsOnlyProgram(
+    @CurrentUser() user: { id: string },
+    @Body() dto: OnboardingBenefitsOnlyDto,
+  ) {
+    return this.onboarding.saveBenefitsOnlyProgram(user.id, dto);
   }
 
   @Post('welcome-gift')

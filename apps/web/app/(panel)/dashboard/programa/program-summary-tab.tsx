@@ -1,6 +1,6 @@
 "use client";
 
-import { Award, Gift, Stamp, Users } from "lucide-react";
+import { Award, ChevronRight, Gift, Stamp, Users } from "lucide-react";
 import type { LoyaltyProgramOverview } from "./types";
 
 function relativeDate(value: string) {
@@ -69,13 +69,100 @@ function StatCard({
 
 export default function ProgramSummaryTab({
   overview,
+  onGoToTab,
 }: {
   overview: LoyaltyProgramOverview;
+  onGoToTab: (tab: "beneficios" | "sellos") => void;
 }) {
   const { stats, recentActivity } = overview;
 
   return (
     <div className="space-y-5">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-[#1A202C]">Beneficios</h2>
+              <p className="mt-1 text-sm text-[#8891A4]">
+                {overview.benefitsCount} beneficio
+                {overview.benefitsCount === 1 ? "" : "s"} disponible
+                {overview.benefitsCount === 1 ? "" : "s"}
+              </p>
+            </div>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EEF0FB] text-[#5C6BC0]">
+              <Gift className="h-4 w-4" aria-hidden="true" />
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onGoToTab("beneficios")}
+            className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#5C6BC0] hover:underline"
+          >
+            Ver beneficios <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </section>
+
+        <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-base font-bold text-[#1A202C]">
+                {overview.enabled
+                  ? "Tarjeta de sellos activa"
+                  : "Tarjeta de sellos desactivada"}
+              </h2>
+              {overview.enabled && overview.reward && overview.stampsRequired ? (
+                <p className="mt-1 text-sm font-semibold text-[#1A202C]">
+                  {overview.stampsRequired} sellos → {overview.reward.name}
+                </p>
+              ) : (
+                <p className="mt-1 text-sm text-[#8891A4]">
+                  Podés activarla si querés premiar las visitas frecuentes.
+                </p>
+              )}
+            </div>
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#EEF0FB] text-[#5C6BC0]">
+              <Stamp className="h-4 w-4" aria-hidden="true" />
+            </span>
+          </div>
+          {overview.enabled ? (
+            <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+              <div>
+                <dt className="text-[10px] uppercase tracking-[0.1em] text-[#8891A4]">
+                  Participando
+                </dt>
+                <dd className="text-sm font-bold text-[#1A202C]">
+                  {stats.customersParticipating}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-[0.1em] text-[#8891A4]">
+                  Disponibles
+                </dt>
+                <dd className="text-sm font-bold text-[#1A202C]">
+                  {stats.unlockedTotal - stats.redeemedTotal}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[10px] uppercase tracking-[0.1em] text-[#8891A4]">
+                  Canjeadas
+                </dt>
+                <dd className="text-sm font-bold text-[#1A202C]">
+                  {stats.redeemedTotal}
+                </dd>
+              </div>
+            </dl>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => onGoToTab("sellos")}
+            className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#5C6BC0] hover:underline"
+          >
+            {overview.enabled ? "Configurar sellos" : "Activar tarjeta de sellos"}
+            <ChevronRight className="h-3.5 w-3.5" />
+          </button>
+        </section>
+      </div>
+
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           label="Clientes participando"

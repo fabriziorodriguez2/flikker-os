@@ -18,6 +18,15 @@ export interface LoyaltyProgramOverview {
     detail: string | null;
     occurredAt: string;
   }>;
+  /** Cuántos beneficios tiene el catálogo — Programa ya no es solo la tarjeta. */
+  benefitsCount: number;
+}
+
+/** Un ítem del timeline de `GET /loyalty-program/history`. */
+export interface ProgramHistoryItem {
+  id: string;
+  message: string;
+  occurredAt: string;
 }
 
 /** Los tres usos independientes de un beneficio, tal como los ve el dueño. */

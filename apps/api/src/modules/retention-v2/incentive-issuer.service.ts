@@ -223,6 +223,9 @@ export class IncentiveIssuerService {
             customerId: assignment.customerId,
             redemptionCode: generateRedemptionCode(),
             expiresAt,
+            // Snapshot del nombre autorizado en el momento del otorgamiento
+            // — no una referencia viva al catálogo actual.
+            benefitTitleSnapshot: definition.name,
           },
           update: {},
           select: { id: true, redemptionCode: true, expiresAt: true },

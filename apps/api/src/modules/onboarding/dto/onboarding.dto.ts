@@ -1,5 +1,7 @@
 import { BUSINESS_CATEGORY_VALUES } from '../onboarding.defaults';
+import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsBoolean,
   IsHexColor,
   IsIn,
@@ -10,8 +12,14 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateNested,
 } from 'class-validator';
 
+/**
+ * Paso 1 — "Tu negocio". Nombre, categoría y logo opcional. Sin WhatsApp a
+ * propósito (pedido explícito): ese dato se configura después, dentro del
+ * producto, no en el alta.
+ */
 export class OnboardingBusinessDto {
   @IsString()
   @IsNotEmpty()
@@ -27,11 +35,6 @@ export class OnboardingBusinessDto {
   @IsString()
   @MaxLength(3000000)
   logoUrl?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(30)
-  whatsapp?: string;
 }
 
 export class OnboardingProgramDto {
@@ -59,6 +62,31 @@ export class OnboardingProgramDto {
   @IsOptional()
   @IsBoolean()
   feedbackBonusEnabled?: boolean;
+}
+
+export class OnboardingBenefitItemDto {
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(120)
+  title!: string;
+
+  @IsString()
+  @IsIn(['gift', 'discount', 'promotion', 'upgrade', 'other'])
+  type!: string;
+}
+
+/**
+ * Paso 2, camino "Beneficios" (sin tarjeta de sellos). Cero beneficios es una
+ * respuesta válida — no es obligatorio crear ninguno para terminar el
+ * onboarding (pedido explícito: la retención tiene que poder funcionar sin
+ * beneficios).
+ */
+export class OnboardingBenefitsOnlyDto {
+  @IsOptional()
+  @ValidateNested({ each: true })
+  @Type(() => OnboardingBenefitItemDto)
+  @ArrayMaxSize(20)
+  benefits?: OnboardingBenefitItemDto[];
 }
 
 export class OnboardingWelcomeGiftDto {

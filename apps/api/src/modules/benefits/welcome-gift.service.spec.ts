@@ -42,8 +42,16 @@ function makeRepo(
   };
 }
 
+// Ninguno de estos tests pasa por create/update/setRetentionBridge (los
+// únicos que escriben en el historial o tocan presupuesto/bootstrap), así
+// que stubs vacíos alcanzan.
 const service = (repo: ReturnType<typeof makeRepo>) =>
-  new BenefitsService(repo as never);
+  new BenefitsService(
+    repo as never,
+    { record: jest.fn() } as never,
+    {} as never,
+    {} as never,
+  );
 
 describe('Regalo de bienvenida — se entrega una sola vez', () => {
   it('emite el código en el primer registro', async () => {

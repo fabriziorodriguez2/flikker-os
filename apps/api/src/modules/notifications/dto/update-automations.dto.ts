@@ -1,4 +1,11 @@
-import { IsArray, IsBoolean, IsOptional, IsString } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsInt,
+  IsOptional,
+  IsString,
+  Min,
+} from 'class-validator';
 
 /**
  * Los dos interruptores, independientes. Cada campo es opcional: mandar solo
@@ -25,4 +32,16 @@ export class UpdateAutomationsDto {
   @IsArray()
   @IsString({ each: true })
   benefitIds?: string[];
+
+  /**
+   * "¿Cuántos beneficios como máximo puede ofrecer Flikker por mes?" →
+   * RetentionSettings.maxAutomatedIncentivesPerMonth. El único presupuesto
+   * que este panel expone — nunca el tope monetario, que sigue siendo
+   * configuración avanzada de Platform Admin. Mínimo 1: un límite en 0 no es
+   * "un límite", es "no autorices nada" (para eso está `benefitIds: []`).
+   */
+  @IsOptional()
+  @IsInt()
+  @Min(1)
+  automaticIncentiveMonthlyLimit?: number;
 }

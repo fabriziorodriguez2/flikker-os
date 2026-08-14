@@ -151,6 +151,12 @@ enum BusinessGoalType {
 
 enum MessageStatus {
   queued
+  /// Claimed by a dispatcher that is actively calling the provider right now.
+  /// Only Retention V2's message dispatcher uses this today — it is what
+  /// makes the atomic claim-before-send race-safe (a second worker racing
+  /// the same row sees it is no longer `queued` and backs off instead of
+  /// sending twice).
+  sending
   sent
   delivered
   read
@@ -357,13 +363,21 @@ model User {
   isPlatformAdmin       Boolean   @default(false)
   isActive              Boolean   @default(true)
   onboardingCompletedAt DateTime? @map("onboarding_completed_at")
+  /// Null = correo sin confirmar todavía. Alta self-service arranca en null;
+  /// las cuentas que ya existían antes de que esta columna existiera se
+  /// migran con `emailVerifiedAt = createdAt` (backfill en la migración) para
+  /// no bloquear a nadie que ya venía usando Flikker. Las cuentas que crea
+  /// Platform Admin (`platform.repository.ts`) se marcan verificadas en el
+  /// momento: nunca pasan por el flujo de confirmación por correo.
+  emailVerifiedAt       DateTime? @map("email_verified_at")
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  memberships          Membership[]          @relation("UserMemberships")
-  invitedMemberships   Membership[]          @relation("InvitedByUser")
-  sessions             Session[]
-  passwordResetTokens  PasswordResetToken[]
+  memberships             Membership[]          @relation("UserMemberships")
+  invitedMemberships      Membership[]          @relation("InvitedByUser")
+  sessions                Session[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
   impersonationLogs    ImpersonationLog[]
   auditLogs            AuditLog[]
   createdCampaigns     Campaign[]            @relation("CampaignCreator")
@@ -373,6 +387,7 @@ model User {
   statusChanges        ReviewStatusHistory[] @relation("StatusChanger")
   businessPlansCreated BusinessPlan[]        @relation("BusinessPlanCreator")
   simulationRuns       SimulationRun[]       @relation("SimulationRunCreator")
+  programAuditEvents   ProgramAuditEvent[]
 }
 
 // ---------------------------------------------------------------------------
@@ -453,6 +468,13 @@ model Business {
   /// ambos dos flags en false. Sin este campo el wizard manda al dueño de
   /// vuelta al paso 6 cada vez que refresca después de decir que no a todo.
   notificationsDecided         Boolean           @default(false) @map("notifications_decided")
+  /// Onboarding self-service NUEVO (2 pasos). Igual filosofía que
+  /// welcomeGiftDecided/notificationsDecided: distingue "el dueño todavía no
+  /// llegó al paso 2" de "eligió Beneficios sin sellos", que en `Business` se
+  /// ven idénticos si solo se mirara `rewardGoalsEnabled` (false en ambos
+  /// casos). Se marca true al terminar el paso 2, sin importar qué camino
+  /// eligió (Beneficios o Beneficios + sellos).
+  retentionProgramDecided      Boolean           @default(false) @map("retention_program_decided")
   /// Onboarding self-service: null mientras el dueño lo está completando.
   /// Es el ancla de reanudación — `POST /onboarding/business` reutiliza el
   /// negocio incompleto del usuario en vez de crear otro si refresca o
@@ -535,6 +557,7 @@ model Business {
   retentionOutcomes             RetentionOutcome[]
   rewardGoals                   CustomerRewardGoal[]
   checkinFeedback               CheckinFeedback[]
+  programAuditEvents            ProgramAuditEvent[]
   rewardGoalBonusStamps         RewardGoalBonusStamp[]
   aiUsageEvents                 AiUsageEvent[]
   optimizationRuns              RetentionOptimizationRun[]
@@ -860,6 +883,15 @@ model RetentionExperiment {
   /// Share held back as control. Snapshotted here so changing the business
   /// setting later does not silently rewrite a running experiment.
   controlPercent        Int @default(15) @map("control_percent")
+
+  /// True only for experiments RetentionV2BootstrapService created and owns.
+  /// This is provenance, not derivable from any other field — a Platform Admin
+  /// experiment and a self-service default one can look structurally
+  /// identical (same objective, same CONTROL+REMINDER shape). The bootstrap
+  /// service reads this to know which experiments it may ever finish/replace
+  /// with a new generation, and refuses to touch anything false (see §15 —
+  /// hand-configured setups are never superseded automatically).
+  managedBySelfService Boolean @default(false) @map("managed_by_self_service")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -1322,6 +1354,28 @@ model PasswordResetToken {
 }
 
 // ---------------------------------------------------------------------------
+// EmailVerificationToken
+// ---------------------------------------------------------------------------
+
+/// Mismo patrón que PasswordResetToken a propósito: un solo uso, con
+/// expiración y `usedAt`, reenviable sin invalidar tokens previos (igual que
+/// el reset de contraseña). Confirmar el correo consume el token Y arranca
+/// una sesión real — es la única forma en que un usuario recién confirmado
+/// entra a `/comenzar`.
+model EmailVerificationToken {
+  id        String    @id @default(uuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
 // Plan (logical pricing tiers — no billing integration yet)
 // ---------------------------------------------------------------------------
 
@@ -1617,6 +1671,16 @@ model Message {
   status         MessageStatus
   whatsappMsgId  String?        @map("whatsapp_msg_id")
   costUsd        Decimal?       @map("cost_usd")
+  /// The exact composed text this message sends. Nullable because every
+  /// other message type here already reconstructs its own text at send time
+  /// from a template it fully owns (RetentionSend → RetentionStep, review
+  /// request copy, ...) — reproducible on demand, so nothing was ever lost
+  /// by not storing it. Retention V2 is the one exception: its copy can be
+  /// AI-generated per customer (Fase F), which is NOT reproducible from a
+  /// static template, so it MUST be captured once, here, at creation time —
+  /// see RetentionV2SendService.createMessage(). Only Retention V2 populates
+  /// this column today.
+  body           String?
   sentAt         DateTime?
   deliveredAt    DateTime?
   readAt         DateTime?
@@ -2231,6 +2295,18 @@ model BenefitParticipation {
   /// Benefit's own window); Retention V2 sets it because each customer's reward
   /// expires a fixed number of days after it was issued to them.
   expiresAt        DateTime? @map("expires_at")
+  /// Snapshot de `Benefit.title` en el momento en que se otorgó ESTA
+  /// participación — no una referencia viva. Sin esto, editar el título de un
+  /// beneficio reescribía silenciosamente lo que el historial dice que un
+  /// cliente recibió en el pasado (Programa → Historial, actividad del
+  /// cliente, pantalla de canje). `Benefit.title` puede seguir cambiando
+  /// libremente una vez que ya no hay ninguna promesa viva colgando de él;
+  /// esta columna es la que garantiza que el pasado no se reescriba con ese
+  /// cambio. Nullable solo por las filas anteriores a esta columna — se
+  /// backfillea con el título vigente al migrar (la mejor aproximación
+  /// disponible) y todo lo que se crea desde acá en adelante la escribe
+  /// siempre.
+  benefitTitleSnapshot String? @map("benefit_title_snapshot")
   createdAt        DateTime  @default(now()) @map("created_at")
 
   benefit             Benefit              @relation(fields: [benefitId], references: [id], onDelete: Cascade)
@@ -2246,6 +2322,52 @@ model BenefitParticipation {
   @@index([customerId])
   @@index([raffleDrawId])
   @@map("benefit_participations")
+}
+
+// ---------------------------------------------------------------------------
+// ProgramAuditEvent (Programa → Historial)
+// ---------------------------------------------------------------------------
+// Bitácora MÍNIMA — solo para los cambios de configuración de Programa que no
+// dejan ningún rastro con fecha en otro lado (activar/desactivar la tarjeta,
+// cambiar sellos o recompensa, autorizar/revocar un beneficio para
+// reactivación, crear/editar un beneficio). Todo lo demás que tiene su propia
+// fecha real (beneficio ofrecido/canjeado, tarjeta completada/canjeada) se
+// lee directamente de Benefit/BenefitParticipation/CustomerRewardGoal — no se
+// duplica acá. Deliberadamente NO es un event-sourcing genérico: un tipo fijo
+// por evento y un mensaje ya redactado, nada de reconstrucción de estado.
+enum ProgramAuditEventType {
+  card_activated
+  card_deactivated
+  card_config_changed
+  benefit_created
+  benefit_edited
+  benefit_reactivation_authorized
+  benefit_reactivation_revoked
+  /// The monthly cap on automated incentives (RetentionSettings.
+  /// maxAutomatedIncentivesPerMonth) changed — worth its own history entry
+  /// because it silently changes whether an already-authorized benefit can
+  /// actually be issued, without touching the benefit itself.
+  automation_incentive_limit_changed
+}
+
+model ProgramAuditEvent {
+  id         String                @id @default(uuid())
+  businessId String                @map("business_id")
+  type       ProgramAuditEventType
+  /// Ya redactado en español al momento de escribir el evento — el timeline
+  /// no vuelve a interpretar `metadata` para mostrar texto.
+  message    String
+  /// Null cuando el actor ya no se puede resolver (cuenta borrada) — el
+  /// evento se conserva igual, solo sin atribución.
+  actorUserId String?  @map("actor_user_id")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  actor    User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdAt])
+  @@map("program_audit_events")
 }
 
 // ---------------------------------------------------------------------------

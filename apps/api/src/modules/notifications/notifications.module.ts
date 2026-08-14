@@ -4,6 +4,7 @@ import { BenefitsModule } from '../benefits/benefits.module';
 import { CampaignsModule } from '../campaigns/campaigns.module';
 import { CustomersModule } from '../customers/customers.module';
 import { RetentionV2Module } from '../retention-v2/retention-v2.module';
+import { ProgramAuditModule } from '../program-audit/program-audit.module';
 import { VisitSourcesModule } from '../visit-sources/visit-sources.module';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
@@ -30,6 +31,8 @@ import { NotificationsPromotionsService } from './notifications-promotions.servi
     // Para el link del acceso: la promoción con beneficio manda al MISMO
     // destino que el QR del mostrador, no a uno propio.
     VisitSourcesModule,
+    // Historial de "cambiaste el límite mensual de beneficios automáticos".
+    ProgramAuditModule,
   ],
   controllers: [NotificationsController],
   providers: [NotificationsService, NotificationsPromotionsService],

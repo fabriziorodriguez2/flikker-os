@@ -3,6 +3,10 @@ import { BenefitType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BenefitsRepository } from './benefits.repository';
 import { BenefitsService } from './benefits.service';
+import { ProgramAuditService } from '../program-audit/program-audit.service';
+import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
+import { RetentionExperimentsAdminService } from '../retention-v2/retention-experiments-admin.service';
+import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
 import { estimateIncentiveCost } from '../retention-v2/incentive-cost';
 import {
   createTestBusiness,
@@ -24,7 +28,15 @@ describe('BenefitsService — múltiples beneficios sin costo obligatorio (integ
 
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      providers: [PrismaService, BenefitsRepository, BenefitsService],
+      providers: [
+        PrismaService,
+        BenefitsRepository,
+        BenefitsService,
+        ProgramAuditService,
+        RetentionSettingsService,
+        RetentionExperimentsAdminService,
+        RetentionV2BootstrapService,
+      ],
     }).compile();
 
     prisma = module.get(PrismaService);
@@ -34,13 +46,25 @@ describe('BenefitsService — múltiples beneficios sin costo obligatorio (integ
     const suffix = makeTestSuffix();
     const business = await createTestBusiness(prisma, `bridge-multi-${suffix}`);
     businessId = business.id;
+    // Autorizar para reactivación ahora exige un presupuesto configurado —
+    // este test es sobre "sin costo", no sobre budget, así que el cap se
+    // configura de antemano para aislar exactamente lo que se está probando.
+    await prisma.retentionSettings.upsert({
+      where: { businessId },
+      create: { businessId, maxAutomatedIncentivesPerMonth: 100 },
+      update: { maxAutomatedIncentivesPerMonth: 100 },
+    });
   });
 
   afterAll(async () => {
+    await prisma.retentionAssignment.deleteMany({ where: { businessId } });
+    await prisma.retentionVariant.deleteMany({ where: { businessId } });
+    await prisma.retentionExperiment.deleteMany({ where: { businessId } });
     await prisma.retentionIncentiveDefinition.deleteMany({
       where: { businessId },
     });
     await prisma.benefit.deleteMany({ where: { businessId } });
+    await prisma.retentionSettings.deleteMany({ where: { businessId } });
     await prisma.business.delete({ where: { id: businessId } });
     await prisma.$disconnect();
   });

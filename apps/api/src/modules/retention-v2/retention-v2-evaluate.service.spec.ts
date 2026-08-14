@@ -331,6 +331,69 @@ describe('RetentionV2EvaluateService — recruitment', () => {
   });
 });
 
+describe('RetentionV2EvaluateService — §11 blast protection', () => {
+  /**
+   * The scenario this exists for: a business with years of dormant
+   * customers turns "Te extrañamos" on for the first time. Without a cap,
+   * every eligible customer gets recruited (and, eventually, messaged) in
+   * one run.
+   */
+  it('caps how many NEW assignments a single run creates per business', async () => {
+    let nextAssignmentId = 0;
+    const customers = Array.from(
+      { length: 60 },
+      (_, i) => customer(`c${i}`, visits(7, 5, 20)), // all AT_RISK, all eligible
+    );
+    const deps = makeDeps({ customers });
+    deps.assignments.assign.mockImplementation(() => {
+      nextAssignmentId += 1;
+      return Promise.resolve({
+        status: 'assigned' as const,
+        assignmentId: `assign-${nextAssignmentId}`,
+        strategyType: RetentionStrategyType.REMINDER,
+      });
+    });
+    const service = makeService(deps);
+
+    const result = await service.runDaily(NOW);
+
+    expect(result.assigned).toBe(30);
+    expect(deps.assignments.assign).toHaveBeenCalledTimes(30);
+  });
+
+  it('does not cap dry-run candidates — a pilot preview must reflect the whole population', async () => {
+    const customers = Array.from({ length: 60 }, (_, i) =>
+      customer(`c${i}`, visits(7, 5, 20)),
+    );
+    const deps = makeDeps({ customers, dryRunEnabled: true });
+    deps.settings.getOrCreate.mockResolvedValue({
+      automaticCampaignsEnabled: true,
+      progressReminderEnabled: true,
+      minimumDaysBetweenRetentionMessages: 14,
+      maximumRetentionMessagesPer30Days: 2,
+      dryRunEnabled: true,
+    });
+    const service = makeService(deps);
+
+    const result = await service.runDaily(NOW);
+
+    expect(result.dryRunCandidates).toBe(60);
+    expect(deps.assignments.assign).not.toHaveBeenCalled();
+  });
+
+  it('a business under the cap is unaffected', async () => {
+    const customers = Array.from({ length: 10 }, (_, i) =>
+      customer(`c${i}`, visits(7, 5, 20)),
+    );
+    const deps = makeDeps({ customers });
+    const service = makeService(deps);
+
+    const result = await service.runDaily(NOW);
+
+    expect(result.assigned).toBe(10);
+  });
+});
+
 describe('RetentionExperimentService.resolveApplicable', () => {
   const service = new RetentionExperimentService({} as never);
   const open = {

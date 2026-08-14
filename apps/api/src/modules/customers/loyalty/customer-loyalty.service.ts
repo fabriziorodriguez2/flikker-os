@@ -50,6 +50,12 @@ export interface LoyaltyCustomerRow {
   } | null;
   /** Recompensa ganada y sin canjear. Tiene prioridad visual sobre la tarjeta. */
   rewardAvailable: { rewardName: string; unlockedAt: Date | null } | null;
+  /**
+   * Tiene un beneficio directo (sin tarjeta) ofrecido y sin canjear. Badge
+   * discreto aparte de `rewardAvailable` — sellos y beneficios son conceptos
+   * separados también acá.
+   */
+  benefitAvailable: boolean;
   /** Etiqueta de recurrencia, o null cuando no hay evidencia suficiente. */
   recurrence: RecurrenceKey | null;
 }
@@ -85,14 +91,25 @@ export class CustomerLoyaltyService {
     const limit = Math.min(Math.max(options.limit ?? 25, 1), 100);
     const filter = options.filter ?? 'todos';
 
-    const [customers, visitsByCustomer, activeGoals, unlockedGoals, lastSends] =
-      await Promise.all([
-        this.repository.findCustomers(businessId, options.search),
-        this.repository.findVisitDates(businessId, now),
-        this.repository.findActiveGoals(businessId),
-        this.repository.findUnlockedGoals(businessId),
-        this.repository.findLastInterventionAt(businessId),
-      ]);
+    const [
+      customers,
+      visitsByCustomer,
+      activeGoals,
+      unlockedGoals,
+      lastSends,
+      availableDirectBenefits,
+    ] = await Promise.all([
+      this.repository.findCustomers(businessId, options.search),
+      this.repository.findVisitDates(businessId, now),
+      this.repository.findActiveGoals(businessId),
+      this.repository.findUnlockedGoals(businessId),
+      this.repository.findLastInterventionAt(businessId),
+      this.repository.findAvailableDirectBenefits(businessId),
+    ]);
+
+    const benefitAvailableCustomers = new Set(
+      availableDirectBenefits.map((b) => b.customerId),
+    );
 
     const bonusByGoal = await this.repository.countBonusStampsByGoal(
       businessId,
@@ -152,6 +169,7 @@ export class CustomerLoyaltyService {
               unlockedAt: unlocked.unlockedAt,
             }
           : null,
+        benefitAvailable: benefitAvailableCustomers.has(customer.id),
         recurrence: recurrenceKeyFor({ segment, frequency }),
       };
     });

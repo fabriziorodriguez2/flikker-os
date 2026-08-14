@@ -197,6 +197,19 @@ describe('RetentionV2SendService — sending variants', () => {
     expect(loggedCodes(deps)).toContain('MESSAGE_QUEUED');
   });
 
+  it('persists the composed text on the Message row — the dispatcher has nowhere else to read it from', async () => {
+    const deps = makeDeps();
+    const service = makeService(deps);
+
+    await service.processAssignment('assign-1', NOW);
+
+    expect(deps.prisma.tx.message.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ body: 'stub deterministic message' }),
+      }),
+    );
+  });
+
   it('stamps exposedAt when the message is actually created (Fase D)', async () => {
     const deps = makeDeps();
     const service = makeService(deps);

@@ -3,9 +3,12 @@ import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
 import { JwtService } from '@nestjs/jwt';
 import { EmailService } from '../../jobs/email.service';
-import { UnauthorizedException, BadRequestException } from '@nestjs/common';
+import {
+  UnauthorizedException,
+  BadRequestException,
+  ConflictException,
+} from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { SignupVertical } from './dto/signup.dto';
 
 const mockRepository = {
   findUserByEmail: jest.fn(),
@@ -20,7 +23,10 @@ const mockRepository = {
   executePasswordReset: jest.fn(),
   findMembershipsForUser: jest.fn(),
   findMembershipsWithStatus: jest.fn(),
-  createSignupAccount: jest.fn(),
+  createUnverifiedUser: jest.fn(),
+  createEmailVerificationToken: jest.fn(),
+  findEmailVerificationToken: jest.fn(),
+  executeEmailVerification: jest.fn(),
 };
 
 const mockJwt = {
@@ -28,10 +34,6 @@ const mockJwt = {
   verify: jest.fn(),
 };
 
-// `EmailService` se agregó al constructor de AuthService (envío del mail de
-// forgotPassword) después de que este archivo se escribiera — el módulo de
-// test nunca lo actualizó, así que las 89 pruebas de este archivo fallaban
-// por DI, no por comportamiento.
 const mockEmailService = {
   send: jest.fn().mockResolvedValue(undefined),
 };
@@ -56,60 +58,196 @@ describe('AuthService', () => {
   });
 
   describe('signup', () => {
-    it('creates an account and returns an active business membership for dashboard access', async () => {
+    const SIGNUP_DTO = {
+      name: 'Ana Pérez',
+      email: 'OWNER@EXAMPLE.COM',
+      password: 'password1',
+      confirmPassword: 'password1',
+    };
+
+    it('crea SOLO el usuario (sin negocio) y no devuelve tokens', async () => {
       mockRepository.findUserByEmail.mockResolvedValue(null);
-      mockRepository.createSignupAccount.mockResolvedValue({
-        user: {
-          id: 'user-1',
-          email: 'owner@example.com',
-          firstName: 'Clinica Test',
-          lastName: 'Owner',
-          isPlatformAdmin: false,
-        },
-        business: {
-          id: 'business-1',
-          status: 'ACTIVE',
-          subscription: { status: 'ACTIVE', plan: { slug: 'pro' } },
-        },
+      mockRepository.createUnverifiedUser.mockResolvedValue({
+        id: 'user-1',
+        email: 'owner@example.com',
+        firstName: 'Ana',
       });
-      mockRepository.createSession.mockResolvedValue({});
-      mockRepository.findMembershipsForUser.mockResolvedValue([
-        {
-          businessId: 'business-1',
-          role: 'OWNER',
-          business: {
-            name: 'Clinica Test',
-            slug: 'clinica-test',
-            status: 'ACTIVE',
-          },
-        },
-      ]);
+      mockRepository.createEmailVerificationToken.mockResolvedValue({});
 
-      const result = await service.signup({
-        email: 'OWNER@EXAMPLE.COM',
-        password: 'password1',
-        businessName: 'Clinica Test',
-        // `vertical` es un enum (`SignupVertical`), no un string literal —
-        // el DTO cambió después de escrito este test.
-        vertical: SignupVertical.DENTAL,
-        timezone: 'America/Montevideo',
-      });
+      const result = await service.signup(SIGNUP_DTO);
 
-      expect(mockRepository.createSignupAccount).toHaveBeenCalledWith(
+      expect(mockRepository.createUnverifiedUser).toHaveBeenCalledWith(
         expect.objectContaining({
           email: 'owner@example.com',
-          businessName: 'Clinica Test',
-          vertical: 'dental',
-          timezone: 'America/Montevideo',
+          firstName: 'Ana',
+          lastName: 'Pérez',
         }),
       );
-      expect(result.memberships).toEqual([
-        expect.objectContaining({
-          businessId: 'business-1',
-          role: 'OWNER',
-          business: expect.objectContaining({ status: 'ACTIVE' }),
-        }),
-      ]);
+      expect(mockRepository.createEmailVerificationToken).toHaveBeenCalled();
+      expect(mockEmailService.send).toHaveBeenCalledWith(
+        expect.objectContaining({ to: 'owner@example.com' }),
+      );
+      expect(result).not.toHaveProperty('accessToken');
+      expect(result.message).toBe('Revisá tu correo');
+    });
+
+    it('rechaza si las contraseñas no coinciden, sin tocar el repositorio', async () => {
+      await expect(
+        service.signup({ ...SIGNUP_DTO, confirmPassword: 'otra-pass' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockRepository.findUserByEmail).not.toHaveBeenCalled();
+      expect(mockRepository.createUnverifiedUser).not.toHaveBeenCalled();
+    });
+
+    it('rechaza un email ya existente (evita duplicar cuentas en doble clic)', async () => {
+      mockRepository.findUserByEmail.mockResolvedValue({ id: 'user-existing' });
+
+      await expect(service.signup(SIGNUP_DTO)).rejects.toThrow(
+        ConflictException,
+      );
+      expect(mockRepository.createUnverifiedUser).not.toHaveBeenCalled();
+    });
+
+    it('en no-producción devuelve el token para poder testear sin correo real', async () => {
+      process.env.NODE_ENV = 'development';
+      mockRepository.findUserByEmail.mockResolvedValue(null);
+      mockRepository.createUnverifiedUser.mockResolvedValue({
+        id: 'user-1',
+        email: 'owner@example.com',
+        firstName: 'Ana',
+      });
+
+      const result = await service.signup(SIGNUP_DTO);
+      expect(typeof result._dev_token).toBe('string');
+    });
+
+    it('en producción NO devuelve el token', async () => {
+      process.env.NODE_ENV = 'production';
+      mockRepository.findUserByEmail.mockResolvedValue(null);
+      mockRepository.createUnverifiedUser.mockResolvedValue({
+        id: 'user-1',
+        email: 'owner@example.com',
+        firstName: 'Ana',
+      });
+
+      const result = await service.signup(SIGNUP_DTO);
+      expect(result._dev_token).toBeUndefined();
+    });
+
+    it('un error al enviar el correo no revienta el alta (se loguea, no se propaga)', async () => {
+      mockRepository.findUserByEmail.mockResolvedValue(null);
+      mockRepository.createUnverifiedUser.mockResolvedValue({
+        id: 'user-1',
+        email: 'owner@example.com',
+        firstName: 'Ana',
+      });
+      mockEmailService.send.mockRejectedValueOnce(new Error('smtp down'));
+
+      await expect(service.signup(SIGNUP_DTO)).resolves.toMatchObject({
+        message: 'Revisá tu correo',
+      });
+    });
+  });
+
+  describe('verifyEmail', () => {
+    it('token inexistente, usado o vencido: mismo error genérico', async () => {
+      mockRepository.findEmailVerificationToken.mockResolvedValue(null);
+      await expect(service.verifyEmail({ token: 'bad-token' })).rejects.toThrow(
+        BadRequestException,
+      );
+
+      mockRepository.findEmailVerificationToken.mockResolvedValue({
+        id: 't1',
+        userId: 'u1',
+        usedAt: new Date(),
+        expiresAt: new Date(Date.now() + 10000),
+        user: { id: 'u1', email: 'a@b.com', firstName: 'Ana' },
+      });
+      await expect(
+        service.verifyEmail({ token: 'used-token' }),
+      ).rejects.toThrow(BadRequestException);
+
+      mockRepository.findEmailVerificationToken.mockResolvedValue({
+        id: 't1',
+        userId: 'u1',
+        usedAt: null,
+        expiresAt: new Date(Date.now() - 10000),
+        user: { id: 'u1', email: 'a@b.com', firstName: 'Ana' },
+      });
+      await expect(
+        service.verifyEmail({ token: 'expired-token' }),
+      ).rejects.toThrow(BadRequestException);
+
+      expect(mockRepository.executeEmailVerification).not.toHaveBeenCalled();
+    });
+
+    it('token válido: consume el token y arranca una sesión real', async () => {
+      mockRepository.findEmailVerificationToken.mockResolvedValue({
+        id: 't1',
+        userId: 'u1',
+        usedAt: null,
+        expiresAt: new Date(Date.now() + 10000),
+        user: { id: 'u1', email: 'owner@example.com', firstName: 'Ana' },
+      });
+      mockRepository.executeEmailVerification.mockResolvedValue([{}, {}]);
+      mockRepository.createSession.mockResolvedValue({});
+      mockRepository.findMembershipsForUser.mockResolvedValue([]);
+
+      const result = await service.verifyEmail({ token: 'good-token' });
+
+      expect(mockRepository.executeEmailVerification).toHaveBeenCalledWith(
+        'u1',
+        't1',
+      );
+      expect(mockRepository.createSession).toHaveBeenCalled();
+      expect(result.accessToken).toBeDefined();
+      expect(result.refreshToken).toBeDefined();
+      expect(result.user.email).toBe('owner@example.com');
+      // Recién verificado: sin negocio todavía, el paso 1 de /comenzar lo crea.
+      expect(result.memberships).toEqual([]);
+    });
+  });
+
+  describe('resendVerification', () => {
+    it('mismo mensaje genérico si el email no existe (no enumeration)', async () => {
+      mockRepository.findUserByEmail.mockResolvedValue(null);
+      const result = await service.resendVerification({
+        email: 'nope@example.com',
+      });
+      expect(result.message).toMatch(/reenviamos/i);
+      expect(
+        mockRepository.createEmailVerificationToken,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('mismo mensaje genérico si la cuenta YA está verificada (no reenvía)', async () => {
+      mockRepository.findUserByEmail.mockResolvedValue({
+        id: 'u1',
+        isActive: true,
+        emailVerifiedAt: new Date(),
+      });
+      const result = await service.resendVerification({
+        email: 'owner@example.com',
+      });
+      expect(result.message).toMatch(/reenviamos/i);
+      expect(
+        mockRepository.createEmailVerificationToken,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('cuenta sin verificar: crea un token nuevo y reenvía', async () => {
+      mockRepository.findUserByEmail.mockResolvedValue({
+        id: 'u1',
+        email: 'owner@example.com',
+        firstName: 'Ana',
+        isActive: true,
+        emailVerifiedAt: null,
+      });
+
+      await service.resendVerification({ email: 'owner@example.com' });
+
+      expect(mockRepository.createEmailVerificationToken).toHaveBeenCalled();
+      expect(mockEmailService.send).toHaveBeenCalled();
     });
   });
 
@@ -141,13 +279,19 @@ describe('AuthService', () => {
         passwordHash: hash,
         firstName: 'Test',
         lastName: 'User',
+        emailVerifiedAt: new Date(),
       });
       await expect(
         service.login({ email: 'user@example.com', password: 'wrong-pass' }),
       ).rejects.toThrow(UnauthorizedException);
     });
 
-    it('returns tokens and memberships on valid credentials', async () => {
+    /**
+     * El check de verificación va DESPUÉS del de contraseña — antes de saber
+     * que la contraseña es correcta, revelar "sin confirmar" sería un
+     * oráculo de enumeración de emails.
+     */
+    it('cuenta sin confirmar: bloquea con un mensaje propio, ni entra ni filtra antes de validar la contraseña', async () => {
       const hash = await bcrypt.hash('correct-pass', 10);
       mockRepository.findUserByEmail.mockResolvedValue({
         id: '1',
@@ -156,6 +300,30 @@ describe('AuthService', () => {
         passwordHash: hash,
         firstName: 'Test',
         lastName: 'User',
+        emailVerifiedAt: null,
+      });
+
+      await expect(
+        service.login({ email: 'user@example.com', password: 'wrong-pass' }),
+      ).rejects.toThrow(UnauthorizedException);
+      expect(mockRepository.createSession).not.toHaveBeenCalled();
+
+      await expect(
+        service.login({ email: 'user@example.com', password: 'correct-pass' }),
+      ).rejects.toThrow(/[Cc]onfirmá tu correo/);
+      expect(mockRepository.createSession).not.toHaveBeenCalled();
+    });
+
+    it('returns tokens and memberships on valid credentials with a verified email', async () => {
+      const hash = await bcrypt.hash('correct-pass', 10);
+      mockRepository.findUserByEmail.mockResolvedValue({
+        id: '1',
+        email: 'user@example.com',
+        isActive: true,
+        passwordHash: hash,
+        firstName: 'Test',
+        lastName: 'User',
+        emailVerifiedAt: new Date(),
       });
       mockRepository.createSession.mockResolvedValue({});
       mockRepository.findMembershipsForUser.mockResolvedValue([]);

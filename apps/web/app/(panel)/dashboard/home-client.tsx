@@ -12,6 +12,7 @@ import {
   QrCode,
   Store,
 } from "lucide-react";
+import LoyaltyCard from "@/components/public/loyalty-card";
 import { relativeDay } from "./customers/loyalty-ui";
 
 /**
@@ -27,24 +28,70 @@ import { relativeDay } from "./customers/loyalty-ui";
  * que la portada nunca muestre un total distinto del de la sección.
  */
 
+/**
+ * Beneficios y la tarjeta de sellos son dos herramientas independientes
+ * (ver /dashboard/programa): Inicio nunca asume que la tarjeta está activa.
+ * `mode` lo dice siempre — "benefits" cubre tanto "solo beneficios" como
+ * "todavía nada configurado", sin dejar un hueco vacío de tarjeta.
+ */
+type HomeProgram =
+  | {
+      mode: "stamps";
+      stampsRequired: number | null;
+      rewardName: string;
+      participating: number;
+      available: number;
+      isDefaultDesign: boolean;
+      businessName: string;
+      appearance: {
+        cardColor: string | null;
+        stampColor: string | null;
+        stampIcon: string | null;
+        logoUrl: string | null;
+      };
+    }
+  | {
+      mode: "benefits";
+      benefitsCount: number;
+      authorizedForReactivationCount: number;
+    };
+
+type AutomationItemState =
+  | "activo"
+  | "modo_prueba"
+  | "sin_canal"
+  | "preparando"
+  | "desactivado";
+
 interface HomeOverview {
   periodDays: number;
   kpis: {
     activeCustomers: number;
     returningCustomers: number;
-    rewardsRedeemed: number;
+    /** Fase de Programa nuevo: cualquier origen (tarjeta, retención, promoción). */
+    benefitsRedeemed: number;
     newReviews: number;
   };
-  program: {
-    stampsRequired: number | null;
-    rewardName: string;
-    participating: number;
-    available: number;
-  } | null;
+  program: HomeProgram;
   automations: {
-    items: { key: "cerca_del_premio" | "te_extranamos"; enabled: boolean }[];
+    items: {
+      key: "cerca_del_premio" | "te_extranamos";
+      enabled: boolean;
+      state: AutomationItemState;
+    }[];
     activeCount: number;
     testMode: boolean;
+    /**
+     * Independiente del estado de la automatización en sí — "Te extrañamos"
+     * puede estar `activo` mientras esto dice `necesita_limite`. Reenviado
+     * tal cual de Notificaciones, sin recalcular nada acá.
+     */
+    benefitsAutomation: {
+      status: "sin_autorizar" | "necesita_limite" | "listo" | "limite_alcanzado";
+      monthlyLimit: number | null;
+      usedThisMonth: number;
+    };
+    authorizedBenefitsCount: number;
   } | null;
   reviews: {
     connected: boolean;
@@ -55,7 +102,13 @@ interface HomeOverview {
   activity: {
     id: string;
     at: string;
-    kind: "sello" | "feedback" | "desbloqueo" | "canje";
+    kind:
+      | "visita"
+      | "feedback"
+      | "desbloqueo"
+      | "canje"
+      | "beneficio_recibido"
+      | "beneficio_canjeado";
     customer: { id: string; name: string } | null;
     rewardName: string | null;
   }[];
@@ -66,17 +119,40 @@ const AUTOMATION_LABEL: Record<string, string> = {
   te_extranamos: "Te extrañamos",
 };
 
-/** Tareas pendientes, en el orden en que conviene hacerlas. */
-const SETUP_TASKS: Record<string, { label: string; href: string }> = {
-  programa: { label: "Crear tu programa", href: "/dashboard/programa" },
-  qr: { label: "Tener tu QR listo", href: "/dashboard/qr" },
-  google: { label: "Conectar Google", href: "/dashboard/reviews" },
-  automatizaciones: {
-    label: "Activar automatizaciones",
+/**
+ * Tareas pendientes de DESPUÉS del onboarding, no otro wizard — el
+ * onboarding ya resolvió negocio, estrategia inicial y (opcionalmente)
+ * sellos. Por eso ninguna tarea acá es "activá sellos" ni "configurá
+ * automatizaciones": esas ya se decidieron (o quedaron con su default).
+ *
+ * `optional: true` se muestra con una etiqueta aparte — Flikker funciona
+ * igual sin esa tarea, no es una condición para que el negocio ande.
+ */
+const SETUP_TASKS: Record<
+  string,
+  { label: string; href: string; optional?: boolean }
+> = {
+  google: { label: "Conectá Google", href: "/dashboard/reviews" },
+  "personalizar-tarjeta": {
+    label: "Personalizá tu tarjeta",
+    href: "/dashboard/programa?tab=sellos",
+  },
+  beneficio: {
+    label: "Creá tu primer beneficio",
+    href: "/dashboard/programa?tab=beneficios",
+    optional: true,
+  },
+  // Fase de presupuesto: un beneficio autorizado sin límite mensual nunca
+  // se emite — esto SÍ bloquea a ese beneficio en particular, no es opcional.
+  "limite-beneficios": {
+    label: "Definí el límite mensual de beneficios",
     href: "/dashboard/notificaciones",
   },
+  // Caso de borde: en el flujo normal el onboarding ya creó el QR
+  // principal. Esto solo aparece si esa fuente se borró después.
+  qr: { label: "No tenés un QR activo", href: "/dashboard/qr" },
   "primer-cliente": {
-    label: "Recibir tu primer cliente",
+    label: "Recibí tu primer cliente",
     href: "/dashboard/qr",
   },
 };
@@ -164,6 +240,11 @@ export default function HomeClient({ firstName }: { firstName: string }) {
                       className="h-4 w-4 shrink-0 rounded-full border-2 border-[#C8D0E0]"
                     />
                     {task.label}
+                    {task.optional ? (
+                      <span className="rounded-full bg-[#F1F3FA] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8891A4]">
+                        Opcional
+                      </span>
+                    ) : null}
                     <ArrowRight className="h-3.5 w-3.5 text-[#5C6BC0]" />
                   </Link>
                 </li>
@@ -186,8 +267,8 @@ export default function HomeClient({ firstName }: { firstName: string }) {
           hint="Vinieron dos veces o más"
         />
         <Kpi
-          label="Recompensas canjeadas"
-          value={kpis.rewardsRedeemed}
+          label="Beneficios canjeados"
+          value={kpis.benefitsRedeemed}
           hint={`En ${data.periodDays} días`}
         />
         <Kpi
@@ -199,44 +280,85 @@ export default function HomeClient({ firstName }: { firstName: string }) {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {/* ── Programa ────────────────────────────────────────────────── */}
-        <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:p-6">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-lg font-semibold text-[#202333]">
-              Tu programa
-            </h2>
-            {program ? (
+        {program.mode === "stamps" ? (
+          <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:p-6">
+            <div className="flex items-center justify-between gap-3">
+              <h2 className="font-display text-lg font-semibold text-[#202333]">
+                Tu tarjeta de sellos
+              </h2>
               <span className="rounded-full bg-[#EAF7EF] px-2.5 py-1 text-[11px] font-semibold text-[#147A5B]">
-                Activo
+                Activa
               </span>
-            ) : null}
-          </div>
+            </div>
 
-          {program ? (
-            <>
-              <p className="mt-3 flex flex-wrap items-center gap-2 text-sm">
-                <span className="rounded-full bg-[#EEF0FB] px-3 py-1.5 font-semibold text-[#4A56A6]">
-                  {program.stampsRequired ?? "—"} sellos
-                </span>
-                <ArrowRight className="h-4 w-4 text-[#C8D0E0]" />
-                <span className="rounded-full bg-[#EEF0FB] px-3 py-1.5 font-semibold text-[#4A56A6]">
-                  {program.rewardName}
-                </span>
+            <div className="mt-4 grid gap-4 sm:grid-cols-[180px_1fr] sm:items-center">
+              {/* Preview compacta — el mismo componente que ve el cliente, solo
+                  para mirar. Editar se hace en Programa, nunca acá. */}
+              <div className="mx-auto w-full max-w-[220px] scale-[0.92] sm:mx-0">
+                <LoyaltyCard
+                  rewardName={program.rewardName}
+                  progress={Math.min(2, program.stampsRequired ?? 5)}
+                  target={program.stampsRequired ?? 5}
+                  appearance={{
+                    cardColor: program.appearance.cardColor,
+                    stampColor: program.appearance.stampColor,
+                    stampIcon: program.appearance.stampIcon,
+                    logoUrl: program.appearance.logoUrl,
+                    businessName: program.businessName,
+                  }}
+                />
+              </div>
+
+              <div>
+                <dl className="flex flex-wrap gap-x-8 gap-y-3">
+                  <Mini label="Participando" value={program.participating} />
+                  <Mini label="Disponibles" value={program.available} />
+                  <Mini label="Canjeadas" value={kpis.benefitsRedeemed} />
+                </dl>
+
+                {program.isDefaultDesign ? (
+                  <Cta href="/dashboard/programa?tab=sellos">
+                    Personalizar tarjeta
+                  </Cta>
+                ) : (
+                  <Cta href="/dashboard/programa?tab=sellos">
+                    Configurar sellos
+                  </Cta>
+                )}
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:p-6">
+            <h2 className="font-display text-lg font-semibold text-[#202333]">
+              Tus beneficios
+            </h2>
+
+            <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
+              <Mini label="Creados" value={program.benefitsCount} />
+              <Mini
+                label="Autorizados para reactivación"
+                value={program.authorizedForReactivationCount}
+              />
+            </dl>
+
+            {program.benefitsCount === 0 ? (
+              <p className="mt-4 text-sm leading-6 text-[#7F879C]">
+                Todavía no creaste ningún beneficio. No hace falta para que
+                Flikker funcione — podés hacerlo cuando quieras.
               </p>
+            ) : null}
 
-              <dl className="mt-5 flex flex-wrap gap-x-8 gap-y-3">
-                <Mini label="Participando" value={program.participating} />
-                <Mini label="Disponibles" value={program.available} />
-                <Mini label="Canjeadas" value={kpis.rewardsRedeemed} />
-              </dl>
-            </>
-          ) : (
-            <p className="mt-3 text-sm leading-6 text-[#7F879C]">
-              Todavía no configuraste tu programa de sellos.
-            </p>
-          )}
-
-          <Cta href="/dashboard/programa">Ver programa</Cta>
-        </section>
+            <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1">
+              <Cta href="/dashboard/programa?tab=beneficios">Ver programa</Cta>
+              {program.benefitsCount === 0 ? (
+                <Cta href="/dashboard/programa?tab=beneficios">
+                  Crear beneficio
+                </Cta>
+              ) : null}
+            </div>
+          </section>
+        )}
 
         {/* ── Reseñas ─────────────────────────────────────────────────── */}
         <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:p-6">
@@ -297,22 +419,22 @@ export default function HomeClient({ firstName }: { firstName: string }) {
 
           <ul className="mt-4 space-y-2">
             {automations.items.map((item) => (
-              <li
-                key={item.key}
-                className="flex items-center justify-between gap-4 text-sm"
-              >
-                <span className="text-[#202333]">
-                  {AUTOMATION_LABEL[item.key]}
-                </span>
-                <span
-                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-                    item.enabled
-                      ? "bg-[#EAF7EF] text-[#147A5B]"
-                      : "bg-[#F3F4F8] text-[#6B7280]"
-                  }`}
-                >
-                  {item.enabled ? "Activo" : "Desactivado"}
-                </span>
+              <li key={item.key} className="text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-[#202333]">
+                    {AUTOMATION_LABEL[item.key]}
+                  </span>
+                  <AutomationStateBadge state={item.state} />
+                </div>
+                {/* Beneficios — independiente del estado de arriba: "Te
+                    extrañamos" puede estar Activo con esto en "Necesita
+                    límite" (§3/§11). Nunca se muestra para "Cerca del
+                    premio", que no tiene beneficios propios. */}
+                {item.key === "te_extranamos" ? (
+                  <p className="mt-1 text-xs leading-5 text-[#8891A4]">
+                    {benefitsAutomationCopy(automations)}
+                  </p>
+                ) : null}
               </li>
             ))}
           </ul>
@@ -402,18 +524,77 @@ function QuickAction({
   );
 }
 
+/**
+ * §3/§11 — el mismo vocabulario de estado que ya usa Notificaciones: un
+ * negocio recién creado no debe leerse como "Activo" con 0 infraestructura
+ * (`preparando`), y "sin canal"/"modo de prueba" nunca deben mostrarse
+ * engañosamente como si el mensaje realmente estuviera saliendo.
+ */
+function AutomationStateBadge({ state }: { state: AutomationItemState }) {
+  const copy: Record<string, { label: string; className: string }> = {
+    activo: { label: "Activo", className: "bg-[#EAF7EF] text-[#147A5B]" },
+    modo_prueba: {
+      label: "Modo de prueba",
+      className: "bg-[#FFF7EE] text-[#8A520D]",
+    },
+    sin_canal: {
+      label: "Sin canal",
+      className: "bg-[#FDEEEE] text-[#B3261E]",
+    },
+    preparando: {
+      label: "Preparando",
+      className: "bg-[#F1F3FA] text-[#5C6BC0]",
+    },
+    desactivado: {
+      label: "Desactivado",
+      className: "bg-[#F3F4F8] text-[#6B7280]",
+    },
+  };
+  const { label, className } = copy[state] ?? copy.desactivado;
+  return (
+    <span
+      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${className}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+/** §3 — sub-línea de beneficios bajo "Te extrañamos", nunca recalculada acá. */
+function benefitsAutomationCopy(
+  automations: NonNullable<HomeOverview["automations"]>,
+): string {
+  const { status, monthlyLimit, usedThisMonth } = automations.benefitsAutomation;
+  switch (status) {
+    case "sin_autorizar":
+      return "Solo recordatorios, sin beneficio.";
+    case "necesita_limite":
+      return "Tiene beneficios autorizados, pero necesita un límite mensual.";
+    case "limite_alcanzado":
+      return `Límite de beneficios alcanzado este mes (${usedThisMonth}/${monthlyLimit ?? "—"}). Los recordatorios siguen saliendo.`;
+    case "listo":
+      return automations.authorizedBenefitsCount > 0
+        ? `${automations.authorizedBenefitsCount} ${automations.authorizedBenefitsCount === 1 ? "beneficio disponible" : "beneficios disponibles"}.`
+        : "Solo recordatorios, sin beneficio.";
+  }
+}
+
 /** Texto de un evento. El backend manda la clave; la frase se arma acá. */
 function activityText(event: HomeOverview["activity"][number]): string {
   const who = event.customer?.name ?? "Un cliente";
   switch (event.kind) {
-    case "sello":
-      return `${who} sumó un sello`;
+    case "visita":
+      return `${who} visitó el negocio`;
     case "feedback":
       return `${who} completó el feedback`;
     case "desbloqueo":
       return `${who} desbloqueó ${event.rewardName ?? "su recompensa"}`;
     case "canje":
       return `${who} canjeó ${event.rewardName ?? "su recompensa"}`;
+    case "beneficio_recibido":
+      return `${who} recibió ${event.rewardName ?? "un beneficio"}`;
+    case "beneficio_canjeado":
+      return `${who} canjeó ${event.rewardName ?? "un beneficio"}`;
   }
 }
 
@@ -424,13 +605,17 @@ function ActivityIcon({
 }) {
   const className = "h-4 w-4";
   switch (kind) {
-    case "sello":
+    case "visita":
       return <Store className={className} />;
     case "feedback":
       return <MessageCircle className={className} />;
     case "desbloqueo":
       return <Gift className={className} />;
     case "canje":
+      return <Check className={className} />;
+    case "beneficio_recibido":
+      return <Gift className={className} />;
+    case "beneficio_canjeado":
       return <Check className={className} />;
   }
 }

@@ -186,6 +186,28 @@ export class RetentionBudgetService {
   }
 
   /**
+   * Read-only view of this month's usage, for display (Notificaciones'
+   * "beneficios usados este mes"). Never the authoritative gate — that stays
+   * `checkWithinCaps`, run inside the issuance transaction with the
+   * advisory lock held. No lock needed here: a diagnostic count being one
+   * request stale is fine; a real issuance racing past the cap is not.
+   */
+  usageThisMonth(
+    businessId: string,
+    timezone: string,
+    now: Date,
+    averageTicketAmount: Prisma.Decimal | number | null,
+  ): Promise<{ count: number; cost: number }> {
+    return this.issuedThisMonth(
+      this.prisma as unknown as Prisma.TransactionClient,
+      businessId,
+      timezone,
+      now,
+      averageTicketAmount,
+    );
+  }
+
+  /**
    * Automated incentives issued this local month, and their combined estimated
    * cost, using each variant's incentive definition as it stands today.
    *

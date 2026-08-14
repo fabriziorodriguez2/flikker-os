@@ -1,56 +1,52 @@
-import { BusinessStatus, SubscriptionStatus } from '@prisma/client';
 import { AuthRepository } from './auth.repository';
 
 describe('AuthRepository', () => {
-  it('creates signup business as ACTIVE with active Pro subscription', async () => {
-    const tx = {
-      business: {
-        findMany: jest.fn().mockResolvedValue([]),
-        create: jest.fn().mockResolvedValue({ id: 'business-1' }),
-      },
-      user: {
-        create: jest.fn().mockResolvedValue({ id: 'user-1' }),
-      },
-      plan: {
-        upsert: jest.fn().mockResolvedValue({ id: 'plan-pro' }),
-      },
-      subscription: {
-        create: jest.fn().mockResolvedValue({ id: 'subscription-1' }),
-      },
-      membership: {
-        create: jest.fn().mockResolvedValue({ id: 'membership-1' }),
-      },
+  it('createUnverifiedUser crea SOLO el usuario, sin negocio ni sesión', async () => {
+    const user = {
+      create: jest.fn().mockResolvedValue({ id: 'user-1' }),
     };
+    const prisma = { user };
+    const repository = new AuthRepository(prisma as never);
+
+    await repository.createUnverifiedUser({
+      email: 'owner@example.com',
+      passwordHash: 'hash',
+      firstName: 'Ana',
+      lastName: 'Pérez',
+    });
+
+    expect(user.create).toHaveBeenCalledWith({
+      data: {
+        email: 'owner@example.com',
+        passwordHash: 'hash',
+        firstName: 'Ana',
+        lastName: 'Pérez',
+        isActive: true,
+        emailVerifiedAt: null,
+      },
+    });
+  });
+
+  it('executeEmailVerification marca el usuario verificado y consume el token en una transacción', async () => {
+    const userUpdateMany = jest.fn().mockResolvedValue({ count: 1 });
+    const tokenUpdate = jest.fn().mockResolvedValue({});
     const prisma = {
-      $transaction: jest.fn((callback: (client: typeof tx) => unknown) =>
-        Promise.resolve(callback(tx)),
-      ),
+      user: { updateMany: userUpdateMany },
+      emailVerificationToken: { update: tokenUpdate },
+      $transaction: jest.fn((ops: unknown[]) => Promise.all(ops)),
     };
     const repository = new AuthRepository(prisma as never);
 
-    await repository.createSignupAccount({
-      email: 'owner@example.com',
-      passwordHash: 'hash',
-      businessName: 'Clinica Test',
-      vertical: 'dental',
-      timezone: 'America/Montevideo',
-    });
+    await repository.executeEmailVerification('user-1', 'token-1');
 
-    expect(tx.business.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          status: BusinessStatus.ACTIVE,
-          messageQuotaMonthly: 600,
-        }),
-      }),
-    );
-    expect(tx.subscription.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({
-          planId: 'plan-pro',
-          status: SubscriptionStatus.ACTIVE,
-        }),
-      }),
-    );
+    expect(prisma.$transaction).toHaveBeenCalled();
+    expect(userUpdateMany).toHaveBeenCalledWith({
+      where: { id: 'user-1', emailVerifiedAt: null },
+      data: { emailVerifiedAt: expect.any(Date) },
+    });
+    expect(tokenUpdate).toHaveBeenCalledWith({
+      where: { id: 'token-1' },
+      data: { usedAt: expect.any(Date) },
+    });
   });
 });

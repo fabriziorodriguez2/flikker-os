@@ -1,5 +1,10 @@
 import { Injectable } from '@nestjs/common';
-import { Prisma, RewardGoalStatus } from '@prisma/client';
+import {
+  CustomerEventType,
+  Prisma,
+  RetentionAssignmentStatus,
+  RewardGoalStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 /**
@@ -116,6 +121,20 @@ export class CustomerLoyaltyRepository {
         unlockedAt: true,
         incentiveDefinition: { select: { name: true } },
       },
+    });
+  }
+
+  /**
+   * Clientes con un beneficio directo (sin tarjeta) ofrecido y todavía sin
+   * canjear — para el badge discreto "Beneficio disponible" en la lista.
+   * Misma exclusión que en el detalle: `rewardGoal: { is: null }` deja
+   * afuera los que ya se cuentan como recompensa de tarjeta (ese caso ya
+   * tiene su propio badge, "Recompensa disponible").
+   */
+  findAvailableDirectBenefits(businessId: string) {
+    return this.prisma.benefitParticipation.findMany({
+      where: { businessId, rewardGoal: { is: null }, redeemedAt: null },
+      select: { customerId: true },
     });
   }
 
@@ -239,6 +258,69 @@ export class CustomerLoyaltyRepository {
       },
       orderBy: { createdAt: 'desc' },
       take: 50,
+    });
+  }
+
+  /**
+   * Escaneos reales — un cliente YA identificado que vuelve a abrir el QR,
+   * haya sumado una visita nueva o no (el check-in lo deduplica dentro de la
+   * ventana de horas del negocio). Distinto de una visita: acá no hay
+   * `Visit` de por medio, solo el hecho de que volvió a escanear.
+   *
+   * No confundir con `ScanEvent` — ese modelo es del flujo LEGACY de
+   * campañas y ni siquiera tiene `customerId` (no hay forma de atribuir un
+   * scan anónimo a un cliente identificado, así que no se muestra ninguno:
+   * "no inventar" es literal acá).
+   */
+  findCustomerScans(businessId: string, customerId: string) {
+    return this.prisma.customerEvent.findMany({
+      where: {
+        businessId,
+        customerId,
+        type: CustomerEventType.customer_session_restored,
+      },
+      select: { id: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Beneficios que este cliente recibió DIRECTAMENTE — bienvenida,
+   * reactivación, o cualquier canje del catálogo — sin pasar por la tarjeta
+   * de sellos. `rewardGoal: { is: null }` es justo la exclusión: los
+   * vinculados a una tarjeta ya se cuentan en `findCustomerGoals` (Sellos y
+   * Beneficios se mantienen separados a propósito — una persona puede tener
+   * beneficios sin tarjeta).
+   */
+  findCustomerDirectBenefits(businessId: string, customerId: string) {
+    return this.prisma.benefitParticipation.findMany({
+      where: { businessId, customerId, rewardGoal: { is: null } },
+      select: {
+        id: true,
+        createdAt: true,
+        redeemedAt: true,
+        benefitTitleSnapshot: true,
+        benefit: { select: { title: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Retornos confirmados después de una reactivación — solo cuando de verdad
+   * se le mandó un mensaje (`status: SENT`; un CONTROL no manda nada, así
+   * que "volvió" ahí no sería atribuible a ninguna reactivación real).
+   */
+  findCustomerReactivationReturns(businessId: string, customerId: string) {
+    return this.prisma.retentionOutcome.findMany({
+      where: {
+        businessId,
+        customerId,
+        returned: true,
+        assignment: { status: RetentionAssignmentStatus.SENT },
+      },
+      select: { id: true, returnedAt: true },
+      orderBy: { returnedAt: 'desc' },
     });
   }
 }

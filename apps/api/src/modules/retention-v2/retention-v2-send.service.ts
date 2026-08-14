@@ -454,6 +454,11 @@ export class RetentionV2SendService {
             channel: MessageChannel.whatsapp,
             trackingToken: randomBytes(8).toString('base64url'),
             status: MessageStatus.queued,
+            // Captured now because it may be AI-generated (Fase F) — not
+            // reproducible later the way a template-backed message is. The
+            // dispatcher (RetentionV2MessageDispatchService) reads this back
+            // verbatim; it never recomposes the text itself.
+            body: input.body,
             copySource: input.copySource,
             aiUsageEventId: input.aiUsageEventId,
           },

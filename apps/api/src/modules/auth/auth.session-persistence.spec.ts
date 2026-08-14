@@ -52,6 +52,7 @@ describe('session persistence', () => {
       isActive: true,
       isPlatformAdmin: false,
       passwordHash: await bcrypt.hash('secretPass1', 10),
+      emailVerifiedAt: new Date(),
     });
     const service = makeService(repo, jwt);
 

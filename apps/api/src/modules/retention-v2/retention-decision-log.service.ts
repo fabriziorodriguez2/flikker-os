@@ -26,6 +26,12 @@ export const DECISION_CODES = {
   INCENTIVE_ISSUED: 'INCENTIVE_ISSUED',
   MESSAGE_QUEUED: 'MESSAGE_QUEUED',
   MESSAGE_FAILED: 'MESSAGE_FAILED',
+  // Dispatcher (RetentionV2MessageDispatchService) — a different stage than
+  // MESSAGE_QUEUED/MESSAGE_FAILED above, which are about creating the Message
+  // row. These are about the WhatsApp attempt itself, once queued.
+  MESSAGE_SENT: 'MESSAGE_SENT',
+  MESSAGE_SEND_SKIPPED: 'MESSAGE_SEND_SKIPPED',
+  MESSAGE_SEND_FAILED: 'MESSAGE_SEND_FAILED',
   // Dry run: mirrors the live codes above one-to-one, so a pilot's report can
   // be produced with the exact same aggregation query used once sending is on.
   DRY_RUN_WOULD_ASSIGN: 'DRY_RUN_WOULD_ASSIGN',

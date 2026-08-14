@@ -27,6 +27,28 @@ const INCENTIVE_STRATEGIES: RetentionStrategyType[] = [
 ];
 
 /**
+ * §11 (self-service blast protection) — the real gap this closes: a
+ * business with years of dormant customers that turns "Te extrañamos" on
+ * today would otherwise recruit every one of them (there is no `take` on
+ * the customer query, no cap on how many pass eligibility) in a single
+ * `runDaily()` pass. Existing caps (cooldown, monthly-per-customer limit,
+ * opt-out) all protect a customer from being contacted too often — none of
+ * them protect a NEW business from a first-day flood across its whole
+ * population.
+ *
+ * A flat per-business, per-run ceiling on NEWLY assigned customers, shared
+ * across all three recovery objectives (SECOND_VISIT/AT_RISK_RECOVERY/
+ * INACTIVE_RECOVERY — one loop already walks all of them per business).
+ * Whoever does not fit this run stays unassigned and is picked up by
+ * tomorrow's run, exactly like the sending-window skip already does — this
+ * is a ramp, not a rejection. Deliberately a plain constant, not a new
+ * `RetentionSettings` column: no product decision needs to tune this today,
+ * and a column would be a knob nobody asked for (see repo conventions on
+ * not opening fields "for later").
+ */
+const MAX_NEW_ASSIGNMENTS_PER_BUSINESS_PER_RUN = 30;
+
+/**
  * Recruitment pass: works out who is drifting away and enrols them into a
  * running experiment. It never sends anything — that is the send worker's job,
  * which re-validates everything first.
@@ -232,6 +254,11 @@ export class RetentionV2EvaluateService {
         continue;
       }
 
+      // §11 — see MAX_NEW_ASSIGNMENTS_PER_BUSINESS_PER_RUN's docstring. Real
+      // assignments only (dry run already returned above); whoever does not
+      // fit today is picked up by tomorrow's run.
+      if (assigned >= MAX_NEW_ASSIGNMENTS_PER_BUSINESS_PER_RUN) break;
+
       const outcome = await this.assignments.assign({
         experimentId: experiment.id,
         businessId: business.id,
@@ -418,6 +445,11 @@ export class RetentionV2EvaluateService {
         });
         continue;
       }
+
+      // §11 — same ramp as the recovery pass; a business with a large
+      // existing card base turning progress reminders on for the first time
+      // must not recruit its whole population in one run either.
+      if (assigned >= MAX_NEW_ASSIGNMENTS_PER_BUSINESS_PER_RUN) break;
 
       const outcome = await this.assignments.assign({
         experimentId: experiment.id,

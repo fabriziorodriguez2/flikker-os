@@ -94,6 +94,10 @@ export class RewardGoalIssuerService {
         customerId: goal.customerId,
         redemptionCode: generateRedemptionCode(),
         expiresAt,
+        // Este carrier es privado (nunca aparece en el catálogo del dueño,
+        // `active: false`), así que en la práctica nunca se renombra — pero
+        // el snapshot no cuesta nada y mantiene la garantía uniforme.
+        benefitTitleSnapshot: definition.name,
       },
       select: { id: true, redemptionCode: true, expiresAt: true },
     });

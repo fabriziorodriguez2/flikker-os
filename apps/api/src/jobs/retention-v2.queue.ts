@@ -6,10 +6,15 @@ import { createRedisConnection, REDIS_CONFIGURED } from './redis-connection';
 export const RETENTION_V2_QUEUE = 'retention-v2';
 export const RUN_RETENTION_V2_EVALUATE_JOB = 'run-retention-v2-evaluate';
 export const SEND_RETENTION_V2_ASSIGNMENT_JOB = 'send-retention-v2-assignment';
+export const SEND_RETENTION_V2_MESSAGE_JOB = 'send-retention-v2-message';
 export const RUN_RETENTION_V2_OUTCOMES_JOB = 'run-retention-v2-outcomes';
 
 export interface SendRetentionV2AssignmentJobData {
   assignmentId: string;
+}
+
+export interface SendRetentionV2MessageJobData {
+  messageId: string;
 }
 
 /**
@@ -79,6 +84,25 @@ export class RetentionV2Queue implements OnModuleInit, OnModuleDestroy {
   async enqueueEvaluateRun() {
     if (!this.queue) return null;
     return this.queue.add(RUN_RETENTION_V2_EVALUATE_JOB, {}, { attempts: 1 });
+  }
+
+  /**
+   * Queues one Message for actual WhatsApp dispatch. `jobId` is the message
+   * id, so a re-enqueue of the same message (should never happen, but see
+   * `RetentionV2Worker`) de-dupes at the queue level too. `attempts: 3` is
+   * what makes retry real here — unlike the assignment job above, the
+   * dispatcher throws on a transient send failure specifically so BullMQ
+   * retries it.
+   */
+  async enqueueSendMessage(data: SendRetentionV2MessageJobData) {
+    if (!this.queue) return null;
+    return this.queue.add(SEND_RETENTION_V2_MESSAGE_JOB, data, {
+      jobId: `retention-v2-message:${data.messageId}`,
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 30_000 },
+      removeOnComplete: 100,
+      removeOnFail: false,
+    });
   }
 
   async onModuleDestroy() {

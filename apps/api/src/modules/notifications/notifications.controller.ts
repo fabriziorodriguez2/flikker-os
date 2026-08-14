@@ -67,7 +67,11 @@ export class NotificationsController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: UpdateAutomationsDto,
   ) {
-    return this.notifications.updateAutomations(req.currentBusinessId!, dto);
+    return this.notifications.updateAutomations(
+      req.currentBusinessId!,
+      dto,
+      req.user.id,
+    );
   }
 
   @Patch('settings')
