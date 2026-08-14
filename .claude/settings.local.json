@@ -282,7 +282,13 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/reward-goals/reward-goal-toggle-live-cycle.integration.spec.ts --silent)",
       "Bash(xargs grep -l \"sin regres\")",
       "Bash(railway variables *)",
-      "Bash(railway service *)"
+      "Bash(railway service *)",
+      "Bash(cp \"C:\\\\Users\\\\fabri\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Users-fabri-OneDrive-Desktop-flikker-system-flikker-os\\\\cfc39e1c-5c0e-4255-8b0f-deba62d875a4\\\\scratchpad\\\\audit-arianito.js\" ./audit-arianito.tmp.js)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" node audit-arianito.tmp.js)",
+      "Bash(awk '/^model Business \\\\{/,/^}/' apps/api/prisma/schema.prisma)",
+      "Bash(awk '/^model ImpersonationLog \\\\{/,/^}/' apps/api/prisma/schema.prisma)",
+      "Bash(awk '/^model AuditLog \\\\{/,/^}/' apps/api/prisma/schema.prisma)",
+      "Bash(awk '/^model Subscription \\\\{/,/^}/' apps/api/prisma/schema.prisma)"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",
