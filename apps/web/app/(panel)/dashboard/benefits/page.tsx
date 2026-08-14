@@ -9,6 +9,6 @@ import BenefitsClient from "./benefits-client";
  * aparte. En LEGACY sigue siendo la pantalla de siempre.
  */
 export default async function BenefitsPage() {
-  await redirectIfAbsorbed("/dashboard/programa?tab=beneficios");
+  await redirectIfAbsorbed("/dashboard/programa?tab=configuracion&section=beneficios");
   return <BenefitsClient />;
 }

@@ -9,6 +9,7 @@ import { ProgramAuditService } from '../program-audit/program-audit.service';
 import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
 import { RetentionExperimentsAdminService } from '../retention-v2/retention-experiments-admin.service';
 import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
+import { LoyaltyProgramService } from '../reward-goals/loyalty-program.service';
 import { OnboardingService } from './onboarding.service';
 import { ONBOARDING_DEFAULTS } from './onboarding.defaults';
 
@@ -30,6 +31,7 @@ describe('Onboarding self-service — end to end (integration)', () => {
   let prisma: PrismaService;
   let onboarding: OnboardingService;
   let benefits: BenefitsService;
+  let loyaltyProgram: LoyaltyProgramService;
   let userId: string;
 
   beforeAll(async () => {
@@ -44,12 +46,14 @@ describe('Onboarding self-service — end to end (integration)', () => {
         RetentionExperimentsAdminService,
         RetentionV2BootstrapService,
         OnboardingService,
+        LoyaltyProgramService,
       ],
     }).compile();
 
     prisma = moduleRef.get(PrismaService);
     onboarding = moduleRef.get(OnboardingService);
     benefits = moduleRef.get(BenefitsService);
+    loyaltyProgram = moduleRef.get(LoyaltyProgramService);
     await prisma.$connect();
   });
 
@@ -189,6 +193,39 @@ describe('Onboarding self-service — end to end (integration)', () => {
         where: { business: { memberships: { some: { userId } } } },
       });
       expect(settings?.rewardGoalFeedbackBonusEnabled).toBe(false);
+    });
+
+    /**
+     * §4 test C — "refresh después de onboarding: el setting sigue ON".
+     *
+     * `GET /onboarding/state` deja de ser la superficie correcta para esto:
+     * `findDraft` filtra `onboardingCompletedAt: null` a propósito (un
+     * negocio ya terminado no es un "borrador" para reanudar), así que
+     * después de `complete()` esa lectura vuelve `{businessId: null, steps:
+     * {}}` sin `program` — el dueño nunca vuelve a `/comenzar` para verlo. La
+     * pantalla que SÍ se recarga de verdad es Programa, así que el refresh
+     * real se prueba contra `LoyaltyProgramService.getOverview()` — la misma
+     * lectura que usa `/dashboard/programa` en cada visita, independiente del
+     * estado de onboarding.
+     */
+    it('ON sobrevive un "refresh": Programa lo sigue mostrando ON después de completar', async () => {
+      await runWizard({ feedbackBonus: true });
+
+      const business = await prisma.business.findFirstOrThrow({
+        where: { memberships: { some: { userId } } },
+      });
+      const overview = await loyaltyProgram.getOverview(business.id);
+      expect(overview.feedbackBonusEnabled).toBe(true);
+    });
+
+    it('OFF sobrevive un "refresh": Programa lo sigue mostrando OFF después de completar', async () => {
+      await runWizard({ feedbackBonus: false });
+
+      const business = await prisma.business.findFirstOrThrow({
+        where: { memberships: { some: { userId } } },
+      });
+      const overview = await loyaltyProgram.getOverview(business.id);
+      expect(overview.feedbackBonusEnabled).toBe(false);
     });
 
     it('REANUDACIÓN: paso 1 listo y paso 2 pendiente hasta elegir un camino', async () => {

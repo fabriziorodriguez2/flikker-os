@@ -5,11 +5,12 @@ import { useSearchParams } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
 import { useIsCheckinV2 } from "../../experience-context";
-import { useCanMutate } from "../../role-context";
+import { useIsOwnerOrAdmin } from "../../role-context";
 import ProgramSummaryTab from "./program-summary-tab";
-import ProgramBenefitsTab from "./program-benefits-tab";
-import ProgramStampsTab from "./program-stamps-tab";
-import ProgramHistoryTab from "./program-history-tab";
+import ProgramConfiguracionTab, {
+  type ConfigSection,
+  isConfigSection,
+} from "./program-configuracion-tab";
 import type {
   LoyaltyAppearance,
   LoyaltyProgramOverview,
@@ -20,24 +21,20 @@ import type {
 /**
  * Programa = "todo lo que este negocio ofrece para incentivar que sus
  * clientes vuelvan". Dos herramientas independientes, no una sola:
- * Beneficios y una tarjeta de sellos OPCIONAL. Un negocio puede tener
- * beneficios sin sellos, beneficios + sellos, o (temporalmente) ninguno de
- * los dos — Notificaciones sigue pudiendo mandar mensajes sin incentivo en
- * ese último caso.
+ * Beneficios y una tarjeta de sellos OPCIONAL.
  *
- * Reemplaza la estructura anterior (Resumen/Configuración/Beneficios/Diseño,
- * que asumía "Programa = tarjeta de sellos") por Resumen/Beneficios/Sellos/
- * Historial. El diseño de la tarjeta se movió DENTRO de Sellos — no tiene
- * sentido como pestaña propia si la tarjeta puede no existir.
+ * Nueva regla de producto (simplificación de UX, pedido explícito):
+ * Programa responde QUÉ ofrece el negocio. Notificaciones responde CUÁNDO
+ * Flikker contacta. Nada de eso se duplica entre pantallas.
+ *
+ * Navegación: solo dos pestañas — Resumen (estado + actividad) y
+ * Configuración (todo lo editable, agrupado en una subnavegación lateral:
+ * Tarjeta de sellos, Diseño, Beneficios, Bonus por feedback, Regalo de
+ * bienvenida). Reemplaza la estructura anterior (Resumen/Beneficios/Sellos/
+ * Historial) — el Historial no desaparece, se ve desde Resumen ("Ver toda la
+ * actividad"), y ProgramAuditEvent sigue siendo la misma fuente.
  */
-type Tab = "resumen" | "beneficios" | "sellos" | "historial";
-
-const TABS: { key: Tab; label: string }[] = [
-  { key: "resumen", label: "Resumen" },
-  { key: "beneficios", label: "Beneficios" },
-  { key: "sellos", label: "Sellos" },
-  { key: "historial", label: "Historial" },
-];
+type Tab = "resumen" | "configuracion";
 
 async function readJson(res: Response) {
   const data: unknown = await res.json().catch(() => null);
@@ -51,16 +48,15 @@ async function readJson(res: Response) {
   return data;
 }
 
-const TAB_VALUES = TABS.map((t) => t.key);
-
-function isTab(value: string | null): value is Tab {
-  return value !== null && (TAB_VALUES as string[]).includes(value);
-}
-
 /**
- * `?tab=` para que Inicio (y cualquier otro lugar) pueda linkear directo a
- * una pestaña — ej. `/dashboard/programa?tab=sellos` desde el CTA
- * "Personalizar tarjeta". `useSearchParams` pide un límite de Suspense.
+ * `?tab=`/`&section=` para linkear directo a una sección — ej.
+ * `/dashboard/programa?tab=configuracion&section=beneficios` desde
+ * Notificaciones o Inicio. `useSearchParams` pide un límite de Suspense.
+ *
+ * Compatibilidad: los links viejos (`?tab=beneficios`, `?tab=sellos`,
+ * `?tab=historial`) de la estructura anterior se traducen acá — ningún link
+ * que ya esté circulando (guardado, compartido) queda apuntando a una
+ * pestaña que dejó de existir.
  */
 export default function ProgramaClient() {
   return (
@@ -70,18 +66,46 @@ export default function ProgramaClient() {
   );
 }
 
+function resolveInitialTab(rawTab: string | null): Tab {
+  if (rawTab === "configuracion") return "configuracion";
+  if (rawTab === "beneficios" || rawTab === "sellos") return "configuracion";
+  return "resumen";
+}
+
+function resolveInitialSection(
+  rawTab: string | null,
+  rawSection: string | null,
+): ConfigSection {
+  if (isConfigSection(rawSection)) return rawSection;
+  // Compat con las pestañas viejas, que ahora son secciones.
+  if (rawTab === "beneficios") return "beneficios";
+  if (rawTab === "sellos") return "sellos";
+  return "sellos";
+}
+
 function ProgramaClientContent() {
   const isCheckinV2 = useIsCheckinV2();
-  const canMutate = useCanMutate();
+  // Espeja `@Roles(OWNER, ADMIN)` de `loyalty-program.controller.ts` y
+  // `benefits.controller.ts` — las dos superficies que Programa mutila. Antes
+  // usaba `useCanMutate()` (deja pasar a OPERATOR), que mostraba controles
+  // habilitados que el backend iba a rechazar con 403. El nombre de la
+  // variable queda `canMutate` porque así se llama la prop en cada sección.
+  const canMutate = useIsOwnerOrAdmin();
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab");
+  const initialTab = resolveInitialTab(searchParams.get("tab"));
+  const initialSection = resolveInitialSection(
+    searchParams.get("tab"),
+    searchParams.get("section"),
+  );
 
   const [overview, setOverview] = useState<LoyaltyProgramOverview | null>(null);
   const [benefits, setBenefits] = useState<ProgramBenefit[]>([]);
   const [appearance, setAppearance] = useState<LoyaltyAppearance | null>(null);
   const [history, setHistory] = useState<ProgramHistoryItem[]>([]);
   const [businessName, setBusinessName] = useState("");
-  const [tab, setTab] = useState<Tab>(isTab(initialTab) ? initialTab : "resumen");
+  const [tab, setTab] = useState<Tab>(initialTab);
+  const [configSection, setConfigSection] =
+    useState<ConfigSection>(initialSection);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -210,6 +234,11 @@ function ProgramaClientContent() {
     if (!res.ok && res.status !== 204) await readJson(res);
   }
 
+  function goToConfig(section: ConfigSection) {
+    setTab("configuracion");
+    setConfigSection(section);
+  }
+
   // LEGACY: el endpoint responde 404 por CheckinV2Guard. Se muestra un
   // estado controlado, nunca una pantalla rota.
   if (!isCheckinV2) {
@@ -258,55 +287,56 @@ function ProgramaClientContent() {
       />
 
       <div className="flex w-fit overflow-hidden rounded-[10px] border border-[#E8EAF0] bg-white text-sm font-semibold">
-        {TABS.map((option, i) => (
-          <button
-            key={option.key}
-            type="button"
-            onClick={() => setTab(option.key)}
-            className={`px-4 py-2 transition-colors ${
-              i > 0 ? "border-l border-[#E8EAF0]" : ""
-            } ${
-              tab === option.key
-                ? "bg-[#5C6BC0] text-white"
-                : "bg-white text-[#8891A4] hover:bg-[#F5F6FA] hover:text-[#1A202C]"
-            }`}
-          >
-            {option.label}
-          </button>
-        ))}
+        <button
+          type="button"
+          onClick={() => setTab("resumen")}
+          className={`px-4 py-2 transition-colors ${
+            tab === "resumen"
+              ? "bg-[#5C6BC0] text-white"
+              : "bg-white text-[#8891A4] hover:bg-[#F5F6FA] hover:text-[#1A202C]"
+          }`}
+        >
+          Resumen
+        </button>
+        <button
+          type="button"
+          onClick={() => setTab("configuracion")}
+          className={`border-l border-[#E8EAF0] px-4 py-2 transition-colors ${
+            tab === "configuracion"
+              ? "bg-[#5C6BC0] text-white"
+              : "bg-white text-[#8891A4] hover:bg-[#F5F6FA] hover:text-[#1A202C]"
+          }`}
+        >
+          Configuración
+        </button>
       </div>
 
       {tab === "resumen" ? (
-        <ProgramSummaryTab overview={overview} onGoToTab={setTab} />
-      ) : null}
-
-      {tab === "beneficios" ? (
-        <ProgramBenefitsTab
-          benefits={benefits}
-          welcomeBenefitId={overview.welcomeGift?.benefitId ?? null}
-          canMutate={canMutate}
-          onCreate={createBenefit}
-          onDelete={deleteBenefit}
-          onSetUse={setBenefitUse}
-          onReload={load}
+        <ProgramSummaryTab
+          overview={overview}
+          history={history}
+          onGoToConfig={goToConfig}
         />
       ) : null}
 
-      {tab === "sellos" ? (
-        <ProgramStampsTab
+      {tab === "configuracion" ? (
+        <ProgramConfiguracionTab
+          section={configSection}
+          onSectionChange={setConfigSection}
           overview={overview}
           benefits={benefits}
           appearance={appearance}
           businessName={businessName}
           canMutate={canMutate}
-          onToggle={toggleStampsCard}
-          onSaveConfig={saveStampsCardConfig}
+          onToggleStamps={toggleStampsCard}
+          onSaveStampsConfig={saveStampsCardConfig}
           onSaveDesign={saveBrand}
+          onCreateBenefit={createBenefit}
+          onDeleteBenefit={deleteBenefit}
+          onSetBenefitUse={setBenefitUse}
           onReload={load}
         />
       ) : null}
-
-      {tab === "historial" ? <ProgramHistoryTab items={history} /> : null}
     </div>
   );
 }

@@ -349,7 +349,7 @@ export default function PromotionsTab() {
             ? "No tenés ningún beneficio activo. Activá uno en Programa para poder ofrecerlo."
             : "Solo podés ofrecer tu beneficio activo, que es el que tus clientes ven al escanear. El mensaje va a incluir el link para que lo abran."}{" "}
           <Link
-            href="/dashboard/programa"
+            href="/dashboard/programa?tab=configuracion&section=beneficios"
             className="font-semibold text-[#5C6BC0] hover:underline"
           >
             Ir a Programa

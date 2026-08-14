@@ -2,8 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, Stamp } from "lucide-react";
-import ProgramDesignTab from "./program-design-tab";
-import type { LoyaltyAppearance, LoyaltyProgramOverview, ProgramBenefit } from "./types";
+import type { LoyaltyProgramOverview, ProgramBenefit } from "./types";
 
 const inputClass =
   "mt-1 w-full rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]";
@@ -17,31 +16,26 @@ const REWARD_TYPES = [
 ];
 
 /**
- * "Sellos" — la tarjeta es OPCIONAL, no el corazón de Programa. Con el
- * toggle OFF: no se crean Reward Goals nuevos, no se muestra progreso al
- * cliente y no se manda recordatorio — los beneficios y el resto de
- * Retention siguen funcionando igual (eso lo garantiza el backend, acá solo
- * se refleja el estado).
+ * "Tarjeta de sellos" — sección propia dentro de Configuración. La tarjeta es
+ * OPCIONAL, no el corazón de Programa. Con el toggle OFF: no se crean Reward
+ * Goals nuevos, no se muestra progreso al cliente y no se manda recordatorio
+ * — los beneficios y el resto de Retention siguen funcionando igual, estén
+ * activos o no (eso lo garantiza el backend, acá solo se refleja el estado).
  *
- * El diseño de la tarjeta vive ACÁ adentro, como subsección, y solo se
- * muestra con la tarjeta activa — configurar cómo se ve algo que no existe
- * no tiene sentido.
+ * El diseño y el bonus por feedback se movieron a sus propias secciones — acá
+ * solo se decide UNA cosa: cuántos sellos, y qué única recompensa los cierra.
+ * No es el catálogo de Beneficios (eso vive aparte).
  */
-export default function ProgramStampsTab({
+export default function ProgramStampsSection({
   overview,
   benefits,
-  appearance,
-  businessName,
   canMutate,
   onToggle,
   onSaveConfig,
-  onSaveDesign,
   onReload,
 }: {
   overview: LoyaltyProgramOverview;
   benefits: ProgramBenefit[];
-  appearance: LoyaltyAppearance;
-  businessName: string;
   canMutate: boolean;
   onToggle: (enabled: boolean) => Promise<void>;
   onSaveConfig: (patch: {
@@ -51,7 +45,6 @@ export default function ProgramStampsTab({
     rewardType?: string;
     feedbackBonusEnabled?: boolean;
   }) => Promise<void>;
-  onSaveDesign: (patch: Record<string, unknown>) => Promise<void>;
   onReload: () => Promise<void>;
 }) {
   const redeemable = benefits.filter((b) => b.type !== "none");
@@ -61,9 +54,6 @@ export default function ProgramStampsTab({
   const [newRewardTitle, setNewRewardTitle] = useState("");
   const [newRewardType, setNewRewardType] = useState("gift");
   const [stamps, setStamps] = useState(overview.stampsRequired ?? 5);
-  const [feedbackBonus, setFeedbackBonus] = useState(
-    overview.feedbackBonusEnabled,
-  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -91,7 +81,9 @@ export default function ProgramStampsTab({
         ...(rewardBenefitId
           ? { rewardBenefitId }
           : { rewardTitle: newRewardTitle.trim(), rewardType: newRewardType }),
-        feedbackBonusEnabled: feedbackBonus,
+        // El bonus por feedback ahora se guarda desde su propia sección — acá
+        // se manda el valor actual sin cambiarlo, para no pisarlo.
+        feedbackBonusEnabled: overview.feedbackBonusEnabled,
       }),
     );
   }
@@ -124,8 +116,6 @@ export default function ProgramStampsTab({
             setNewRewardType={setNewRewardType}
             stamps={stamps}
             setStamps={setStamps}
-            feedbackBonus={feedbackBonus}
-            setFeedbackBonus={setFeedbackBonus}
             saving={saving}
             error={error}
             onSubmit={() => void saveConfig()}
@@ -179,8 +169,6 @@ export default function ProgramStampsTab({
           setNewRewardType={setNewRewardType}
           stamps={stamps}
           setStamps={setStamps}
-          feedbackBonus={feedbackBonus}
-          setFeedbackBonus={setFeedbackBonus}
           saving={saving}
           error={error}
           onSubmit={() => void saveConfig()}
@@ -188,15 +176,6 @@ export default function ProgramStampsTab({
           note="Los clientes con una tarjeta en curso conservan el objetivo y la recompensa con la que empezaron — este cambio afecta solo a las tarjetas nuevas."
         />
       ) : null}
-
-      <ProgramDesignTab
-        appearance={appearance}
-        businessName={businessName}
-        rewardName={overview.reward?.name ?? "Tu recompensa"}
-        stampsRequired={overview.stampsRequired ?? 5}
-        canMutate={canMutate}
-        onSave={onSaveDesign}
-      />
     </div>
   );
 }
@@ -211,8 +190,6 @@ function ConfigForm({
   setNewRewardType,
   stamps,
   setStamps,
-  feedbackBonus,
-  setFeedbackBonus,
   saving,
   error,
   onSubmit,
@@ -228,8 +205,6 @@ function ConfigForm({
   setNewRewardType: (v: string) => void;
   stamps: number;
   setStamps: (v: number) => void;
-  feedbackBonus: boolean;
-  setFeedbackBonus: (v: boolean) => void;
   saving: boolean;
   error: string | null;
   onSubmit: () => void;
@@ -239,11 +214,18 @@ function ConfigForm({
   return (
     <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
       <h2 className="text-base font-bold text-[#1A202C]">Configurar sellos</h2>
+      {/* Sección 8 — clarísimo por estructura: es UNA recompensa para la
+          tarjeta, no el catálogo completo (eso está en "Beneficios"). */}
+      <p className="mt-1 text-sm text-[#8891A4]">
+        Elegí la única recompensa que se entrega al completar la tarjeta. El
+        resto de tu catálogo vive en{" "}
+        <span className="font-semibold text-[#5C6BC0]">Beneficios</span>.
+      </p>
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <label className="block">
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-            Recompensa
+            Recompensa de la tarjeta
           </span>
           <select
             value={rewardBenefitId}
@@ -308,20 +290,14 @@ function ConfigForm({
         </div>
       ) : null}
 
-      <label className="mt-4 flex items-start gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={feedbackBonus}
-          onChange={(e) => setFeedbackBonus(e.target.checked)}
-          className="mt-0.5 h-4 w-4 accent-[#5C6BC0]"
-        />
-        <span className="text-[#1A202C]">
-          Dar +1 sello por completar feedback
-          <span className="mt-0.5 block text-xs text-[#8891A4]">
-            Se otorga por dar la opinión, sin importar el puntaje.
-          </span>
-        </span>
-      </label>
+      {stamps && (rewardBenefitId || newRewardTitle.trim()) ? (
+        <p className="mt-4 rounded-[10px] bg-[#F5F6FB] px-3 py-2 text-sm font-semibold text-[#1A202C]">
+          {stamps} sellos →{" "}
+          {rewardBenefitId
+            ? (redeemable.find((b) => b.id === rewardBenefitId)?.title ?? "")
+            : newRewardTitle.trim() || "tu recompensa"}
+        </p>
+      ) : null}
 
       {note ? (
         <p className="mt-4 rounded-[10px] bg-[#F5F6FB] px-3 py-2 text-xs leading-5 text-[#7B8295]">

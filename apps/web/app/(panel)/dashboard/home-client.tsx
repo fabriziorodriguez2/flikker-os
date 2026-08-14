@@ -135,11 +135,11 @@ const SETUP_TASKS: Record<
   google: { label: "Conectá Google", href: "/dashboard/reviews" },
   "personalizar-tarjeta": {
     label: "Personalizá tu tarjeta",
-    href: "/dashboard/programa?tab=sellos",
+    href: "/dashboard/programa?tab=configuracion&section=diseno",
   },
   beneficio: {
     label: "Creá tu primer beneficio",
-    href: "/dashboard/programa?tab=beneficios",
+    href: "/dashboard/programa?tab=configuracion&section=beneficios",
     optional: true,
   },
   // Fase de presupuesto: un beneficio autorizado sin límite mensual nunca
@@ -317,11 +317,11 @@ export default function HomeClient({ firstName }: { firstName: string }) {
                 </dl>
 
                 {program.isDefaultDesign ? (
-                  <Cta href="/dashboard/programa?tab=sellos">
+                  <Cta href="/dashboard/programa?tab=configuracion&section=diseno">
                     Personalizar tarjeta
                   </Cta>
                 ) : (
-                  <Cta href="/dashboard/programa?tab=sellos">
+                  <Cta href="/dashboard/programa?tab=configuracion&section=sellos">
                     Configurar sellos
                   </Cta>
                 )}
@@ -350,9 +350,9 @@ export default function HomeClient({ firstName }: { firstName: string }) {
             ) : null}
 
             <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1">
-              <Cta href="/dashboard/programa?tab=beneficios">Ver programa</Cta>
+              <Cta href="/dashboard/programa?tab=configuracion&section=beneficios">Ver programa</Cta>
               {program.benefitsCount === 0 ? (
-                <Cta href="/dashboard/programa?tab=beneficios">
+                <Cta href="/dashboard/programa?tab=configuracion&section=beneficios">
                   Crear beneficio
                 </Cta>
               ) : null}

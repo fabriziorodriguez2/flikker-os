@@ -288,7 +288,8 @@
       "Bash(awk '/^model Business \\\\{/,/^}/' apps/api/prisma/schema.prisma)",
       "Bash(awk '/^model ImpersonationLog \\\\{/,/^}/' apps/api/prisma/schema.prisma)",
       "Bash(awk '/^model AuditLog \\\\{/,/^}/' apps/api/prisma/schema.prisma)",
-      "Bash(awk '/^model Subscription \\\\{/,/^}/' apps/api/prisma/schema.prisma)"
+      "Bash(awk '/^model Subscription \\\\{/,/^}/' apps/api/prisma/schema.prisma)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/onboarding/onboarding.e2e.integration.spec.ts --silent)"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

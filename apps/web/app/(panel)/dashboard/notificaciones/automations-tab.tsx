@@ -147,28 +147,6 @@ export default function AutomationsTab() {
     if (res.ok) setSettings((await res.json()) as Settings);
   }
 
-  /**
-   * Autorizar/desautorizar un beneficio. Si esta es la primera autorización
-   * y todavía no hay ningún límite configurado, el límite viaja en la MISMA
-   * llamada — el backend exige exactamente eso (nunca dejar un beneficio
-   * autorizado sin forma de emitirse), y así el dueño nunca ve un error por
-   * un paso que no sabía que faltaba.
-   */
-  function toggleBenefit(id: string, checked: boolean, authorizedIds: string[]) {
-    const nextIds = checked
-      ? [...authorizedIds, id]
-      : authorizedIds.filter((x) => x !== id);
-    const body: Record<string, unknown> = { benefitIds: nextIds };
-    if (nextIds.length > 0 && data?.benefitsAutomation.monthlyLimit == null) {
-      const suggested = limitDraft.trim()
-        ? Number(limitDraft)
-        : SUGGESTED_MONTHLY_LIMIT;
-      body.automaticIncentiveMonthlyLimit = suggested;
-      setLimitDraft(String(suggested));
-    }
-    void patch(body);
-  }
-
   function saveLimit() {
     const n = Number(limitDraft);
     if (!Number.isInteger(n) || n < 1) return;
@@ -306,67 +284,48 @@ export default function AutomationsTab() {
       >
         {reactivacion?.enabled ? (
           <div className="mt-5 space-y-5 border-t border-[#EFF1F7] pt-5">
-            <div>
-              <p className="text-sm font-semibold text-[#202333]">
-                ¿Cómo querés intentar recuperarlos?
-              </p>
-              <label className="mt-2.5 flex cursor-pointer items-start gap-2.5 text-sm">
-                <input
-                  type="radio"
-                  checked={authorizedIds.length === 0}
-                  onChange={() => void patch({ benefitIds: [] })}
-                  disabled={!canManage || saving}
-                  className="mt-0.5 h-4 w-4 accent-[#5C6BC0]"
-                />
-                <span className="text-[#202333]">
-                  Solo enviar un recordatorio
-                </span>
-              </label>
-            </div>
-
+            {/*
+              Nueva regla de producto: QUÉ ofrece el negocio se decide en
+              Programa, no acá — Notificaciones solo dice CUÁNDO se contacta.
+              La autorización de un beneficio para reactivación tiene una
+              sola fuente (Programa → Configuración → Beneficios); acá es
+              de solo lectura, sin checkboxes duplicados.
+            */}
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-sm font-semibold text-[#202333]">
-                  Beneficios que Flikker puede usar
+                  Incentivos permitidos
                 </p>
                 <BenefitsStatusBadge status={data.benefitsAutomation.status} />
               </div>
-              {data.benefits.length > 0 ? (
-                <div className="mt-2.5 space-y-2">
-                  {data.benefits.map((benefit) => (
-                    <label
-                      key={benefit.id}
-                      className="flex cursor-pointer items-center gap-2.5 text-sm"
-                    >
-                      <input
-                        type="checkbox"
-                        checked={benefit.authorized}
-                        disabled={!canManage || saving}
-                        onChange={(e) =>
-                          toggleBenefit(benefit.id, e.target.checked, authorizedIds)
-                        }
-                        className="h-4 w-4 accent-[#5C6BC0]"
-                      />
-                      <span className="text-[#202333]">{benefit.name}</span>
-                    </label>
-                  ))}
-                </div>
+              {authorizedIds.length > 0 ? (
+                <ul className="mt-2.5 space-y-1">
+                  {data.benefits
+                    .filter((b) => b.authorized)
+                    .map((benefit) => (
+                      <li key={benefit.id} className="text-sm text-[#202333]">
+                        {benefit.name}
+                      </li>
+                    ))}
+                </ul>
               ) : (
                 <p className="mt-2 text-sm text-[#8891A4]">
-                  Todavía no tenés beneficios para ofrecer.
+                  Flikker está usando solo recordatorios.
                 </p>
               )}
               <p className="mt-3 text-xs leading-5 text-[#8891A4]">
-                Si no seleccionás ninguno, Flikker igual puede enviar
+                Si no autorizás ninguno, Flikker igual puede enviar
                 recordatorios sin beneficio. Nunca va a ofrecer uno que no
-                hayas autorizado.
+                hayas autorizado desde Programa.
               </p>
-              {/* El catálogo es de Programa. Acá solo se autoriza. */}
               <Link
-                href="/dashboard/programa"
+                href="/dashboard/programa?tab=configuracion&section=beneficios"
                 className="mt-2 inline-block text-xs font-semibold text-[#5C6BC0] hover:underline"
               >
-                Crear beneficio en Programa →
+                {authorizedIds.length > 0
+                  ? "Gestionar beneficios"
+                  : "Crear beneficio"}{" "}
+                →
               </Link>
             </div>
 
@@ -391,6 +350,7 @@ export default function AutomationsTab() {
                     min={1}
                     step={1}
                     value={limitDraft}
+                    placeholder={String(SUGGESTED_MONTHLY_LIMIT)}
                     disabled={!canManage || saving}
                     onChange={(e) => setLimitDraft(e.target.value)}
                     className="h-10 w-24 rounded-[9px] border border-[#E3E5F0] bg-white px-3 text-sm text-[#202333] outline-none focus:border-[#5C6BC0] disabled:opacity-60"

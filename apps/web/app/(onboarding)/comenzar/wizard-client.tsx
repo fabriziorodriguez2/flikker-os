@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Check, Gift, Loader2, Sparkles, Stamp } from "lucide-react";
+import { Check, Gift, Loader2, Stamp } from "lucide-react";
 import WizardShell, { fieldClass, labelClass } from "./wizard-shell";
 
 /** Uruguay-first: país, moneda y huso se asumen (ver onboarding.defaults.ts). */
@@ -323,7 +323,7 @@ export default function WizardClient() {
               <Gift className="h-6 w-6 text-[#5C6BC0]" />
               <p className="mt-3 font-bold text-[#171A2B]">Beneficios</p>
               <p className="mt-2 text-sm leading-6 text-[#7B8295]">
-                Creá ofertas que Flikker puede usar en promociones y para
+                Creá ofertas que podés usar en promociones o para ayudar a
                 traer clientes de vuelta.
               </p>
             </button>
@@ -352,7 +352,7 @@ export default function WizardClient() {
           step={2}
           totalSteps={TOTAL_STEPS}
           title="Beneficios"
-          subtitle="Podés crear tus beneficios ahora o hacerlo después desde Programa."
+          subtitle="Creá ofertas que podés usar en promociones o para ayudar a traer clientes de vuelta."
           onBack={() => setMode(null)}
           onNext={() => void finishBenefitsOnly()}
           nextLabel="Terminar"
@@ -418,8 +418,7 @@ export default function WizardClient() {
               </ul>
             ) : (
               <p className="text-sm text-[#8891A4]">
-                Todavía no creaste ningún beneficio. No hace falta para
-                terminar — podés hacerlo después desde Programa.
+                Podés crear tus beneficios después desde Programa.
               </p>
             )}
           </div>
@@ -432,8 +431,8 @@ export default function WizardClient() {
       <WizardShell
         step={2}
         totalSteps={TOTAL_STEPS}
-        title="Beneficios + sellos"
-        subtitle="Configurá la tarjeta: cuántos sellos hacen falta y qué se llevan al completarla."
+        title="Tu tarjeta de sellos"
+        subtitle="Elegí cuántos sellos hacen falta y qué recompensa recibe el cliente al completarla."
         onBack={() => setMode(null)}
         onNext={() => void finishBenefitsAndStamps()}
         nextDisabled={rewardTitle.trim().length < 2}
@@ -463,7 +462,7 @@ export default function WizardClient() {
           </div>
 
           <label className="block">
-            <span className={labelClass}>¿Qué se llevan?</span>
+            <span className={labelClass}>Recompensa de la tarjeta</span>
             <input
               value={rewardTitle}
               onChange={(e) => setRewardTitle(e.target.value)}
@@ -506,16 +505,11 @@ export default function WizardClient() {
             <span className="text-[#171A2B]">
               Dar +1 sello por completar feedback
               <span className="mt-0.5 block text-xs text-[#8891A4]">
-                Se otorga por dar la opinión, sin importar el puntaje.
+                El sello extra se entrega por responder el feedback privado
+                de tu negocio.
               </span>
             </span>
           </label>
-
-          <p className="flex items-start gap-2 rounded-[12px] bg-[#F5F6FB] px-4 py-3 text-xs leading-5 text-[#7B8295]">
-            <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#5C6BC0]" />
-            Beneficios y sellos son cosas distintas: esta recompensa es lo que
-            desbloquea la tarjeta, no un beneficio suelto del catálogo.
-          </p>
         </div>
       </WizardShell>
     );
