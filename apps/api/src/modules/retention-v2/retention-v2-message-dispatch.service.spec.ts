@@ -53,6 +53,7 @@ function makeDeps(message: unknown = messageFixture()) {
   const decisions = { record: jest.fn().mockResolvedValue(undefined) };
   const whatsApp = {
     sendText: jest.fn().mockResolvedValue({ whatsappMessageId: 'wa-1' }),
+    isChannelAvailable: jest.fn().mockResolvedValue(true),
   };
   return { prisma, settings, decisions, whatsApp };
 }
@@ -71,16 +72,6 @@ function loggedCodes(deps: ReturnType<typeof makeDeps>): string[] {
     (c) => (c[0] as { decisionCode: string }).decisionCode,
   );
 }
-
-const ORIGINAL_WHAPI_TOKEN = process.env.WHAPI_TOKEN;
-
-beforeEach(() => {
-  process.env.WHAPI_TOKEN = 'test-token';
-});
-
-afterAll(() => {
-  process.env.WHAPI_TOKEN = ORIGINAL_WHAPI_TOKEN;
-});
 
 describe('RetentionV2MessageDispatchService — normal send', () => {
   it('sends the exact composed body over WhatsApp and marks the message sent', async () => {
@@ -305,8 +296,8 @@ describe('RetentionV2MessageDispatchService — channel', () => {
   });
 
   it('skips — without crashing — when the WhatsApp provider is not configured at all', async () => {
-    delete process.env.WHAPI_TOKEN;
     const deps = makeDeps();
+    deps.whatsApp.isChannelAvailable.mockResolvedValue(false);
     const service = makeService(deps);
 
     const result = await service.dispatch('msg-1', NOW);

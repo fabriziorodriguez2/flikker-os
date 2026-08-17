@@ -119,7 +119,11 @@ export class RetentionV2MessageDispatchService {
       return this.skipTerminal(message, 'NO_CONTACT_CHANNEL');
     }
 
-    if (!process.env.WHAPI_TOKEN) {
+    // Migración WHAPI → WaSenderAPI: antes miraba `WHAPI_TOKEN` directo, con
+    // el proveedor hardcodeado en el nombre del check. Ahora le pregunta a
+    // la abstracción — el proveedor activo decide qué significa "disponible"
+    // (ver `WhatsAppProvider.isAvailable()`).
+    if (!(await this.whatsApp.isChannelAvailable())) {
       return this.skipTerminal(message, 'CHANNEL_NOT_CONFIGURED');
     }
 

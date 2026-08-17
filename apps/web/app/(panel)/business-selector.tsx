@@ -81,7 +81,7 @@ export default function BusinessSelector({
 
       {open && (
         <div
-          className={`absolute z-50 overflow-hidden rounded-[18px] border border-white/80 bg-white/72 p-1.5 shadow-[0_18px_45px_rgba(56,45,125,0.18)] backdrop-blur-[24px] backdrop-saturate-[170%] ${
+          className={`absolute z-50 overflow-hidden rounded-[16px] border border-[#E4E5EB] bg-white p-1.5 shadow-[0_16px_36px_rgba(42,40,67,0.14)] ${
             placement === 'top' ? 'bottom-full mb-3' : 'top-full mt-3'
           } ${
             collapsed ? 'left-full ml-3 w-60' : 'right-0 min-w-[240px]'
@@ -95,7 +95,7 @@ export default function BusinessSelector({
               className={`w-full rounded-[13px] px-4 py-3 text-left text-sm transition-colors ${
                 m.businessId === activeBusinessId
                   ? 'bg-[#EEF0FB] text-[#5C6BC0]'
-                  : 'text-[#777187] hover:bg-white/80 hover:text-[#302A48]'
+                  : 'text-[#777187] hover:bg-[#F1F1F5] hover:text-[#302A48]'
               }`}
             >
               <div className="font-medium">{m.business.name}</div>

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { getWhatsAppProvider } from './whatsapp-provider.factory';
 
 export interface SendReviewRequestInput {
   phone: string;
@@ -16,6 +17,20 @@ export interface SendTextInput {
   text: string;
 }
 
+/**
+ * La cara pública de "mandar un WhatsApp" para TODO el resto del código —
+ * cerca de 15 consumidores (workers, servicios de negocio, Retention V1 y
+ * V2, promociones, reviews, test-lab) llaman `sendText`/`sendReviewRequest`
+ * y nunca supieron ni necesitan saber qué proveedor hay detrás.
+ *
+ * Migración WHAPI → WaSenderAPI (pedido explícito): el contrato público de
+ * esta clase NO CAMBIÓ ni un carácter — mismos métodos, mismos inputs, mismo
+ * shape de resultado (`whatsappMessageId`). Lo único que cambió es qué pasa
+ * adentro: en vez de hacer `fetch` directo a WHAPI, delega en el
+ * `WhatsAppProvider` activo (ver `whatsapp-provider.factory.ts`), elegido
+ * por `WHATSAPP_PROVIDER`. Cero consumidor tuvo que tocarse para esta
+ * migración — es exactamente el punto de tener la abstracción acá.
+ */
 @Injectable()
 export class WhatsAppBspService {
   async sendReviewRequest(
@@ -28,61 +43,21 @@ export class WhatsAppBspService {
   }
 
   async sendText(input: SendTextInput): Promise<SendReviewRequestResult> {
-    const token = process.env.WHAPI_TOKEN;
-    if (!token) {
-      throw new Error('WHAPI_TOKEN is required to send WhatsApp messages');
-    }
-
-    const baseUrl = process.env.WHAPI_BASE_URL ?? 'https://gate.whapi.cloud';
-    const response = await fetch(
-      `${baseUrl.replace(/\/$/, '')}/messages/text`,
-      {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          to: normalizeWhapiPhone(input.phone),
-          body: input.text,
-        }),
-      },
-    );
-
-    const payload = (await response.json().catch(() => null)) as unknown;
-    if (!response.ok) {
-      throw new Error(
-        `Whapi send failed (${response.status}): ${JSON.stringify(payload)}`,
-      );
-    }
-
-    return {
-      whatsappMessageId:
-        extractMessageId(payload) ?? `whapi-${Date.now().toString()}`,
-    };
+    const provider = getWhatsAppProvider();
+    const result = await provider.sendText({
+      to: input.phone,
+      text: input.text,
+    });
+    return { whatsappMessageId: result.providerMessageId };
   }
-}
 
-function normalizeWhapiPhone(phone: string) {
-  return phone.replace(/^whatsapp:/i, '').replace(/\D/g, '');
-}
-
-function extractMessageId(value: unknown): string | null {
-  if (!isRecord(value)) return null;
-
-  return (
-    stringValue(value.id) ??
-    stringValue(value.messageId) ??
-    stringValue(value.message_id) ??
-    (isRecord(value.message) ? stringValue(value.message.id) : null) ??
-    (isRecord(value.data) ? stringValue(value.data.id) : null)
-  );
-}
-
-function stringValue(value: unknown) {
-  return typeof value === 'string' && value.trim() ? value.trim() : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
+  /**
+   * "¿Flikker puede mandar WhatsApp ahora mismo?" — una sola pregunta, una
+   * sola fuente de verdad, para Notificaciones y para el dispatcher de
+   * Retention V2 (antes cada uno miraba `WHAPI_TOKEN` por su cuenta; ver
+   * `## Canal/status`).
+   */
+  async isChannelAvailable(): Promise<boolean> {
+    return getWhatsAppProvider().isAvailable();
+  }
 }

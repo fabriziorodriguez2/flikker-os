@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, RetentionObjective } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { RetentionResultsOverviewService } from '../retention-v2/retention-results-overview.service';
 import { RetentionExperimentService } from '../retention-v2/retention-experiment.service';
 import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
@@ -55,32 +56,39 @@ export class NotificationsService {
     private readonly retentionSettings: RetentionSettingsService,
     private readonly budget: RetentionBudgetService,
     private readonly programAudit: ProgramAuditService,
+    private readonly whatsApp: WhatsAppBspService,
   ) {}
 
   /** Todo lo que necesita la pestaña Automáticas, en una sola llamada. */
   async overview(businessId: string, now: Date = new Date()) {
-    const [settings, incentives, resultsOverview, running] = await Promise.all([
-      this.settingsFor(businessId),
-      // El catálogo es de Programa. Notificaciones NO tiene uno propio: solo
-      // marca cuáles de esos beneficios están autorizados para reactivación.
-      this.prisma.retentionIncentiveDefinition.findMany({
-        where: { businessId, active: true },
-        select: {
-          id: true,
-          name: true,
-          benefitId: true,
-          automationEligible: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      }),
-      this.results.forBusiness(businessId).catch(() => []),
-      // §16/§17 — un GET nunca crea infraestructura (eso es
-      // RetentionV2BootstrapService, llamado desde los triggers explícitos:
-      // onboarding, este mismo toggle, y Programa). Acá solo se LEE si ya
-      // existe un experiment válido y corriendo — "listo para funcionar",
-      // no "funcionando ahora mismo".
-      this.experiments.findUsableRunning(businessId),
-    ]);
+    const [settings, incentives, resultsOverview, running, whatsappAvailable] =
+      await Promise.all([
+        this.settingsFor(businessId),
+        // El catálogo es de Programa. Notificaciones NO tiene uno propio:
+        // solo marca cuáles de esos beneficios están autorizados para
+        // reactivación.
+        this.prisma.retentionIncentiveDefinition.findMany({
+          where: { businessId, active: true },
+          select: {
+            id: true,
+            name: true,
+            benefitId: true,
+            automationEligible: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        }),
+        this.results.forBusiness(businessId).catch(() => []),
+        // §16/§17 — un GET nunca crea infraestructura (eso es
+        // RetentionV2BootstrapService, llamado desde los triggers
+        // explícitos: onboarding, este mismo toggle, y Programa. Acá solo
+        // se LEE si ya existe un experiment válido y corriendo — "listo
+        // para funcionar", no "funcionando ahora mismo".
+        this.experiments.findUsableRunning(businessId),
+        // Migración WHAPI → WaSenderAPI: antes era `Boolean(WHAPI_TOKEN)`
+        // acá mismo. Ahora la pregunta la responde la abstracción — ver
+        // `## Canal/status` en el informe.
+        this.whatsApp.isChannelAvailable(),
+      ]);
 
     const recoverySetupReady = running.some((e) =>
       RECOVERY_OBJECTIVES.includes(e.objective),
@@ -99,13 +107,6 @@ export class NotificationsService {
       automaticCampaignsEnabled: settings.automaticCampaignsEnabled,
       progressReminderEnabled: settings.progressReminderEnabled,
     });
-
-    // Único hecho real detrás de "puede mandar WhatsApp": el proveedor está
-    // configurado a nivel plataforma (no hay un "conectar tu WhatsApp" por
-    // negocio en este sistema — todos los negocios comparten el mismo canal
-    // de envío). Sin esto, ninguna automatización manda nada sin importar lo
-    // que digan sus interruptores — y decir "Activo" en ese caso sería falso.
-    const whatsappAvailable = Boolean(process.env.WHAPI_TOKEN);
 
     // "Cerca del premio" solo existe como concepto si el negocio usa tarjeta
     // de sellos (`rewardGoalsEnabled`). Sin sellos no se muestra, no se

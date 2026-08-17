@@ -6,6 +6,7 @@ import { CustomersModule } from '../customers/customers.module';
 import { RetentionV2Module } from '../retention-v2/retention-v2.module';
 import { ProgramAuditModule } from '../program-audit/program-audit.module';
 import { VisitSourcesModule } from '../visit-sources/visit-sources.module';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { NotificationsPromotionsService } from './notifications-promotions.service';
@@ -35,7 +36,13 @@ import { NotificationsPromotionsService } from './notifications-promotions.servi
     ProgramAuditModule,
   ],
   controllers: [NotificationsController],
-  providers: [NotificationsService, NotificationsPromotionsService],
+  providers: [
+    NotificationsService,
+    NotificationsPromotionsService,
+    // Instancia propia, como en jobs/retention-v2/public/customers modules
+    // — es stateless, no hace falta compartirla vía export.
+    WhatsAppBspService,
+  ],
   // Inicio reusa el overview de automatizaciones para no redefinir los flags.
   exports: [NotificationsService],
 })

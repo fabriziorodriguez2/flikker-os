@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { Bell, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { SessionMembership } from "@/lib/auth";
 import BusinessLogo from "@/components/business/business-logo";
@@ -206,7 +206,7 @@ const CHECKIN_V2_NAV: NavSection[] = [
       {
         href: "/dashboard/notificaciones",
         label: "Notificaciones",
-        icon: <RetentionV2Icon />,
+        icon: <Bell className="h-[18px] w-[18px]" strokeWidth={1.8} />,
         onboardingKey: "notificaciones",
       },
     ],
@@ -351,8 +351,6 @@ export default function Sidebar(props: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
-  // Desktop: collapsed rail by default, expands to full width on hover.
-  const [hovered, setHovered] = useState(false);
   const activeBusiness = props.memberships.find(
     (membership) => membership.businessId === props.activeBusinessId,
   );
@@ -361,9 +359,6 @@ export default function Sidebar(props: SidebarProps) {
     isImpersonating: props.isImpersonating,
     role: props.role ?? null,
   });
-  // Show labels/wordmark when the mobile drawer is open or the desktop rail is
-  // hovered. On desktop mobileOpen is always false, so this equals `hovered`.
-  const showFull = mobileOpen || hovered;
 
   // Listen for hamburger toggle events from the header
   useEffect(() => {
@@ -381,57 +376,40 @@ export default function Sidebar(props: SidebarProps) {
       {mobileOpen && (
         <div
           aria-hidden="true"
-          className="fixed inset-0 z-40 bg-[#18142E]/25 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-[#18142E]/30 lg:hidden"
           onClick={() => setMobileOpen(false)}
         />
       )}
 
-      {/* Desktop spacer — reserves the collapsed rail width so the fixed,
-          hover-expanding sidebar overlays the content instead of pushing it. */}
-      <div aria-hidden="true" className="hidden shrink-0 lg:block lg:w-[88px]" />
+      {/* The desktop sidebar has a stable width, so content never jumps while
+          the user moves through the navigation. */}
+      <div aria-hidden="true" className="hidden shrink-0 lg:block lg:w-[272px]" />
 
-    <aside
-      aria-label={`Navegación del panel${activeBusiness ? ` de ${activeBusiness.business.name}` : ""}`}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      className={`
-        fixed top-0 left-0 z-50 flex h-full w-[min(280px,80vw)] flex-col overflow-hidden
-        border-r border-white/70 bg-[linear-gradient(145deg,rgba(255,255,255,0.78),rgba(235,237,255,0.52))]
-        shadow-[12px_0_45px_rgba(56,45,125,0.16),inset_-1px_0_0_rgba(255,255,255,0.65)]
-        backdrop-blur-[30px] backdrop-saturate-[175%]
-        transition-transform duration-[250ms] ease-in-out
-        ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
-        lg:z-40 lg:h-screen lg:translate-x-0 lg:transition-[width] lg:duration-200
-        ${hovered ? "lg:w-[250px] lg:shadow-[16px_0_55px_rgba(56,45,125,0.22),inset_-1px_0_0_rgba(255,255,255,0.72)]" : "lg:w-[88px]"}
-      `}
-    >
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -left-20 -top-24 h-64 w-64 rounded-full bg-[#BDEEFF]/55 blur-[52px]"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute -bottom-28 -right-24 h-72 w-72 rounded-full bg-[#BCAEFF]/45 blur-[58px]"
-      />
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-3 top-2 h-px bg-gradient-to-r from-transparent via-white to-transparent opacity-90"
-      />
-
+      <aside
+        aria-label={`Navegación del panel${activeBusiness ? ` de ${activeBusiness.business.name}` : ""}`}
+        className={`
+          fixed top-0 left-0 z-50 flex h-full w-[min(288px,88vw)] flex-col overflow-hidden
+          border-r border-[#E7E8EF] bg-[#F8F8FA]
+          shadow-[8px_0_30px_rgba(42,40,67,0.08)]
+          transition-transform duration-[250ms] ease-in-out
+          ${mobileOpen ? "translate-x-0" : "-translate-x-full"}
+          lg:z-40 lg:h-screen lg:w-[272px] lg:translate-x-0
+        `}
+      >
       {/* Mobile close button */}
       <div className="relative flex items-center justify-end px-4 pt-4 lg:hidden">
         <button
           type="button"
           onClick={() => setMobileOpen(false)}
           aria-label="Cerrar menú"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-[#716C82] hover:bg-white/55 hover:text-[#252037]"
+          className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-[#716C82] hover:bg-[#ECECF2] hover:text-[#252037]"
         >
           <X aria-hidden="true" className="h-5 w-5" />
         </button>
       </div>
 
-      <div className={`relative ${showFull ? "px-7 pt-4 lg:pt-6" : "px-5 pt-4 lg:pt-6"}`}>
-        <div className={`flex items-center ${showFull ? "justify-start" : "justify-center"}`}>
+      <div className="relative px-6 pt-4 lg:pt-6">
+        <div className="flex items-center justify-start">
           <Link
             href="/dashboard"
             aria-label="Ir al panel"
@@ -439,36 +417,49 @@ export default function Sidebar(props: SidebarProps) {
             className="inline-flex min-w-0 items-center"
           >
             <Image
-              src={showFull ? "/flikker-wordmark.svg" : "/flikker-mark.svg"}
+              src="/flikker-wordmark.svg"
               alt="Flikker"
-              width={showFull ? 148 : 44}
+              width={148}
               height={44}
               priority
-              className={`h-auto ${showFull ? "w-[122px]" : "w-[34px]"}`}
+              className="h-auto w-[122px]"
             />
           </Link>
         </div>
       </div>
 
-      <nav className={`relative mt-8 flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto pb-3 ${showFull ? "px-5" : "px-4"}`}>
+      {props.businessDisplayName ? (
+        <div className="relative mx-4 mt-5 flex min-h-14 items-center gap-3 rounded-[15px] border border-[#E5E6EC] bg-white px-3 py-2.5 shadow-[0_3px_12px_rgba(42,40,67,0.06)]">
+          <BusinessLogo
+            logoUrl={props.businessLogoUrl}
+            name={props.businessDisplayName}
+            size="sm"
+            className="border-[#E7E8EF] bg-[#F5F5F8]"
+          />
+          <div className="min-w-0 flex-1">
+            {props.isImpersonating ? (
+              <p className="truncate text-sm font-semibold text-[#29243D]">
+                {props.businessDisplayName}
+              </p>
+            ) : (
+              <BusinessSelector
+                memberships={props.memberships}
+                activeBusinessId={props.activeBusinessId}
+                activeBusinessName={props.businessDisplayName}
+                placement="bottom"
+              />
+            )}
+          </div>
+        </div>
+      ) : null}
+
+      <nav className="relative mt-4 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3.5 pb-3">
         {sections.map((section) => (
-          <div key={section.title ?? "principal"} className="flex flex-col gap-2">
-            {/*
-              El encabezado solo existe con el rail expandido. Colapsado se
-              convierte en un separador: un texto de 9px cortado no orienta a
-              nadie, pero la agrupación sí se sigue leyendo.
-            */}
+          <div key={section.title ?? "principal"} className="flex flex-col gap-1">
             {section.title ? (
-              showFull ? (
-                <p className="mt-3 px-4 pb-0.5 text-[10px] font-bold uppercase tracking-[0.14em] text-[#9690A5]">
-                  {section.title}
-                </p>
-              ) : (
-                <span
-                  aria-hidden="true"
-                  className="mx-auto my-2 h-px w-6 bg-[#CFC9DD]"
-                />
-              )
+              <p className="mt-3 px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#AAA6B5]">
+                {section.title}
+              </p>
             ) : null}
 
             {section.items.map((item) => {
@@ -480,20 +471,16 @@ export default function Sidebar(props: SidebarProps) {
                   data-onboarding={item.onboardingKey}
                   onClick={() => setMobileOpen(false)}
                   onMouseEnter={() => router.prefetch(item.href)}
-                  className={`flex min-h-11 items-center rounded-[12px] border py-3 text-[15px] font-semibold transition-all duration-200 ${
-                    showFull ? "gap-3.5 px-4" : "justify-center px-2"
-                  } ${
+                  className={`flex min-h-11 items-center gap-3 rounded-[12px] px-3 py-2.5 text-[14px] font-semibold transition-colors duration-150 ${
                     active
-                      ? "border-[#5C6BC0]/25 bg-[#5C6BC0] text-white shadow-[0_8px_22px_rgba(92,107,192,0.25),inset_0_1px_0_rgba(255,255,255,0.24)]"
-                      : "border-transparent text-[#6F6A80] hover:border-white/70 hover:bg-white/55 hover:text-[#302A48] hover:shadow-[0_6px_18px_rgba(69,57,128,0.08)]"
+                      ? "bg-[#5C6BC0] text-white shadow-[0_7px_18px_rgba(92,107,192,0.24)]"
+                      : "text-[#6F6A80] hover:bg-[#ECECF2] hover:text-[#302A48]"
                   }`}
                 >
                   <span className={active ? "text-white" : "text-[#817B94]"}>
                     {item.icon}
                   </span>
-                  {showFull ? (
-                    <span className="whitespace-nowrap">{item.label}</span>
-                  ) : null}
+                  <span className="whitespace-nowrap">{item.label}</span>
                 </Link>
               );
             })}
@@ -502,57 +489,16 @@ export default function Sidebar(props: SidebarProps) {
       </nav>
 
       <div
-        className={`relative mt-auto border-t border-white/65 pb-5 pt-4 ${
-          showFull ? "px-4" : "px-3"
-        }`}
+        className="relative mt-auto border-t border-[#E4E5EB] px-4 pb-5 pt-4"
       >
-        {props.businessDisplayName ? (
-          <div
-            className={`mb-2.5 flex min-h-12 items-center ${
-              showFull ? "gap-3 px-3 py-2" : "justify-center px-1 py-2"
-            }`}
-          >
-            <BusinessLogo
-              logoUrl={props.businessLogoUrl}
-              name={props.businessDisplayName}
-              size="sm"
-              className="border-white/80 bg-white/75"
-            />
-            {showFull ? (
-              <div className="min-w-0 flex-1">
-                {props.isImpersonating ? (
-                  <p className="truncate text-sm font-semibold text-[#29243D]">
-                    {props.businessDisplayName}
-                  </p>
-                ) : (
-                  <BusinessSelector
-                    memberships={props.memberships}
-                    activeBusinessId={props.activeBusinessId}
-                    activeBusinessName={props.businessDisplayName}
-                    placement="top"
-                  />
-                )}
-              </div>
-            ) : null}
-          </div>
-        ) : null}
-
-        {/*
-          El link a Configuración vivía acá abajo como "Cuenta". Ahora es un
-          ítem más de la sección Negocio, así que dejarlo duplicado daría dos
-          entradas al mismo lugar.
-        */}
+        <p className="mb-1 truncate px-3 text-xs font-medium text-[#817B94]">
+          {props.userName}
+        </p>
         <div className="flex flex-col gap-1.5">
-          <LogoutButton compact={!showFull} sidebar />
+          <LogoutButton sidebar />
         </div>
-
-        {showFull ? (
-          <p className="mt-3 truncate px-3 text-[11px] text-[#9690A5]">
-            {props.userName}
-          </p>
-        ) : null}
       </div>
-    </aside>
+      </aside>
     </>
   );
 }

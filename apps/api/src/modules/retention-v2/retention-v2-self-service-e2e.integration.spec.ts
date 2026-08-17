@@ -44,7 +44,7 @@ describe('Retention V2 self-service — onboarding to WhatsApp (e2e)', () => {
   let sendService: RetentionV2SendService;
   let dispatchService: RetentionV2MessageDispatchService;
   let bootstrap: RetentionV2BootstrapService;
-  let whatsApp: { sendText: jest.Mock };
+  let whatsApp: { sendText: jest.Mock; isChannelAvailable: jest.Mock };
   let userId: string;
   const ORIGINAL_WHAPI_TOKEN = process.env.WHAPI_TOKEN;
 
@@ -52,6 +52,7 @@ describe('Retention V2 self-service — onboarding to WhatsApp (e2e)', () => {
     process.env.WHAPI_TOKEN = 'test-token'; // channel must read as available
     whatsApp = {
       sendText: jest.fn().mockResolvedValue({ whatsappMessageId: 'wa-e2e-1' }),
+      isChannelAvailable: jest.fn().mockResolvedValue(true),
     };
 
     const moduleRef: TestingModule = await Test.createTestingModule({

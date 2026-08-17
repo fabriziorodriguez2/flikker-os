@@ -33,11 +33,7 @@ export default function MobileNav({
   const items = sections.flatMap((section) => section.items);
 
   return (
-    <nav className="relative z-20 overflow-hidden rounded-[18px] border border-white/75 bg-white/58 px-2.5 py-2 shadow-[0_10px_28px_rgba(56,45,125,0.10),inset_0_1px_0_rgba(255,255,255,0.86)] backdrop-blur-[24px] backdrop-saturate-[175%] lg:hidden">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-white to-transparent"
-      />
+    <nav className="relative z-20 overflow-hidden rounded-[16px] border border-[#E4E5EB] bg-[#F8F8FA] px-2.5 py-2 shadow-[0_7px_20px_rgba(42,40,67,0.08)] lg:hidden">
       <div className="flikker-scrollbar-hidden relative flex gap-1.5 overflow-x-auto">
         {items.map((item) => {
           const isActive =
@@ -53,7 +49,7 @@ export default function MobileNav({
               className={`shrink-0 rounded-[12px] border px-3.5 py-2 text-xs font-semibold transition-all ${
                 isActive
                   ? "border-[#5C6BC0]/25 bg-[#5C6BC0] text-white shadow-[0_5px_14px_rgba(92,107,192,0.22)]"
-                  : "border-white/80 bg-white/45 text-[#777187] hover:bg-white/75"
+                  : "border-transparent bg-transparent text-[#777187] hover:bg-[#ECECF2]"
               }`}
             >
               {item.label}

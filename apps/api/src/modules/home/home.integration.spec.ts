@@ -20,6 +20,7 @@ import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootst
 import { RetentionBudgetService } from '../retention-v2/retention-budget.service';
 import { ProgramAuditService } from '../program-audit/program-audit.service';
 import { ReviewsOverviewService } from '../reviews/reviews-overview.service';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { HomeService } from './home.service';
 
 /**
@@ -61,6 +62,7 @@ describe('Inicio — portada (integration)', () => {
         RetentionV2BootstrapService,
         RetentionBudgetService,
         ProgramAuditService,
+        WhatsAppBspService,
         HomeService,
         {
           provide: RetentionResultsOverviewService,

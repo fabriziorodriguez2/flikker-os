@@ -289,7 +289,12 @@
       "Bash(awk '/^model ImpersonationLog \\\\{/,/^}/' apps/api/prisma/schema.prisma)",
       "Bash(awk '/^model AuditLog \\\\{/,/^}/' apps/api/prisma/schema.prisma)",
       "Bash(awk '/^model Subscription \\\\{/,/^}/' apps/api/prisma/schema.prisma)",
-      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/onboarding/onboarding.e2e.integration.spec.ts --silent)"
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/onboarding/onboarding.e2e.integration.spec.ts --silent)",
+      "WebFetch(domain:wasenderapi.com)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/jobs/whatsapp-bsp.service.spec.ts src/modules/retention-v2/retention-v2-message-dispatch.service.spec.ts src/modules/notifications --silent)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/jobs/providers src/jobs/whatsapp-bsp.service.spec.ts src/jobs/whatsapp-provider.factory.spec.ts --silent)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/common/utils/phone.util.spec.ts --silent)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/webhooks --silent)"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

@@ -17,6 +17,7 @@ import { RetentionExperimentsAdminService } from '../retention-v2/retention-expe
 import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
 import { RetentionBudgetService } from '../retention-v2/retention-budget.service';
 import { ProgramAuditService } from '../program-audit/program-audit.service';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { NotificationsService } from './notifications.service';
 
 /**
@@ -45,6 +46,7 @@ describe('Notificaciones — fachada sobre Retention V2 (integration)', () => {
         RetentionV2BootstrapService,
         RetentionBudgetService,
         ProgramAuditService,
+        WhatsAppBspService,
         {
           // Los resultados vienen del motor; acá solo se prueba la traducción.
           provide: RetentionResultsOverviewService,
