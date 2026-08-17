@@ -59,7 +59,43 @@ export interface LoyaltyAppearance {
   loyaltyCardColor: string | null;
   loyaltyStampColor: string | null;
   loyaltyStampIcon: string | null;
+  /** Página de inscripción — encabezado propio de la landing de check-in. */
+  checkinWelcomeMessage: string | null;
 }
+
+/**
+ * Fila de `GET/POST/PATCH /retention-v2/incentives` — el catálogo de
+ * incentivos que el dueño autoriza. Programa → Incentivos edita solo los
+ * campos DESCRIPTIVOS (nombre, tipo, valor, condiciones, días, límites):
+ * `automationEligible`/`rewardGoalEligible` son la autorización explícita
+ * para que el motor de Retention V2 los use solo, y esa decisión sigue
+ * viviendo donde ya vivía (Beneficios, y Herramientas Flikker para Platform
+ * Admin) — no se duplica acá.
+ */
+export interface ProgramIncentive {
+  id: string;
+  name: string;
+  type: string;
+  percentageValue: number | null;
+  fixedValue: string | null;
+  description: string | null;
+  conditions: string | null;
+  expiresInDays: number;
+  active: boolean;
+  maxRedemptionsPerCustomer: number | null;
+  maxTotalRedemptions: number | null;
+  validDays: number[];
+}
+
+export const WEEKDAY_LABELS: { value: number; label: string }[] = [
+  { value: 1, label: "Lun" },
+  { value: 2, label: "Mar" },
+  { value: 3, label: "Mié" },
+  { value: 4, label: "Jue" },
+  { value: 5, label: "Vie" },
+  { value: 6, label: "Sáb" },
+  { value: 7, label: "Dom" },
+];
 
 export const BENEFIT_TYPE_LABELS: Record<string, string> = {
   gift: "Regalo",

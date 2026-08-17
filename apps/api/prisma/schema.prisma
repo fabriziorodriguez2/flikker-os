@@ -452,6 +452,12 @@ model Business {
   loyaltyCardColor             String?           @map("loyalty_card_color")
   loyaltyStampColor            String?           @map("loyalty_stamp_color")
   loyaltyStampIcon             String?           @map("loyalty_stamp_icon")
+  /// Programa → Página de inscripción. Encabezado propio, editable, para la
+  /// landing pública de check-in (`/check-in/[token]`). Null = seguir usando
+  /// el título del beneficio activo como encabezado (comportamiento previo a
+  /// esta pantalla) — nunca se confunde con `benefitText`, que además decide
+  /// la copia del subtítulo/botón y el mensaje de WhatsApp post-registro.
+  checkinWelcomeMessage        String?           @map("checkin_welcome_message")
   /// Regalo de bienvenida (Programa). Fuente de verdad EXPLÍCITA, separada
   /// de `Benefit.active`: `active` significa "beneficio visible en el
   /// check-in" y se re-asegura en cada visita, así que no puede representar

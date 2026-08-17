@@ -14,6 +14,7 @@ const landing: CheckinLanding = {
   } as any,
   benefit: null,
   benefitText: null,
+  welcomeMessage: null,
 };
 
 function render(hasSession: boolean) {

@@ -4,12 +4,16 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   ArrowRight,
+  BadgeCheck,
   Check,
   CreditCard,
   Gift,
   Loader2,
   MessageCircle,
+  Repeat2,
+  Star,
   Store,
+  UsersRound,
 } from "lucide-react";
 import { relativeDay } from "./customers/loyalty-ui";
 
@@ -120,11 +124,6 @@ interface HomeOverview {
   setupTasks: SetupTask[];
 }
 
-const AUTOMATION_LABEL: Record<string, string> = {
-  cerca_del_premio: "Cerca del premio",
-  te_extranamos: "Te extrañamos",
-};
-
 /**
  * Chequeo mínimo, no una validación exhaustiva de schema: solo lo que hace
  * falta para que el render de más abajo nunca reciba `undefined` donde
@@ -201,17 +200,16 @@ export default function HomeClient({ firstName }: { firstName: string }) {
     );
   }
 
-  const { kpis, program, automations, reviews, activity, setupAlert, setupTasks } =
-    data;
+  const { kpis, activity, setupAlert, setupTasks } = data;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-[1600px] space-y-8 pb-10 lg:space-y-9">
       {/* ── 1. Header ─────────────────────────────────────────────────── */}
-      <header>
-        <h1 className="font-display text-[27px] font-semibold leading-tight tracking-[-0.025em] text-[#202333] md:text-[30px]">
+      <header className="pt-1 md:pt-2">
+        <h1 className="font-display text-[30px] font-semibold leading-[1.15] tracking-[-0.03em] text-[#202333] md:text-[36px]">
           Hola, {firstName}
         </h1>
-        <p className="mt-1.5 text-sm leading-5 text-[#7F879C]">
+        <p className="mt-2.5 text-[15px] leading-6 text-[#697187]">
           Así está funcionando tu negocio con Flikker.
         </p>
       </header>
@@ -220,26 +218,27 @@ export default function HomeClient({ firstName }: { firstName: string }) {
           Solo si hay sellos activos Y el diseño sigue en default — nunca
           "activá sellos", nunca Apple/Google Wallet (Flikker no los ofrece). */}
       {setupAlert ? (
-        <section className="rounded-[16px] border border-[#5C6BC0]/30 bg-[#F4F5FD] px-5 py-4 sm:px-6">
-          <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex items-start gap-3">
-              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#5C6BC0]">
-                <CreditCard className="h-4 w-4" aria-hidden="true" />
+        <section className="rounded-[18px] border border-[#5C6BC0]/25 bg-[#F6F6FE] px-5 py-5 shadow-[0_8px_28px_rgba(92,107,192,0.06)] sm:px-7 sm:py-6">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-4">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] bg-white text-[#5C6BC0] shadow-sm ring-1 ring-[#E8EAF5]">
+                <CreditCard className="h-5 w-5" aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <p className="text-sm font-semibold text-[#202333]">
+                <p className="text-[15px] font-semibold leading-6 text-[#202333]">
                   {setupAlert.title}
                 </p>
-                <p className="mt-0.5 text-sm leading-5 text-[#5F6780]">
+                <p className="mt-1 text-sm leading-6 text-[#626A80]">
                   {setupAlert.description}
                 </p>
               </div>
             </div>
             <Link
               href={setupAlert.href}
-              className="inline-flex h-10 shrink-0 items-center rounded-[10px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
+              className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(92,107,192,0.2)] hover:bg-[#4f5eb0]"
             >
               Configurar
+              <ArrowRight className="h-4 w-4" aria-hidden="true" />
             </Link>
           </div>
         </section>
@@ -247,27 +246,29 @@ export default function HomeClient({ firstName }: { firstName: string }) {
 
       {/* ── 3. Primeros pasos ─────────────────────────────────────────── */}
       {setupTasks.length > 0 ? (
-        <section className="rounded-[16px] border border-[#E8EAF0] bg-white px-5 py-4 sm:px-6">
-          <p className="text-sm font-semibold text-[#202333]">
+        <section className="rounded-[18px] border border-[#E5E7EF] bg-white px-5 py-6 shadow-[0_8px_30px_rgba(17,22,59,0.035)] sm:px-7 sm:py-7">
+          <p className="text-base font-semibold text-[#202333]">
             Primeros pasos
           </p>
-          <p className="mt-0.5 text-xs text-[#8891A4]">
+          <p className="mt-1.5 text-sm leading-6 text-[#7B8499]">
             Seguí estos pasos para terminar de poner Flikker en marcha.
           </p>
-          <ul className="mt-3 space-y-0.5">
-            {setupTasks.map((task) => (
+          <ul className="mt-5 divide-y divide-[#F0F1F6]">
+            {setupTasks.map((task, index) => (
               <li key={task.id}>
                 <Link
                   href={task.href}
-                  className="group -mx-2 flex items-start gap-2.5 rounded-[10px] px-2 py-2 transition-colors hover:bg-[#F5F6FA]"
+                  className="group -mx-2 flex items-center gap-4 rounded-[12px] px-2 py-4 transition-colors hover:bg-[#F7F7FB] sm:-mx-3 sm:px-3"
                 >
                   <span
                     aria-hidden="true"
-                    className="mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 border-[#C8D0E0]"
-                  />
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#F1F3F8] text-xs font-semibold text-[#737C90] ring-1 ring-[#E6E8EF]"
+                  >
+                    {index + 1}
+                  </span>
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-semibold text-[#202333] group-hover:text-[#5C6BC0]">
+                      <span className="text-sm font-semibold leading-6 text-[#202333] group-hover:text-[#5C6BC0]">
                         {task.title}
                       </span>
                       {task.optional ? (
@@ -276,11 +277,13 @@ export default function HomeClient({ firstName }: { firstName: string }) {
                         </span>
                       ) : null}
                     </span>
-                    <span className="mt-0.5 block text-xs leading-5 text-[#8891A4]">
+                    <span className="mt-0.5 block text-xs leading-5 text-[#7F879C] sm:text-[13px]">
                       {task.description}
                     </span>
                   </span>
-                  <ArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-[#5C6BC0] opacity-0 transition-opacity group-hover:opacity-100" />
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] border border-[#E5E7EF] bg-white text-[#5C6BC0] shadow-sm transition-transform group-hover:translate-x-0.5">
+                    <ArrowRight className="h-4 w-4" aria-hidden="true" />
+                  </span>
                 </Link>
               </li>
             ))}
@@ -289,51 +292,82 @@ export default function HomeClient({ firstName }: { firstName: string }) {
       ) : null}
 
       {/* ── 4. KPIs ───────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi
           label="Clientes activos"
           value={kpis.activeCustomers}
           hint={`En ${data.periodDays} días`}
+          icon={UsersRound}
+          tone="violet"
         />
         <Kpi
           label="Volvieron"
           value={kpis.returningCustomers}
           hint="Dos visitas o más"
+          icon={Repeat2}
+          tone="green"
         />
         <Kpi
           label="Beneficios canjeados"
           value={kpis.benefitsRedeemed}
           hint={`En ${data.periodDays} días`}
+          icon={BadgeCheck}
+          tone="blue"
         />
         <Kpi
           label="Reseñas nuevas"
           value={kpis.newReviews}
           hint={`En ${data.periodDays} días`}
+          icon={Star}
+          tone="orange"
         />
       </div>
 
       {/* ── 5. Actividad reciente ─────────────────────────────────────── */}
-      <section>
-        <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8891A4]">
-          Actividad reciente
-        </h2>
+      <section className="overflow-hidden rounded-[18px] border border-[#E5E7EF] bg-white shadow-[0_8px_30px_rgba(17,22,59,0.035)]">
+        <div className="flex items-center justify-between gap-4 border-b border-[#F0F1F6] px-5 py-5 sm:px-7">
+          <div>
+            <h2 className="text-base font-semibold text-[#202333]">
+              Actividad reciente
+            </h2>
+            <p className="mt-1 text-sm text-[#7F879C]">
+              Los movimientos más recientes de tus clientes.
+            </p>
+          </div>
+          {activity.length > 0 ? (
+            <Link
+              href="/dashboard/customers"
+              className="shrink-0 text-sm font-semibold text-[#5C6BC0] hover:underline"
+            >
+              Ver todos
+            </Link>
+          ) : null}
+        </div>
 
         {activity.length === 0 ? (
-          <p className="mt-3 rounded-[16px] border border-dashed border-[#DDE1EC] bg-white px-5 py-8 text-center text-sm text-[#8891A4]">
-            Cuando tus clientes empiecen a escanear el QR, lo vas a ver acá.
-          </p>
+          <div className="flex min-h-52 flex-col items-center justify-center px-6 py-10 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-[#F3F4F8] text-[#7F879C]">
+              <UsersRound className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <p className="mt-4 text-sm font-semibold text-[#202333]">
+              Todavía no hay actividad reciente
+            </p>
+            <p className="mt-1.5 max-w-md text-sm leading-6 text-[#7F879C]">
+              Cuando tus clientes empiecen a escanear el QR, lo vas a ver acá.
+            </p>
+          </div>
         ) : (
-          <>
-            <ul className="mt-3 divide-y divide-[#EFF1F7] overflow-hidden rounded-[16px] border border-[#E8EAF0] bg-white">
+          <div>
+            <ul className="divide-y divide-[#EFF1F7]">
               {activity.map((event) => (
                 <li
                   key={event.id}
-                  className="flex items-center gap-3.5 px-5 py-3"
+                  className="flex items-center gap-4 px-5 py-4 sm:px-7 sm:py-[18px]"
                 >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F1F3FA] text-[#5C6BC0]">
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#F1F3FA] text-[#5C6BC0]">
                     <ActivityIcon kind={event.kind} />
                   </span>
-                  <p className="min-w-0 flex-1 text-sm text-[#202333]">
+                  <p className="min-w-0 flex-1 text-sm leading-6 text-[#202333]">
                     {activityText(event)}
                   </p>
                   <span className="shrink-0 text-xs text-[#8891A4]">
@@ -342,125 +376,11 @@ export default function HomeClient({ firstName }: { firstName: string }) {
                 </li>
               ))}
             </ul>
-            <Link
-              href="/dashboard/customers"
-              className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#5C6BC0] hover:underline"
-            >
-              Ver todos los clientes
-              <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </>
+          </div>
         )}
       </section>
 
-      {/* ── 6. Resúmenes secundarios (compactos, no protagonistas) ──────── */}
-      <div className="grid gap-3 lg:grid-cols-3">
-        <SecondaryCard title="Programa" href="/dashboard/programa?tab=configuracion">
-          {program.mode === "stamps" ? (
-            <p className="text-sm text-[#5F6780]">
-              {program.stampsRequired ?? "—"} sellos → {program.rewardName}
-            </p>
-          ) : (
-            <p className="text-sm text-[#5F6780]">
-              {program.benefitsCount}{" "}
-              {program.benefitsCount === 1 ? "beneficio" : "beneficios"}
-            </p>
-          )}
-        </SecondaryCard>
-
-        <SecondaryCard title="Reseñas" href="/dashboard/reviews">
-          {reviews.connected ? (
-            <p className="text-sm text-[#5F6780]">
-              {reviews.rating !== null ? `${reviews.rating} ★` : "Sin calificación"}
-              {reviews.newInPeriod > 0
-                ? ` · ${reviews.newInPeriod} ${reviews.newInPeriod === 1 ? "nueva" : "nuevas"}`
-                : ""}
-            </p>
-          ) : (
-            <p className="text-sm text-[#8A520D]">Google pendiente</p>
-          )}
-        </SecondaryCard>
-
-        {automations ? (
-          <SecondaryCard title="Automatizaciones" href="/dashboard/notificaciones">
-            <ul className="space-y-1">
-              {automations.items.map((item) => (
-                <li
-                  key={item.key}
-                  className="flex items-center justify-between gap-3 text-sm"
-                >
-                  <span className="text-[#5F6780]">
-                    {AUTOMATION_LABEL[item.key]}
-                  </span>
-                  <AutomationStateBadge state={item.state} />
-                </li>
-              ))}
-            </ul>
-          </SecondaryCard>
-        ) : null}
-      </div>
     </div>
-  );
-}
-
-function SecondaryCard({
-  title,
-  href,
-  children,
-}: {
-  title: string;
-  href: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-4">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-[#202333]">{title}</h2>
-        <Link
-          href={href}
-          className="shrink-0 text-xs font-semibold text-[#5C6BC0] hover:underline"
-        >
-          Ver {title.toLowerCase()}
-        </Link>
-      </div>
-      <div className="mt-2">{children}</div>
-    </section>
-  );
-}
-
-/**
- * §3/§11 (fase anterior) — mismo vocabulario que ya usa Notificaciones: un
- * negocio recién creado no debe leerse como "Activo" con 0 infraestructura
- * (`preparando`), y "sin canal"/"modo de prueba" nunca deben mostrarse
- * engañosamente como si el mensaje realmente estuviera saliendo.
- */
-function AutomationStateBadge({ state }: { state: AutomationItemState }) {
-  const copy: Record<string, { label: string; className: string }> = {
-    activo: { label: "Activo", className: "bg-[#EAF7EF] text-[#147A5B]" },
-    modo_prueba: {
-      label: "Modo de prueba",
-      className: "bg-[#FFF7EE] text-[#8A520D]",
-    },
-    sin_canal: {
-      label: "Sin canal",
-      className: "bg-[#FDEEEE] text-[#B3261E]",
-    },
-    preparando: {
-      label: "Preparando",
-      className: "bg-[#F1F3FA] text-[#5C6BC0]",
-    },
-    desactivado: {
-      label: "Desactivado",
-      className: "bg-[#F3F4F8] text-[#6B7280]",
-    },
-  };
-  const { label, className } = copy[state] ?? copy.desactivado;
-  return (
-    <span
-      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${className}`}
-    >
-      {label}
-    </span>
   );
 }
 
@@ -509,20 +429,38 @@ function Kpi({
   label,
   value,
   hint,
+  icon: Icon,
+  tone,
 }: {
   label: string;
   value: number;
   hint: string;
+  icon: typeof UsersRound;
+  tone: "violet" | "green" | "blue" | "orange";
 }) {
+  const tones = {
+    violet: "bg-[#F0ECFF] text-[#6C4EF6]",
+    green: "bg-[#E8F8F1] text-[#168966]",
+    blue: "bg-[#E9F2FF] text-[#3478D4]",
+    orange: "bg-[#FFF3DF] text-[#D47B12]",
+  };
+
   return (
-    <div className="rounded-[14px] border border-[#E8EAF0] bg-white px-4 py-3.5">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
-        {label}
-      </p>
-      <p className="mt-1 font-display text-2xl font-semibold tracking-[-0.02em] text-[#202333]">
+    <div className="flex min-h-[156px] flex-col rounded-[18px] border border-[#E5E7EF] bg-white px-5 py-5 shadow-[0_8px_28px_rgba(17,22,59,0.035)] sm:px-6">
+      <div className="flex items-start justify-between gap-3">
+        <p className="pt-1 text-xs font-semibold uppercase tracking-[0.09em] text-[#7F879C]">
+          {label}
+        </p>
+        <span
+          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] ${tones[tone]}`}
+        >
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+      </div>
+      <p className="mt-5 text-[32px] font-semibold leading-none tracking-[-0.025em] text-[#202333]">
         {value}
       </p>
-      <p className="mt-0.5 text-[11px] leading-4 text-[#B0B8C9]">{hint}</p>
+      <p className="mt-2 text-xs leading-5 text-[#8C94A7]">{hint}</p>
     </div>
   );
 }

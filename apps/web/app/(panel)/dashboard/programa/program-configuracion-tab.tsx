@@ -1,11 +1,11 @@
 "use client";
 
-import { Gift, Heart, Palette, Stamp } from "lucide-react";
-import ProgramStampsSection from "./program-stamps-section";
-import ProgramDesignTab from "./program-design-tab";
+import { CreditCard, FileText, Gift, Percent, UserPlus } from "lucide-react";
+import ProgramCardSection from "./program-card-section";
+import ProgramRegistrationSection from "./program-registration-section";
+import ProgramTermsSection from "./program-terms-section";
+import ProgramIncentivesSection from "./program-incentives-section";
 import ProgramBenefitsTab from "./program-benefits-tab";
-import ProgramFeedbackBonusSection from "./program-feedback-bonus-section";
-import ProgramWelcomeGiftSection from "./program-welcome-gift-section";
 import type { LoyaltyAppearance, LoyaltyProgramOverview, ProgramBenefit } from "./types";
 
 /**
@@ -13,28 +13,29 @@ import type { LoyaltyAppearance, LoyaltyProgramOverview, ProgramBenefit } from "
  * (inspirado estructuralmente en referencias del estilo Fiddelik, con el
  * design system de Flikker, sin copiar branding ajeno).
  *
- * Cinco secciones, cada una dueña de UNA sola decisión — nunca datos
- * generales del negocio (eso sigue viviendo en Configuración del panel, no
- * acá):
- *  1. Tarjeta de sellos — sellos necesarios + LA recompensa que la completa.
- *  2. Diseño de tarjeta — cómo se ve, con preview real.
- *  3. Beneficios — el catálogo completo, único lugar donde se administra.
- *  4. Bonus por feedback — el sello extra por responder feedback privado.
- *  5. Regalo de bienvenida — qué se entrega en la primera visita.
+ * Cinco secciones, la IA acordada explícitamente para esta pantalla:
+ *  1. Tarjeta digital — sellos, recompensa, bonus por feedback y diseño con
+ *     preview en vivo. Todo "cómo es mi tarjeta" en un solo lugar.
+ *  2. Página de inscripción — el encabezado de la landing pública de check-in.
+ *  3. Términos y condiciones — las bases legales del beneficio elegido.
+ *  4. Incentivos — reglas especiales/bonus además del programa base.
+ *  5. Premios — el catálogo completo de beneficios, único lugar donde se
+ *     administra (incluye elegir regalo de bienvenida y recompensa de
+ *     tarjeta por ítem — no hace falta una sección aparte para eso).
  */
 export type ConfigSection =
-  | "sellos"
-  | "diseno"
-  | "beneficios"
-  | "feedback"
-  | "bienvenida";
+  | "tarjeta"
+  | "inscripcion"
+  | "terminos"
+  | "incentivos"
+  | "premios";
 
-const SECTIONS: { key: ConfigSection; label: string; icon: typeof Stamp }[] = [
-  { key: "sellos", label: "Tarjeta de sellos", icon: Stamp },
-  { key: "diseno", label: "Diseño de tarjeta", icon: Palette },
-  { key: "beneficios", label: "Beneficios", icon: Gift },
-  { key: "feedback", label: "Bonus por feedback", icon: Heart },
-  { key: "bienvenida", label: "Regalo de bienvenida", icon: Gift },
+const SECTIONS: { key: ConfigSection; label: string; icon: typeof CreditCard }[] = [
+  { key: "tarjeta", label: "Tarjeta digital", icon: CreditCard },
+  { key: "inscripcion", label: "Página de inscripción", icon: UserPlus },
+  { key: "terminos", label: "Términos y condiciones", icon: FileText },
+  { key: "incentivos", label: "Incentivos", icon: Percent },
+  { key: "premios", label: "Premios", icon: Gift },
 ];
 
 export function isConfigSection(value: string | null): value is ConfigSection {
@@ -55,6 +56,7 @@ export default function ProgramConfiguracionTab({
   onCreateBenefit,
   onDeleteBenefit,
   onSetBenefitUse,
+  onSaveBenefitTerms,
   onReload,
 }: {
   section: ConfigSection;
@@ -84,10 +86,11 @@ export default function ProgramConfiguracionTab({
     use: "rewardCard" | "welcomeGift" | "reactivation",
     value: boolean,
   ) => Promise<void>;
+  onSaveBenefitTerms: (benefitId: string, terms: string) => Promise<void>;
   onReload: () => Promise<void>;
 }) {
   return (
-    <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
+    <div className="grid gap-5 lg:grid-cols-[240px_minmax(0,1fr)]">
       {/* ── Subnavegación ─────────────────────────────────────────────── */}
       <nav className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 lg:mx-0 lg:flex-col lg:gap-1 lg:overflow-visible lg:px-0 lg:pb-0">
         {SECTIONS.map((option) => {
@@ -115,54 +118,49 @@ export default function ProgramConfiguracionTab({
 
       {/* ── Panel principal ──────────────────────────────────────────── */}
       <div className="min-w-0">
-        {section === "sellos" ? (
-          <ProgramStampsSection
+        {section === "tarjeta" ? (
+          <ProgramCardSection
             overview={overview}
             benefits={benefits}
+            appearance={appearance}
+            businessName={businessName}
             canMutate={canMutate}
             onToggle={onToggleStamps}
             onSaveConfig={onSaveStampsConfig}
+            onSaveDesign={onSaveDesign}
             onReload={onReload}
           />
         ) : null}
 
-        {section === "diseno" ? (
-          <ProgramDesignTab
+        {section === "inscripcion" ? (
+          <ProgramRegistrationSection
             appearance={appearance}
             businessName={businessName}
-            rewardName={overview.reward?.name ?? "Tu recompensa"}
-            stampsRequired={overview.stampsRequired ?? 5}
             canMutate={canMutate}
             onSave={onSaveDesign}
           />
         ) : null}
 
-        {section === "beneficios" ? (
+        {section === "terminos" ? (
+          <ProgramTermsSection
+            overview={overview}
+            benefits={benefits}
+            canMutate={canMutate}
+            onSave={onSaveBenefitTerms}
+          />
+        ) : null}
+
+        {section === "incentivos" ? (
+          <ProgramIncentivesSection canMutate={canMutate} />
+        ) : null}
+
+        {section === "premios" ? (
           <ProgramBenefitsTab
             benefits={benefits}
             welcomeBenefitId={overview.welcomeGift?.benefitId ?? null}
             canMutate={canMutate}
             onCreate={onCreateBenefit}
             onDelete={onDeleteBenefit}
-            onSetUse={onSetBenefitUse}
-            onReload={onReload}
-          />
-        ) : null}
-
-        {section === "feedback" ? (
-          <ProgramFeedbackBonusSection
-            overview={overview}
-            canMutate={canMutate}
-            onSaveConfig={onSaveStampsConfig}
-            onReload={onReload}
-          />
-        ) : null}
-
-        {section === "bienvenida" ? (
-          <ProgramWelcomeGiftSection
-            benefits={benefits}
-            welcomeGift={overview.welcomeGift}
-            canMutate={canMutate}
             onSetUse={onSetBenefitUse}
             onReload={onReload}
           />

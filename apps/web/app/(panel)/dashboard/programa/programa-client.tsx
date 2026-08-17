@@ -2,7 +2,8 @@
 
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import Link from "next/link";
+import { Loader2, QrCode, Stamp, Target } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
 import { useIsCheckinV2 } from "../../experience-context";
 import { useIsOwnerOrAdmin } from "../../role-context";
@@ -29,9 +30,9 @@ import type {
  *
  * Navegación: solo dos pestañas — Resumen (estado + actividad) y
  * Configuración (todo lo editable, agrupado en una subnavegación lateral:
- * Tarjeta de sellos, Diseño, Beneficios, Bonus por feedback, Regalo de
- * bienvenida). Reemplaza la estructura anterior (Resumen/Beneficios/Sellos/
- * Historial) — el Historial no desaparece, se ve desde Resumen ("Ver toda la
+ * Tarjeta digital, Página de inscripción, Términos y condiciones,
+ * Incentivos, Premios — ver `program-configuracion-tab.tsx` para el porqué
+ * de cada una). El Historial no desaparece, se ve desde Resumen ("Ver toda la
  * actividad"), y ProgramAuditEvent sigue siendo la misma fuente.
  */
 type Tab = "resumen" | "configuracion";
@@ -72,15 +73,24 @@ function resolveInitialTab(rawTab: string | null): Tab {
   return "resumen";
 }
 
+/**
+ * Compat con los `?section=` de la estructura anterior (sellos/diseno/
+ * beneficios/feedback/bienvenida) — ningún link que ya esté circulando
+ * (guardado, compartido desde Notificaciones/Inicio) queda apuntando a una
+ * sección que dejó de existir.
+ */
 function resolveInitialSection(
   rawTab: string | null,
   rawSection: string | null,
 ): ConfigSection {
   if (isConfigSection(rawSection)) return rawSection;
-  // Compat con las pestañas viejas, que ahora son secciones.
-  if (rawTab === "beneficios") return "beneficios";
-  if (rawTab === "sellos") return "sellos";
-  return "sellos";
+  if (rawSection === "sellos" || rawSection === "diseno" || rawSection === "feedback") {
+    return "tarjeta";
+  }
+  if (rawSection === "beneficios" || rawSection === "bienvenida") return "premios";
+  if (rawTab === "beneficios") return "premios";
+  if (rawTab === "sellos") return "tarjeta";
+  return "tarjeta";
 }
 
 function ProgramaClientContent() {
@@ -234,6 +244,20 @@ function ProgramaClientContent() {
     if (!res.ok && res.status !== 204) await readJson(res);
   }
 
+  // Términos y condiciones — auditado: no hay campo de programa a nivel
+  // negocio para esto, el que YA existe (y el que YA se muestra al cliente
+  // en la landing de check-in) es `Benefit.terms`. Mismo PATCH que el resto
+  // de la edición de un beneficio, sin endpoint nuevo.
+  async function saveBenefitTerms(benefitId: string, terms: string) {
+    const res = await fetch(`/api/proxy/benefits/${benefitId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ terms }),
+    });
+    await readJson(res);
+    await load();
+  }
+
   function goToConfig(section: ConfigSection) {
     setTab("configuracion");
     setConfigSection(section);
@@ -284,7 +308,44 @@ function ProgramaClientContent() {
       <PageHeader
         title="Programa"
         subtitle="Todo lo que tu negocio ofrece para que tus clientes vuelvan."
+        actions={
+          <Link
+            href="/dashboard/qr"
+            className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
+          >
+            <QrCode className="h-4 w-4" aria-hidden="true" />
+            Invitar clientes
+          </Link>
+        }
       />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E8EAF0] bg-white px-3 py-1.5 text-xs font-semibold text-[#4A56A6]">
+          <Stamp className="h-3.5 w-3.5" aria-hidden="true" />
+          Sellos por visita
+        </span>
+        {overview.stampsRequired ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E8EAF0] bg-white px-3 py-1.5 text-xs font-semibold text-[#4A56A6]">
+            <Target className="h-3.5 w-3.5" aria-hidden="true" />
+            Meta {overview.stampsRequired} sellos
+          </span>
+        ) : null}
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
+            overview.enabled
+              ? "bg-[#EAF6EE] text-[#1D9E75]"
+              : "bg-[#F0F1F6] text-[#8891A4]"
+          }`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              overview.enabled ? "bg-[#1D9E75]" : "bg-[#B0B8C9]"
+            }`}
+            aria-hidden="true"
+          />
+          {overview.enabled ? "Activo" : "Inactivo"}
+        </span>
+      </div>
 
       <div className="flex w-fit overflow-hidden rounded-[10px] border border-[#E8EAF0] bg-white text-sm font-semibold">
         <button
@@ -334,6 +395,7 @@ function ProgramaClientContent() {
           onCreateBenefit={createBenefit}
           onDeleteBenefit={deleteBenefit}
           onSetBenefitUse={setBenefitUse}
+          onSaveBenefitTerms={saveBenefitTerms}
           onReload={load}
         />
       ) : null}

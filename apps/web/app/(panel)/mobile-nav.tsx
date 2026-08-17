@@ -19,16 +19,19 @@ export default function MobileNav({
   isImpersonating,
   isCheckinV2,
   role,
+  isPlatformAdmin,
 }: {
   isImpersonating: boolean;
   isCheckinV2: boolean;
   role?: string | null;
+  isPlatformAdmin: boolean;
 }) {
   const pathname = usePathname();
   const sections = resolveNavSections({
     isCheckinV2,
     isImpersonating,
     role: role ?? null,
+    isPlatformAdmin,
   });
   const items = sections.flatMap((section) => section.items);
 

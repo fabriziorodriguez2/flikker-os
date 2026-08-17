@@ -47,6 +47,7 @@ type BusinessForCheckin = Pick<
   | 'loyaltyCardColor'
   | 'loyaltyStampColor'
   | 'loyaltyStampIcon'
+  | 'checkinWelcomeMessage'
 >;
 
 @Injectable()
@@ -80,6 +81,11 @@ export class CheckinService {
       business: this.publicBusinessInfo(business),
       benefit: toPublicBenefit(benefit),
       benefitText: benefit?.title ?? null,
+      // Programa → Página de inscripción. Encabezado propio y OPCIONAL — a
+      // propósito no se mezcla con `benefitText`: ese campo también decide
+      // el subtítulo/botón de esta misma pantalla y el mensaje de WhatsApp
+      // post-registro, y pisarlo rompería esas otras dos decisiones.
+      welcomeMessage: business.checkinWelcomeMessage ?? null,
     };
   }
 
@@ -502,6 +508,7 @@ export class CheckinService {
         loyaltyCardColor: true,
         loyaltyStampColor: true,
         loyaltyStampIcon: true,
+        checkinWelcomeMessage: true,
       },
     });
     if (!business || !isCheckinV2(business)) {

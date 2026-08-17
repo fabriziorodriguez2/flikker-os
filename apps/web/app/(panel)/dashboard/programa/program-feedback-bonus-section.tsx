@@ -59,7 +59,7 @@ export default function ProgramFeedbackBonusSection({
 
   return (
     <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
-      <h2 className="text-base font-bold text-[#1A202C]">Bonus por feedback</h2>
+      <h2 className="font-display text-base font-bold text-[#1A202C]">Bonus por feedback</h2>
       <p className="mt-1 text-sm text-[#8891A4]">
         Cuando un cliente completa el feedback privado, recibe un sello
         extra.

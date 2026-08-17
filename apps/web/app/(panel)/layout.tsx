@@ -14,6 +14,7 @@ import ImpersonationBanner from "./impersonation-banner";
 import QueryProvider from "@/components/providers/query-provider";
 import MobileMenuButton from "./mobile-menu-button";
 import ElasticScrollBoundary from "@/components/ui/elastic-scroll-boundary";
+import BusinessLoadError from "@/components/ui/business-load-error";
 
 interface CurrentBusiness {
   name: string;
@@ -60,6 +61,14 @@ export default async function PanelLayout({
   const effectiveApiContext = getEffectiveApiContext(session);
   let currentBusiness: CurrentBusiness | null = null;
   let sessionExpired = false;
+  // Distinto de "currentBusiness es null porque no hay businessId" (caso
+  // defensivo, no debería pasar acá — ver el guard de arriba). Esto es
+  // específicamente "pedimos el negocio real y la API respondió con un
+  // error real" — nunca debe traducirse en silencio a "entonces es LEGACY".
+  // Eso fue una causa real de bug: un 500 transitorio en
+  // `/businesses/current` (columna nueva sin migrar) hacía caer el sidebar a
+  // LEGACY sin ningún aviso.
+  let businessLoadFailed = false;
 
   try {
     if (effectiveApiContext.businessId) {
@@ -70,11 +79,27 @@ export default async function PanelLayout({
       );
     }
   } catch (error) {
-    if (isUnauthorizedApiError(error)) sessionExpired = true;
-    // else: currentBusiness stays null (API unreachable, render without business data)
+    if (isUnauthorizedApiError(error)) {
+      sessionExpired = true;
+    } else {
+      businessLoadFailed = true;
+    }
   }
 
   if (sessionExpired) redirect("/session-expired");
+
+  // Fallar seguro: sin el negocio real no sabemos si es LEGACY o CHECKIN_V2,
+  // así que no se renderiza NINGUNA de las dos — nunca se sigue de largo con
+  // un default adivinado. El dueño ve un error explícito con reintentar, no
+  // un panel silenciosamente degradado a la experiencia equivocada.
+  if (businessLoadFailed) {
+    return (
+      <>
+        <SessionExpiryHandler />
+        <BusinessLoadError />
+      </>
+    );
+  }
 
   // Guard de onboarding — la contracara del guard de `/comenzar`.
   //
@@ -103,8 +128,11 @@ export default async function PanelLayout({
     activeMembership?.business?.name;
   const businessLogoUrl =
     currentBusiness?.logoUrl ?? activeMembership?.business?.logoUrl ?? null;
-  // Default to LEGACY: if /businesses/current could not be reached we must not
-  // light up V2 surfaces on a guess.
+  // A esta altura `businessLoadFailed` ya cortó el render arriba, así que
+  // `currentBusiness === null` acá NO es "la API falló" — es únicamente el
+  // caso residual (no debería ocurrir dado el guard de más arriba) de que
+  // `effectiveApiContext.businessId` viniera vacío. LEGACY sigue siendo el
+  // default más seguro para ESE caso puntual, nunca para un fetch fallido.
   const experienceVersion: ExperienceVersion =
     currentBusiness?.experienceVersion === "CHECKIN_V2"
       ? "CHECKIN_V2"
@@ -115,56 +143,7 @@ export default async function PanelLayout({
 
   return (
     <>
-      <div
-        aria-hidden="true"
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 0,
-          pointerEvents: "none",
-        }}
-      >
-        {/* top-right purple — center at ~(vw-150px, 100px) */}
-        <div
-          style={{
-            position: "absolute",
-            top: "-150px",
-            right: "-100px",
-            width: "500px",
-            height: "500px",
-            borderRadius: "50%",
-            background: "rgba(145, 136, 245, 0.28)",
-            filter: "blur(80px)",
-          }}
-        />
-        {/* bottom-left orange */}
-        <div
-          style={{
-            position: "absolute",
-            bottom: "-100px",
-            left: "-80px",
-            width: "450px",
-            height: "450px",
-            borderRadius: "50%",
-            background: "rgba(250, 171, 75, 0.18)",
-            filter: "blur(70px)",
-          }}
-        />
-        {/* center-right soft purple */}
-        <div
-          style={{
-            position: "absolute",
-            top: "25%",
-            right: "15%",
-            width: "350px",
-            height: "350px",
-            borderRadius: "50%",
-            background: "rgba(145, 136, 245, 0.15)",
-            filter: "blur(100px)",
-          }}
-        />
-      </div>
-    <div className="flikker-app-shell relative z-[1] min-h-screen lg:flex">
+    <div className="flikker-app-shell min-h-screen lg:flex">
       <SessionExpiryHandler />
       <Sidebar
         memberships={memberships}
@@ -175,6 +154,7 @@ export default async function PanelLayout({
         isImpersonating={!!session.impersonation}
         isCheckinV2={isCheckinV2}
         role={currentRole}
+        isPlatformAdmin={!!user.isPlatformAdmin}
       />
 
       <div className="flex min-w-0 flex-1 flex-col">
@@ -188,6 +168,7 @@ export default async function PanelLayout({
               isImpersonating={!!session.impersonation}
               isCheckinV2={isCheckinV2}
               role={currentRole}
+              isPlatformAdmin={!!user.isPlatformAdmin}
             />
           </div>
         </div>

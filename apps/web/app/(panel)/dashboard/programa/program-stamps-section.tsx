@@ -95,7 +95,7 @@ export default function ProgramStampsSection({
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#EEF0FB] text-[#5C6BC0]">
             <Stamp className="h-5 w-5" aria-hidden="true" />
           </span>
-          <h2 className="mt-4 text-base font-bold text-[#1A202C]">
+          <h2 className="mt-4 font-display text-base font-bold text-[#1A202C]">
             Tarjeta de sellos desactivada
           </h2>
           <p className="mx-auto mt-2 max-w-sm text-sm text-[#8891A4]">
@@ -131,7 +131,7 @@ export default function ProgramStampsSection({
       <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold text-[#1A202C]">
+            <h2 className="font-display text-base font-bold text-[#1A202C]">
               Tarjeta de sellos activa
             </h2>
             <p className="mt-1 text-sm text-[#8891A4]">
@@ -213,7 +213,7 @@ function ConfigForm({
 }) {
   return (
     <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
-      <h2 className="text-base font-bold text-[#1A202C]">Configurar sellos</h2>
+      <h2 className="font-display text-base font-bold text-[#1A202C]">Configurar sellos</h2>
       {/* Sección 8 — clarísimo por estructura: es UNA recompensa para la
           tarjeta, no el catálogo completo (eso está en "Beneficios"). */}
       <p className="mt-1 text-sm text-[#8891A4]">

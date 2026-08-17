@@ -88,7 +88,7 @@ export default function ProgramSummaryTab({
         <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-[#1A202C]">Beneficios</h2>
+              <h2 className="font-display text-base font-bold text-[#1A202C]">Beneficios</h2>
               <p className="mt-1 text-sm text-[#8891A4]">
                 {overview.benefitsCount} beneficio
                 {overview.benefitsCount === 1 ? "" : "s"} disponible
@@ -101,7 +101,7 @@ export default function ProgramSummaryTab({
           </div>
           <button
             type="button"
-            onClick={() => onGoToConfig("beneficios")}
+            onClick={() => onGoToConfig("premios")}
             className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#5C6BC0] hover:underline"
           >
             Ver beneficios <ChevronRight className="h-3.5 w-3.5" />
@@ -111,7 +111,7 @@ export default function ProgramSummaryTab({
         <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <h2 className="text-base font-bold text-[#1A202C]">
+              <h2 className="font-display text-base font-bold text-[#1A202C]">
                 {overview.enabled
                   ? "Tarjeta de sellos activa"
                   : "Tarjeta de sellos desactivada"}
@@ -160,7 +160,7 @@ export default function ProgramSummaryTab({
           ) : null}
           <button
             type="button"
-            onClick={() => onGoToConfig("sellos")}
+            onClick={() => onGoToConfig("tarjeta")}
             className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#5C6BC0] hover:underline"
           >
             {overview.enabled ? "Configurar sellos" : "Activar tarjeta de sellos"}
@@ -198,7 +198,7 @@ export default function ProgramSummaryTab({
 
       <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
         <div className="flex items-center justify-between gap-3">
-          <h2 className="text-base font-bold text-[#1A202C]">
+          <h2 className="font-display text-base font-bold text-[#1A202C]">
             Actividad reciente
           </h2>
           {/* El Historial no desaparece — se ve desde acá. Mismo

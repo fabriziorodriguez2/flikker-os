@@ -55,8 +55,8 @@
   --color-danger-text: var(--danger-text);
   --color-warning-bg: var(--warning-bg);
   --color-warning-text: var(--warning-text);
-  --font-sans: var(--font-manrope);
-  --font-body: var(--font-manrope);
+  --font-sans: var(--font-montserrat);
+  --font-body: var(--font-montserrat);
   --font-heading: var(--font-syne);
   --font-display: var(--font-syne);
 }
@@ -97,7 +97,7 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-manrope), sans-serif;
+  font-family: var(--font-montserrat), sans-serif;
 }
 
 h1 {
@@ -110,7 +110,7 @@ h3,
 h4,
 h5,
 h6 {
-  font-family: var(--font-manrope), sans-serif;
+  font-family: var(--font-montserrat), sans-serif;
   letter-spacing: 0;
 }
 

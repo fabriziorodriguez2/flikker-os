@@ -77,7 +77,7 @@ export default function ProgramDesignTab({
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
       <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
-        <h2 className="text-base font-bold text-[#1A202C]">
+        <h2 className="font-display text-base font-bold text-[#1A202C]">
           Diseño de la tarjeta
         </h2>
         <p className="mt-1 text-sm text-[#8891A4]">

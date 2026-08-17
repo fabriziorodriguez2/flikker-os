@@ -22,7 +22,7 @@ export default function ProgramHistoryTab({
         <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#EEF0FB] text-[#5C6BC0]">
           <Clock className="h-5 w-5" aria-hidden="true" />
         </span>
-        <h2 className="mt-4 text-base font-bold text-[#1A202C]">
+        <h2 className="mt-4 font-display text-base font-bold text-[#1A202C]">
           Todavía no hay actividad
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-sm text-[#8891A4]">

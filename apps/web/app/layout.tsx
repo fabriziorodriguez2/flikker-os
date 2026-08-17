@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
-import { Manrope, Syne } from "next/font/google";
+import { Montserrat, Syne } from "next/font/google";
 import "./globals.css";
 
-const manrope = Manrope({
-  variable: "--font-manrope",
+const montserrat = Montserrat({
+  variable: "--font-montserrat",
   weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
 });
@@ -27,7 +27,7 @@ export default function RootLayout({
   return (
     <html
       lang="es"
-      className={`${manrope.variable} ${syne.variable} h-full antialiased`}
+      className={`${montserrat.variable} ${syne.variable} h-full antialiased`}
       suppressHydrationWarning
     >
       <head>

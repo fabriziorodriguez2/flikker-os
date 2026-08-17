@@ -39,6 +39,7 @@ export class BusinessesRepository {
         loyaltyCardColor: true,
         loyaltyStampColor: true,
         loyaltyStampIcon: true,
+        checkinWelcomeMessage: true,
         googleBusinessProfileUrl: true,
         defaultReviewRedirectUrl: true,
       },

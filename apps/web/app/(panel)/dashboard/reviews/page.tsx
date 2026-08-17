@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
+import BusinessLoadError from "@/components/ui/business-load-error";
 import ReviewsClient from "./reviews-client";
 import ReviewsLegacyPage from "./reviews-legacy-page";
 
@@ -25,7 +26,8 @@ export default async function ReviewsPage(props: {
   if (!session) redirect("/login");
 
   const context = getEffectiveApiContext(session);
-  let isCheckinV2 = false;
+  let experienceVersion: string | undefined;
+  let loadFailed = false;
   if (context.businessId) {
     try {
       const business = await apiFetch<{ experienceVersion?: string }>(
@@ -33,11 +35,19 @@ export default async function ReviewsPage(props: {
         context.accessToken,
         { businessId: context.businessId },
       );
-      isCheckinV2 = business.experienceVersion === "CHECKIN_V2";
-    } catch {
-      // Sin dato confiable se muestra el panel de siempre.
+      experienceVersion = business.experienceVersion;
+    } catch (error) {
+      // Mismo criterio que `(panel)/layout.tsx`/`dashboard/page.tsx`: un
+      // fetch fallido nunca se traduce en "entonces es LEGACY" — acá
+      // decidiría entre `ReviewsLegacyPage` y `ReviewsClient`, dos pantallas
+      // completamente distintas.
+      if (!isUnauthorizedApiError(error)) loadFailed = true;
     }
   }
+
+  if (loadFailed) return <BusinessLoadError />;
+
+  const isCheckinV2 = experienceVersion === "CHECKIN_V2";
 
   if (!isCheckinV2) return <ReviewsLegacyPage {...props} />;
 

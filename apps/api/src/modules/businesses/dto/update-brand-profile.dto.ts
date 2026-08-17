@@ -101,6 +101,16 @@ export class UpdateBrandProfileDto {
   @MaxLength(24)
   loyaltyStampIcon?: string;
 
+  /**
+   * Programa → Página de inscripción. Encabezado propio de la landing
+   * pública de check-in — distinto de `benefitText`, que además gobierna el
+   * subtítulo/botón de esa página y el mensaje de WhatsApp post-registro.
+   */
+  @IsOptional()
+  @IsString()
+  @MaxLength(160)
+  checkinWelcomeMessage?: string;
+
   @IsOptional()
   @IsUrl()
   googleBusinessProfileUrl?: string;

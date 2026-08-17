@@ -21,6 +21,12 @@ interface SidebarProps {
   isCheckinV2: boolean;
   /** Rol en el negocio activo. Gobierna qué ítems se muestran. */
   role?: string | null;
+  /**
+   * `session.user.isPlatformAdmin` — el usuario que inició sesión, no el rol
+   * efectivo en el negocio. Un OWNER o ADMIN de negocio nunca es Platform
+   * Admin por tener ese rol; gobierna solo la sección "Herramientas Flikker".
+   */
+  isPlatformAdmin: boolean;
 }
 
 function Icon({ children }: { children: ReactNode }) {
@@ -306,9 +312,18 @@ const LEGACY_NAV: NavSection[] = [
 ];
 
 /**
- * Herramientas internas. Solo aparecen durante impersonation, que es la única
- * forma en que un operador de Flikker entra a un negocio: el dueño nunca las
- * ve, y nosotros no perdemos acceso a nada.
+ * Herramientas internas. Solo aparecen para Platform Admin (`user.isPlatformAdmin
+ * === true`) — el dato del usuario que inició sesión, no un rol de negocio ni
+ * el estado de impersonation. El dueño nunca las ve, y nosotros no perdemos
+ * acceso a nada mientras impersonamos.
+ *
+ * Antes esta sección se gobernaba con `isImpersonating`. Hoy en la práctica es
+ * equivalente (el layout redirige a cualquier Platform Admin sin impersonation
+ * a `/platform` antes de llegar acá — ver `(panel)/layout.tsx`), pero esa
+ * equivalencia era un efecto colateral de OTRA pantalla, no algo que esta
+ * función pudiera garantizar por sí sola. Gobernarlo con el dato explícito
+ * (`isPlatformAdmin`) es lo correcto: un rol de negocio (OWNER, ADMIN) nunca
+ * debe poder activar esta sección, sin importar cómo evolucione impersonation.
  */
 const OPERATOR_TOOLS: NavSection = {
   title: "Herramientas Flikker",
@@ -321,11 +336,12 @@ const OPERATOR_TOOLS: NavSection = {
   ],
 };
 
-/** Secciones visibles según versión, rol e impersonation. */
+/** Secciones visibles según versión, rol, impersonation y Platform Admin. */
 export function resolveNavSections(options: {
   isCheckinV2: boolean;
   isImpersonating: boolean;
   role: string | null;
+  isPlatformAdmin: boolean;
 }): NavSection[] {
   const base = options.isCheckinV2 ? CHECKIN_V2_NAV : LEGACY_NAV;
 
@@ -340,7 +356,7 @@ export function resolveNavSections(options: {
     }))
     .filter((section) => section.items.length > 0);
 
-  return options.isImpersonating ? [...sections, OPERATOR_TOOLS] : sections;
+  return options.isPlatformAdmin ? [...sections, OPERATOR_TOOLS] : sections;
 }
 
 function isItemActive(pathname: string, href: string) {
@@ -358,6 +374,7 @@ export default function Sidebar(props: SidebarProps) {
     isCheckinV2: props.isCheckinV2,
     isImpersonating: props.isImpersonating,
     role: props.role ?? null,
+    isPlatformAdmin: props.isPlatformAdmin,
   });
 
   // Listen for hamburger toggle events from the header

@@ -252,7 +252,13 @@ function RegisterScreen({
   const [error, setError] = useState<string | null>(null);
 
   const isRaffle = landing.benefit?.type === "raffle";
-  const title = landing.benefitText ?? `Sumate a ${landing.business.businessName}`;
+  // `welcomeMessage` SOLO reemplaza el título — el subtítulo y el botón de
+  // acá abajo siguen decidiéndose con `benefitText`, a propósito, para no
+  // romper esa lógica ("¿hay un beneficio real detrás?").
+  const title =
+    landing.welcomeMessage ??
+    landing.benefitText ??
+    `Sumate a ${landing.business.businessName}`;
   const subtitle = isRaffle
     ? "Dejanos tu nombre y número para participar del sorteo."
     : landing.benefitText

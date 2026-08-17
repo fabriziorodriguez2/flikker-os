@@ -88,7 +88,7 @@ export default function ProgramBenefitsTab({
       <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-bold text-[#1A202C]">Beneficios</h2>
+            <h2 className="font-display text-base font-bold text-[#1A202C]">Beneficios</h2>
             <p className="mt-1 text-sm text-[#8891A4]">
               Creá los premios que tu negocio puede dar. Cada uno puede usarse
               para una o varias cosas a la vez.

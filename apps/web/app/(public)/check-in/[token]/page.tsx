@@ -23,6 +23,8 @@ export interface CheckinLanding {
   };
   benefit: PublicBenefit | null;
   benefitText: string | null;
+  /** Programa → Página de inscripción. Encabezado propio, opcional. */
+  welcomeMessage: string | null;
 }
 
 const API_URL = process.env.API_URL ?? "http://localhost:3000";

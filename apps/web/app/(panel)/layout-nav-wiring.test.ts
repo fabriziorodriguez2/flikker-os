@@ -29,4 +29,28 @@ describe("(panel)/layout.tsx — cablea el rol a la navegación", () => {
     );
     expect(mobileNavBlock).toMatch(/role=\{currentRole\}/);
   });
+
+  /**
+   * Guarda del mismo tipo para el fix de "Herramientas Flikker": esa sección
+   * se gobierna con `user.isPlatformAdmin`, nunca con el rol de negocio ni
+   * solo con `isImpersonating`. Si alguien vuelve a borrar esta prop, un OWNER
+   * o ADMIN de negocio quedaría sin la protección explícita (aunque hoy, en
+   * la práctica, `isImpersonating` sigue implicando Platform Admin por el
+   * redirect de más arriba — el punto es no depender de eso).
+   */
+  it("pasa isPlatformAdmin={!!user.isPlatformAdmin} a <Sidebar>", () => {
+    const sidebarBlock = source.slice(
+      source.indexOf("<Sidebar"),
+      source.indexOf("/>", source.indexOf("<Sidebar")),
+    );
+    expect(sidebarBlock).toMatch(/isPlatformAdmin=\{!!user\.isPlatformAdmin\}/);
+  });
+
+  it("pasa isPlatformAdmin={!!user.isPlatformAdmin} a <MobileNav>", () => {
+    const mobileNavBlock = source.slice(
+      source.indexOf("<MobileNav"),
+      source.indexOf("/>", source.indexOf("<MobileNav")),
+    );
+    expect(mobileNavBlock).toMatch(/isPlatformAdmin=\{!!user\.isPlatformAdmin\}/);
+  });
 });
