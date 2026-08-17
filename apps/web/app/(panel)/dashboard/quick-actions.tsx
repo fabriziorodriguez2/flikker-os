@@ -31,10 +31,22 @@ const ACTIONS = [
   },
 ] as const;
 
-export default function QuickActions() {
+export default function QuickActions({
+  hideCampaign = false,
+}: {
+  hideCampaign?: boolean;
+}) {
+  const visibleActions = hideCampaign
+    ? ACTIONS.filter((action) => action.href !== "/dashboard/campaigns")
+    : ACTIONS;
+
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-      {ACTIONS.map((action) => (
+    <div
+      className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${
+        hideCampaign ? "lg:grid-cols-4" : "lg:grid-cols-5"
+      }`}
+    >
+      {visibleActions.map((action) => (
         <Link
           key={action.href}
           href={action.href}

@@ -114,10 +114,21 @@ export default async function PanelLayout({
   //
   // `currentBusiness === null` (API caída) NO redirige: preferimos un panel
   // degradado antes que mandar a un negocio ya configurado a rehacer el alta.
+  //
+  // Bug real (auditado): `onboardingCompletedAt` nulo NO significa "está en
+  // medio del onboarding self-service" para un negocio LEGACY — ese campo
+  // solo lo escribe el flujo self-service, así que un negocio LEGACY (que
+  // nunca pasó por ahí) lo tiene nulo PARA SIEMPRE. Sin el filtro de
+  // `experienceVersion`, cualquier OWNER de un negocio LEGACY quedaba
+  // atrapado: cada navegación al panel (incluido /dashboard/customers)
+  // rebotaba a /comenzar en vez de abrir su pantalla real. El onboarding
+  // self-service es exclusivamente CHECKIN_V2 (`OnboardingService#saveBusiness`
+  // lo fuerza), así que un LEGACY jamás debe entrar acá.
   const needsOnboarding =
     !session.impersonation &&
     currentRole === "OWNER" &&
     currentBusiness !== null &&
+    currentBusiness.experienceVersion === "CHECKIN_V2" &&
     !currentBusiness.onboardingCompletedAt;
 
   if (needsOnboarding) redirect("/comenzar");

@@ -16,6 +16,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { relativeDay } from "./customers/loyalty-ui";
+import QuickActions from "./quick-actions";
 
 /**
  * Inicio — la portada del producto. Rediseño (pedido explícito, referencia
@@ -378,6 +379,18 @@ export default function HomeClient({ firstName }: { firstName: string }) {
             </ul>
           </div>
         )}
+      </section>
+
+      <section className="space-y-4">
+        <div>
+          <h2 className="text-base font-semibold text-[#202333]">
+            Acciones rápidas
+          </h2>
+          <p className="mt-1 text-sm leading-6 text-[#7F879C]">
+            Atajos para las tareas más frecuentes de tu negocio.
+          </p>
+        </div>
+        <QuickActions hideCampaign />
       </section>
 
     </div>

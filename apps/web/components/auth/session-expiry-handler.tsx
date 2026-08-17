@@ -2,6 +2,20 @@
 
 import { useEffect } from 'react';
 
+/**
+ * Extraída como función pura y testeable a propósito — es la ÚNICA regla que
+ * decide si algo dispara el redirect a /login del panel entero. Bug real
+ * (auditado): un negocio LEGACY podía quedar sin poder abrir NINGUNA
+ * pantalla (era otra causa, en `(panel)/layout.tsx`/`onboarding.service.ts`
+ * — ver `customers-legacy-access.e2e-spec.ts`), y parte de la auditoría fue
+ * confirmar que ESTA regla, la única que sí puede mandar a /login desde el
+ * cliente, nunca reacciona a 403 (tenant/rol equivocado) ni 500 (error real
+ * del servidor) — solo a 401 (sesión inválida de verdad).
+ */
+export function shouldRedirectToLogin(status: number): boolean {
+  return status === 401;
+}
+
 function isApiRequest(input: RequestInfo | URL) {
   const rawUrl =
     typeof input === 'string'
@@ -40,7 +54,7 @@ export default function SessionExpiryHandler() {
     window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
       const response = await originalFetch(input, init);
 
-      if (isApiRequest(input) && response.status === 401) {
+      if (isApiRequest(input) && shouldRedirectToLogin(response.status)) {
         redirectToLogin();
       }
 

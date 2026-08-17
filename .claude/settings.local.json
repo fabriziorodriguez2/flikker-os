@@ -322,7 +322,12 @@
       "Bash(curl -s http://localhost:3000/health)",
       "PowerShell(Get-CimInstance Win32_Process -Filter \"Name='node.exe'\")",
       "Bash(node verify_column_clean.js)",
-      "Bash(node test_e2e_current.js)"
+      "Bash(node test_e2e_current.js)",
+      "Bash(node find_legacy.js)",
+      "Bash(mv test/customers-legacy-access.e2e-spec.ts /tmp_customers_legacy.bak)",
+      "Bash(mv test/customers-legacy-access.e2e-spec.ts ../customers-legacy-access.e2e-spec.ts.bak)",
+      "Bash(mv ../customers-legacy-access.e2e-spec.ts.bak test/customers-legacy-access.e2e-spec.ts)",
+      "Bash(mv /tmp_customers_legacy.bak test/customers-legacy-access.e2e-spec.ts)"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

@@ -54,10 +54,21 @@ export class OnboardingService {
   ) {}
 
   /** El negocio que este usuario está onboardeando, si hay alguno. */
+  /**
+   * Bug real (auditado): `onboardingCompletedAt: null` por sí solo NO
+   * distingue "borrador de onboarding self-service en curso" de "negocio
+   * LEGACY que nunca pasó por este flujo" — ambos dejan ese campo en null
+   * para siempre, porque el flujo self-service es lo único que lo escribe.
+   * Sin el filtro de `experienceVersion`, cualquier OWNER de un negocio
+   * LEGACY quedaba "adoptado" como si tuviera un draft de CHECKIN_V2 en
+   * curso, y `(panel)/layout.tsx` lo mandaba a `/comenzar` en cada
+   * navegación — nunca llegaba a su panel real.
+   */
   private findDraft(userId: string) {
     return this.prisma.business.findFirst({
       where: {
         onboardingCompletedAt: null,
+        experienceVersion: ExperienceVersion.CHECKIN_V2,
         memberships: {
           some: {
             userId,
