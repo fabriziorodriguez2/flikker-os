@@ -1029,4 +1029,139 @@ describe('Notificaciones — fachada sobre Retention V2 (integration)', () => {
       expect(serialized).not.toContain('budget');
     });
   });
+
+  // ── Auditoría de toggles — el hallazgo real de esta tanda: sin esto,
+  // "el dueño lo apagó" y "nunca se inicializó" dejan el mismo booleano en
+  // la base y son indistinguibles después de los hechos.
+
+  describe('## Causa de toggles OFF — auditoría', () => {
+    /** Post-onboarding simulado — mismo patrón que el resto del archivo. */
+    async function makeActivatedBusiness() {
+      const businessId = await makeBusiness();
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { retentionEngineV2Enabled: true },
+      });
+      await bootstrap.ensureDefaultRetentionSetup(businessId);
+      return businessId;
+    }
+
+    it('apagar Te extrañamos queda auditado, y una lectura posterior lo sigue mostrando OFF', async () => {
+      const businessId = await makeActivatedBusiness();
+      const before = await service.overview(businessId);
+      expect(
+        before.automations.find((a) => a.key === 'te_extranamos')?.state,
+      ).toBe('activo');
+
+      await service.updateAutomations(businessId, { teExtranamos: false });
+
+      const after = await service.overview(businessId);
+      expect(
+        after.automations.find((a) => a.key === 'te_extranamos')?.state,
+      ).toBe('desactivado');
+      // Una segunda lectura (otro request) — nada la reactiva sola.
+      const again = await service.overview(businessId);
+      expect(
+        again.automations.find((a) => a.key === 'te_extranamos')?.state,
+      ).toBe('desactivado');
+
+      const events = await prisma.programAuditEvent.findMany({
+        where: { businessId, type: 'automation_toggled' },
+      });
+      expect(events).toHaveLength(1);
+      expect(events[0].message).toBe('Desactivaste Te extrañamos');
+      expect(events[0].metadata).toMatchObject({
+        automation: 'te_extranamos',
+        enabled: false,
+      });
+    });
+
+    it('activar Cerca del premio (con sellos) también queda auditado', async () => {
+      const businessId = await makeBusiness();
+      await prisma.retentionSettings.update({
+        where: { businessId },
+        data: { rewardGoalsEnabled: true },
+      });
+
+      await service.updateAutomations(businessId, { cercaDelPremio: true });
+
+      const events = await prisma.programAuditEvent.findMany({
+        where: { businessId, type: 'automation_toggled' },
+      });
+      expect(events).toHaveLength(1);
+      expect(events[0].message).toBe('Activaste Cerca del premio');
+    });
+
+    it('reafirmar el mismo valor NO registra un evento nuevo (§13: no ampliar el log con reafirmaciones)', async () => {
+      const businessId = await makeBusiness();
+      // `automaticCampaignsEnabled` ya es `true` por default — esto no
+      // cambia nada de verdad.
+      await service.updateAutomations(businessId, { teExtranamos: true });
+
+      const events = await prisma.programAuditEvent.count({
+        where: { businessId, type: 'automation_toggled' },
+      });
+      expect(events).toBe(0);
+    });
+
+    it('cambiar SOLO el límite mensual no genera un evento de toggle (son campos independientes)', async () => {
+      const businessId = await makeBusiness();
+      const a = await makeIncentive(businessId, 'Café gratis');
+
+      await service.updateAutomations(businessId, {
+        benefitIds: [a.id],
+        automaticIncentiveMonthlyLimit: 5,
+      });
+
+      const toggleEvents = await prisma.programAuditEvent.count({
+        where: { businessId, type: 'automation_toggled' },
+      });
+      expect(toggleEvents).toBe(0);
+    });
+  });
+
+  // ── Defaults del onboarding self-service (§1) — Te extrañamos ON siempre;
+  // Cerca del premio ON solo con sellos activos. Sin sobreescribir nunca una
+  // decisión manual (la sección de arriba prueba justamente eso: apagado a
+  // mano permanece apagado).
+
+  describe('## Defaults', () => {
+    it('benefits-only (sin sellos): Te extrañamos ON, Cerca del premio ni siquiera existe como concepto', async () => {
+      const businessId = await makeBusiness();
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { retentionEngineV2Enabled: true },
+      });
+      await bootstrap.ensureDefaultRetentionSetup(businessId);
+
+      const overview = await service.overview(businessId);
+      expect(
+        overview.automations.find((a) => a.key === 'te_extranamos')?.state,
+      ).toBe('activo');
+      expect(
+        overview.automations.some((a) => a.key === 'cerca_del_premio'),
+      ).toBe(false);
+    });
+
+    it('con sellos activos: Te extrañamos ON Y Cerca del premio ON', async () => {
+      const businessId = await makeBusiness();
+      await prisma.retentionSettings.update({
+        where: { businessId },
+        data: { rewardGoalsEnabled: true, progressReminderEnabled: true },
+      });
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { retentionEngineV2Enabled: true },
+      });
+      await bootstrap.ensureDefaultRetentionSetup(businessId);
+
+      const overview = await service.overview(businessId);
+      expect(
+        overview.automations.find((a) => a.key === 'te_extranamos')?.state,
+      ).toBe('activo');
+      expect(
+        overview.automations.find((a) => a.key === 'cerca_del_premio')?.state,
+      ).toBe('activo');
+    });
+  });
 });

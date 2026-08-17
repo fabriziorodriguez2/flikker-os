@@ -23,8 +23,19 @@ import { useIsOwnerOrAdmin } from "../../role-context";
  * checkbox que no hace nada es peor que uno que falta.
  */
 
+type AutomationState =
+  | "activo"
+  | "modo_prueba"
+  | "sin_canal"
+  | "preparando"
+  | "desactivado";
+
 interface Overview {
-  automations: { key: "cerca_del_premio" | "te_extranamos"; enabled: boolean }[];
+  automations: {
+    key: "cerca_del_premio" | "te_extranamos";
+    enabled: boolean;
+    state: AutomationState;
+  }[];
   status: {
     activeCount: number;
     testMode: boolean;
@@ -202,60 +213,80 @@ export default function AutomationsTab() {
         </p>
       ) : null}
 
-      {/* ── Estado general ────────────────────────────────────────────── */}
-      <div className="rounded-[16px] border border-[#E8EAF0] bg-white px-5 py-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-              Automatizaciones
-            </p>
-            <p className="mt-1 font-display text-xl font-semibold text-[#202333]">
-              {data.status.activeCount === 0
-                ? "Ninguna activa"
-                : data.status.activeCount === 1
-                  ? "1 activa"
-                  : `${data.status.activeCount} activas`}
-            </p>
+      {/*
+        ── Estado general — UNA sola jerarquía, nunca dos empty states ni un
+        problema de canal como alerta principal si no hay nada intentando
+        enviar (§3/§4).
+
+        `hasBlockedByChannel`: hay al menos una automatización ENCENDIDA que
+        el canal está bloqueando ahora mismo — es justo lo que ya significa
+        el estado por-item `sin_canal` (ver `resolveAutomationState`), así
+        que no hace falta recalcular nada, solo mirar lo que el backend ya
+        resolvió.
+      */}
+      {(() => {
+        const hasBlockedByChannel = data.automations.some(
+          (a) => a.state === "sin_canal",
+        );
+        return (
+          <div className="rounded-[16px] border border-[#E8EAF0] bg-white px-5 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+                  Automatizaciones
+                </p>
+                <p className="mt-1 font-display text-xl font-semibold text-[#202333]">
+                  {data.status.activeCount === 0
+                    ? "Ninguna activa"
+                    : data.status.activeCount === 1
+                      ? "1 activa"
+                      : `${data.status.activeCount} activas`}
+                </p>
+              </div>
+              {data.status.activeCount > 0 && !data.status.testMode ? (
+                <p className="flex items-center gap-1.5 text-sm text-[#147A5B]">
+                  <Sparkles className="h-4 w-4" />
+                  Flikker está trabajando en segundo plano.
+                </p>
+              ) : null}
+            </div>
+
+            {/* A) 0 activas — una sola línea de ayuda, no un segundo bloque
+                repitiendo lo mismo. */}
+            {data.status.activeCount === 0 ? (
+              <p className="mt-2 text-sm text-[#8891A4]">
+                Activá una automatización para que Flikker empiece a
+                ayudarte.
+              </p>
+            ) : null}
+
+            {/*
+              E) dry-run — `dryRunEnabled` dicho como producto. Importa
+              mostrarlo: sin esto el dueño vería 0 mensajes enviados y
+              pensaría que algo se rompió.
+            */}
+            {data.status.testMode ? (
+              <p className="mt-3 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-sm leading-5 text-[#8A520D]">
+                <strong>Modo de prueba.</strong> Flikker está detectando a
+                quién contactaría, pero todavía no envía mensajes.
+              </p>
+            ) : null}
+
+            {/*
+              C) automatización ON + canal no disponible — banner solo si de
+              verdad hay algo intentando enviar. Con 0 activas nunca se
+              muestra: no hay ningún envío bloqueado (regla A).
+            */}
+            {hasBlockedByChannel ? (
+              <p className="mt-3 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-sm leading-5 text-[#8A520D]">
+                <strong>Los mensajes están temporalmente pausados.</strong>{" "}
+                Tus automatizaciones siguen configuradas y se reanudarán
+                cuando vuelva la mensajería.
+              </p>
+            ) : null}
           </div>
-          {data.status.activeCount > 0 && !data.status.testMode ? (
-            <p className="flex items-center gap-1.5 text-sm text-[#147A5B]">
-              <Sparkles className="h-4 w-4" />
-              Flikker está trabajando en segundo plano.
-            </p>
-          ) : null}
-        </div>
-
-        {/*
-          `dryRunEnabled` dicho como producto. Importa mostrarlo: sin esto el
-          dueño vería 0 mensajes enviados y pensaría que algo se rompió.
-        */}
-        {data.status.testMode ? (
-          <p className="mt-3 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-sm leading-5 text-[#8A520D]">
-            <strong>Modo de prueba.</strong> Flikker está detectando a quién
-            contactaría, pero todavía no envía mensajes.
-          </p>
-        ) : null}
-
-        {/*
-          El canal es la única condición real de "puede mandar WhatsApp" (ver
-          `## Canal`). Sin esto un dueño con todo bien configurado vería 0
-          mensajes y pensaría que rompió algo — acá se le explica por qué.
-        */}
-        {data.status.channel === "no_conectado" ? (
-          <p className="mt-3 rounded-[10px] bg-[#FDEEEE] px-3.5 py-2.5 text-sm leading-5 text-[#B3261E]">
-            <strong>Flikker no puede enviar mensajes por ahora.</strong> Tus
-            automatizaciones quedan configuradas, pero no van a salir mensajes
-            hasta que se resuelva. Escribinos si necesitás ayuda.
-          </p>
-        ) : null}
-      </div>
-
-      {data.status.activeCount === 0 ? (
-        <p className="rounded-[16px] border border-dashed border-[#DDE1EC] bg-white px-5 py-6 text-sm text-[#8891A4]">
-          Todavía no activaste notificaciones automáticas. Activá alguna de las
-          de abajo para que Flikker empiece a ayudarte.
-        </p>
-      ) : null}
+        );
+      })()}
 
       {/*
         ── A. Cerca del premio ─────────────────────────────────────────

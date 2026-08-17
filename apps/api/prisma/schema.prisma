@@ -2348,6 +2348,12 @@ enum ProgramAuditEventType {
   /// because it silently changes whether an already-authorized benefit can
   /// actually be issued, without touching the benefit itself.
   automation_incentive_limit_changed
+  /// "Te extrañamos" o "Cerca del premio" cambió de ON a OFF o de OFF a ON
+  /// desde `PATCH /notifications/automations` — la ÚNICA acción real que
+  /// puede apagar una automatización después del default del onboarding.
+  /// Sin este evento, "el dueño lo apagó" y "nunca se inicializó" son
+  /// indistinguibles mirando solo el booleano actual.
+  automation_toggled
 }
 
 model ProgramAuditEvent {

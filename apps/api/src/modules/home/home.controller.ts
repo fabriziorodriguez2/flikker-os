@@ -19,9 +19,4 @@ export class HomeController {
   overview(@Req() req: AuthenticatedRequest) {
     return this.home.overview(req.currentBusinessId!);
   }
-
-  @Get('setup')
-  setup(@Req() req: AuthenticatedRequest) {
-    return this.home.setupTasks(req.currentBusinessId!);
-  }
 }

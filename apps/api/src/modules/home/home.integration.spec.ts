@@ -516,6 +516,10 @@ describe('Inicio — portada (integration)', () => {
         mode: 'benefits',
         benefitsCount: 1,
         authorizedForReactivationCount: 0,
+        // Solo tiene sentido real en modo `stamps` — acá siempre `false`,
+        // para que `setupAlert`/`setupTasks` puedan mirarlo sin preguntar
+        // antes por el modo (ver `HomeService.programState`).
+        isDefaultDesign: false,
       });
     });
 
@@ -528,6 +532,7 @@ describe('Inicio — portada (integration)', () => {
         mode: 'benefits',
         benefitsCount: 0,
         authorizedForReactivationCount: 0,
+        isDefaultDesign: false,
       });
     });
 
@@ -704,8 +709,14 @@ describe('Inicio — portada (integration)', () => {
   // "activar sellos" ni "configurar automatizaciones" — esas ya se
   // resolvieron (o quedaron con su default) al terminar `/comenzar`.
 
-  describe('checklist de puesta en marcha', () => {
-    it('un negocio recién creado (solo beneficios, sin sellos) pide Google y el primer beneficio', async () => {
+  describe('checklist de puesta en marcha ("Primeros pasos")', () => {
+    /** `setupTasks` ahora es parte de `overview()` — un solo round-trip. */
+    async function taskIds(businessId: string) {
+      const { setupTasks } = await home.overview(businessId);
+      return setupTasks.map((t) => t.id);
+    }
+
+    it('un negocio recién creado (solo beneficios, sin sellos, sin clientes) pide Google, el primer beneficio y el primer cliente', async () => {
       const businessId = await makeBusiness();
       // El onboarding nuevo ya crea el QR principal en el paso 1.
       await prisma.visitSource.create({
@@ -717,9 +728,13 @@ describe('Inicio — portada (integration)', () => {
         },
       });
 
-      expect(await home.setupTasks(businessId)).toEqual([
+      // Cada tarea depende de SU propia señal, no de que las demás falten
+      // (pedido explícito) — este negocio no tiene Google, ni beneficios, ni
+      // clientes, así que las tres tareas correspondientes aparecen juntas.
+      expect(await taskIds(businessId)).toEqual([
         'google',
         'beneficio',
+        'primer-cliente',
       ]);
     });
 
@@ -742,7 +757,7 @@ describe('Inicio — portada (integration)', () => {
         },
       });
 
-      const pending = await home.setupTasks(businessId);
+      const pending = await taskIds(businessId);
       expect(pending).not.toContain('sellos');
       expect(pending).not.toContain('personalizar-tarjeta');
     });
@@ -759,9 +774,7 @@ describe('Inicio — portada (integration)', () => {
         },
       });
 
-      expect(await home.setupTasks(businessId)).toContain(
-        'personalizar-tarjeta',
-      );
+      expect(await taskIds(businessId)).toContain('personalizar-tarjeta');
     });
 
     it('con sellos activos y la tarjeta ya diseñada, NO pide personalizarla de nuevo', async () => {
@@ -780,9 +793,7 @@ describe('Inicio — portada (integration)', () => {
         },
       });
 
-      expect(await home.setupTasks(businessId)).not.toContain(
-        'personalizar-tarjeta',
-      );
+      expect(await taskIds(businessId)).not.toContain('personalizar-tarjeta');
     });
 
     it('con al menos un beneficio creado, NO pide crear el primero (es opcional, no obligatorio)', async () => {
@@ -804,7 +815,23 @@ describe('Inicio — portada (integration)', () => {
         },
       });
 
-      expect(await home.setupTasks(businessId)).not.toContain('beneficio');
+      expect(await taskIds(businessId)).not.toContain('beneficio');
+    });
+
+    it('la tarea de crear un beneficio queda marcada `optional: true`', async () => {
+      const businessId = await makeBusiness({ google: 'https://g.page/x' });
+      await prisma.visitSource.create({
+        data: {
+          businessId,
+          name: 'Principal',
+          token: randomUUID(),
+          isDefault: true,
+        },
+      });
+
+      const { setupTasks } = await home.overview(businessId);
+      const beneficio = setupTasks.find((t) => t.id === 'beneficio');
+      expect(beneficio?.optional).toBe(true);
     });
 
     /**
@@ -846,7 +873,7 @@ describe('Inicio — portada (integration)', () => {
         data: { automationEligible: true },
       });
 
-      expect(await home.setupTasks(businessId)).toContain('limite-beneficios');
+      expect(await taskIds(businessId)).toContain('limite-beneficios');
     });
 
     it('con el límite mensual configurado, NO pide definirlo', async () => {
@@ -883,16 +910,14 @@ describe('Inicio — portada (integration)', () => {
         update: { maxAutomatedIncentivesPerMonth: 10 },
       });
 
-      expect(await home.setupTasks(businessId)).not.toContain(
-        'limite-beneficios',
-      );
+      expect(await taskIds(businessId)).not.toContain('limite-beneficios');
     });
 
     /**
      * Lo importante del checklist es que se vaya. Un bloque "Primeros pasos"
      * eterno le recuerda al dueño cosas opcionales como si fueran errores.
      */
-    it('DESAPARECE cuando no queda nada relevante pendiente', async () => {
+    it('DESAPARECE (lista vacía) cuando no queda nada relevante pendiente', async () => {
       const businessId = await makeBusiness({ google: 'https://g.page/x' });
       await addProgram(businessId, 'Café gratis');
       await prisma.business.update({
@@ -924,7 +949,7 @@ describe('Inicio — portada (integration)', () => {
         },
       });
 
-      expect(await home.setupTasks(businessId)).toEqual([]);
+      expect(await taskIds(businessId)).toEqual([]);
     });
 
     /**
@@ -948,14 +973,112 @@ describe('Inicio — portada (integration)', () => {
         },
       });
 
-      expect(await home.setupTasks(businessId)).toEqual(['qr']);
+      expect(await taskIds(businessId)).toEqual(['qr']);
     });
 
     it('Google pendiente aparece como tarea y como estado', async () => {
       const businessId = await makeBusiness({ google: null });
 
-      expect(await home.setupTasks(businessId)).toContain('google');
+      expect(await taskIds(businessId)).toContain('google');
       expect((await home.overview(businessId)).reviews.connected).toBe(false);
+    });
+
+    it('0 clientes (con fuente de check-in activa): pide conseguir el primer cliente', async () => {
+      const businessId = await makeBusiness({ google: 'https://g.page/x' });
+      await addProgram(businessId, 'Café gratis');
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { loyaltyCardColor: '#1A1040' },
+      });
+      await prisma.benefit.create({
+        data: {
+          businessId,
+          title: '10% de descuento',
+          type: BenefitType.discount,
+          active: false,
+        },
+      });
+      await prisma.visitSource.create({
+        data: {
+          businessId,
+          name: 'Principal',
+          token: randomUUID(),
+          isDefault: true,
+        },
+      });
+
+      expect(await taskIds(businessId)).toEqual(['primer-cliente']);
+    });
+
+    it('nunca pide "Descargá tu QR": no existe ninguna señal real de si ya se descargó', async () => {
+      const businessId = await makeBusiness({ google: 'https://g.page/x' });
+      await prisma.visitSource.create({
+        data: {
+          businessId,
+          name: 'Principal',
+          token: randomUUID(),
+          isDefault: true,
+        },
+      });
+
+      const ids = await taskIds(businessId);
+      expect(ids.every((id) => !id.toLowerCase().includes('descarg'))).toBe(
+        true,
+      );
+    });
+  });
+
+  // ── Alerta superior: tarjeta digital no configurada ────────────────────
+  // Fiddelik-style banner, mismo criterio que "Personalizá tu tarjeta" en
+  // Primeros pasos (misma señal, dos lugares en la UI a propósito).
+
+  describe('setupAlert — tarjeta digital no configurada', () => {
+    it('sellos ON + diseño default → alerta presente, con el href correcto', async () => {
+      const businessId = await makeBusiness();
+      await addProgram(businessId, 'Café gratis');
+
+      const { setupAlert } = await home.overview(businessId);
+      expect(setupAlert).toEqual({
+        type: 'digital_card_not_configured',
+        title: 'Tarjeta digital no configurada',
+        description:
+          'Terminá de personalizar tu tarjeta para que tus clientes la vean correctamente.',
+        href: '/dashboard/programa?tab=configuracion&section=diseno',
+      });
+    });
+
+    it('sellos ON + diseño personalizado → sin alerta', async () => {
+      const businessId = await makeBusiness();
+      await addProgram(businessId, 'Café gratis');
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { loyaltyCardColor: '#1A1040' },
+      });
+
+      expect((await home.overview(businessId)).setupAlert).toBeNull();
+    });
+
+    it('sellos OFF → sin alerta, sin importar el diseño', async () => {
+      const businessId = await makeBusiness();
+      await prisma.benefit.create({
+        data: {
+          businessId,
+          title: '10% de descuento',
+          type: BenefitType.discount,
+          active: false,
+        },
+      });
+
+      expect((await home.overview(businessId)).setupAlert).toBeNull();
+    });
+
+    it('nunca menciona Apple Wallet ni Google Wallet — Flikker no los ofrece', async () => {
+      const businessId = await makeBusiness();
+      await addProgram(businessId, 'Café gratis');
+
+      const { setupAlert } = await home.overview(businessId);
+      const text = `${setupAlert?.title} ${setupAlert?.description}`.toLowerCase();
+      expect(text).not.toContain('wallet');
     });
   });
 

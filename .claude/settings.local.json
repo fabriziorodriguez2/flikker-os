@@ -294,7 +294,17 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/jobs/whatsapp-bsp.service.spec.ts src/modules/retention-v2/retention-v2-message-dispatch.service.spec.ts src/modules/notifications --silent)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/jobs/providers src/jobs/whatsapp-bsp.service.spec.ts src/jobs/whatsapp-provider.factory.spec.ts --silent)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/common/utils/phone.util.spec.ts --silent)",
-      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/webhooks --silent)"
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/webhooks --silent)",
+      "Bash(netstat -ano)",
+      "Bash(npm run *)",
+      "Bash(tee /tmp/api-dev.log)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" http://localhost:3000/home/overview)",
+      "Bash(grep -v \"select:\\\\|true,\\\\s*$\")",
+      "Bash(railway run node -e ' *)",
+      "Bash(curl -s -o /dev/null -w \"local api status: %{http_code}\\\\n\" http://localhost:3000/home/overview)",
+      "Bash(powershell -Command \"Stop-Process -Id 2864 -Force -ErrorAction SilentlyContinue; Write-Output done\")",
+      "Bash(powershell -Command \"Get-Process -Id 35040 -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, Path\")",
+      "Bash(powershell -Command \"Stop-Process -Id 35040 -Force -ErrorAction SilentlyContinue; Start-Sleep -Milliseconds 500; Write-Output done\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

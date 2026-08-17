@@ -19,10 +19,32 @@ import { ReviewsOverviewService } from '../reviews/reviews-overview.service';
  * activos" por su cuenta, tarde o temprano mostraría un número distinto del
  * que muestra Clientes para el mismo negocio, y el dueño dejaría de confiar
  * en los dos. Lo único que se calcula acá es lo que no existe en ningún otro
- * lado: el estado del programa y la actividad reciente.
+ * lado: el estado del programa, la actividad reciente y qué falta configurar.
+ *
+ * Rediseño (pedido explícito): todo en UNA sola llamada — `setupAlert` y
+ * `setupTasks` se fusionaron acá adentro, ya no hay un `GET /home/setup`
+ * aparte. Reusan datos que `overview()` ya pedía (`program`, `automations`,
+ * `reviews`) en vez de volver a preguntarlos — la única query nueva de
+ * verdad es la fuente de check-in y el conteo de registros, que no existían
+ * en ningún otro lado de esta llamada.
  */
 
 const MS_PER_DAY = 86_400_000;
+
+export interface SetupAlert {
+  type: 'digital_card_not_configured';
+  title: string;
+  description: string;
+  href: string;
+}
+
+export interface SetupTask {
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+  optional?: boolean;
+}
 
 @Injectable()
 export class HomeService {
@@ -34,29 +56,50 @@ export class HomeService {
   ) {}
 
   async overview(businessId: string, now: Date = new Date()) {
-    const [loyalty, automations, reviews, program, activity, redeemed] =
-      await Promise.all([
-        this.loyalty.list(businessId, { limit: 1 }, now),
-        this.notifications.overview(businessId).catch(() => null),
-        this.reviews.forBusiness(businessId, 30, now),
-        this.programState(businessId),
-        this.recentActivity(businessId),
-        // Fase de Programa nuevo — un beneficio canjeado ya NO implica una
-        // tarjeta: retención automática, promociones manuales y tarjetas de
-        // sellos comparten el mismo camino de canje (`BenefitParticipation.
-        // redeemedAt` — ver `RedemptionService.closeRewardGoalIfRedeemed`,
-        // que sincroniza el redeemedAt de la tarjeta con el de acá en el
-        // mismo momento). Contar solo `CustomerRewardGoal` dejaba afuera todo
-        // lo que no viene de una tarjeta; contar los dos hubiera duplicado
-        // cada canje de tarjeta. Esta única cuenta cubre los tres orígenes
-        // sin duplicar ninguno.
-        this.prisma.benefitParticipation.count({
-          where: {
-            businessId,
-            redeemedAt: { gte: new Date(now.getTime() - 30 * MS_PER_DAY) },
-          },
-        }),
-      ]);
+    const [
+      loyalty,
+      automations,
+      reviews,
+      program,
+      activity,
+      redeemed,
+      hasCheckinSource,
+      hasAnyCustomer,
+    ] = await Promise.all([
+      this.loyalty.list(businessId, { limit: 1 }, now),
+      this.notifications.overview(businessId).catch(() => null),
+      this.reviews.forBusiness(businessId, 30, now),
+      this.programState(businessId),
+      this.recentActivity(businessId),
+      // Fase de Programa nuevo — un beneficio canjeado ya NO implica una
+      // tarjeta: retención automática, promociones manuales y tarjetas de
+      // sellos comparten el mismo camino de canje (`BenefitParticipation.
+      // redeemedAt` — ver `RedemptionService.closeRewardGoalIfRedeemed`,
+      // que sincroniza el redeemedAt de la tarjeta con el de acá en el
+      // mismo momento). Contar solo `CustomerRewardGoal` dejaba afuera todo
+      // lo que no viene de una tarjeta; contar los dos hubiera duplicado
+      // cada canje de tarjeta. Esta única cuenta cubre los tres orígenes
+      // sin duplicar ninguno.
+      this.prisma.benefitParticipation.count({
+        where: {
+          businessId,
+          redeemedAt: { gte: new Date(now.getTime() - 30 * MS_PER_DAY) },
+        },
+      }),
+      // Caso de borde real (§2 "Primeros pasos" / QR): en el flujo normal
+      // esto nunca pasa (el onboarding crea la fuente principal en el paso
+      // 1) — solo importa si esa fuente se borró después, porque ahí el
+      // check-in deja de poder funcionar.
+      this.prisma.visitSource.findFirst({
+        where: { businessId, isDefault: true },
+        select: { id: true },
+      }),
+      this.prisma.customerEvent.count({
+        where: { businessId, type: CustomerEventType.customer_registered },
+      }),
+    ]);
+
+    const benefitsAutomation = automations?.benefitsAutomation ?? null;
 
     return {
       periodDays: loyalty.kpis.windowDays,
@@ -95,7 +138,124 @@ export class HomeService {
       },
 
       activity,
+
+      // ── §1/§2 — alerta superior + "Primeros pasos" ─────────────────────
+      setupAlert: this.buildSetupAlert(program),
+      setupTasks: this.buildSetupTasks({
+        program,
+        googleConnected: reviews.google.connected,
+        benefitsAutomationStatus: benefitsAutomation?.status ?? null,
+        hasCheckinSource: hasCheckinSource !== null,
+        hasAnyCustomer: hasAnyCustomer > 0,
+      }),
     };
+  }
+
+  /**
+   * §1 — Alerta tipo Fiddelik. Reusa `program` (ya calculado más arriba, con
+   * el MISMO criterio que Programa → Configuración → Diseño): solo existe si
+   * la tarjeta está activa de verdad (`mode: 'stamps'`) Y todavía tiene el
+   * diseño default. Sin sellos, o con diseño ya personalizado: `null`, y el
+   * banner no se muestra — no se agregó ninguna columna nueva, se derivó del
+   * mismo `loyaltyCardColor === null` que ya usaba Programa.
+   */
+  private buildSetupAlert(
+    program: Awaited<ReturnType<HomeService['programState']>>,
+  ): SetupAlert | null {
+    if (program.mode !== 'stamps' || !program.isDefaultDesign) return null;
+
+    return {
+      type: 'digital_card_not_configured',
+      title: 'Tarjeta digital no configurada',
+      description:
+        'Terminá de personalizar tu tarjeta para que tus clientes la vean correctamente.',
+      href: '/dashboard/programa?tab=configuracion&section=diseno',
+    };
+  }
+
+  /**
+   * §2 — "Primeros pasos". Cada tarea sale de una señal real, nunca de un
+   * estado inventado. Deliberadamente NO incluye "Descargá tu QR": no existe
+   * ningún campo que diga si el dueño ya lo descargó, y agregar uno solo
+   * para esto sería inventar el estado que el pedido explícitamente prohíbe.
+   */
+  private buildSetupTasks(input: {
+    program: Awaited<ReturnType<HomeService['programState']>>;
+    googleConnected: boolean;
+    benefitsAutomationStatus: string | null;
+    hasCheckinSource: boolean;
+    hasAnyCustomer: boolean;
+  }): SetupTask[] {
+    const tasks: SetupTask[] = [];
+
+    if (!input.googleConnected) {
+      tasks.push({
+        id: 'google',
+        title: 'Conectá Google',
+        description:
+          'Así los clientes que dejan una buena reseña pueden compartirla en Google.',
+        href: '/dashboard/reviews',
+      });
+    }
+
+    // Mismo criterio que la alerta — nunca "activá sellos", solo
+    // personalizar el diseño de una tarjeta que YA está activa.
+    if (input.program.mode === 'stamps' && input.program.isDefaultDesign) {
+      tasks.push({
+        id: 'personalizar-tarjeta',
+        title: 'Personalizá tu tarjeta',
+        description:
+          'Elegí los colores y el sello que van a ver tus clientes.',
+        href: '/dashboard/programa?tab=configuracion&section=diseno',
+      });
+    }
+
+    // Optativo a propósito: la retención funciona igual sin ningún
+    // beneficio (reminder-only).
+    if (input.program.benefitsCount === 0) {
+      tasks.push({
+        id: 'beneficio',
+        title: 'Creá tu primer beneficio',
+        description:
+          'Un descuento, un regalo o lo que quieras ofrecer — se usa en Programa y en Notificaciones.',
+        href: '/dashboard/programa?tab=configuracion&section=beneficios',
+        optional: true,
+      });
+    }
+
+    // Bloqueante de verdad: un beneficio autorizado sin límite mensual
+    // configurado nunca se emite (ver Notificaciones → Te extrañamos).
+    if (input.benefitsAutomationStatus === 'necesita_limite') {
+      tasks.push({
+        id: 'limite-beneficios',
+        title: 'Definí el límite mensual de beneficios',
+        description:
+          'Tenés beneficios autorizados para reactivar clientes, pero necesitan un tope mensual antes de poder enviarse.',
+        href: '/dashboard/notificaciones',
+      });
+    }
+
+    // Caso de borde real — ver comentario en `overview()`.
+    if (!input.hasCheckinSource) {
+      tasks.push({
+        id: 'qr',
+        title: 'Revisá tu QR',
+        description:
+          'No encontramos una fuente de check-in activa — sin esto tus clientes no pueden registrarse.',
+        href: '/dashboard/qr',
+      });
+    }
+
+    if (input.hasCheckinSource && !input.hasAnyCustomer) {
+      tasks.push({
+        id: 'primer-cliente',
+        title: 'Conseguí tu primer cliente',
+        description: 'Compartí tu QR o probalo vos mismo para ver cómo funciona.',
+        href: '/dashboard/qr',
+      });
+    }
+
+    return tasks;
   }
 
   /**
@@ -105,6 +265,11 @@ export class HomeService {
    * de verdad la tiene configurada (sellos + recompensa activos); en
    * cualquier otro caso (solo beneficios, o directamente nada todavía)
    * `mode: 'benefits'`, que cubre los dos sin dejar un hueco vacío de tarjeta.
+   *
+   * `benefitsCount` viaja SIEMPRE, sin importar el modo — un negocio con
+   * tarjeta activa puede además tener beneficios independientes, y
+   * "Primeros pasos" necesita esa cuenta en los dos casos sin pedirla de
+   * nuevo.
    */
   private async programState(businessId: string) {
     const [settings, reward, business, benefitsCount, authorizedCount] =
@@ -159,6 +324,7 @@ export class HomeService {
           stampIcon: business?.loyaltyStampIcon ?? null,
           logoUrl: business?.logoUrl ?? null,
         },
+        benefitsCount,
       };
     }
 
@@ -166,6 +332,11 @@ export class HomeService {
       mode: 'benefits' as const,
       benefitsCount,
       authorizedForReactivationCount: authorizedCount,
+      // Los dos campos de abajo solo tienen sentido en modo `stamps` — se
+      // dejan en `false`/`null` acá para que `buildSetupAlert`/
+      // `buildSetupTasks` puedan mirar `program.isDefaultDesign` sin
+      // preguntar antes por el modo.
+      isDefaultDesign: false,
     };
   }
 
@@ -308,79 +479,5 @@ export class HomeService {
     return events
       .sort((a, b) => b.at.getTime() - a.at.getTime())
       .slice(0, limit);
-  }
-
-  /**
-   * Checklist de puesta en marcha — para las tareas de DESPUÉS del onboarding
-   * nuevo, no para repetirlo. El onboarding ya resolvió negocio, estrategia
-   * inicial y (opcionalmente) sellos — lo que sigue son recomendaciones
-   * puntuales, nunca otro wizard:
-   *
-   *  - Activar o desactivar la tarjeta de sellos NO es una tarea pendiente:
-   *    es una decisión ya tomada en el onboarding (o después, a propósito,
-   *    desde Programa → Sellos). Por eso este checklist nunca pide
-   *    "activar sellos", solo personalizar el diseño SI ya están activos.
-   *  - Configurar automatizaciones tampoco: quedan con sus defaults
-   *    (reactivación encendida) apenas termina el onboarding.
-   *  - El QR ya existe siempre (se crea solo en el paso 1) — lo que se
-   *    chequea acá es únicamente la señal de que algo se rompió (sin fuente
-   *    activa), no un "generá tu QR". Descargarlo es una recomendación
-   *    aparte, fuera de este checklist (ver Inicio → acciones rápidas).
-   *
-   * Solo devuelve lo que FALTA. Cuando no queda nada pendiente devuelve una
-   * lista vacía y la sección desaparece de la pantalla — no queremos un
-   * bloque "Primeros pasos" eterno recordándole al dueño cosas opcionales
-   * como si fueran errores.
-   */
-  async setupTasks(businessId: string) {
-    const [settings, reward, source, business, benefitsCount, events, notif] =
-      await Promise.all([
-        this.prisma.retentionSettings.findUnique({
-          where: { businessId },
-          select: { rewardGoalsEnabled: true },
-        }),
-        this.prisma.retentionIncentiveDefinition.findFirst({
-          where: { businessId, rewardGoalEligible: true, active: true },
-          select: { id: true },
-        }),
-        this.prisma.visitSource.findFirst({
-          where: { businessId, isDefault: true },
-          select: { id: true },
-        }),
-        this.prisma.business.findUnique({
-          where: { id: businessId },
-          select: { googleBusinessProfileUrl: true, loyaltyCardColor: true },
-        }),
-        this.prisma.benefit.count({ where: { businessId } }),
-        this.prisma.customerEvent.count({
-          where: { businessId, type: CustomerEventType.customer_registered },
-        }),
-        // Reusado, no reevaluado: NotificationsService ya sabe si hay
-        // beneficios autorizados sin límite mensual configurado (Fase de
-        // presupuesto) — Inicio solo lee esa conclusión.
-        this.notifications.overview(businessId).catch(() => null),
-      ]);
-
-    const pending: string[] = [];
-    if (!business?.googleBusinessProfileUrl) pending.push('google');
-    // Solo si la tarjeta está ACTIVA de verdad — nunca "activá sellos".
-    if (settings?.rewardGoalsEnabled && reward && !business?.loyaltyCardColor) {
-      pending.push('personalizar-tarjeta');
-    }
-    // Optativo a propósito: la retención funciona igual sin ningún beneficio.
-    if (benefitsCount === 0) pending.push('beneficio');
-    // Un beneficio autorizado sin presupuesto configurado nunca se emite
-    // (ver Notificaciones → Te extrañamos → Límite mensual) — esto SÍ es
-    // bloqueante para ese beneficio en particular, no opcional.
-    if (notif?.benefitsAutomation.status === 'necesita_limite') {
-      pending.push('limite-beneficios');
-    }
-    // Caso de borde: en el flujo normal esto nunca pasa (el onboarding ya
-    // crea el QR principal), pero si la fuente activa se borró, el check-in
-    // no puede funcionar — eso sí es bloqueante de verdad.
-    if (!source) pending.push('qr');
-    if (pending.length === 0 && events === 0) pending.push('primer-cliente');
-
-    return pending;
   }
 }

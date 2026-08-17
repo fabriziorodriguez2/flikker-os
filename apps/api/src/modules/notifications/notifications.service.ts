@@ -310,6 +310,33 @@ export class NotificationsService {
       });
     }
 
+    // Igual criterio — solo si el valor EFECTIVO cambió, nunca por reafirmar
+    // el mismo estado. Es la única forma de distinguir después "el dueño lo
+    // apagó" de "nunca se inicializó": sin esto, las dos situaciones dejan
+    // exactamente el mismo booleano en la base y son indistinguibles.
+    if (progress !== current.progressReminderEnabled) {
+      await this.programAudit.record({
+        businessId,
+        actorUserId,
+        type: 'automation_toggled',
+        message: progress
+          ? 'Activaste Cerca del premio'
+          : 'Desactivaste Cerca del premio',
+        metadata: { automation: 'cerca_del_premio', enabled: progress },
+      });
+    }
+    if (reactivate !== current.automaticCampaignsEnabled) {
+      await this.programAudit.record({
+        businessId,
+        actorUserId,
+        type: 'automation_toggled',
+        message: reactivate
+          ? 'Activaste Te extrañamos'
+          : 'Desactivaste Te extrañamos',
+        metadata: { automation: 'te_extranamos', enabled: reactivate },
+      });
+    }
+
     // §9 trigger B — this is a real, explicit action (the owner touched
     // Notificaciones), never a bare GET. Covers three cases in one call:
     // turning "Te extrañamos" on, turning "Cerca del premio" on, and

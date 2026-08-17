@@ -5,27 +5,28 @@ import Link from "next/link";
 import {
   ArrowRight,
   Check,
+  CreditCard,
   Gift,
   Loader2,
   MessageCircle,
-  Megaphone,
-  QrCode,
   Store,
 } from "lucide-react";
-import LoyaltyCard from "@/components/public/loyalty-card";
 import { relativeDay } from "./customers/loyalty-ui";
 
 /**
- * Inicio — la portada del producto.
- *
- * En diez segundos el dueño tiene que poder responder: cómo va su programa,
- * si sus clientes vuelven, qué recompensas se usan, cómo van sus reseñas y si
- * Flikker necesita algo de él. Nada más. No es un tablero de métricas: cada
- * bloque resume una sección y manda a ella.
+ * Inicio — la portada del producto. Rediseño (pedido explícito, referencia
+ * estructural: captura de Fiddelik) — más operativo, más denso, menos cards
+ * gigantes. Jerarquía: header → alerta si falta configurar la tarjeta →
+ * Primeros pasos → KPIs → actividad reciente → resúmenes secundarios
+ * (Programa/Reseñas/Automatizaciones), estos últimos compactos, no
+ * protagonistas.
  *
  * Ningún número se calcula acá ni en el backend de Inicio: vienen de los
- * servicios dueños de cada concepto (Clientes, Notificaciones, Reseñas), para
- * que la portada nunca muestre un total distinto del de la sección.
+ * servicios dueños de cada concepto (Clientes, Notificaciones, Reseñas,
+ * Programa), para que la portada nunca muestre un total distinto del de la
+ * sección. `setupAlert`/`setupTasks` tampoco son la excepción — son la
+ * MISMA conclusión que ya calculaba el backend, solo que ahora vienen en
+ * `overview()` en vez de un segundo round-trip.
  */
 
 /**
@@ -42,13 +43,6 @@ type HomeProgram =
       participating: number;
       available: number;
       isDefaultDesign: boolean;
-      businessName: string;
-      appearance: {
-        cardColor: string | null;
-        stampColor: string | null;
-        stampIcon: string | null;
-        logoUrl: string | null;
-      };
     }
   | {
       mode: "benefits";
@@ -62,6 +56,21 @@ type AutomationItemState =
   | "sin_canal"
   | "preparando"
   | "desactivado";
+
+interface SetupAlert {
+  type: "digital_card_not_configured";
+  title: string;
+  description: string;
+  href: string;
+}
+
+interface SetupTask {
+  id: string;
+  title: string;
+  description: string;
+  href: string;
+  optional?: boolean;
+}
 
 interface HomeOverview {
   periodDays: number;
@@ -81,11 +90,6 @@ interface HomeOverview {
     }[];
     activeCount: number;
     testMode: boolean;
-    /**
-     * Independiente del estado de la automatización en sí — "Te extrañamos"
-     * puede estar `activo` mientras esto dice `necesita_limite`. Reenviado
-     * tal cual de Notificaciones, sin recalcular nada acá.
-     */
     benefitsAutomation: {
       status: "sin_autorizar" | "necesita_limite" | "listo" | "limite_alcanzado";
       monthlyLimit: number | null;
@@ -112,6 +116,8 @@ interface HomeOverview {
     customer: { id: string; name: string } | null;
     rewardName: string | null;
   }[];
+  setupAlert: SetupAlert | null;
+  setupTasks: SetupTask[];
 }
 
 const AUTOMATION_LABEL: Record<string, string> = {
@@ -120,58 +126,47 @@ const AUTOMATION_LABEL: Record<string, string> = {
 };
 
 /**
- * Tareas pendientes de DESPUÉS del onboarding, no otro wizard — el
- * onboarding ya resolvió negocio, estrategia inicial y (opcionalmente)
- * sellos. Por eso ninguna tarea acá es "activá sellos" ni "configurá
- * automatizaciones": esas ya se decidieron (o quedaron con su default).
- *
- * `optional: true` se muestra con una etiqueta aparte — Flikker funciona
- * igual sin esa tarea, no es una condición para que el negocio ande.
+ * Chequeo mínimo, no una validación exhaustiva de schema: solo lo que hace
+ * falta para que el render de más abajo nunca reciba `undefined` donde
+ * espera un array. Si esto no alcanza, es preferible mostrar "no pudimos
+ * cargar" y dejar reintentar, no un error de React a mitad de pantalla.
  */
-const SETUP_TASKS: Record<
-  string,
-  { label: string; href: string; optional?: boolean }
-> = {
-  google: { label: "Conectá Google", href: "/dashboard/reviews" },
-  "personalizar-tarjeta": {
-    label: "Personalizá tu tarjeta",
-    href: "/dashboard/programa?tab=configuracion&section=diseno",
-  },
-  beneficio: {
-    label: "Creá tu primer beneficio",
-    href: "/dashboard/programa?tab=configuracion&section=beneficios",
-    optional: true,
-  },
-  // Fase de presupuesto: un beneficio autorizado sin límite mensual nunca
-  // se emite — esto SÍ bloquea a ese beneficio en particular, no es opcional.
-  "limite-beneficios": {
-    label: "Definí el límite mensual de beneficios",
-    href: "/dashboard/notificaciones",
-  },
-  // Caso de borde: en el flujo normal el onboarding ya creó el QR
-  // principal. Esto solo aparece si esa fuente se borró después.
-  qr: { label: "No tenés un QR activo", href: "/dashboard/qr" },
-  "primer-cliente": {
-    label: "Recibí tu primer cliente",
-    href: "/dashboard/qr",
-  },
-};
+function isHomeOverview(value: unknown): value is HomeOverview {
+  if (typeof value !== "object" || value === null) return false;
+  const v = value as Partial<HomeOverview>;
+  return (
+    Array.isArray(v.activity) &&
+    Array.isArray(v.setupTasks) &&
+    typeof v.kpis === "object" &&
+    v.kpis !== null &&
+    typeof v.program === "object" &&
+    v.program !== null &&
+    typeof v.reviews === "object" &&
+    v.reviews !== null
+  );
+}
 
 export default function HomeClient({ firstName }: { firstName: string }) {
   const [data, setData] = useState<HomeOverview | null>(null);
-  const [pending, setPending] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setError(null);
     try {
-      const [overviewRes, setupRes] = await Promise.all([
-        fetch("/api/proxy/home/overview"),
-        fetch("/api/proxy/home/setup"),
-      ]);
-      if (!overviewRes.ok) throw new Error("No pudimos cargar tu inicio.");
-      setData((await overviewRes.json()) as HomeOverview);
-      if (setupRes.ok) setPending((await setupRes.json()) as string[]);
+      const res = await fetch("/api/proxy/home/overview");
+      if (!res.ok) throw new Error("No pudimos cargar tu inicio.");
+      const raw: unknown = await res.json();
+      // Nunca confiar ciegamente en el `as HomeOverview` de antes: si el
+      // backend está caído, recién arrancó, o devuelve un shape viejo (dev
+      // desincronizado), esto evita un crash de render por leer `.length`
+      // de un campo inexistente — se ve como "no pudimos cargar", no una
+      // pantalla rota.
+      if (!isHomeOverview(raw)) {
+        throw new Error(
+          "No pudimos cargar tu inicio — probá recargar en unos segundos.",
+        );
+      }
+      setData(raw);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error inesperado.");
     }
@@ -206,10 +201,12 @@ export default function HomeClient({ firstName }: { firstName: string }) {
     );
   }
 
-  const { kpis, program, automations, reviews, activity } = data;
+  const { kpis, program, automations, reviews, activity, setupAlert, setupTasks } =
+    data;
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
+      {/* ── 1. Header ─────────────────────────────────────────────────── */}
       <header>
         <h1 className="font-display text-[27px] font-semibold leading-tight tracking-[-0.025em] text-[#202333] md:text-[30px]">
           Hola, {firstName}
@@ -219,52 +216,89 @@ export default function HomeClient({ firstName }: { firstName: string }) {
         </p>
       </header>
 
-      {/* ── Checklist — solo si falta algo ────────────────────────────── */}
-      {pending.length > 0 ? (
-        <section className="rounded-[16px] border border-[#5C6BC0]/25 bg-[#F4F5FD] px-5 py-4">
+      {/* ── 2. Alerta: tarjeta digital no configurada ────────────────────
+          Solo si hay sellos activos Y el diseño sigue en default — nunca
+          "activá sellos", nunca Apple/Google Wallet (Flikker no los ofrece). */}
+      {setupAlert ? (
+        <section className="rounded-[16px] border border-[#5C6BC0]/30 bg-[#F4F5FD] px-5 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-[#5C6BC0]">
+                <CreditCard className="h-4 w-4" aria-hidden="true" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-[#202333]">
+                  {setupAlert.title}
+                </p>
+                <p className="mt-0.5 text-sm leading-5 text-[#5F6780]">
+                  {setupAlert.description}
+                </p>
+              </div>
+            </div>
+            <Link
+              href={setupAlert.href}
+              className="inline-flex h-10 shrink-0 items-center rounded-[10px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
+            >
+              Configurar
+            </Link>
+          </div>
+        </section>
+      ) : null}
+
+      {/* ── 3. Primeros pasos ─────────────────────────────────────────── */}
+      {setupTasks.length > 0 ? (
+        <section className="rounded-[16px] border border-[#E8EAF0] bg-white px-5 py-4 sm:px-6">
           <p className="text-sm font-semibold text-[#202333]">
-            Para terminar de poner Flikker en marcha
+            Primeros pasos
           </p>
-          <ul className="mt-3 space-y-2">
-            {pending.map((key) => {
-              const task = SETUP_TASKS[key];
-              if (!task) return null;
-              return (
-                <li key={key}>
-                  <Link
-                    href={task.href}
-                    className="inline-flex items-center gap-2.5 text-sm text-[#5F6780] hover:text-[#202333]"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="h-4 w-4 shrink-0 rounded-full border-2 border-[#C8D0E0]"
-                    />
-                    {task.label}
-                    {task.optional ? (
-                      <span className="rounded-full bg-[#F1F3FA] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8891A4]">
-                        Opcional
+          <p className="mt-0.5 text-xs text-[#8891A4]">
+            Seguí estos pasos para terminar de poner Flikker en marcha.
+          </p>
+          <ul className="mt-3 space-y-0.5">
+            {setupTasks.map((task) => (
+              <li key={task.id}>
+                <Link
+                  href={task.href}
+                  className="group -mx-2 flex items-start gap-2.5 rounded-[10px] px-2 py-2 transition-colors hover:bg-[#F5F6FA]"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="mt-1 h-3.5 w-3.5 shrink-0 rounded-full border-2 border-[#C8D0E0]"
+                  />
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="text-sm font-semibold text-[#202333] group-hover:text-[#5C6BC0]">
+                        {task.title}
                       </span>
-                    ) : null}
-                    <ArrowRight className="h-3.5 w-3.5 text-[#5C6BC0]" />
-                  </Link>
-                </li>
-              );
-            })}
+                      {task.optional ? (
+                        <span className="rounded-full bg-[#F1F3FA] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8891A4]">
+                          Opcional
+                        </span>
+                      ) : null}
+                    </span>
+                    <span className="mt-0.5 block text-xs leading-5 text-[#8891A4]">
+                      {task.description}
+                    </span>
+                  </span>
+                  <ArrowRight className="mt-1 h-3.5 w-3.5 shrink-0 text-[#5C6BC0] opacity-0 transition-opacity group-hover:opacity-100" />
+                </Link>
+              </li>
+            ))}
           </ul>
         </section>
       ) : null}
 
-      {/* ── KPIs ──────────────────────────────────────────────────────── */}
+      {/* ── 4. KPIs ───────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi
           label="Clientes activos"
           value={kpis.activeCustomers}
-          hint={`Vinieron en ${data.periodDays} días`}
+          hint={`En ${data.periodDays} días`}
         />
         <Kpi
           label="Volvieron"
           value={kpis.returningCustomers}
-          hint="Vinieron dos veces o más"
+          hint="Dos visitas o más"
         />
         <Kpi
           label="Beneficios canjeados"
@@ -278,172 +312,7 @@ export default function HomeClient({ firstName }: { firstName: string }) {
         />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        {/* ── Programa ────────────────────────────────────────────────── */}
-        {program.mode === "stamps" ? (
-          <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:p-6">
-            <div className="flex items-center justify-between gap-3">
-              <h2 className="font-display text-lg font-semibold text-[#202333]">
-                Tu tarjeta de sellos
-              </h2>
-              <span className="rounded-full bg-[#EAF7EF] px-2.5 py-1 text-[11px] font-semibold text-[#147A5B]">
-                Activa
-              </span>
-            </div>
-
-            <div className="mt-4 grid gap-4 sm:grid-cols-[180px_1fr] sm:items-center">
-              {/* Preview compacta — el mismo componente que ve el cliente, solo
-                  para mirar. Editar se hace en Programa, nunca acá. */}
-              <div className="mx-auto w-full max-w-[220px] scale-[0.92] sm:mx-0">
-                <LoyaltyCard
-                  rewardName={program.rewardName}
-                  progress={Math.min(2, program.stampsRequired ?? 5)}
-                  target={program.stampsRequired ?? 5}
-                  appearance={{
-                    cardColor: program.appearance.cardColor,
-                    stampColor: program.appearance.stampColor,
-                    stampIcon: program.appearance.stampIcon,
-                    logoUrl: program.appearance.logoUrl,
-                    businessName: program.businessName,
-                  }}
-                />
-              </div>
-
-              <div>
-                <dl className="flex flex-wrap gap-x-8 gap-y-3">
-                  <Mini label="Participando" value={program.participating} />
-                  <Mini label="Disponibles" value={program.available} />
-                  <Mini label="Canjeadas" value={kpis.benefitsRedeemed} />
-                </dl>
-
-                {program.isDefaultDesign ? (
-                  <Cta href="/dashboard/programa?tab=configuracion&section=diseno">
-                    Personalizar tarjeta
-                  </Cta>
-                ) : (
-                  <Cta href="/dashboard/programa?tab=configuracion&section=sellos">
-                    Configurar sellos
-                  </Cta>
-                )}
-              </div>
-            </div>
-          </section>
-        ) : (
-          <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:p-6">
-            <h2 className="font-display text-lg font-semibold text-[#202333]">
-              Tus beneficios
-            </h2>
-
-            <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
-              <Mini label="Creados" value={program.benefitsCount} />
-              <Mini
-                label="Autorizados para reactivación"
-                value={program.authorizedForReactivationCount}
-              />
-            </dl>
-
-            {program.benefitsCount === 0 ? (
-              <p className="mt-4 text-sm leading-6 text-[#7F879C]">
-                Todavía no creaste ningún beneficio. No hace falta para que
-                Flikker funcione — podés hacerlo cuando quieras.
-              </p>
-            ) : null}
-
-            <div className="mt-1 flex flex-wrap items-center gap-x-5 gap-y-1">
-              <Cta href="/dashboard/programa?tab=configuracion&section=beneficios">Ver programa</Cta>
-              {program.benefitsCount === 0 ? (
-                <Cta href="/dashboard/programa?tab=configuracion&section=beneficios">
-                  Crear beneficio
-                </Cta>
-              ) : null}
-            </div>
-          </section>
-        )}
-
-        {/* ── Reseñas ─────────────────────────────────────────────────── */}
-        <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:p-6">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-lg font-semibold text-[#202333]">
-              Reseñas
-            </h2>
-            {!reviews.connected ? (
-              <span className="rounded-full bg-[#FFF7EE] px-2.5 py-1 text-[11px] font-semibold text-[#8A520D]">
-                Google pendiente
-              </span>
-            ) : null}
-          </div>
-
-          {reviews.connected ? (
-            <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-3">
-              <Mini
-                label="Calificación"
-                value={reviews.rating !== null ? `${reviews.rating} ★` : "—"}
-              />
-              <Mini label="Nuevas" value={reviews.newInPeriod} />
-            </dl>
-          ) : (
-            <p className="mt-3 text-sm leading-6 text-[#7F879C]">
-              Conectá Google para ver tus reseñas y que tus clientes puedan
-              compartir su experiencia.
-            </p>
-          )}
-
-          {reviews.toReviewCount > 0 ? (
-            <p className="mt-4 rounded-[10px] bg-[#FFFBF6] px-3.5 py-2.5 text-sm text-[#8A520D]">
-              {reviews.toReviewCount}{" "}
-              {reviews.toReviewCount === 1
-                ? "comentario para revisar"
-                : "comentarios para revisar"}
-            </p>
-          ) : null}
-
-          <Cta href="/dashboard/reviews">
-            {reviews.connected ? "Ver reseñas" : "Conectar Google"}
-          </Cta>
-        </section>
-      </div>
-
-      {/* ── Automatizaciones ──────────────────────────────────────────── */}
-      {automations ? (
-        <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:p-6">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-lg font-semibold text-[#202333]">
-              Automatizaciones
-            </h2>
-            {automations.testMode ? (
-              <span className="rounded-full bg-[#FFF7EE] px-2.5 py-1 text-[11px] font-semibold text-[#8A520D]">
-                Modo de prueba
-              </span>
-            ) : null}
-          </div>
-
-          <ul className="mt-4 space-y-2">
-            {automations.items.map((item) => (
-              <li key={item.key} className="text-sm">
-                <div className="flex items-center justify-between gap-4">
-                  <span className="text-[#202333]">
-                    {AUTOMATION_LABEL[item.key]}
-                  </span>
-                  <AutomationStateBadge state={item.state} />
-                </div>
-                {/* Beneficios — independiente del estado de arriba: "Te
-                    extrañamos" puede estar Activo con esto en "Necesita
-                    límite" (§3/§11). Nunca se muestra para "Cerca del
-                    premio", que no tiene beneficios propios. */}
-                {item.key === "te_extranamos" ? (
-                  <p className="mt-1 text-xs leading-5 text-[#8891A4]">
-                    {benefitsAutomationCopy(automations)}
-                  </p>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-
-          <Cta href="/dashboard/notificaciones">Ver notificaciones</Cta>
-        </section>
-      ) : null}
-
-      {/* ── Actividad reciente ────────────────────────────────────────── */}
+      {/* ── 5. Actividad reciente ─────────────────────────────────────── */}
       <section>
         <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8891A4]">
           Actividad reciente
@@ -459,7 +328,7 @@ export default function HomeClient({ firstName }: { firstName: string }) {
               {activity.map((event) => (
                 <li
                   key={event.id}
-                  className="flex items-center gap-3.5 px-5 py-3.5"
+                  className="flex items-center gap-3.5 px-5 py-3"
                 >
                   <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#F1F3FA] text-[#5C6BC0]">
                     <ActivityIcon kind={event.kind} />
@@ -477,55 +346,90 @@ export default function HomeClient({ firstName }: { firstName: string }) {
               href="/dashboard/customers"
               className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-[#5C6BC0] hover:underline"
             >
-              Ver clientes
+              Ver todos los clientes
               <ArrowRight className="h-3.5 w-3.5" />
             </Link>
           </>
         )}
       </section>
 
-      {/*
-        Solo dos accesos rápidos, y a propósito: "Ver programa", "Ver reseñas"
-        y "Ver clientes" ya están unos centímetros más arriba como CTA de su
-        card. Repetirlos acá sería ruido.
-      */}
-      <div className="flex flex-wrap gap-2.5">
-        <QuickAction href="/dashboard/qr" icon={<QrCode className="h-4 w-4" />}>
-          Descargar QR
-        </QuickAction>
-        <QuickAction
-          href="/dashboard/notificaciones"
-          icon={<Megaphone className="h-4 w-4" />}
-        >
-          Crear promoción
-        </QuickAction>
+      {/* ── 6. Resúmenes secundarios (compactos, no protagonistas) ──────── */}
+      <div className="grid gap-3 lg:grid-cols-3">
+        <SecondaryCard title="Programa" href="/dashboard/programa?tab=configuracion">
+          {program.mode === "stamps" ? (
+            <p className="text-sm text-[#5F6780]">
+              {program.stampsRequired ?? "—"} sellos → {program.rewardName}
+            </p>
+          ) : (
+            <p className="text-sm text-[#5F6780]">
+              {program.benefitsCount}{" "}
+              {program.benefitsCount === 1 ? "beneficio" : "beneficios"}
+            </p>
+          )}
+        </SecondaryCard>
+
+        <SecondaryCard title="Reseñas" href="/dashboard/reviews">
+          {reviews.connected ? (
+            <p className="text-sm text-[#5F6780]">
+              {reviews.rating !== null ? `${reviews.rating} ★` : "Sin calificación"}
+              {reviews.newInPeriod > 0
+                ? ` · ${reviews.newInPeriod} ${reviews.newInPeriod === 1 ? "nueva" : "nuevas"}`
+                : ""}
+            </p>
+          ) : (
+            <p className="text-sm text-[#8A520D]">Google pendiente</p>
+          )}
+        </SecondaryCard>
+
+        {automations ? (
+          <SecondaryCard title="Automatizaciones" href="/dashboard/notificaciones">
+            <ul className="space-y-1">
+              {automations.items.map((item) => (
+                <li
+                  key={item.key}
+                  className="flex items-center justify-between gap-3 text-sm"
+                >
+                  <span className="text-[#5F6780]">
+                    {AUTOMATION_LABEL[item.key]}
+                  </span>
+                  <AutomationStateBadge state={item.state} />
+                </li>
+              ))}
+            </ul>
+          </SecondaryCard>
+        ) : null}
       </div>
     </div>
   );
 }
 
-function QuickAction({
+function SecondaryCard({
+  title,
   href,
-  icon,
   children,
 }: {
+  title: string;
   href: string;
-  icon: React.ReactNode;
   children: React.ReactNode;
 }) {
   return (
-    <Link
-      href={href}
-      className="inline-flex h-11 items-center gap-2 rounded-[11px] border border-[#E3E5F0] bg-white px-4 text-sm font-semibold text-[#202333] transition-colors hover:border-[#5C6BC0]"
-    >
-      {icon}
-      {children}
-    </Link>
+    <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-4">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-sm font-semibold text-[#202333]">{title}</h2>
+        <Link
+          href={href}
+          className="shrink-0 text-xs font-semibold text-[#5C6BC0] hover:underline"
+        >
+          Ver {title.toLowerCase()}
+        </Link>
+      </div>
+      <div className="mt-2">{children}</div>
+    </section>
   );
 }
 
 /**
- * §3/§11 — el mismo vocabulario de estado que ya usa Notificaciones: un
+ * §3/§11 (fase anterior) — mismo vocabulario que ya usa Notificaciones: un
  * negocio recién creado no debe leerse como "Activo" con 0 infraestructura
  * (`preparando`), y "sin canal"/"modo de prueba" nunca deben mostrarse
  * engañosamente como si el mensaje realmente estuviera saliendo.
@@ -553,30 +457,11 @@ function AutomationStateBadge({ state }: { state: AutomationItemState }) {
   const { label, className } = copy[state] ?? copy.desactivado;
   return (
     <span
-      className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${className}`}
+      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${className}`}
     >
       {label}
     </span>
   );
-}
-
-/** §3 — sub-línea de beneficios bajo "Te extrañamos", nunca recalculada acá. */
-function benefitsAutomationCopy(
-  automations: NonNullable<HomeOverview["automations"]>,
-): string {
-  const { status, monthlyLimit, usedThisMonth } = automations.benefitsAutomation;
-  switch (status) {
-    case "sin_autorizar":
-      return "Solo recordatorios, sin beneficio.";
-    case "necesita_limite":
-      return "Tiene beneficios autorizados, pero necesita un límite mensual.";
-    case "limite_alcanzado":
-      return `Límite de beneficios alcanzado este mes (${usedThisMonth}/${monthlyLimit ?? "—"}). Los recordatorios siguen saliendo.`;
-    case "listo":
-      return automations.authorizedBenefitsCount > 0
-        ? `${automations.authorizedBenefitsCount} ${automations.authorizedBenefitsCount === 1 ? "beneficio disponible" : "beneficios disponibles"}.`
-        : "Solo recordatorios, sin beneficio.";
-  }
 }
 
 /** Texto de un evento. El backend manda la clave; la frase se arma acá. */
@@ -630,39 +515,14 @@ function Kpi({
   hint: string;
 }) {
   return (
-    <div className="rounded-[14px] border border-[#E8EAF0] bg-white px-4 py-4">
+    <div className="rounded-[14px] border border-[#E8EAF0] bg-white px-4 py-3.5">
       <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
         {label}
       </p>
-      <p className="mt-1.5 font-display text-2xl font-semibold tracking-[-0.02em] text-[#202333]">
+      <p className="mt-1 font-display text-2xl font-semibold tracking-[-0.02em] text-[#202333]">
         {value}
       </p>
-      <p className="mt-1 text-[11px] leading-4 text-[#B0B8C9]">{hint}</p>
+      <p className="mt-0.5 text-[11px] leading-4 text-[#B0B8C9]">{hint}</p>
     </div>
-  );
-}
-
-function Mini({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div>
-      <dt className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
-        {label}
-      </dt>
-      <dd className="mt-0.5 font-display text-lg font-semibold text-[#202333]">
-        {value}
-      </dd>
-    </div>
-  );
-}
-
-function Cta({ href, children }: { href: string; children: React.ReactNode }) {
-  return (
-    <Link
-      href={href}
-      className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-[#5C6BC0] hover:underline"
-    >
-      {children}
-      <ArrowRight className="h-3.5 w-3.5" />
-    </Link>
   );
 }
