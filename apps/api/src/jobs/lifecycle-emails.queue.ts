@@ -31,7 +31,12 @@ export class LifecycleEmailsQueue implements OnModuleInit, OnModuleDestroy {
       {
         jobId: RUN_LIFECYCLE_EMAILS_SWEEP_JOB,
         repeat: {
-          pattern: process.env.LIFECYCLE_EMAILS_SWEEP_CRON ?? '0 9 * * *',
+          // Antes que Retention V2 (`RETENTION_V2_EVALUATE_CRON`, default
+          // `0 9 * * *`) — a propósito: el cooldown global de 24h le da el
+          // slot del día a quien reclama primero, y la prioridad pedida es
+          // Cumpleaños/Sellos por vencer antes que Casi llegás/Te
+          // extrañamos.
+          pattern: process.env.LIFECYCLE_EMAILS_SWEEP_CRON ?? '55 8 * * *',
         },
         removeOnComplete: 30,
         removeOnFail: false,

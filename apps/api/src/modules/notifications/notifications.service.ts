@@ -137,11 +137,12 @@ export class NotificationsService {
               state: settings.stampsExpiryEmailEnabled
                 ? ('activo' as const)
                 : ('inactivo' as const),
-              // Free, siempre — sellos es Free y este email no depende de
-              // Retention V2 ni de ningún plan.
+              // Free, siempre — sellos es Free y no depende de Retention V2
+              // ni de ningún plan. WhatsApp real desde `StampsExpiryEmailService`
+              // (nombre histórico — manda los dos canales).
               plan: 'free' as const,
               locked: false,
-              channels: ['email'] as const,
+              channels: ['whatsapp', 'email'] as const,
             },
             {
               key: 'cerca_del_premio' as const,
@@ -171,7 +172,7 @@ export class NotificationsService {
         // sin ningún equivalente Free detrás.
         plan: 'pro' as const,
         locked: !proAccess,
-        channels: ['email'] as const,
+        channels: ['whatsapp', 'email'] as const,
       },
       {
         key: 'te_extranamos' as const,

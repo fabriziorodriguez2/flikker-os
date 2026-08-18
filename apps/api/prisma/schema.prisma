@@ -599,6 +599,7 @@ model Business {
   aiUsageEvents                 AiUsageEvent[]
   optimizationRuns              RetentionOptimizationRun[]
   emailLogs                     EmailLog[]
+  automationContacts            CustomerAutomationContact[]
 }
 
 // ---------------------------------------------------------------------------
@@ -1277,14 +1278,25 @@ model RewardGoalBonusStamp {
 //   reactivation       → el id del Message que Retention V2 ya creó
 //   birthday           → `${año}` (a lo sumo un cumpleaños por año)
 //   promotion          → el id del ManualCampaign
+/// A pesar del nombre (histórico — nació solo para email), esta tabla ya
+/// registra CUALQUIER envío automático de Notificaciones, email o WhatsApp
+/// (`channel`). No se renombró el modelo/tabla para no arrastrar ese cambio
+/// a los ~8 archivos que ya la usan en esta misma tanda — queda como deuda
+/// técnica documentada, no como un error.
 model EmailLog {
   id           String    @id @default(uuid())
   businessId   String    @map("business_id")
   customerId   String    @map("customer_id")
   kind         String
+  /// 'email' | 'whatsapp'. Default 'email' por las filas de antes de este
+  /// campo — todas eran de email en ese momento, así que el default es
+  /// exacto, no una adivinanza.
+  channel      String    @default("email")
   dedupeKey    String    @map("dedupe_key")
-  /// 'sent' | 'failed' — nunca 'queued': la fila se crea en el mismo
-  /// instante en que se intenta enviar, no antes.
+  /// 'sent' | 'failed' | 'suppressed' — nunca 'queued': la fila se crea en
+  /// el mismo instante en que se intenta enviar, no antes. 'suppressed' es
+  /// del cooldown global (`AutomationCooldownService`): se intentó pero otra
+  /// automatización ya había contactado a este cliente en las últimas 24h.
   status       String
   errorMessage String?   @map("error_message")
   sentAt       DateTime? @map("sent_at")
@@ -1293,9 +1305,46 @@ model EmailLog {
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 
-  @@unique([businessId, kind, dedupeKey])
+  /// `channel` entra en la unicidad a propósito: el mismo `dedupeKey` de una
+  /// ocurrencia (ej. un año de cumpleaños) reserva un slot POR CANAL, no uno
+  /// compartido — así el email y el WhatsApp de la misma ocurrencia pueden
+  /// coexistir sin que el segundo se lea como duplicado del primero.
+  @@unique([businessId, kind, channel, dedupeKey])
   @@index([businessId, createdAt])
   @@map("email_logs")
+}
+
+/// Cooldown central: como máximo 1 mensaje automático por cliente cada 24h,
+/// sin importar cuál automatización lo manda. `customerId` es la clave —
+/// una fila por cliente, se pisa en cada contacto exitoso. Prioridad al
+/// reclamar el slot (documentada, no forzada por este modelo): Cumpleaños >
+/// Sellos por vencer > Casi llegás > Te extrañamos/Retention V2 — se logra
+/// ordenando CUÁNDO corre cada sweep/dispatcher, no comparando prioridades
+/// acá adentro.
+model CustomerAutomationContact {
+  customerId String @id @map("customer_id")
+  businessId String @map("business_id")
+  /// Qué automatización tiene el turno — 'birthday' | 'stamps_expiry' |
+  /// 'progress_reminder' | 'reactivation'. Prioridad en ese orden.
+  kind       String
+  /// 'pending' (reservado, todavía no mandó nada) | 'confirmed' (ya mandó).
+  /// El período de gracia entre reservar y confirmar es lo que le da
+  /// tiempo a una automatización de mayor prioridad a robarle el turno
+  /// antes de que se mande cualquier cosa — ver `AutomationCooldownService`.
+  status      String
+  /// Cuándo se abrió el turno vigente. NO se actualiza cuando una
+  /// automatización de mayor prioridad le roba el turno a otra — el reloj
+  /// de gracia sigue corriendo desde que el turno se abrió, no desde que
+  /// esta automatización se sumó.
+  reservedAt  DateTime  @map("reserved_at")
+  confirmedAt DateTime? @map("confirmed_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId])
+  @@map("customer_automation_contacts")
 }
 
 // ---------------------------------------------------------------------------
@@ -1652,6 +1701,7 @@ model Customer {
   checkinFeedback          CheckinFeedback[]
   rewardGoalBonusStamps    RewardGoalBonusStamp[]
   emailLogs                EmailLog[]
+  automationContact        CustomerAutomationContact?
 
   @@index([businessId])
   @@index([businessId, isActive])

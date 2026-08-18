@@ -165,7 +165,7 @@ export default function PromotionsTab() {
         <button
           type="button"
           onClick={reset}
-          className="mt-6 inline-flex h-11 items-center rounded-[11px] border border-[#E3E5F0] bg-white px-5 text-sm font-semibold text-[#202333] hover:border-[#5C6BC0]"
+          className="flk-glossy-secondary mt-6 inline-flex h-11 items-center rounded-[11px] border border-[#E3E5F0] bg-white px-5 text-sm font-semibold text-[#202333] hover:border-[#5C6BC0]"
         >
           Volver
         </button>
@@ -186,16 +186,12 @@ export default function PromotionsTab() {
               Vos elegís qué mandar y cuándo. Para los mensajes que Flikker
               decide solo, mirá la pestaña Automáticas.
             </p>
-            <p className="mt-1 max-w-2xl text-xs leading-5 text-[#B0B8C9]">
-              Se manda por WhatsApp. Si tu plan es Pro, también les llega por
-              email a quienes tengan uno registrado.
-            </p>
           </div>
           {canSend ? (
             <button
               type="button"
               onClick={() => setCreating(true)}
-              className="inline-flex h-11 items-center rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
+              className="flk-glossy inline-flex h-11 items-center rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
             >
               Crear promoción
             </button>
@@ -257,7 +253,7 @@ export default function PromotionsTab() {
             type="button"
             onClick={() => void send()}
             disabled={sending}
-            className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-60 sm:w-auto"
+            className="flk-glossy mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-60 sm:w-auto"
           >
             {sending ? (
               <Loader2 className="h-4 w-4 animate-spin" />
@@ -371,7 +367,7 @@ export default function PromotionsTab() {
         type="button"
         onClick={() => setConfirming(true)}
         disabled={message.trim().length < 5}
-        className="inline-flex h-11 w-full items-center justify-center rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+        className="flk-glossy inline-flex h-11 w-full items-center justify-center rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >
         Continuar
       </button>

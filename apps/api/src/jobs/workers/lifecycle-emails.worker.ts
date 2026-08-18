@@ -39,26 +39,31 @@ export class LifecycleEmailsWorker implements OnModuleInit, OnModuleDestroy {
   async process(job: Job) {
     if (job.name === RUN_LIFECYCLE_EMAILS_SWEEP_JOB) {
       const now = new Date();
-      // Independientes por diseño (Free y Pro, sin relación entre sí) — un
-      // fallo en una nunca debe frenar la otra.
-      const [stamps, birthday] = await Promise.allSettled([
-        this.stampsExpiry.runDaily(now),
-        this.birthday.runDaily(now),
-      ]);
-      if (stamps.status === 'rejected') {
-        this.logger.error(
-          `Stamps expiry email sweep failed: ${String(stamps.reason)}`,
-        );
+      // Secuencial, NO Promise.allSettled — a propósito. El cooldown global
+      // de 24h (`AutomationCooldownService`) le da el slot a quien llegue
+      // primero, y la prioridad pedida es Cumpleaños > Sellos por vencer:
+      // correrlos en paralelo dejaría el orden real a la suerte del event
+      // loop. Un fallo en uno igual no frena al otro (cada uno atrapa su
+      // propio error).
+      let birthdayResult: Awaited<
+        ReturnType<BirthdayEmailService['runDaily']>
+      > | null = null;
+      try {
+        birthdayResult = await this.birthday.runDaily(now);
+      } catch (error) {
+        this.logger.error(`Birthday email sweep failed: ${String(error)}`);
       }
-      if (birthday.status === 'rejected') {
-        this.logger.error(
-          `Birthday email sweep failed: ${String(birthday.reason)}`,
-        );
+
+      let stampsResult: Awaited<
+        ReturnType<StampsExpiryEmailService['runDaily']>
+      > | null = null;
+      try {
+        stampsResult = await this.stampsExpiry.runDaily(now);
+      } catch (error) {
+        this.logger.error(`Stamps expiry email sweep failed: ${String(error)}`);
       }
-      return {
-        stampsExpiry: stamps.status === 'fulfilled' ? stamps.value : null,
-        birthday: birthday.status === 'fulfilled' ? birthday.value : null,
-      };
+
+      return { birthday: birthdayResult, stampsExpiry: stampsResult };
     }
     this.logger.warn(`Unknown lifecycle-emails job: ${job.name}`);
     return null;

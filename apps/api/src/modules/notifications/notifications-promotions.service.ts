@@ -201,6 +201,7 @@ export class NotificationsPromotionsService {
         businessId: input.businessId,
         customerId: recipient.customerId,
         kind: 'promotion',
+        channel: 'email',
         dedupeKey: `${input.campaignId}:${recipient.customerId}`,
         to: recipient.email,
         subject,

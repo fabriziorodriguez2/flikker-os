@@ -535,7 +535,7 @@ export default function Sidebar(props: SidebarProps) {
       </div>
 
       <div
-        className="relative mt-auto border-t border-[#E4E5EB] px-4 pb-5 pt-4"
+        className="relative mt-auto px-4 pb-5 pt-4"
       >
         <p className="mb-1 truncate px-3 text-xs font-medium text-[#817B94]">
           {props.userName}

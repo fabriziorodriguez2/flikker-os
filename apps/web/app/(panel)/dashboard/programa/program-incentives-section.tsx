@@ -7,6 +7,12 @@ import { CREATABLE_BENEFIT_TYPES, WEEKDAY_LABELS, type ProgramIncentive } from "
 const inputClass =
   "mt-1 w-full rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]";
 
+interface RetentionBudget {
+  maxAutomatedIncentivesPerMonth: number | null;
+  hasIncentiveBearingVariants: boolean;
+  budgetConfigured: boolean;
+}
+
 async function readJson(res: Response) {
   const data: unknown = await res.json().catch(() => null);
   if (!res.ok) {
@@ -47,6 +53,13 @@ export default function ProgramIncentivesSection({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Límite mensual de beneficios automáticos — reusa
+  // `GET/PATCH /retention-v2/settings`, que ya existe y ya valida esto
+  // (`RetentionSettingsService`). No hay backend nuevo acá.
+  const [budget, setBudget] = useState<RetentionBudget | null>(null);
+  const [limitDraft, setLimitDraft] = useState("");
+  const [savingLimit, setSavingLimit] = useState(false);
+
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/proxy/retention-v2/incentives");
@@ -59,9 +72,46 @@ export default function ProgramIncentivesSection({
     }
   }, []);
 
+  const loadBudget = useCallback(async () => {
+    try {
+      const res = await fetch("/api/proxy/retention-v2/settings");
+      const data = (await readJson(res)) as RetentionBudget;
+      setBudget(data);
+      setLimitDraft(
+        data.maxAutomatedIncentivesPerMonth != null
+          ? String(data.maxAutomatedIncentivesPerMonth)
+          : "",
+      );
+    } catch {
+      // Informativo — si falla, el catálogo de incentivos de arriba sigue
+      // funcionando igual.
+    }
+  }, []);
+
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadBudget();
+  }, [load, loadBudget]);
+
+  async function saveLimit() {
+    const n = Number(limitDraft);
+    if (!Number.isInteger(n) || n < 0) return;
+    setSavingLimit(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/proxy/retention-v2/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ maxAutomatedIncentivesPerMonth: n }),
+      });
+      const data = (await readJson(res)) as RetentionBudget;
+      setBudget(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No pudimos guardar.");
+    } finally {
+      setSavingLimit(false);
+    }
+  }
 
   async function run(id: string, action: () => Promise<void>) {
     setBusyId(id);
@@ -114,6 +164,65 @@ export default function ProgramIncentivesSection({
 
   return (
     <div className="space-y-5">
+      {/*
+        Presupuesto de reactivación automática — mueve acá lo que antes
+        vivía en Notificaciones. Reusa `retention-v2/settings`, que ya
+        validaba esto (`RetentionSettingsService.assertBudgetReadyToAuthorize`,
+        llamado también desde `BenefitsService#setRetentionBridge` cuando el
+        dueño autoriza un beneficio para reactivación en Programa → Premios).
+      */}
+      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
+        <h2 className="font-display text-base font-bold text-[#1A202C]">
+          Presupuesto de reactivación automática
+        </h2>
+        <p className="mt-1 text-sm text-[#8891A4]">
+          ¿Cuántos beneficios como máximo puede ofrecer Flikker por mes al
+          reactivar clientes? Sin esto, un beneficio autorizado para
+          reactivación (Premios → &quot;Autorizado para reactivar
+          clientes&quot;) no se puede activar.
+        </p>
+        {budget?.hasIncentiveBearingVariants && !budget.budgetConfigured ? (
+          <p className="mt-3 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-sm text-[#8A520D]">
+            Tenés un beneficio autorizado para reactivación sin límite
+            configurado — Flikker no puede entregarlo hasta que definas uno
+            acá abajo.
+          </p>
+        ) : null}
+        <div className="mt-3 flex items-center gap-2">
+          <input
+            type="number"
+            min={0}
+            step={1}
+            value={limitDraft}
+            placeholder="10"
+            disabled={!canMutate || savingLimit}
+            onChange={(e) => setLimitDraft(e.target.value)}
+            className="h-10 w-28 rounded-[8px] border border-[#E8EAF0] bg-white px-3 text-sm text-[#1A202C] outline-none focus:border-[#5C6BC0] disabled:opacity-60"
+          />
+          {canMutate &&
+          String(budget?.maxAutomatedIncentivesPerMonth ?? "") !==
+            limitDraft.trim() ? (
+            <button
+              type="button"
+              disabled={savingLimit}
+              onClick={() => void saveLimit()}
+              className="flk-glossy inline-flex h-10 items-center rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-60"
+            >
+              {savingLimit ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Guardar
+            </button>
+          ) : null}
+        </div>
+        {budget?.maxAutomatedIncentivesPerMonth != null ? (
+          <p className="mt-2 text-xs leading-5 text-[#8891A4]">
+            Flikker nunca entregará más de{" "}
+            {budget.maxAutomatedIncentivesPerMonth} beneficios automáticos
+            por mes. Los recordatorios sin beneficio no cuentan para este
+            límite.
+          </p>
+        ) : null}
+      </section>
+
       <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

@@ -1,8 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, ExternalLink, Loader2, MessageCircle } from "lucide-react";
-import { supportWhatsAppHref } from "@/src/config/support";
+import {
+  ChartNoAxesColumnIncreasing,
+  ExternalLink,
+  Gift,
+  Globe2,
+  Layers3,
+  Loader2,
+  MessageCircle,
+  QrCode,
+  Send,
+  Stamp,
+  UserRoundSearch,
+} from "lucide-react";
 import { useIsOwnerOrAdmin } from "../../../role-context";
 
 const MERCADOPAGO_CHECKOUT_URL = "https://mpago.la/1Acxajh";
@@ -49,15 +60,40 @@ function formatPrice(currency: string, amount: number) {
   return `${currency} ${new Intl.NumberFormat("es-UY").format(amount)}`;
 }
 
-function Feature({ children, dark = false }: { children: React.ReactNode; dark?: boolean }) {
+function Feature({
+  icon: Icon,
+  title,
+  description,
+  dark = false,
+  green = false,
+}: {
+  icon: typeof QrCode;
+  title: string;
+  description: string;
+  dark?: boolean;
+  green?: boolean;
+}) {
   return (
-    <li className={`flex items-start gap-2.5 text-sm ${dark ? "text-white/82" : "text-[#5C6478]"}`}>
-      <Check
-        className={`mt-0.5 h-4 w-4 shrink-0 ${dark ? "text-[#A69CF7]" : "text-[#5C6BC0]"}`}
-        strokeWidth={2.2}
-        aria-hidden="true"
-      />
-      <span>{children}</span>
+    <li className="flex items-start gap-3">
+      <span
+        className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] ${
+          green
+            ? "bg-[#EAF9F0] text-[#27AE60]"
+            : dark
+              ? "bg-white/10 text-[#A69CF7]"
+              : "bg-[#F2F0FF] text-[#7C6CE8]"
+        }`}
+      >
+        <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+      </span>
+      <span className="min-w-0 pt-0.5">
+        <span className={`block text-sm font-semibold ${dark ? "text-white" : "text-[#1A202C]"}`}>
+          {title}
+        </span>
+        <span className={`mt-0.5 block text-[11px] leading-4 ${dark ? "text-white/48" : "text-[#A0A8B8]"}`}>
+          {description}
+        </span>
+      </span>
     </li>
   );
 }
@@ -161,32 +197,43 @@ export default function CheckinV2SubscriptionClient() {
         </p>
       ) : null}
 
-      <div className="grid items-stretch gap-5 lg:grid-cols-3">
-        <article className="flex min-h-[410px] flex-col rounded-[18px] border border-[#DDE1EC] bg-white p-6 sm:p-7">
+      <div className="mx-auto grid max-w-[940px] items-stretch gap-5 md:grid-cols-2">
+        <article className="flex min-h-[590px] flex-col rounded-[18px] border border-[#DDE1EC] bg-white p-6 sm:p-7">
           <div className="flex min-h-7 items-start justify-between gap-3">
-            <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#6F7688]">Free</p>
+            <span className="inline-flex rounded-full bg-[#F5F6FA] px-2.5 py-1 text-[10px] font-semibold text-[#7F879C]">
+              Base
+            </span>
             {!overview.isPro ? <CurrentBadge /> : null}
           </div>
+          <h2 className="mt-3 text-lg font-bold text-[#1A202C]">Flikker Base</h2>
+          <span className="mt-3 w-fit rounded-full bg-[#FFF1C9] px-2.5 py-1 text-[10px] font-semibold text-[#C66A00]">
+            Para hacer que vuelvan
+          </span>
           <p className="mt-3 text-[34px] font-bold leading-none tracking-[-0.035em] text-[#1A202C]">
             UYU 0
           </p>
-          <p className="mt-3 text-sm text-[#7F879C]">Para empezar a fidelizar</p>
-          <ul className="mt-7 space-y-4">
-            <Feature>Hasta 50 clientes participantes</Feature>
-            <Feature>Tarjeta de sellos</Feature>
-            <Feature>QR/NFC y check-in</Feature>
-            <Feature>Funciones básicas</Feature>
+          <p className="mt-3 text-xs leading-5 text-[#7F879C]">
+            Para convertir cada visita en un motivo concreto para regresar.
+          </p>
+          <div className="my-5 border-t border-[#EEF0F5]" />
+          <ul className="space-y-4">
+            <Feature icon={QrCode} title="Check-in por QR o NFC" description="Cada visita queda registrada en segundos" />
+            <Feature icon={Stamp} title="Sellos y recompensas" description="Progreso claro para dar un motivo para volver" />
+            <Feature icon={Gift} title="Canje por QR" description="Validación simple desde el local" />
+            <Feature icon={Send} title="Feedback post-visita" description="Escuchá al cliente después de su experiencia" />
+            <Feature icon={ChartNoAxesColumnIncreasing} title="Métricas de recurrencia" description="Visitas y clientes que efectivamente regresan" />
+            <Feature icon={UserRoundSearch} title="Hasta 50 clientes participantes" description="El límite real incluido en el plan Free" />
           </ul>
           <div className="mt-auto pt-8">
-            <p className="text-xs leading-5 text-[#A0A8B8]">
-              Sin costo mensual.
-            </p>
+            <p className="text-xs font-medium text-[#7C6CE8]">Base = hacer que vuelvan.</p>
           </div>
         </article>
 
-        <article className="relative flex min-h-[430px] flex-col rounded-[18px] border border-[#17213A] bg-[#0D1B2A] p-6 text-white shadow-[0_18px_34px_rgba(13,27,42,0.18)] sm:p-7 lg:-my-2">
+        <article className="relative flex min-h-[590px] flex-col rounded-[18px] border border-[#17213A] bg-[#0D1B2A] p-6 text-white shadow-[0_18px_34px_rgba(13,27,42,0.18)] sm:p-7 md:-my-2">
           <div className="flex min-h-7 items-start justify-between gap-3">
-            <p className="text-xs font-bold uppercase tracking-[0.1em] text-white/60">Pro</p>
+            <span className="inline-flex rounded-full bg-[#26284B] px-2.5 py-1 text-[10px] font-semibold text-[#B7AEFF]">
+              Pro
+            </span>
             {overview.isPro ? (
               <CurrentBadge dark />
             ) : (
@@ -195,6 +242,10 @@ export default function CheckinV2SubscriptionClient() {
               </span>
             )}
           </div>
+          <h2 className="mt-3 text-lg font-bold text-white">Flikker Pro</h2>
+          <span className="mt-3 w-fit rounded-full bg-[#FFF1C9] px-2.5 py-1 text-[10px] font-semibold text-[#C66A00]">
+            Para recuperarlos también
+          </span>
           <div className="mt-3 flex items-end gap-1.5">
             <p className="text-[34px] font-bold leading-none tracking-[-0.035em]">
               {formatPrice(
@@ -204,14 +255,21 @@ export default function CheckinV2SubscriptionClient() {
             </p>
             <span className="pb-0.5 text-sm text-white/65">/ mes</span>
           </div>
-          <p className="mt-3 text-sm text-white/58">Para negocios en crecimiento</p>
-          <ul className="mt-7 space-y-4">
-            <Feature dark>Clientes participantes sin límite</Feature>
-            <Feature dark>Beneficios sin límite de prueba</Feature>
-            <Feature dark>Tarjeta de sellos</Feature>
-            <Feature dark>QR/NFC y check-in</Feature>
+          <p className="mt-3 text-xs leading-5 text-white/55">
+            Para hacer que vuelvan y recuperar también a quienes cortan el hábito.
+          </p>
+          <div className="my-5 border-t border-white/10" />
+          <ul className="space-y-4">
+            <Feature dark green icon={Layers3} title="Todo lo del Plan Base" description="Check-in, sellos, canjes, feedback y métricas" />
+            <Feature dark green icon={UserRoundSearch} title="Reactivación automática" description="Flikker detecta a quienes dejaron de venir" />
+            <Feature dark green icon={Send} title="Incentivos de recuperación" description="Un motivo concreto para retomar el hábito" />
+            <Feature dark icon={Globe2} title="Reseñas de Google" description="Como complemento del feedback post-visita" />
+            <Feature dark green icon={MessageCircle} title="600 mensajes de WhatsApp incluidos" description="La cuota mensual real del plan Pro" />
           </ul>
           <div className="mt-auto pt-8">
+            <p className="mb-5 text-xs font-medium text-[#A69CF7]">
+              Pro = recuperar también a los que dejan de venir.
+            </p>
             {!overview.isPro && canManage ? (
               <a
                 href={MERCADOPAGO_CHECKOUT_URL}
@@ -230,32 +288,6 @@ export default function CheckinV2SubscriptionClient() {
               <p className="mt-3 text-center text-[11px] leading-4 text-white/45">
                 El pago se confirma por separado; abrir el checkout no activa el plan.
               </p>
-            ) : null}
-          </div>
-        </article>
-
-        <article className="flex min-h-[410px] flex-col rounded-[18px] border border-[#DDE1EC] bg-white p-6 sm:p-7">
-          <div className="min-h-7">
-            <p className="text-xs font-bold uppercase tracking-[0.1em] text-[#6F7688]">Enterprise</p>
-          </div>
-          <p className="mt-3 text-[34px] font-bold leading-none tracking-[-0.035em] text-[#1A202C]">
-            A medida
-          </p>
-          <p className="mt-3 text-sm text-[#7F879C]">Para necesidades especiales</p>
-          <p className="mt-7 text-sm leading-6 text-[#5C6478]">
-            Pensado para negocios con múltiples operaciones, equipos grandes o requerimientos que exceden el alcance de Pro.
-          </p>
-          <div className="mt-auto pt-8">
-            {canManage ? (
-              <a
-                href={supportWhatsAppHref("Hola, quiero consultar por un plan Enterprise de Flikker.")}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-[11px] border border-[#DDE1EC] bg-white px-4 text-sm font-semibold text-[#1A202C] hover:bg-[#F8F9FC]"
-              >
-                <MessageCircle className="h-4 w-4 text-[#1D9E75]" aria-hidden="true" />
-                Consultar por WhatsApp
-              </a>
             ) : null}
           </div>
         </article>

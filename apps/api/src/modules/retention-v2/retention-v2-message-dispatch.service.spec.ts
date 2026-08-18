@@ -19,6 +19,7 @@ function messageFixture(overrides: Record<string, unknown> = {}) {
     business: {
       id: 'biz-1',
       name: 'Café Test',
+      timezone: 'America/Montevideo',
       retentionEngineV2Enabled: true,
       messageQuotaMonthly: 600,
       messageCountCurrentMonth: 10,
@@ -52,6 +53,7 @@ function makeDeps(message: unknown = messageFixture()) {
   };
   const settings = {
     getOrCreate: jest.fn().mockResolvedValue(DEFAULT_SETTINGS),
+    isWithinSendingWindow: jest.fn().mockReturnValue(true),
   };
   const decisions = { record: jest.fn().mockResolvedValue(undefined) };
   const whatsApp = {
@@ -63,7 +65,19 @@ function makeDeps(message: unknown = messageFixture()) {
   // satisfacer el constructor, no participan en las aserciones de arriba.
   const lifecycleEmails = { sendOnce: jest.fn().mockResolvedValue('sent') };
   const plans = { hasProAccess: jest.fn().mockResolvedValue(false) };
-  return { prisma, settings, decisions, whatsApp, lifecycleEmails, plans };
+  const cooldown = {
+    reserve: jest.fn().mockResolvedValue('reserved'),
+    confirm: jest.fn().mockResolvedValue('confirmed'),
+  };
+  return {
+    prisma,
+    settings,
+    decisions,
+    whatsApp,
+    lifecycleEmails,
+    plans,
+    cooldown,
+  };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
@@ -74,6 +88,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.whatsApp as never,
     deps.lifecycleEmails as never,
     deps.plans as never,
+    deps.cooldown as never,
   );
 }
 
@@ -193,6 +208,7 @@ describe('RetentionV2MessageDispatchService — engine / automation gates', () =
       messageFixture({
         business: {
           id: 'biz-1',
+          timezone: 'America/Montevideo',
           retentionEngineV2Enabled: false,
           messageQuotaMonthly: 600,
           messageCountCurrentMonth: 0,
@@ -288,6 +304,237 @@ describe('RetentionV2MessageDispatchService — opt-out', () => {
   });
 });
 
+describe('RetentionV2MessageDispatchService — ventana horaria', () => {
+  it('no manda si el momento del dispatch cayó fuera de la ventana permitida, pero NO se descarta — queda pendiente', async () => {
+    const deps = makeDeps();
+    deps.settings.isWithinSendingWindow.mockReturnValue(false);
+    const service = makeService(deps);
+
+    const result = await service.dispatch('msg-1', NOW);
+
+    expect(result).toMatchObject({
+      status: 'deferred',
+      reasonCode: 'OUTSIDE_SENDING_WINDOW',
+    });
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+    // Nunca terminal: el Message no se toca, sigue `queued` para el
+    // próximo intento.
+    expect(deps.prisma.message.update).not.toHaveBeenCalled();
+    expect(deps.settings.isWithinSendingWindow).toHaveBeenCalledWith(
+      DEFAULT_SETTINGS,
+      'America/Montevideo',
+      NOW,
+    );
+  });
+
+  it('sigue mandando cuando el dispatch cae dentro de la ventana', async () => {
+    const deps = makeDeps();
+    const service = makeService(deps);
+
+    const result = await service.dispatch('msg-1', NOW);
+
+    expect(result.status).toBe('sent');
+  });
+
+  it('cuando la ventana vuelve a estar abierta, un reintento posterior manda de verdad — no se pierde', async () => {
+    const deps = makeDeps();
+    deps.settings.isWithinSendingWindow.mockReturnValueOnce(false);
+    const service = makeService(deps);
+
+    const outsideWindow = await service.dispatch('msg-1', NOW);
+    expect(outsideWindow.status).toBe('deferred');
+
+    // El mock vuelve a su default (true) para el segundo intento — mismo
+    // Message, sigue `queued`, así que dispatch() lo revalida desde cero.
+    const laterInsideWindow = await service.dispatch('msg-1', NOW);
+    expect(laterInsideWindow.status).toBe('sent');
+  });
+});
+
+describe('RetentionV2MessageDispatchService — cooldown global con prioridad determinística', () => {
+  it('no manda si otra automatización ya contactó al cliente en las últimas 24h (bloqueado)', async () => {
+    const deps = makeDeps();
+    deps.cooldown.reserve.mockResolvedValue('blocked');
+    const service = makeService(deps);
+
+    const result = await service.dispatch('msg-1', NOW);
+
+    expect(result).toEqual({
+      status: 'skipped',
+      reasonCode: 'RECENT_CONTACT',
+    });
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+  });
+
+  it('no manda si algo de mayor prioridad ya le robó el turno (outranked)', async () => {
+    const deps = makeDeps();
+    deps.cooldown.reserve.mockResolvedValue('outranked');
+    const service = makeService(deps);
+
+    const result = await service.dispatch('msg-1', NOW);
+
+    expect(result).toEqual({
+      status: 'skipped',
+      reasonCode: 'RECENT_CONTACT',
+    });
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+  });
+
+  it('reserva el turno con el kind correcto para reactivación', async () => {
+    const deps = makeDeps();
+    const service = makeService(deps);
+
+    await service.dispatch('msg-1', NOW);
+
+    expect(deps.cooldown.reserve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+        kind: 'reactivation',
+      }),
+    );
+  });
+
+  it('reserva el turno con el kind correcto para "casi llegás"', async () => {
+    const deps = makeDeps(
+      messageFixture({
+        retentionAssignment: {
+          id: 'assign-1',
+          experiment: { objective: RetentionObjective.REWARD_GOAL_PROGRESS },
+        },
+      }),
+    );
+    const service = makeService(deps);
+
+    await service.dispatch('msg-1', NOW);
+
+    expect(deps.cooldown.reserve).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'progress_reminder' }),
+    );
+  });
+
+  it('si todavía no pasó el período de gracia, NO manda — queda pendiente (no terminal)', async () => {
+    const deps = makeDeps();
+    deps.cooldown.confirm.mockResolvedValue('not_ready');
+    const service = makeService(deps);
+
+    const result = await service.dispatch('msg-1', NOW);
+
+    expect(result).toMatchObject({
+      status: 'deferred',
+      reasonCode: 'AWAITING_PRIORITY_WINDOW',
+    });
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+    expect(deps.prisma.message.update).not.toHaveBeenCalled();
+  });
+
+  it('si algo de mayor prioridad confirma primero mientras se esperaba, el reintento pierde', async () => {
+    const deps = makeDeps();
+    deps.cooldown.confirm.mockResolvedValueOnce('not_ready');
+    const service = makeService(deps);
+
+    const deferred = await service.dispatch('msg-1', NOW);
+    expect(deferred.status).toBe('deferred');
+
+    // Durante la espera, otra automatización de mayor prioridad se quedó
+    // con el turno — el reintento lo nota vía `confirm()`.
+    deps.cooldown.confirm.mockResolvedValueOnce('outranked');
+    const retried = await service.dispatch('msg-1', NOW);
+
+    expect(retried).toEqual({
+      status: 'skipped',
+      reasonCode: 'RECENT_CONTACT',
+    });
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+  });
+
+  it('sin ninguna automatización de mayor prioridad activa, confirma sin esperar el período de gracia', async () => {
+    // DEFAULT_SETTINGS no trae birthdayEmailEnabled/stampsExpiryEmailEnabled
+    // (mismo default que el schema: false) — nada le puede ganar el turno a
+    // esto hoy, así que esperar no protege de nada real.
+    const deps = makeDeps();
+    const service = makeService(deps);
+
+    await service.dispatch('msg-1', NOW);
+
+    expect(deps.cooldown.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ skipGraceIfUncontested: true }),
+    );
+  });
+
+  it('con Cumpleaños activo para el negocio, sí exige el período de gracia', async () => {
+    const deps = makeDeps();
+    deps.settings.getOrCreate.mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      birthdayEmailEnabled: true,
+    });
+    const service = makeService(deps);
+
+    await service.dispatch('msg-1', NOW);
+
+    expect(deps.cooldown.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ skipGraceIfUncontested: false }),
+    );
+  });
+
+  it('con Sellos por vencer activo (rewardGoals + toggle) para el negocio, sí exige el período de gracia', async () => {
+    const deps = makeDeps();
+    deps.settings.getOrCreate.mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      rewardGoalsEnabled: true,
+      stampsExpiryEmailEnabled: true,
+    });
+    const service = makeService(deps);
+
+    await service.dispatch('msg-1', NOW);
+
+    expect(deps.cooldown.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ skipGraceIfUncontested: false }),
+    );
+  });
+
+  it('el toggle de sellos por vencer sin rewardGoals encendido no cuenta como amenaza real', async () => {
+    // stampsExpiryEmailEnabled solo aplica si además hay tarjeta de sellos
+    // activa (rewardGoalsEnabled) — StampsExpiryEmailService nunca manda
+    // sin eso, así que no hace falta esperar por él.
+    const deps = makeDeps();
+    deps.settings.getOrCreate.mockResolvedValue({
+      ...DEFAULT_SETTINGS,
+      rewardGoalsEnabled: false,
+      stampsExpiryEmailEnabled: true,
+    });
+    const service = makeService(deps);
+
+    await service.dispatch('msg-1', NOW);
+
+    expect(deps.cooldown.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ skipGraceIfUncontested: true }),
+    );
+  });
+
+  it('un cooldown bloqueado también impide el email side-channel — un solo reclamo cubre los dos canales', async () => {
+    const deps = makeDeps(
+      messageFixture({
+        customer: {
+          id: 'cust-1',
+          name: 'Cliente Test',
+          email: 'cliente@test.com',
+          optedOut: false,
+          phoneE164: '+59891111111',
+        },
+      }),
+    );
+    deps.plans.hasProAccess.mockResolvedValue(true);
+    deps.cooldown.reserve.mockResolvedValue('blocked');
+    const service = makeService(deps);
+
+    await service.dispatch('msg-1', NOW);
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(deps.lifecycleEmails.sendOnce).not.toHaveBeenCalled();
+  });
+});
+
 describe('RetentionV2MessageDispatchService — channel', () => {
   it('skips when the customer has no phone on file', async () => {
     const deps = makeDeps(
@@ -326,6 +573,7 @@ describe('RetentionV2MessageDispatchService — quota', () => {
       messageFixture({
         business: {
           id: 'biz-1',
+          timezone: 'America/Montevideo',
           retentionEngineV2Enabled: true,
           messageQuotaMonthly: 600,
           messageCountCurrentMonth: 600,

@@ -97,7 +97,19 @@ export class RetentionV2Worker implements OnModuleInit, OnModuleDestroy {
   private async dispatchMessage(job: Job) {
     const { messageId } = job.data as SendRetentionV2MessageJobData;
     try {
-      return await this.dispatchService.dispatch(messageId);
+      const result = await this.dispatchService.dispatch(messageId);
+      // Fuera de horario, o esperando por si algo de mayor prioridad todavía
+      // le puede robar el turno (§ pedido explícito: "no debe descartarse
+      // silenciosamente") — el Message sigue `queued`; se reencola con el
+      // delay que `dispatch()` ya decidió, con un `jobId` nuevo (el actual
+      // sigue "activo" hasta que esta función retorna).
+      if (result.status === 'deferred') {
+        await this.queue.enqueueDeferredRetry(
+          { messageId },
+          result.retryDelayMs,
+        );
+      }
+      return result;
     } catch (error) {
       const attempts = job.opts.attempts ?? 1;
       const isLastAttempt = job.attemptsMade + 1 >= attempts;

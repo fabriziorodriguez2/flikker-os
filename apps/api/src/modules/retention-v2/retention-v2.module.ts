@@ -28,6 +28,7 @@ import { RetentionV2BootstrapService } from './retention-v2-bootstrap.service';
 import { PlansModule } from '../plans/plans.module';
 import { EmailService } from '../../jobs/email.service';
 import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
+import { AutomationCooldownService } from '../../jobs/automation-cooldown.service';
 
 /**
  * Retention Engine V2 runtime, plus the Fase C.5 configuration surface
@@ -64,6 +65,9 @@ import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
     // WhatsApp de esa automatización.
     EmailService,
     LifecycleEmailsService,
+    // Cooldown global de 24h (§ pedido explícito) — mismo motivo de
+    // duplicación que arriba, lo necesita RetentionV2MessageDispatchService.
+    AutomationCooldownService,
     RetentionV2MessageDispatchService,
     RetentionIncentivesService,
     RetentionExperimentsAdminService,

@@ -49,6 +49,29 @@ export function stampsExpiryEmail(input: {
 }
 
 /**
+ * Free — mismo aviso que `stampsExpiryEmail`, en texto plano para WhatsApp.
+ * WhatsApp no tiene HTML/asunto — por eso vive acá como texto, no como una
+ * versión recortada de la plantilla de email.
+ */
+export function stampsExpiryWhatsAppText(input: {
+  customerName: string;
+  rewardName: string;
+  daysRemaining: number;
+  redemptionCode: string;
+}): string {
+  const dayWord = input.daysRemaining === 1 ? 'día' : 'días';
+  return `¡Hola ${input.customerName}! Ganaste ${input.rewardName} con tu tarjeta y todavía no lo canjeaste — vence en ${input.daysRemaining} ${dayWord}.\n\nMostrá este código para canjearlo: ${input.redemptionCode}`;
+}
+
+/** Pro — mismo saludo que `birthdayEmail`, en texto plano para WhatsApp. */
+export function birthdayWhatsAppText(input: {
+  businessName: string;
+  customerName: string;
+}): string {
+  return `¡Feliz cumpleaños, ${input.customerName}! 🎉 Todo el equipo de ${input.businessName} te desea un muy feliz día.`;
+}
+
+/**
  * Pro — "casi llegás" (REWARD_GOAL_PROGRESS) o "te extrañamos"
  * (AT_RISK/INACTIVE_RECOVERY) por email. Deliberadamente NO reconstruye el
  * mensaje desde cero: reusa el mismo `body` que Retention V2 ya compuso

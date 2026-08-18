@@ -6,6 +6,7 @@ import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 import { retentionMessageEmail } from '../../jobs/email-templates';
 import { RetentionSettingsService } from './retention-settings.service';
 import { PlansService } from '../plans/plans.service';
+import { AutomationCooldownService } from '../../jobs/automation-cooldown.service';
 import {
   DECISION_CODES,
   RetentionDecisionLogService,
@@ -36,8 +37,25 @@ import {
 export type DispatchOutcome =
   | { status: 'sent'; whatsappMessageId: string }
   | { status: 'skipped'; reasonCode: string }
+  | { status: 'deferred'; reasonCode: string; retryDelayMs: number }
   | { status: 'already_processed' }
   | { status: 'not_retention_v2' };
+
+/**
+ * Reintento fijo cuando el envío cae fuera del horario permitido — no se
+ * calcula la hora exacta en que abre la ventana (haría falta aritmética de
+ * zona horaria por negocio); en cambio se reintenta cada tanto hasta que
+ * `isWithinSendingWindow` diga que sí. `dispatch()` revalida todo desde
+ * cero en cada intento, así que un reintento nunca manda algo que dejó de
+ * corresponder (cliente que se dio de baja, automatización apagada, etc.).
+ */
+const WINDOW_RETRY_DELAY_MS = 30 * 60_000;
+/**
+ * Reintento cuando el cooldown global todavía no dejó pasar el período de
+ * gracia de esta automatización — más corto porque la ventana de gracia
+ * misma es corta (`AutomationCooldownService.gracePeriodMs`).
+ */
+const PRIORITY_RETRY_DELAY_MS = 2 * 60_000;
 
 interface SkippableMessage {
   id: string;
@@ -57,6 +75,7 @@ export class RetentionV2MessageDispatchService {
     private readonly whatsApp: WhatsAppBspService,
     private readonly lifecycleEmails: LifecycleEmailsService,
     private readonly plans: PlansService,
+    private readonly cooldown: AutomationCooldownService,
   ) {}
 
   private load(messageId: string) {
@@ -118,6 +137,74 @@ export class RetentionV2MessageDispatchService {
 
     if (message.customer.optedOut) {
       return this.skipTerminal(message, 'OPTED_OUT');
+    }
+
+    // Ventana horaria, revalidada acá y no solo al crear el Message
+    // (`RetentionV2SendService`): puede pasar tiempo real entre encolar y
+    // que el worker efectivamente llame a `dispatch()` (reintentos, cola
+    // con backlog), y ese tiempo puede cruzar el borde de la ventana
+    // permitida. NO es terminal — pedido explícito: "no debe descartarse
+    // silenciosamente, debe quedar pendiente/reintentarse en la próxima
+    // hora válida". El Message queda `queued`, sin tocar; el worker
+    // reencola el reintento (ver RetentionV2Worker.dispatchMessage).
+    if (
+      !this.settings.isWithinSendingWindow(
+        settings,
+        message.business.timezone,
+        now,
+      )
+    ) {
+      return this.deferNonTerminal(
+        message,
+        'OUTSIDE_SENDING_WINDOW',
+        WINDOW_RETRY_DELAY_MS,
+      );
+    }
+
+    // Cooldown global con prioridad determinística — Cumpleaños > Sellos
+    // por vencer > Casi llegás > Te extrañamos (ver AutomationCooldownService).
+    // Reservar primero: si algo de MAYOR prioridad reserva después,
+    // todavía puede robarle el turno a esto mientras no se haya confirmado.
+    const kind = isProgressReminder ? 'progress_reminder' : 'reactivation';
+    const reserved = await this.cooldown.reserve({
+      businessId: message.businessId,
+      customerId: message.customerId,
+      kind,
+      now,
+    });
+    if (reserved === 'blocked' || reserved === 'outranked') {
+      return this.skipTerminal(message, 'RECENT_CONTACT');
+    }
+
+    // Si NINGUNA automatización de mayor prioridad puede aplicar hoy para
+    // este negocio (ambos toggles apagados), no hay nada de qué protegerse:
+    // esperar el período de gracia solo demoraría el envío sin motivo. Esto
+    // es leer un toggle ya existente (mismo patrón que `automationEnabled`
+    // arriba), no duplicar la lógica de elegibilidad de Cumpleaños/Sellos.
+    const higherPriorityMayApply =
+      settings.birthdayEmailEnabled ||
+      (settings.rewardGoalsEnabled && settings.stampsExpiryEmailEnabled);
+
+    // Confirmar recién habilita mandar — antes de que pase el período de
+    // gracia de este `kind`, "casi llegás"/"te extrañamos" esperan (no
+    // terminal, se reintenta) para darle tiempo a Cumpleaños/Sellos por
+    // vencer a robarle el turno si también son elegibles hoy para este
+    // mismo cliente, aunque su cron haya corrido después por accidente.
+    const confirmed = await this.cooldown.confirm({
+      customerId: message.customerId,
+      kind,
+      now,
+      skipGraceIfUncontested: !higherPriorityMayApply,
+    });
+    if (confirmed === 'not_ready') {
+      return this.deferNonTerminal(
+        message,
+        'AWAITING_PRIORITY_WINDOW',
+        PRIORITY_RETRY_DELAY_MS,
+      );
+    }
+    if (confirmed === 'outranked') {
+      return this.skipTerminal(message, 'RECENT_CONTACT');
     }
 
     // Email (Pro) — canal ADICIONAL, independiente del WhatsApp de acá
@@ -252,6 +339,7 @@ export class RetentionV2MessageDispatchService {
       businessId: message.businessId,
       customerId: message.customerId,
       kind: isProgressReminder ? 'progress_reminder' : 'reactivation',
+      channel: 'email',
       dedupeKey: message.id,
       to: message.customer.email,
       subject,
@@ -310,5 +398,27 @@ export class RetentionV2MessageDispatchService {
       metadata: { reasonCode },
     });
     return { status: 'skipped', reasonCode };
+  }
+
+  /**
+   * Registra el motivo pero NUNCA toca `message.status` — sigue `queued`,
+   * así que un reintento (real, vía `RetentionV2Worker` reencolando con
+   * delay) vuelve a pasar por `dispatch()` entero, revalidando todo desde
+   * cero. La diferencia con `skipTerminal`: esto es "todavía no", no
+   * "nunca".
+   */
+  private async deferNonTerminal(
+    message: SkippableMessage,
+    reasonCode: string,
+    retryDelayMs: number,
+  ): Promise<DispatchOutcome> {
+    await this.decisions.record({
+      businessId: message.businessId,
+      customerId: message.customerId,
+      assignmentId: message.retentionAssignment?.id ?? null,
+      decisionCode: DECISION_CODES.MESSAGE_SEND_SKIPPED,
+      metadata: { reasonCode, terminal: false },
+    });
+    return { status: 'deferred', reasonCode, retryDelayMs };
   }
 }

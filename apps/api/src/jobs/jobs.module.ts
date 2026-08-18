@@ -37,6 +37,7 @@ import { LifecycleEmailsQueue } from './lifecycle-emails.queue';
 import { LifecycleEmailsWorker } from './workers/lifecycle-emails.worker';
 import { StampsExpiryEmailService } from './stamps-expiry-email.service';
 import { BirthdayEmailService } from './birthday-email.service';
+import { AutomationCooldownService } from './automation-cooldown.service';
 
 @Module({
   imports: [PrismaModule, RetentionV2Module, RewardGoalsModule, PlansModule],
@@ -75,6 +76,7 @@ import { BirthdayEmailService } from './birthday-email.service';
     LifecycleEmailsWorker,
     StampsExpiryEmailService,
     BirthdayEmailService,
+    AutomationCooldownService,
   ],
   exports: [
     ReviewRequestQueue,

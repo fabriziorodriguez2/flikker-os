@@ -105,6 +105,28 @@ export class RetentionV2Queue implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  /**
+   * Reencola un mensaje que `dispatch()` dejó explícitamente `queued`
+   * (fuera de horario, esperando el turno de prioridad) — nunca el mismo
+   * `jobId` que el intento que se está terminando ahora mismo (todavía
+   * puede seguir "activo" en BullMQ en ese instante), así que se deja que
+   * BullMQ genere uno nuevo. La idempotencia real sigue siendo del Message
+   * (`status: queued`, claim atómico en `dispatch()`), no de esta cola.
+   */
+  async enqueueDeferredRetry(
+    data: SendRetentionV2MessageJobData,
+    delayMs: number,
+  ) {
+    if (!this.queue) return null;
+    return this.queue.add(SEND_RETENTION_V2_MESSAGE_JOB, data, {
+      delay: delayMs,
+      attempts: 3,
+      backoff: { type: 'exponential', delay: 30_000 },
+      removeOnComplete: 100,
+      removeOnFail: false,
+    });
+  }
+
   async onModuleDestroy() {
     await this.queue?.close();
     await this.connection?.quit();

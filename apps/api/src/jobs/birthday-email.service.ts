@@ -2,8 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { ExperienceVersion } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { LifecycleEmailsService } from './lifecycle-emails.service';
-import { birthdayEmail } from './email-templates';
+import { birthdayEmail, birthdayWhatsAppText } from './email-templates';
 import { PlansService } from '../modules/plans/plans.service';
+import { RetentionSettingsService } from '../modules/retention-v2/retention-settings.service';
+import { AutomationCooldownService } from './automation-cooldown.service';
 
 /**
  * Notificaciones (Pro) — cumpleaños del cliente.
@@ -13,7 +15,13 @@ import { PlansService } from '../modules/plans/plans.service';
  * un match de calendario, no un problema de segmentación. Un sweep diario
  * propio, sin variantes ni experimentos, es reusar la infraestructura de
  * scheduling (BullMQ, mismo patrón que `RewardGoalQueue`) sin construir un
- * segundo motor de decisión.
+ * segundo motor de decisión. Manda por WhatsApp Y por email — ambos
+ * comparten la misma decisión de a quién y cuándo.
+ *
+ * Prioridad 1 (la más alta) en el cooldown global de 24h — ver
+ * `AutomationCooldownService`. El orden real lo da que este sweep se llama
+ * ANTES que `StampsExpiryEmailService.runDaily` en `LifecycleEmailsWorker`,
+ * y que el cron de `LifecycleEmailsQueue` corre antes que el de Retention V2.
  */
 @Injectable()
 export class BirthdayEmailService {
@@ -23,6 +31,8 @@ export class BirthdayEmailService {
     private readonly prisma: PrismaService,
     private readonly lifecycleEmails: LifecycleEmailsService,
     private readonly plans: PlansService,
+    private readonly retentionSettings: RetentionSettingsService,
+    private readonly cooldown: AutomationCooldownService,
   ) {}
 
   async runDaily(now: Date = new Date()) {
@@ -37,6 +47,7 @@ export class BirthdayEmailService {
 
     let evaluated = 0;
     let sent = 0;
+    let suppressed = 0;
     const year = now.getUTCFullYear();
 
     for (const business of businesses) {
@@ -44,11 +55,28 @@ export class BirthdayEmailService {
       // gatea por plan de verdad; sellos por vencer es Free.
       if (!(await this.plans.hasProAccess(business.id))) continue;
 
+      // Ventana horaria del negocio, revalidada justo antes de mandar.
+      const settings = await this.retentionSettings.getOrCreate(business.id);
+      if (
+        !this.retentionSettings.isWithinSendingWindow(
+          settings,
+          business.timezone,
+          now,
+        )
+      ) {
+        continue;
+      }
+
       const { month, day } = todayInTimezone(now, business.timezone);
       const customers = await this.prisma.$queryRaw<
-        { id: string; name: string; email: string | null }[]
+        {
+          id: string;
+          name: string;
+          email: string | null;
+          phoneE164: string | null;
+        }[]
       >`
-        SELECT id, name, email FROM "Customer"
+        SELECT id, name, email, "phoneE164" FROM "Customer"
         WHERE "businessId" = ${business.id}
           AND "isActive" = true
           AND "optedOut" = false
@@ -59,29 +87,60 @@ export class BirthdayEmailService {
 
       for (const customer of customers) {
         evaluated += 1;
+
+        // Cooldown global — un solo reclamo cubre los dos canales de esta
+        // misma ocurrencia. Prioridad 1 (la más alta): se reserva y
+        // confirma en el mismo paso, nada le puede ganar el turno.
+        const claim = await this.cooldown.claimImmediate({
+          businessId: business.id,
+          customerId: customer.id,
+          kind: 'birthday',
+          now,
+        });
+        if (claim !== 'confirmed') {
+          suppressed += 1;
+          continue;
+        }
+
         const { subject, html } = birthdayEmail({
           businessName: business.name,
           customerName: customer.name,
         });
-        const outcome = await this.lifecycleEmails.sendOnce({
+        const emailOutcome = await this.lifecycleEmails.sendOnce({
           businessId: business.id,
           customerId: customer.id,
           kind: 'birthday',
-          // A lo sumo un email de cumpleaños por año — reintentar el mismo
+          channel: 'email',
+          // A lo sumo un mensaje de cumpleaños por año — reintentar el mismo
           // día (o correr el sweep dos veces) nunca duplica.
           dedupeKey: String(year),
           to: customer.email,
           subject,
           html,
         });
-        if (outcome === 'sent') sent += 1;
+
+        const text = birthdayWhatsAppText({
+          businessName: business.name,
+          customerName: customer.name,
+        });
+        const whatsAppOutcome = await this.lifecycleEmails.sendOnce({
+          businessId: business.id,
+          customerId: customer.id,
+          kind: 'birthday',
+          channel: 'whatsapp',
+          dedupeKey: String(year),
+          to: customer.phoneE164,
+          text,
+        });
+
+        if (emailOutcome === 'sent' || whatsAppOutcome === 'sent') sent += 1;
       }
     }
 
     this.logger.log(
-      `Birthday email businesses=${businesses.length} evaluated=${evaluated} sent=${sent}`,
+      `Birthday businesses=${businesses.length} evaluated=${evaluated} sent=${sent} suppressed=${suppressed}`,
     );
-    return { businesses: businesses.length, evaluated, sent };
+    return { businesses: businesses.length, evaluated, sent, suppressed };
   }
 }
 

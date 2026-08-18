@@ -2,27 +2,37 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Loader2, Lock, Mail, Sparkles } from "lucide-react";
+import { Loader2, Lock, Sparkles } from "lucide-react";
 import { useIsOwnerOrAdmin } from "../../role-context";
 
 /**
  * Automáticas — los mensajes que Flikker manda solo.
  *
+ * Acá solo se decide CUÁNDO: prender/apagar cada automatización y el
+ * horario permitido de envío. Qué se ofrece (beneficios, incentivos,
+ * premios) es de Programa — esta pantalla no repite ni una versión de
+ * solo lectura de esa configuración.
+ *
  * Solo se muestran las automatizaciones que EXISTEN de verdad, y solo cuando
  * tienen sentido para ESTE negocio:
- *  - "Sellos por vencer" (Free, email) — solo si el negocio usa tarjeta de
- *    sellos. Avisa antes de que se pierda un premio ya ganado.
- *  - "Cerca del premio" (Free, WhatsApp + email si hay Pro) — solo si el
- *    negocio tiene tarjeta de sellos activa. Mostrarla apagada igual sería
- *    confuso: no es que esté desactivada, es que no aplica.
- *  - "Cumpleaños" (Pro, email) — siempre visible, bloqueada con badge PRO
- *    hasta que el negocio tenga Pro o un trial Pro vigente.
- *  - "Te extrañamos" (Free, WhatsApp + email si hay Pro) — siempre puede
- *    mostrarse. No depende de sellos ni de beneficios.
+ *  - "Sellos por vencer" — solo si el negocio usa tarjeta de sellos. Avisa
+ *    antes de que se pierda un premio ya ganado.
+ *  - "Casi llegás" — solo si el negocio tiene tarjeta de sellos activa.
+ *    Mostrarla apagada igual sería confuso: no es que esté desactivada, es
+ *    que no aplica.
+ *  - "Cumpleaños" — siempre visible, bloqueada con badge PRO hasta que el
+ *    negocio tenga Pro o un trial Pro vigente.
+ *  - "Te extrañamos" — siempre puede mostrarse. No depende de sellos ni de
+ *    beneficios.
  * Hubo una candidata más ("recordar recompensa disponible") que no se
  * incluye porque el motor no tiene con qué ejecutarla: su único objetivo de
  * progreso recluta tarjetas en curso y excluye las ya desbloqueadas. Un
  * checkbox que no hace nada es peor que uno que falta.
+ *
+ * Canales: solo se muestra el badge de WhatsApp, y solo en las
+ * automatizaciones que de verdad salen por ahí. "Sellos por vencer" y
+ * "Cumpleaños" no tienen WhatsApp real detrás — mostrarles ese badge sería
+ * mentir, así que directamente no llevan ninguno.
  */
 
 type AutomationState =
@@ -52,51 +62,19 @@ interface Overview {
     /** Pro o trial Pro vigente. */
     proAccess: boolean;
   };
-  benefits: { id: string; name: string; authorized: boolean }[];
-  /**
-   * El único presupuesto que el dueño ve — nunca el tope monetario, que
-   * sigue siendo configuración avanzada de Platform Admin.
-   */
-  benefitsAutomation: {
-    status: "sin_autorizar" | "necesita_limite" | "listo" | "limite_alcanzado";
-    monthlyLimit: number | null;
-    usedThisMonth: number;
-  };
-  results: {
-    // Dos métricas, no tres: "Detectados" salía del mismo número que
-    // "Contactados", y dos KPIs que siempre coinciden hacen creer que son
-    // cosas distintas.
-    contacted: number;
-    returned: number;
-    signal: "aprendiendo" | "mejora" | "sin_diferencia";
-  };
+  // `benefits`/`benefitsAutomation`/`results` también vienen en la
+  // respuesta (Inicio los reusa), pero esta pantalla ya no los muestra: qué
+  // se ofrece es de Programa, no de Notificaciones. Se ignoran a propósito,
+  // no se borraron del backend.
 }
 
 interface Settings {
   sendingHourStart: number;
   sendingHourEnd: number;
   allowedSendingDays: number[];
-  minimumDaysBetweenMessages: number;
-  maximumMessagesPer30Days: number;
 }
 
-const SIGNAL_COPY: Record<Overview["results"]["signal"], string> = {
-  aprendiendo: "Flikker todavía está aprendiendo",
-  mejora: "Hay señal de mejora",
-  sin_diferencia: "Todavía no hay una diferencia clara",
-};
-
 const DAY_NAMES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
-
-/**
- * No hay un default de producto existente para reutilizar (el panel
- * avanzado de Platform Admin tampoco sugiere ninguno — el input llega
- * vacío). 10/mes es un valor conservador para el volumen típico de un
- * negocio chico recién arrancando — se usa solo como sugerencia inicial al
- * autorizar el primer beneficio; el dueño lo puede cambiar en cualquier
- * momento.
- */
-const SUGGESTED_MONTHLY_LIMIT = 10;
 
 export default function AutomationsTab() {
   const canManage = useIsOwnerOrAdmin();
@@ -106,11 +84,6 @@ export default function AutomationsTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  // Input controlado del límite mensual — se sincroniza con el valor real
-  // cada vez que llega uno nuevo, pero el dueño puede escribir libremente
-  // antes de guardar.
-  const [limitDraft, setLimitDraft] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -133,12 +106,6 @@ export default function AutomationsTab() {
   useEffect(() => {
     void load();
   }, [load]);
-
-  useEffect(() => {
-    if (data?.benefitsAutomation.monthlyLimit != null) {
-      setLimitDraft(String(data.benefitsAutomation.monthlyLimit));
-    }
-  }, [data?.benefitsAutomation.monthlyLimit]);
 
   async function patch(body: Record<string, unknown>) {
     setSaving(true);
@@ -167,12 +134,6 @@ export default function AutomationsTab() {
     if (res.ok) setSettings((await res.json()) as Settings);
   }
 
-  function saveLimit() {
-    const n = Number(limitDraft);
-    if (!Number.isInteger(n) || n < 1) return;
-    void patch({ automaticIncentiveMonthlyLimit: n });
-  }
-
   if (loading) {
     return (
       <div className="flex h-40 items-center justify-center">
@@ -190,7 +151,7 @@ export default function AutomationsTab() {
         <button
           type="button"
           onClick={() => void load()}
-          className="inline-flex h-10 items-center rounded-[10px] border border-[#E3E5F0] bg-white px-4 text-sm font-semibold text-[#202333] hover:border-[#5C6BC0]"
+          className="flk-glossy-secondary inline-flex h-10 items-center rounded-[10px] border border-[#E3E5F0] bg-white px-4 text-sm font-semibold text-[#202333] hover:border-[#5C6BC0]"
         >
           Reintentar
         </button>
@@ -206,7 +167,6 @@ export default function AutomationsTab() {
   const progreso = data.automations.find((a) => a.key === "cerca_del_premio");
   const cumpleanos = data.automations.find((a) => a.key === "cumpleanos");
   const reactivacion = data.automations.find((a) => a.key === "te_extranamos");
-  const authorizedIds = data.benefits.filter((b) => b.authorized).map((b) => b.id);
 
   return (
     <div className="space-y-6">
@@ -302,14 +262,14 @@ export default function AutomationsTab() {
       })()}
 
       {/*
-        ── A. Sellos por vencer (Free) ──────────────────────────────────
+        ── A. Sellos por vencer ─────────────────────────────────────────
         Solo existe como concepto si el negocio usa tarjeta de sellos — sin
         `sellosPorVencer` en `automations`, ni se muestra.
       */}
       {sellosPorVencer ? (
         <AutomationCard
           title="Sellos por vencer"
-          description="Avisale por email si ganó un premio con su tarjeta y todavía no lo canjeó, antes de que venza."
+          description="Avisale si ganó un premio con su tarjeta y todavía no lo canjeó, antes de que venza."
           example="“Tu premio vence en 3 días.”"
           enabled={sellosPorVencer.enabled}
           locked={sellosPorVencer.locked}
@@ -320,7 +280,7 @@ export default function AutomationsTab() {
       ) : null}
 
       {/*
-        ── B. Cerca del premio ─────────────────────────────────────────
+        ── B. Casi llegás ────────────────────────────────────────────────
         Solo existe como concepto si el negocio usa tarjeta de sellos — sin
         `progreso` en `automations` (sellos apagados), ni se muestra: no es
         "Desactivado", es una automatización que no aplica a este negocio.
@@ -332,17 +292,16 @@ export default function AutomationsTab() {
           example="“Te falta 1 sello para tus 3 medialunas gratis.”"
           enabled={progreso.enabled}
           channels={progreso.channels}
-          upsellChannel={!progreso.channels.includes("email") ? "email" : null}
           disabled={!canManage || saving}
           onToggle={(value) => void patch({ cercaDelPremio: value })}
         />
       ) : null}
 
-      {/* ── C. Cumpleaños (Pro) ──────────────────────────────────────── */}
+      {/* ── C. Cumpleaños ────────────────────────────────────────────── */}
       {cumpleanos ? (
         <AutomationCard
           title="Cumpleaños"
-          description="Un saludo por email el día del cumpleaños del cliente."
+          description="Un saludo al cliente el día de su cumpleaños."
           example="“¡Feliz cumpleaños de parte de tu negocio! 🎉”"
           enabled={cumpleanos.enabled}
           locked={cumpleanos.locked}
@@ -352,230 +311,72 @@ export default function AutomationsTab() {
         />
       ) : null}
 
-      {/* ── D. Te extrañamos ──────────────────────────────────────────── */}
+      {/*
+        ── D. Te extrañamos ─────────────────────────────────────────────
+        Solo activar/desactivar. Qué beneficio ofrece (si ofrece alguno) y
+        el límite mensual se configuran en Programa — acá ni se leen ni se
+        repiten.
+      */}
       <AutomationCard
         title="Te extrañamos"
         channels={reactivacion?.channels ?? ["whatsapp"]}
-        upsellChannel={
-          !reactivacion?.channels.includes("email") ? "email" : null
-        }
         description="Flikker detecta clientes que solían venir y hace tiempo que no aparecen."
         enabled={reactivacion?.enabled ?? false}
         disabled={!canManage || saving}
         onToggle={(value) => void patch({ teExtranamos: value })}
-      >
-        {reactivacion?.enabled ? (
-          <div className="mt-5 space-y-5 border-t border-[#EFF1F7] pt-5">
-            {/*
-              Nueva regla de producto: QUÉ ofrece el negocio se decide en
-              Programa, no acá — Notificaciones solo dice CUÁNDO se contacta.
-              La autorización de un beneficio para reactivación tiene una
-              sola fuente (Programa → Configuración → Beneficios); acá es
-              de solo lectura, sin checkboxes duplicados.
-            */}
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-[#202333]">
-                  Incentivos permitidos
-                </p>
-                <BenefitsStatusBadge status={data.benefitsAutomation.status} />
-              </div>
-              {authorizedIds.length > 0 ? (
-                <ul className="mt-2.5 space-y-1">
-                  {data.benefits
-                    .filter((b) => b.authorized)
-                    .map((benefit) => (
-                      <li key={benefit.id} className="text-sm text-[#202333]">
-                        {benefit.name}
-                      </li>
-                    ))}
-                </ul>
-              ) : (
-                <p className="mt-2 text-sm text-[#8891A4]">
-                  Flikker está usando solo recordatorios.
-                </p>
-              )}
-              <p className="mt-3 text-xs leading-5 text-[#8891A4]">
-                Si no autorizás ninguno, Flikker igual puede enviar
-                recordatorios sin beneficio. Nunca va a ofrecer uno que no
-                hayas autorizado desde Programa.
-              </p>
-              <Link
-                href="/dashboard/programa?tab=configuracion&section=beneficios"
-                className="mt-2 inline-block text-xs font-semibold text-[#5C6BC0] hover:underline"
-              >
-                {authorizedIds.length > 0
-                  ? "Gestionar beneficios"
-                  : "Crear beneficio"}{" "}
-                →
-              </Link>
-            </div>
+      />
 
-            {/*
-              §10/§11 — el límite solo importa (y solo se muestra) una vez
-              que hay al menos un beneficio autorizado. Con 0 autorizados,
-              "solo recordatorios" ya lo dice todo — un límite acá sería un
-              requisito inventado para algo que no lo necesita.
-            */}
-            {authorizedIds.length > 0 ? (
-              <div>
-                <p className="text-sm font-semibold text-[#202333]">
-                  Límite mensual de beneficios automáticos
-                </p>
-                <p className="mt-1 text-xs leading-5 text-[#8891A4]">
-                  ¿Cuántos beneficios como máximo puede ofrecer Flikker por
-                  mes?
-                </p>
-                <div className="mt-2.5 flex items-center gap-2">
-                  <input
-                    type="number"
-                    min={1}
-                    step={1}
-                    value={limitDraft}
-                    placeholder={String(SUGGESTED_MONTHLY_LIMIT)}
-                    disabled={!canManage || saving}
-                    onChange={(e) => setLimitDraft(e.target.value)}
-                    className="h-10 w-24 rounded-[9px] border border-[#E3E5F0] bg-white px-3 text-sm text-[#202333] outline-none focus:border-[#5C6BC0] disabled:opacity-60"
-                  />
-                  {String(data.benefitsAutomation.monthlyLimit ?? "") !==
-                  limitDraft.trim() ? (
-                    <button
-                      type="button"
-                      disabled={!canManage || saving}
-                      onClick={saveLimit}
-                      className="inline-flex h-10 items-center rounded-[9px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-60"
-                    >
-                      Guardar
-                    </button>
-                  ) : null}
-                </div>
-                {data.benefitsAutomation.monthlyLimit != null ? (
-                  <p className="mt-2 text-xs leading-5 text-[#8891A4]">
-                    Flikker nunca entregará más de{" "}
-                    {data.benefitsAutomation.monthlyLimit} beneficios
-                    automáticos por mes. Los recordatorios sin beneficio no
-                    cuentan para este límite.
-                  </p>
-                ) : null}
-                {data.benefitsAutomation.status === "limite_alcanzado" ? (
-                  <p className="mt-2 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-xs leading-5 text-[#8A520D]">
-                    Ya se alcanzó el límite de este mes (
-                    {data.benefitsAutomation.usedThisMonth}/
-                    {data.benefitsAutomation.monthlyLimit}). Los recordatorios
-                    sin beneficio siguen saliendo con normalidad.
-                  </p>
-                ) : null}
-              </div>
-            ) : (
-              <p className="text-sm text-[#8891A4]">
-                Flikker está usando solo recordatorios.
-              </p>
-            )}
-
-            {/* ── Resultados ────────────────────────────────────────── */}
-            <div className="rounded-[12px] bg-[#F7F8FC] px-4 py-3.5">
-              <div className="flex flex-wrap gap-x-8 gap-y-2">
-                <Metric label="Contactados" value={data.results.contacted} />
-                <Metric label="Volvieron" value={data.results.returned} />
-              </div>
-              <p className="mt-3 text-sm font-semibold text-[#5F6780]">
-                {data.results.contacted === 0
-                  ? "Flikker todavía necesita más visitas para aprender el ritmo de tus clientes."
-                  : SIGNAL_COPY[data.results.signal]}
-              </p>
-            </div>
-          </div>
-        ) : null}
-      </AutomationCard>
-
-      {/* ── Configuración ─────────────────────────────────────────────── */}
+      {/* ── Horario de envío ─────────────────────────────────────────── */}
       {settings ? (
-        <div className="rounded-[16px] border border-[#E8EAF0] bg-white">
-          <button
-            type="button"
-            onClick={() => setShowSettings((v) => !v)}
-            aria-expanded={showSettings}
-            className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
-          >
-            <span className="text-sm font-semibold text-[#202333]">
-              Configuración de notificaciones
-            </span>
-            <ChevronDown
-              className={`h-4 w-4 shrink-0 text-[#8891A4] transition-transform ${showSettings ? "rotate-180" : ""}`}
+        <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:p-6">
+          <p className="text-sm font-semibold text-[#202333]">
+            Horario de envío
+          </p>
+          <p className="mt-1 text-xs leading-5 text-[#8891A4]">
+            Cuándo puede Flikker mandar estos mensajes.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[#202333]">
+            <span>Entre las</span>
+            <HourSelect
+              value={settings.sendingHourStart}
+              disabled={!canManage}
+              onChange={(v) => void patchSettings({ sendingHourStart: v })}
             />
-          </button>
-
-          {showSettings ? (
-            <div className="space-y-5 border-t border-[#EFF1F7] px-5 py-5">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
-                  Horario permitido
-                </p>
-                <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-[#202333]">
-                  <span>Entre las</span>
-                  <HourSelect
-                    value={settings.sendingHourStart}
-                    disabled={!canManage}
-                    onChange={(v) => void patchSettings({ sendingHourStart: v })}
-                  />
-                  <span>y las</span>
-                  <HourSelect
-                    value={settings.sendingHourEnd}
-                    disabled={!canManage}
-                    onChange={(v) => void patchSettings({ sendingHourEnd: v })}
-                  />
-                </div>
-                <div className="mt-3 flex flex-wrap gap-1.5">
-                  {DAY_NAMES.map((name, index) => {
-                    const day = index + 1;
-                    const active = settings.allowedSendingDays.includes(day);
-                    return (
-                      <button
-                        key={day}
-                        type="button"
-                        disabled={!canManage}
-                        onClick={() =>
-                          void patchSettings({
-                            allowedSendingDays: active
-                              ? settings.allowedSendingDays.filter(
-                                  (d) => d !== day,
-                                )
-                              : [...settings.allowedSendingDays, day].sort(),
-                          })
-                        }
-                        className={`h-9 w-12 rounded-[9px] border text-xs font-semibold transition-colors disabled:opacity-60 ${
-                          active
-                            ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#4A56A6]"
-                            : "border-[#E3E5F0] bg-white text-[#8891A4]"
-                        }`}
-                      >
-                        {name}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
-                  Cuánto se le escribe a un cliente
-                </p>
-                <p className="mt-2 text-sm leading-6 text-[#5F6780]">
-                  Como máximo{" "}
-                  <strong>
-                    {settings.maximumMessagesPer30Days}{" "}
-                    {settings.maximumMessagesPer30Days === 1
-                      ? "mensaje"
-                      : "mensajes"}
-                  </strong>{" "}
-                  cada 30 días, y nunca dos seguidos con menos de{" "}
-                  <strong>{settings.minimumDaysBetweenMessages} días</strong> de
-                  diferencia.
-                </p>
-              </div>
-            </div>
-          ) : null}
-        </div>
+            <span>y las</span>
+            <HourSelect
+              value={settings.sendingHourEnd}
+              disabled={!canManage}
+              onChange={(v) => void patchSettings({ sendingHourEnd: v })}
+            />
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {DAY_NAMES.map((name, index) => {
+              const day = index + 1;
+              const active = settings.allowedSendingDays.includes(day);
+              return (
+                <button
+                  key={day}
+                  type="button"
+                  disabled={!canManage}
+                  onClick={() =>
+                    void patchSettings({
+                      allowedSendingDays: active
+                        ? settings.allowedSendingDays.filter((d) => d !== day)
+                        : [...settings.allowedSendingDays, day].sort(),
+                    })
+                  }
+                  className={`h-9 w-12 rounded-[9px] border text-xs font-semibold transition-colors disabled:opacity-60 ${
+                    active
+                      ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#4A56A6]"
+                      : "border-[#E3E5F0] bg-white text-[#8891A4]"
+                  }`}
+                >
+                  {name}
+                </button>
+              );
+            })}
+          </div>
+        </section>
       ) : null}
 
       {!canManage ? (
@@ -595,9 +396,7 @@ function AutomationCard({
   disabled,
   locked = false,
   channels = [],
-  upsellChannel = null,
   onToggle,
-  children,
 }: {
   title: string;
   description: string;
@@ -608,10 +407,7 @@ function AutomationCard({
   locked?: boolean;
   /** Canales que de verdad van a salir ahora mismo. Nunca Push ni Wallet. */
   channels?: Channel[];
-  /** Canal que se suma con Pro pero hoy no está incluido (upsell suave). */
-  upsellChannel?: Channel | null;
   onToggle: (value: boolean) => void;
-  children?: React.ReactNode;
 }) {
   return (
     <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:p-6">
@@ -636,7 +432,7 @@ function AutomationCard({
                 {enabled ? "Activo" : "Desactivado"}
               </span>
             )}
-            <ChannelBadges channels={channels} upsellChannel={upsellChannel} />
+            <ChannelBadges channels={channels} />
           </div>
           <p className="mt-1.5 max-w-lg text-sm leading-6 text-[#7F879C]">
             {description}
@@ -663,7 +459,7 @@ function AutomationCard({
           disabled={disabled || locked}
           onClick={() => onToggle(!enabled)}
           className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-            enabled ? "bg-[#5C6BC0]" : "bg-[#DDE1EC]"
+            enabled ? "flk-glossy bg-[#5C6BC0]" : "bg-[#DDE1EC]"
           }`}
         >
           <span
@@ -673,44 +469,21 @@ function AutomationCard({
           />
         </button>
       </div>
-      {children}
     </section>
   );
 }
 
 /**
- * Badges de canal — solo los que Flikker realmente soporta. Nunca "Push" ni
- * "Wallet" (Fiddelik los tiene, Flikker no): si un canal no está en la
- * lista, no se inventa un badge para él.
+ * Badge de canal — solo WhatsApp, y solo en las automatizaciones que de
+ * verdad salen por ahí. Nunca Email, Push ni Wallet (Fiddelik los tiene,
+ * Flikker no expone esos acá): si el canal real no es WhatsApp, no se
+ * muestra ningún badge — mostrar uno falso sería peor que no mostrar nada.
  */
-function ChannelBadges({
-  channels,
-  upsellChannel,
-}: {
-  channels: Channel[];
-  upsellChannel?: Channel | null;
-}) {
-  if (channels.length === 0 && !upsellChannel) return null;
+function ChannelBadges({ channels }: { channels: Channel[] }) {
+  if (!channels.includes("whatsapp")) return null;
   return (
-    <span className="inline-flex items-center gap-1.5">
-      {channels.includes("whatsapp") ? (
-        <span className="inline-flex items-center gap-1 rounded-full bg-[#EAF7EF] px-2 py-0.5 text-[11px] font-semibold text-[#147A5B]">
-          <WhatsAppIcon /> WhatsApp
-        </span>
-      ) : null}
-      {channels.includes("email") ? (
-        <span className="inline-flex items-center gap-1 rounded-full bg-[#EEF0FB] px-2 py-0.5 text-[11px] font-semibold text-[#4A56A6]">
-          <Mail className="h-3 w-3" /> Email
-        </span>
-      ) : null}
-      {upsellChannel === "email" ? (
-        <Link
-          href="/dashboard/settings/suscripcion"
-          className="inline-flex items-center gap-1 rounded-full bg-[#F3F4F8] px-2 py-0.5 text-[11px] font-semibold text-[#6B7280] hover:bg-[#EEF0FB] hover:text-[#4A56A6]"
-        >
-          <Mail className="h-3 w-3" /> + Email con Pro
-        </Link>
-      ) : null}
+    <span className="inline-flex items-center gap-1 rounded-full bg-[#EAF7EF] px-2 py-0.5 text-[11px] font-semibold text-[#147A5B]">
+      <WhatsAppIcon /> WhatsApp
     </span>
   );
 }
@@ -730,54 +503,6 @@ function WhatsAppIcon() {
     >
       <path d="M20.5 11.6a8.5 8.5 0 0 1-12.6 7.5L3.5 20.5l1.4-4.3a8.5 8.5 0 1 1 15.6-4.6Z" />
     </svg>
-  );
-}
-
-/**
- * §11 — un estado separado del "Activo/Preparando" de la automatización en
- * sí: "Te extrañamos" puede estar mandando reminders perfectamente mientras
- * esto dice "Necesitan límite" — son dos preguntas distintas.
- */
-function BenefitsStatusBadge({
-  status,
-}: {
-  status: Overview["benefitsAutomation"]["status"];
-}) {
-  if (status === "sin_autorizar") return null;
-  const copy: Record<
-    Exclude<Overview["benefitsAutomation"]["status"], "sin_autorizar">,
-    { label: string; className: string }
-  > = {
-    listo: { label: "Listos", className: "bg-[#EAF7EF] text-[#147A5B]" },
-    necesita_limite: {
-      label: "Necesitan límite",
-      className: "bg-[#FDEEEE] text-[#B3261E]",
-    },
-    limite_alcanzado: {
-      label: "Límite alcanzado",
-      className: "bg-[#FFF7EE] text-[#8A520D]",
-    },
-  };
-  const { label, className } = copy[status];
-  return (
-    <span
-      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${className}`}
-    >
-      {label}
-    </span>
-  );
-}
-
-function Metric({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
-        {label}
-      </p>
-      <p className="mt-0.5 font-display text-lg font-semibold text-[#202333]">
-        {value}
-      </p>
-    </div>
   );
 }
 

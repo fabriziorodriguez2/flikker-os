@@ -130,7 +130,7 @@ export class RetentionSettingsService {
     const settings = await this.getOrCreate(businessId);
     if (!this.hasIncentiveBudgetConfigured(settings)) {
       throw new BadRequestException(
-        'Configurá un límite mensual de beneficios automáticos antes de autorizar uno para reactivación (Notificaciones → Te extrañamos).',
+        'Configurá un límite mensual de beneficios automáticos antes de autorizar uno para reactivación (Programa → Configuración → Incentivos).',
       );
     }
   }
