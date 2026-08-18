@@ -1,10 +1,16 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Award, ChevronRight, Gift, Stamp, Users, X } from "lucide-react";
 import ProgramHistoryTab from "./program-history-tab";
 import type { LoyaltyProgramOverview, ProgramHistoryItem } from "./types";
 import type { ConfigSection } from "./program-configuracion-tab";
+
+function daysRemaining(isoDate: string) {
+  const diffMs = new Date(isoDate).getTime() - Date.now();
+  return Math.max(0, Math.ceil(diffMs / 86_400_000));
+}
 
 function relativeDate(value: string) {
   const diffMs = Date.now() - new Date(value).getTime();
@@ -173,7 +179,11 @@ export default function ProgramSummaryTab({
         <StatCard
           label="Clientes participando"
           value={stats.customersParticipating}
-          hint="Tienen o tuvieron una tarjeta"
+          hint={
+            overview.plan.maxCustomers != null
+              ? `De ${overview.plan.maxCustomers} en tu plan Free`
+              : "Tienen o tuvieron una tarjeta"
+          }
           icon={Users}
         />
         <StatCard
@@ -195,6 +205,49 @@ export default function ProgramSummaryTab({
           icon={Gift}
         />
       </div>
+
+      {!overview.plan.isPro &&
+      overview.plan.maxCustomers != null &&
+      stats.customersParticipating >= overview.plan.maxCustomers ? (
+        <div className="rounded-[12px] border border-[#F5D6A8] bg-[#FFF7EE] px-4 py-3 text-sm text-[#8A520D]">
+          <span className="font-semibold">
+            Llegaste al límite de {overview.plan.maxCustomers} clientes de tu
+            plan Free.
+          </span>{" "}
+          Los que ya participan siguen sumando sellos normalmente — para que
+          entren clientes nuevos a la tarjeta{" "}
+          <Link href="/dashboard/settings/suscripcion" className="font-semibold underline">
+            actualizá tu plan
+          </Link>
+          .
+        </div>
+      ) : null}
+
+      {!overview.plan.isPro && overview.plan.benefitsTrialExpired ? (
+        <div className="rounded-[12px] border border-[#F5D6A8] bg-[#FFF7EE] px-4 py-3 text-sm text-[#8A520D]">
+          <span className="font-semibold">Tu prueba de 30 días terminó.</span>{" "}
+          Tus beneficios, clientes e historial siguen intactos — para crear
+          beneficios nuevos{" "}
+          <Link href="/dashboard/settings/suscripcion" className="font-semibold underline">
+            actualizá tu plan
+          </Link>
+          .
+        </div>
+      ) : null}
+
+      {!overview.plan.isPro &&
+      !overview.plan.benefitsTrialExpired &&
+      overview.plan.trialEndsAt ? (
+        <div className="rounded-[12px] border border-[#E8EAF0] bg-[#F5F6FA] px-4 py-3 text-sm text-[#5C6478]">
+          <span className="font-semibold text-[#1A202C]">
+            Prueba de Beneficios: te quedan{" "}
+            {daysRemaining(overview.plan.trialEndsAt)}{" "}
+            días.
+          </span>{" "}
+          Al vencer, tus beneficios y clientes siguen intactos — solo se
+          bloquea crear beneficios nuevos hasta que actualices tu plan.
+        </div>
+      ) : null}
 
       <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
         <div className="flex items-center justify-between gap-3">

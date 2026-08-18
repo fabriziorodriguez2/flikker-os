@@ -14,6 +14,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { VisitSourcesRepository } from '../visit-sources/visit-sources.repository';
 import { BenefitsRepository } from '../benefits/benefits.repository';
 import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
+import { PlansService } from '../plans/plans.service';
 import { ONBOARDING_DEFAULTS } from './onboarding.defaults';
 import { GoogleUrlError, normalizeGoogleBusinessUrl } from './google-url';
 import type {
@@ -51,6 +52,7 @@ export class OnboardingService {
     private readonly visitSources: VisitSourcesRepository,
     private readonly benefits: BenefitsRepository,
     private readonly retentionBootstrap: RetentionV2BootstrapService,
+    private readonly plans: PlansService,
   ) {}
 
   /** El negocio que este usuario está onboardeando, si hay alguno. */
@@ -248,6 +250,16 @@ export class OnboardingService {
       data: { retentionProgramDecided: true },
     });
 
+    // Self-service FREE (tarjeta de sellos): 50 clientes participantes.
+    // "Beneficios + sellos" TAMBIÉN arranca el trial de Beneficios (30 días,
+    // acceso Pro temporal) — `benefitsEnabled` sigue en `true` (default) en
+    // este camino, así que dejarlo sin vencimiento sería regalar Beneficios
+    // Pro para siempre. `startBenefitsTrialIfNeeded` es idempotente: si el
+    // negocio ya lo había arrancado antes (ej. vino de "solo Beneficios" y
+    // volvió a este paso), no reinicia el reloj.
+    await this.plans.ensureFreeSubscriptionIfMissing(draft.id);
+    await this.plans.startBenefitsTrialIfNeeded(draft.id);
+
     return this.getState(userId);
   }
 
@@ -288,6 +300,14 @@ export class OnboardingService {
       where: { id: draft.id },
       data: { retentionProgramDecided: true },
     });
+
+    // Self-service Beneficios: prueba de 30 días desde la activación. Al
+    // vencer, `PlansService#isBenefitsBlocked` bloquea crear beneficios
+    // NUEVOS (`BenefitsService#create`) — el catálogo existente sigue
+    // intacto. El plan Free se da de alta igual (nunca duele: el tope de
+    // clientes solo importa si además se prenden los sellos).
+    await this.plans.ensureFreeSubscriptionIfMissing(draft.id);
+    await this.plans.startBenefitsTrialIfNeeded(draft.id);
 
     return this.getState(userId);
   }

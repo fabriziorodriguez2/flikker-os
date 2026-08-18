@@ -3,6 +3,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { RetentionV2Module } from '../retention-v2/retention-v2.module';
 import { BenefitsModule } from '../benefits/benefits.module';
 import { ProgramAuditModule } from '../program-audit/program-audit.module';
+import { PlansModule } from '../plans/plans.module';
 import { RewardGoalEngineService } from './reward-goal-engine.service';
 import { RewardGoalIssuerService } from './reward-goal-issuer.service';
 import { RewardGoalUnlockService } from './reward-goal-unlock.service';
@@ -23,6 +24,7 @@ import { LoyaltyProgramController } from './loyalty-program.controller';
     RetentionV2Module,
     BenefitsModule,
     ProgramAuditModule,
+    PlansModule,
   ],
   controllers: [LoyaltyProgramController],
   providers: [

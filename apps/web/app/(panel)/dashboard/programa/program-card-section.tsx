@@ -1,5 +1,6 @@
 "use client";
 
+import { Gift } from "lucide-react";
 import ProgramStampsSection from "./program-stamps-section";
 import ProgramFeedbackBonusSection from "./program-feedback-bonus-section";
 import ProgramDesignTab from "./program-design-tab";
@@ -13,10 +14,17 @@ import type { LoyaltyAppearance, LoyaltyProgramOverview, ProgramBenefit } from "
  * Diseño) — se agrupan acá porque las tres son la MISMA decisión de producto
  * ("cómo es mi tarjeta"), no tres independientes.
  *
- * Solo aplica si el negocio usa sellos: con la tarjeta desactivada, el diseño
- * no tiene sentido (no hay tarjeta que mostrar), así que `ProgramStampsSection`
- * ya resuelve ese estado — el diseño con preview solo se monta cuando
- * `overview.enabled` es true, mismo criterio que usaba la sección vieja.
+ * Auditado antes de tocar esto (pedido explícito): no hay ningún campo
+ * persistido que diga "este negocio eligió solo Beneficios" — el wizard de
+ * onboarding nunca guarda esa elección, solo sus efectos. Pero esos efectos
+ * SÍ alcanzan para derivarlo sin agregar un campo nuevo: `overview.reward`
+ * (la recompensa de la tarjeta) sobrevive un apagado temporal a propósito
+ * (ver el comentario de `setStampsCardEnabled` en el backend) — así que
+ * `!overview.enabled && !overview.reward` es, con los datos que YA existen,
+ * exactamente "nunca configuró una recompensa de tarjeta": un negocio
+ * genuinamente Beneficios-only, no uno que pausó los sellos. Ese caso no
+ * muestra el formulario de activación (sería la "tarjeta falsa" que se pidió
+ * evitar) — apunta a Premios, que es donde vive su programa real.
  */
 export default function ProgramCardSection({
   overview,
@@ -28,6 +36,7 @@ export default function ProgramCardSection({
   onSaveConfig,
   onSaveDesign,
   onReload,
+  onGoToPremios,
 }: {
   overview: LoyaltyProgramOverview;
   benefits: ProgramBenefit[];
@@ -44,7 +53,47 @@ export default function ProgramCardSection({
   }) => Promise<void>;
   onSaveDesign: (patch: Record<string, unknown>) => Promise<void>;
   onReload: () => Promise<void>;
+  onGoToPremios: () => void;
 }) {
+  const neverConfiguredStamps = !overview.enabled && !overview.reward;
+
+  if (neverConfiguredStamps) {
+    return (
+      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-8 text-center">
+        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#EEF0FB] text-[#5C6BC0]">
+          <Gift className="h-5 w-5" aria-hidden="true" />
+        </span>
+        <h2 className="mt-4 font-display text-base font-bold text-[#1A202C]">
+          Tu programa es de beneficios
+        </h2>
+        <p className="mx-auto mt-2 max-w-sm text-sm text-[#8891A4]">
+          Todavía no configuraste una tarjeta de sellos — tu catálogo de{" "}
+          <button
+            type="button"
+            onClick={onGoToPremios}
+            className="font-semibold text-[#5C6BC0] hover:underline"
+          >
+            Premios
+          </button>{" "}
+          es tu programa. Podés sumar sellos más adelante si querés premiar
+          las visitas frecuentes.
+        </p>
+        {canMutate ? (
+          <div className="mx-auto mt-5 max-w-sm">
+            <ProgramStampsSection
+              overview={overview}
+              benefits={benefits}
+              canMutate={canMutate}
+              onToggle={onToggle}
+              onSaveConfig={onSaveConfig}
+              onReload={onReload}
+            />
+          </div>
+        ) : null}
+      </section>
+    );
+  }
+
   return (
     <div className="space-y-5">
       <ProgramStampsSection

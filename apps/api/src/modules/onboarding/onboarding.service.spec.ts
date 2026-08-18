@@ -50,7 +50,11 @@ function makeDeps(options: { draft?: unknown } = {}) {
   const retentionBootstrap = {
     ensureDefaultRetentionSetup: jest.fn().mockResolvedValue([]),
   };
-  return { prisma, visitSources, benefits, retentionBootstrap };
+  const plans = {
+    ensureFreeSubscriptionIfMissing: jest.fn().mockResolvedValue({}),
+    startBenefitsTrialIfNeeded: jest.fn().mockResolvedValue(undefined),
+  };
+  return { prisma, visitSources, benefits, retentionBootstrap, plans };
 }
 
 const service = (d: ReturnType<typeof makeDeps>) =>
@@ -59,6 +63,7 @@ const service = (d: ReturnType<typeof makeDeps>) =>
     d.visitSources as never,
     d.benefits as never,
     d.retentionBootstrap as never,
+    d.plans as never,
   );
 
 const BUSINESS_DTO = { name: 'Café Uno', category: 'cafeteria' };
@@ -146,6 +151,20 @@ describe('Onboarding — paso 2 configura el programa', () => {
         data: { retentionProgramDecided: true },
       }),
     );
+  });
+
+  it('"Beneficios + sellos" también arranca el trial de 30 días — no queda Beneficios Pro gratis para siempre', async () => {
+    const deps = makeDeps();
+
+    await service(deps).saveProgram('user-1', {
+      rewardTitle: '3 medialunas',
+      stampsRequired: 5,
+    });
+
+    expect(deps.plans.ensureFreeSubscriptionIfMissing).toHaveBeenCalledWith(
+      'biz-1',
+    );
+    expect(deps.plans.startBenefitsTrialIfNeeded).toHaveBeenCalledWith('biz-1');
   });
 
   it('IDEMPOTENTE: reenviar el mismo título reusa el beneficio, no lo duplica', async () => {

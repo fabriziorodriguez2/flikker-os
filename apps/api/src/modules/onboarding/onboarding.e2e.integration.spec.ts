@@ -10,6 +10,8 @@ import { RetentionSettingsService } from '../retention-v2/retention-settings.ser
 import { RetentionExperimentsAdminService } from '../retention-v2/retention-experiments-admin.service';
 import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
 import { LoyaltyProgramService } from '../reward-goals/loyalty-program.service';
+import { PlansService } from '../plans/plans.service';
+import { PlansRepository } from '../plans/plans.repository';
 import { OnboardingService } from './onboarding.service';
 import { ONBOARDING_DEFAULTS } from './onboarding.defaults';
 
@@ -47,6 +49,8 @@ describe('Onboarding self-service — end to end (integration)', () => {
         RetentionV2BootstrapService,
         OnboardingService,
         LoyaltyProgramService,
+        PlansService,
+        PlansRepository,
       ],
     }).compile();
 
@@ -97,6 +101,11 @@ describe('Onboarding self-service — end to end (integration)', () => {
         where: { businessId: id },
       });
       await prisma.retentionSettings.deleteMany({ where: { businessId: id } });
+      // El paso 2 (cualquiera de los dos caminos) ahora da de alta una
+      // Subscription self-service (FREE sellos o trial Beneficios).
+      await prisma.subscription
+        .deleteMany({ where: { businessId: id } })
+        .catch(() => undefined);
       await prisma.business.update({
         where: { id },
         data: { welcomeBenefitId: null },

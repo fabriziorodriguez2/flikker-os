@@ -128,7 +128,11 @@ export class CheckinService {
       select: { id: true, name: true },
     });
 
-    const benefit = await this.benefits.resolveActiveBenefit(business.id);
+    const benefit = await this.benefits.resolveActiveBenefit(
+      business.id,
+      undefined,
+      customer.id,
+    );
     if (benefit && benefit.type === BenefitType.raffle) {
       void this.benefits
         .registerParticipation(business.id, benefit.id, customer.id)
@@ -586,7 +590,7 @@ export class CheckinService {
     const [total, lastVisit, benefit, rewardGoal] = await Promise.all([
       this.visits.countByCustomer(business.id, customerId),
       this.visits.findLastByCustomer(business.id, customerId),
-      this.benefits.resolveActiveBenefit(business.id),
+      this.benefits.resolveActiveBenefit(business.id, undefined, customerId),
       opts.justVisited
         ? this.rewardGoals.afterVisit(
             business.id,

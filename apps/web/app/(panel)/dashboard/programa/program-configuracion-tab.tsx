@@ -56,6 +56,7 @@ export default function ProgramConfiguracionTab({
   onCreateBenefit,
   onDeleteBenefit,
   onSetBenefitUse,
+  onToggleBenefits,
   onSaveBenefitTerms,
   onReload,
 }: {
@@ -86,6 +87,7 @@ export default function ProgramConfiguracionTab({
     use: "rewardCard" | "welcomeGift" | "reactivation",
     value: boolean,
   ) => Promise<void>;
+  onToggleBenefits: (enabled: boolean) => Promise<void>;
   onSaveBenefitTerms: (benefitId: string, terms: string) => Promise<void>;
   onReload: () => Promise<void>;
 }) {
@@ -129,6 +131,7 @@ export default function ProgramConfiguracionTab({
             onSaveConfig={onSaveStampsConfig}
             onSaveDesign={onSaveDesign}
             onReload={onReload}
+            onGoToPremios={() => onSectionChange("premios")}
           />
         ) : null}
 
@@ -159,9 +162,12 @@ export default function ProgramConfiguracionTab({
             benefits={benefits}
             welcomeBenefitId={overview.welcomeGift?.benefitId ?? null}
             canMutate={canMutate}
+            benefitsEnabled={overview.benefitsEnabled}
+            trialExpired={overview.plan.benefitsTrialExpired}
             onCreate={onCreateBenefit}
             onDelete={onDeleteBenefit}
             onSetUse={onSetBenefitUse}
+            onToggleBenefits={onToggleBenefits}
             onReload={onReload}
           />
         ) : null}

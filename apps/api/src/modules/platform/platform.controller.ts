@@ -283,6 +283,21 @@ export class PlatformController {
     return this.platformService.listBusinessPlanHistory(businessId);
   }
 
+  // ── Suscripción self-service ────────────────────────────────────────────
+
+  /**
+   * Confirma manualmente el pago de Pro vía Mercado Pago — ver el
+   * comentario de `PlatformService#confirmProSubscription`. Nunca se llama
+   * automáticamente desde el click del dueño en "Suscribirme".
+   */
+  @Post('businesses/:businessId/confirm-pro-subscription')
+  confirmProSubscription(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+  ) {
+    return this.platformService.confirmProSubscription(businessId, req.user.id);
+  }
+
   @Post('businesses/:businessId/reset-onboarding')
   resetOnboarding(
     @Req() req: AuthenticatedRequest,

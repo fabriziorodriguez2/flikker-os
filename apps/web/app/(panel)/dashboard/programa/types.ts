@@ -1,6 +1,8 @@
 /** Respuesta de `GET /loyalty-program/overview`. */
 export interface LoyaltyProgramOverview {
   enabled: boolean;
+  /** Capacidad independiente de sellos — catálogo de Beneficios visible públicamente. */
+  benefitsEnabled: boolean;
   feedbackBonusEnabled: boolean;
   stampsRequired: number | null;
   reward: { name: string; benefitId: string | null } | null;
@@ -20,6 +22,18 @@ export interface LoyaltyProgramOverview {
   }>;
   /** Cuántos beneficios tiene el catálogo — Programa ya no es solo la tarjeta. */
   benefitsCount: number;
+  /**
+   * Self-service (FREE sellos / trial Beneficios). `maxCustomers: null` =
+   * sin tope (plan pago, o sin Subscription — LEGACY/Platform Admin/negocio
+   * anterior a esta feature).
+   */
+  plan: {
+    maxCustomers: number | null;
+    benefitsTrialExpired: boolean;
+    trialEndsAt: string | null;
+    isPro: boolean;
+    planName: string | null;
+  };
 }
 
 /** Un ítem del timeline de `GET /loyalty-program/history`. */

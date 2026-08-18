@@ -22,6 +22,8 @@ import { ProgramAuditService } from '../program-audit/program-audit.service';
 import { ReviewsOverviewService } from '../reviews/reviews-overview.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { HomeService } from './home.service';
+import { PlansService } from '../plans/plans.service';
+import { PlansRepository } from '../plans/plans.repository';
 
 /**
  * Inicio contra DB real.
@@ -64,6 +66,8 @@ describe('Inicio — portada (integration)', () => {
         ProgramAuditService,
         WhatsAppBspService,
         HomeService,
+        PlansService,
+        PlansRepository,
         {
           provide: RetentionResultsOverviewService,
           useValue: { forBusiness: jest.fn().mockResolvedValue([]) },

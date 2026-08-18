@@ -25,6 +25,7 @@ import { AiRecommendationExplanationService } from '../ai/recommendation-explana
 import { RetentionOptimizationService } from './retention-optimization.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { RetentionV2BootstrapService } from './retention-v2-bootstrap.service';
+import { PlansModule } from '../plans/plans.module';
 
 /**
  * Retention Engine V2 runtime, plus the Fase C.5 configuration surface
@@ -33,7 +34,7 @@ import { RetentionV2BootstrapService } from './retention-v2-bootstrap.service';
  * controllers only let the owner configure what the workers read.
  */
 @Module({
-  imports: [PrismaModule, AiModule],
+  imports: [PrismaModule, AiModule, PlansModule],
   controllers: [
     RetentionSettingsController,
     RetentionIncentivesController,

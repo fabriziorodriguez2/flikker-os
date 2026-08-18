@@ -8,6 +8,7 @@ import { CampaignsService } from '../campaigns/campaigns.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.queue';
+import { PlansService } from '../plans/plans.service';
 
 const mockRepo = {
   findAllBusinesses: jest.fn(),
@@ -34,6 +35,10 @@ const mockGoogleReviewDetectionQueue = {
 // Only the experience-version flows reach Prisma directly; the cases in this
 // suite do not, so an empty stub is enough to satisfy the constructor.
 const mockPrisma = {};
+// Ninguna prueba de esta suite pasa por `confirmProSubscription` — stub vacío.
+const mockPlansService = {
+  ensureProSelfServicePlan: jest.fn(),
+};
 
 describe('PlatformService', () => {
   let service: PlatformService;
@@ -54,6 +59,7 @@ describe('PlatformService', () => {
           useValue: mockGoogleReviewDetectionQueue,
         },
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: PlansService, useValue: mockPlansService },
       ],
     }).compile();
     service = module.get<PlatformService>(PlatformService);

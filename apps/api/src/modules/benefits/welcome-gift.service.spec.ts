@@ -44,13 +44,26 @@ function makeRepo(
 
 // Ninguno de estos tests pasa por create/update/setRetentionBridge (los
 // únicos que escriben en el historial o tocan presupuesto/bootstrap), así
-// que stubs vacíos alcanzan.
-const service = (repo: ReturnType<typeof makeRepo>) =>
+// que stubs vacíos alcanzan. `getOrCreate` sí se usa (gate de
+// `benefitsEnabled`) — default "prendido" para que estos tests sigan
+// probando la lógica de bienvenida en sí, no el toggle nuevo. `plansBlocked`
+// (default `false`) es el gate del trial de Beneficios — su propio describe
+// block más abajo.
+const service = (
+  repo: ReturnType<typeof makeRepo>,
+  benefitsEnabled = true,
+  plansBlocked = false,
+) =>
   new BenefitsService(
     repo as never,
     { record: jest.fn() } as never,
+    {
+      getOrCreate: jest.fn().mockResolvedValue({ benefitsEnabled }),
+    } as never,
     {} as never,
-    {} as never,
+    {
+      isBenefitsBlocked: jest.fn().mockResolvedValue(plansBlocked),
+    } as never,
   );
 
 describe('Regalo de bienvenida — se entrega una sola vez', () => {
@@ -192,5 +205,78 @@ describe('Regalo de bienvenida — independiente de Benefit.active', () => {
 
     expect(repo.setWelcomeBenefit).toHaveBeenCalledWith('biz-1', null);
     expect(repo.findOne).not.toHaveBeenCalled();
+  });
+});
+
+describe('Regalo de bienvenida — catálogo de Beneficios apagado (Programa → Configuración)', () => {
+  it('grantWelcomeGift no entrega nada con benefitsEnabled: false', async () => {
+    const repo = makeRepo();
+
+    const result = await service(repo, false).grantWelcomeGift(
+      'biz-1',
+      'c-1',
+      NOW,
+    );
+
+    expect(result).toBeNull();
+    expect(repo.ensureRedemptionCode).not.toHaveBeenCalled();
+  });
+
+  it('getWelcomeGiftState no muestra nada con benefitsEnabled: false', async () => {
+    const repo = makeRepo();
+
+    const state = await service(repo, false).getWelcomeGiftState(
+      'biz-1',
+      'c-1',
+    );
+
+    expect(state).toBeNull();
+    expect(repo.findWelcomeBenefit).not.toHaveBeenCalled();
+  });
+
+  it('reactivar benefitsEnabled restaura el mismo regalo sin reconfigurar nada', async () => {
+    const repo = makeRepo();
+
+    expect(
+      await service(repo, false).grantWelcomeGift('biz-1', 'c-1', NOW),
+    ).toBeNull();
+    // `Business.welcomeBenefitId` nunca se tocó — reactivar el catálogo
+    // vuelve a entregar el MISMO regalo, sin volver a configurarlo.
+    const result = await service(repo, true).grantWelcomeGift(
+      'biz-1',
+      'c-1',
+      NOW,
+    );
+    expect(result).toEqual({ benefitId: 'ben-1', code: 'ABCD1234' });
+  });
+});
+
+describe('Regalo de bienvenida — trial de Beneficios vencido (sin Pro)', () => {
+  it('grantWelcomeGift NO entrega un regalo nuevo con el trial vencido', async () => {
+    const repo = makeRepo();
+
+    const result = await service(repo, true, true).grantWelcomeGift(
+      'biz-1',
+      'c-1',
+      NOW,
+    );
+
+    expect(result).toBeNull();
+    expect(repo.ensureRedemptionCode).not.toHaveBeenCalled();
+  });
+
+  it('getWelcomeGiftState de un regalo YA entregado sigue funcionando aunque el trial esté vencido', async () => {
+    // `getWelcomeGiftState` no pasa por el guard de Pro a propósito: es
+    // solo LECTURA de una promesa ya hecha (`grantWelcomeGift` es lo único
+    // que "entrega" algo nuevo), así que honra "ya emitidos siguen
+    // canjeables" sin necesitar chequear el trial.
+    const repo = makeRepo();
+
+    const state = await service(repo, true, true).getWelcomeGiftState(
+      'biz-1',
+      'c-1',
+    );
+
+    expect(state).toMatchObject({ title: 'Café gratis', code: 'ABCD1234' });
   });
 });

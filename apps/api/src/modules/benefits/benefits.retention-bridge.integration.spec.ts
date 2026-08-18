@@ -12,6 +12,8 @@ import {
   createTestBusiness,
   makeTestSuffix,
 } from '../reviews/reviews.test-helpers';
+import { PlansService } from '../plans/plans.service';
+import { PlansRepository } from '../plans/plans.repository';
 
 /**
  * Pre-piloto #2 — "Beneficios múltiples + costo opcional". Contra DB real
@@ -36,6 +38,8 @@ describe('BenefitsService — múltiples beneficios sin costo obligatorio (integ
         RetentionSettingsService,
         RetentionExperimentsAdminService,
         RetentionV2BootstrapService,
+        PlansService,
+        PlansRepository,
       ],
     }).compile();
 

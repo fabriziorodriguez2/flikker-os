@@ -8,6 +8,7 @@ import type { AuthenticatedRequest } from '../../common/types/request.types';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { LoyaltyProgramService } from './loyalty-program.service';
 import {
+  SetBenefitsEnabledDto,
   SetStampsCardEnabledDto,
   UpdateStampsCardConfigDto,
 } from './dto/loyalty-program.dto';
@@ -46,6 +47,21 @@ export class LoyaltyProgramController {
     @Body() dto: SetStampsCardEnabledDto,
   ) {
     return this.program.setStampsCardEnabled(
+      req.currentBusinessId!,
+      dto,
+      req.user.id,
+    );
+  }
+
+  /** Capacidad independiente de sellos — ver `RetentionSettings.benefitsEnabled`. */
+  @Patch('benefits-enabled')
+  @UseGuards(RolesGuard)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
+  setBenefitsEnabled(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: SetBenefitsEnabledDto,
+  ) {
+    return this.program.setBenefitsEnabled(
       req.currentBusinessId!,
       dto,
       req.user.id,

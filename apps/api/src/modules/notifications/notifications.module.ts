@@ -10,6 +10,7 @@ import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { NotificationsPromotionsService } from './notifications-promotions.service';
+import { PlansModule } from '../plans/plans.module';
 
 /**
  * Notificaciones no tiene dominio propio: importa los cuatro sistemas que ya
@@ -34,6 +35,7 @@ import { NotificationsPromotionsService } from './notifications-promotions.servi
     VisitSourcesModule,
     // Historial de "cambiaste el límite mensual de beneficios automáticos".
     ProgramAuditModule,
+    PlansModule,
   ],
   controllers: [NotificationsController],
   providers: [

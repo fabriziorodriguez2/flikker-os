@@ -5,6 +5,7 @@ import { RewardGoalsModule } from '../modules/reward-goals/reward-goals.module';
 import { OwnerNotificationsQueue } from './owner-notifications.queue';
 import { GoogleReviewDetectionQueue } from './google-review-detection.queue';
 import { GoogleReviewsProvider } from './google-reviews.provider';
+import { GooglePlacesProvider } from './google-places.provider';
 import { RepeatsQueue } from './repeats.queue';
 import { RetentionQueue } from './retention.queue';
 import { RetentionV2Queue } from './retention-v2.queue';
@@ -47,6 +48,7 @@ import { RaffleProcessor } from './raffle.processor';
     GoogleCalendarSyncQueue,
     GoogleCalendarSendCheckQueue,
     GoogleReviewsProvider,
+    GooglePlacesProvider,
     OwnerNotificationsWorker,
     GoogleReviewDetectionWorker,
     RepeatsProcessor,
@@ -71,6 +73,7 @@ import { RaffleProcessor } from './raffle.processor';
     GoogleCalendarSyncQueue,
     GoogleCalendarSendCheckQueue,
     GoogleReviewsProvider,
+    GooglePlacesProvider,
     WhatsAppBspService,
     EmailService,
   ],

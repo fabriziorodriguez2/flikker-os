@@ -11,6 +11,8 @@ import {
   createTestBusiness,
   makeTestSuffix,
 } from '../reviews/reviews.test-helpers';
+import { PlansService } from '../plans/plans.service';
+import { PlansRepository } from '../plans/plans.repository';
 
 /**
  * Pre-piloto #6 — "¿por qué me ofrece Capuccino en cada visita?"
@@ -43,6 +45,8 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
         RewardGoalIssuerService,
         RewardGoalUnlockService,
         RewardGoalOrchestratorService,
+        PlansService,
+        PlansRepository,
       ],
     }).compile();
 

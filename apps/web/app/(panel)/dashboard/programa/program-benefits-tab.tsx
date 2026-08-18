@@ -27,15 +27,32 @@ export default function ProgramBenefitsTab({
   benefits,
   welcomeBenefitId,
   canMutate,
+  benefitsEnabled = true,
+  trialExpired = false,
   onCreate,
   onDelete,
   onSetUse,
+  onToggleBenefits,
   onReload,
 }: {
   benefits: ProgramBenefit[];
   /** Cual es hoy el regalo de bienvenida (Business.welcomeBenefitId). */
   welcomeBenefitId: string | null;
   canMutate: boolean;
+  /**
+   * Capacidad independiente de sellos (Programa → Configuración): visibilidad
+   * pública del catálogo. Apagarlo NUNCA borra beneficios ni historial — solo
+   * deja de mostrarlos/entregarlos en el check-in (`RetentionSettings.
+   * benefitsEnabled`). El catálogo sigue totalmente editable acá abajo.
+   */
+  benefitsEnabled?: boolean;
+  /**
+   * Self-service Beneficios: la prueba de 30 días venció. El catálogo
+   * existente (edición, checkboxes de uso, borrado) sigue funcionando
+   * intacto — el backend (`BenefitsService#create`) solo bloquea crear
+   * beneficios NUEVOS, así que esto solo deshabilita ESE botón.
+   */
+  trialExpired?: boolean;
   onCreate: (payload: {
     type: string;
     title: string;
@@ -47,6 +64,7 @@ export default function ProgramBenefitsTab({
     use: "rewardCard" | "welcomeGift" | "reactivation",
     value: boolean,
   ) => Promise<void>;
+  onToggleBenefits: (enabled: boolean) => Promise<void>;
   onReload: () => Promise<void>;
 }) {
   const [creating, setCreating] = useState(false);
@@ -55,6 +73,7 @@ export default function ProgramBenefitsTab({
   const [description, setDescription] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [togglingCatalog, setTogglingCatalog] = useState(false);
 
   async function run(id: string, action: () => Promise<void>) {
     setBusyId(id);
@@ -66,6 +85,19 @@ export default function ProgramBenefitsTab({
       setError(e instanceof Error ? e.message : "No pudimos guardar.");
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function toggleCatalog() {
+    setTogglingCatalog(true);
+    setError(null);
+    try {
+      await onToggleBenefits(!benefitsEnabled);
+      await onReload();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No pudimos guardar.");
+    } finally {
+      setTogglingCatalog(false);
     }
   }
 
@@ -90,22 +122,62 @@ export default function ProgramBenefitsTab({
           <div>
             <h2 className="font-display text-base font-bold text-[#1A202C]">Beneficios</h2>
             <p className="mt-1 text-sm text-[#8891A4]">
-              Creá los premios que tu negocio puede dar. Cada uno puede usarse
-              para una o varias cosas a la vez.
+              Un beneficio es algo que tu negocio ofrece para darle a un
+              cliente una razón para volver — café gratis, 10% de descuento,
+              2x1, un upgrade. Cada uno puede usarse para una o varias cosas a
+              la vez: recompensa de la tarjeta, regalo de bienvenida,
+              reactivación o promoción suelta.
             </p>
           </div>
-          {canMutate ? (
-            <button
-              type="button"
-              onClick={() => setCreating((v) => !v)}
-              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
-            >
-              <Plus className="h-4 w-4" /> Nuevo beneficio
-            </button>
-          ) : null}
+          <div className="flex shrink-0 items-center gap-3">
+            {canMutate ? (
+              <label className="flex items-center gap-2 text-sm font-semibold text-[#4A56A6]">
+                <input
+                  type="checkbox"
+                  checked={benefitsEnabled}
+                  disabled={togglingCatalog}
+                  onChange={() => void toggleCatalog()}
+                  className="h-4 w-4 accent-[#5C6BC0]"
+                  aria-label="Mostrar el catálogo de beneficios a tus clientes"
+                />
+                Visible para tus clientes
+              </label>
+            ) : null}
+            {canMutate ? (
+              <button
+                type="button"
+                onClick={() => setCreating((v) => !v)}
+                disabled={trialExpired}
+                title={
+                  trialExpired
+                    ? "Tu prueba de 30 días terminó — actualizá tu plan para crear beneficios nuevos."
+                    : undefined
+                }
+                className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Plus className="h-4 w-4" /> Nuevo beneficio
+              </button>
+            ) : null}
+          </div>
         </div>
 
-        {creating ? (
+        {!benefitsEnabled ? (
+          <p className="mt-4 rounded-[10px] bg-[#F0F1F6] px-3.5 py-2.5 text-sm text-[#5C6478]">
+            Tus clientes no ven el catálogo ahora mismo — nada se borró, podés
+            volver a mostrarlo cuando quieras. Podés seguir editándolo acá
+            abajo mientras está apagado.
+          </p>
+        ) : null}
+
+        {trialExpired ? (
+          <p className="mt-4 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-sm text-[#8A520D]">
+            Tu prueba de 30 días terminó — tu catálogo sigue funcionando
+            igual, pero para agregar beneficios nuevos necesitás actualizar
+            tu plan.
+          </p>
+        ) : null}
+
+        {creating && !trialExpired ? (
           <div className="mt-5 rounded-[12px] border border-[#E8EAF0] bg-[#F9FAFD] p-4">
             <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
               <label className="block">

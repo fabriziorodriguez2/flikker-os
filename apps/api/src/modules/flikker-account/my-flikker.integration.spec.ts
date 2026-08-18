@@ -7,6 +7,8 @@ import { RewardGoalEngineService } from '../reward-goals/reward-goal-engine.serv
 import { RewardGoalUnlockService } from '../reward-goals/reward-goal-unlock.service';
 import { RewardGoalIssuerService } from '../reward-goals/reward-goal-issuer.service';
 import { RetentionDecisionLogService } from '../retention-v2/retention-decision-log.service';
+import { PlansService } from '../plans/plans.service';
+import { PlansRepository } from '../plans/plans.repository';
 
 /**
  * Real-Postgres proof of Fase E §4/§38: a single FlikkerAccount, linked to
@@ -115,7 +117,11 @@ describe('MyFlikkerService — cross-business aggregation is real (integration)'
       });
 
       const decisions = new RetentionDecisionLogService(prisma);
-      const engine = new RewardGoalEngineService(prisma, decisions);
+      // Real PlansService, real DB: sin Subscription (ninguno de estos
+      // negocios de test la tiene) `canAddParticipant` es siempre `true` —
+      // cero comportamiento nuevo para este test.
+      const plans = new PlansService(new PlansRepository(prisma));
+      const engine = new RewardGoalEngineService(prisma, decisions, plans);
       const issuer = new RewardGoalIssuerService(prisma);
       const unlock = new RewardGoalUnlockService(prisma, decisions, issuer);
       const orchestrator = new RewardGoalOrchestratorService(

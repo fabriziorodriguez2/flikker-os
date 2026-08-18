@@ -33,6 +33,7 @@ import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.queue';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DEMO_BUSINESS_NAME, DEMO_BUSINESS_SLUG } from '../../config/demo';
+import { PlansService } from '../plans/plans.service';
 
 const BCRYPT_ROUNDS = 12;
 const BUSINESS_VERTICALS = new Set([
@@ -67,6 +68,7 @@ export class PlatformService {
     private readonly whatsAppBspService: WhatsAppBspService,
     private readonly googleReviewDetectionQueue: GoogleReviewDetectionQueue,
     private readonly prisma: PrismaService,
+    private readonly plansService: PlansService,
   ) {}
 
   async listBusinesses() {
@@ -975,6 +977,73 @@ export class PlatformService {
 
   async listBusinessPlanHistory(businessId: string) {
     return this.repository.findBusinessPlanHistory(businessId);
+  }
+
+  // ── Suscripción self-service (Configuración → Suscripción) ────────────────
+
+  /**
+   * Confirma manualmente el pago de Pro (Mercado Pago) y activa la
+   * Subscription — deliberadamente NO automático. El link de Mercado Pago
+   * (`https://mpago.la/1Acxajh`) no tiene webhook integrado todavía, así que
+   * un click del dueño no es prueba de pago: solo un admin de plataforma,
+   * habiendo confirmado el cobro en el dashboard de Mercado Pago, puede
+   * pasar esto a Pro.
+   *
+   * Usa el plan 'pro-selfservice' (UYU 1.000/mes) — DISTINTO del 'pro'
+   * histórico (USD 129/mes) que ya usan negocios reales asignados a mano
+   * por Platform Admin. Pisar ese plan global le habría cambiado el precio
+   * a Subscriptions que no tienen nada que ver con este flujo; por eso son
+   * dos filas separadas (ver `PlansRepository#ensureProSelfServicePlan`).
+   * Nunca borra la Subscription anterior: si ya había una Free, se
+   * reemplaza por Pro; si no había ninguna, se crea.
+   */
+  async confirmProSubscription(businessId: string, adminUserId: string) {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { id: true },
+    });
+    if (!business) throw new NotFoundException('Business not found');
+
+    const proPlan = await this.plansService.ensureProSelfServicePlan();
+
+    const now = new Date();
+    const periodEnd = new Date(now);
+    periodEnd.setMonth(periodEnd.getMonth() + 1);
+
+    const subscription = await this.prisma.subscription.upsert({
+      where: { businessId },
+      update: {
+        planId: proPlan.id,
+        status: SubscriptionStatus.ACTIVE,
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+        trialEndsAt: null,
+        canceledAt: null,
+      },
+      create: {
+        businessId,
+        planId: proPlan.id,
+        status: SubscriptionStatus.ACTIVE,
+        currentPeriodStart: now,
+        currentPeriodEnd: periodEnd,
+      },
+    });
+
+    await this.prisma.auditLog.create({
+      data: {
+        businessId,
+        actorUserId: adminUserId,
+        action: 'pro_subscription_confirmed',
+        entityType: 'Subscription',
+        entityId: subscription.id,
+        metadata: { source: 'mercadopago_manual_confirmation' },
+      },
+    });
+
+    this.logger.log(
+      `[platform] Pro subscription confirmed for business ${businessId} by admin ${adminUserId}`,
+    );
+    return subscription;
   }
 
   async changeUserPassword(email: string, newPassword: string) {

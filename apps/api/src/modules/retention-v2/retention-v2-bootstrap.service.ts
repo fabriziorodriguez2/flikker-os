@@ -13,6 +13,7 @@ import {
   RECOVERY_OBJECTIVES,
   type VariantShape,
 } from './retention-v2-bootstrap-plan';
+import { PlansService } from '../plans/plans.service';
 
 /**
  * Makes "Te extrañamos ON" / "Cerca del premio ON" actually mean something
@@ -71,6 +72,7 @@ export class RetentionV2BootstrapService {
     private readonly prisma: PrismaService,
     private readonly settings: RetentionSettingsService,
     private readonly admin: RetentionExperimentsAdminService,
+    private readonly plans: PlansService,
   ) {}
 
   /**
@@ -144,7 +146,20 @@ export class RetentionV2BootstrapService {
     return results;
   }
 
+  /**
+   * Con el trial de Beneficios vencido y sin Pro, ninguna definición cuenta
+   * como autorizada para armar una generación nueva — `computeDesiredVariants`
+   * recibe `[]` y construye una generación SOLO con CONTROL + REMINDER, sin
+   * variantes de beneficio (SOFT_BENEFIT/STRONG_BENEFIT). Retención degrada
+   * así "naturalmente": es el MISMO mecanismo de reemplazo de generación que
+   * ya existe para cuando el dueño de-autoriza un beneficio a mano — acá
+   * simplemente el trial vencido hace que la lista sea vacía. Nunca borra la
+   * generación anterior (`ensureObjective` la termina como COMPLETED, nunca
+   * la elimina) ni las asignaciones/outcomes que ya tenía.
+   */
   private async authorizedIncentiveIds(businessId: string): Promise<string[]> {
+    if (await this.plans.isBenefitsBlocked(businessId)) return [];
+
     const rows = await this.prisma.retentionIncentiveDefinition.findMany({
       where: { businessId, active: true, automationEligible: true },
       select: { id: true },

@@ -15,6 +15,7 @@ import GoogleLogo from "@/components/icons/google-logo";
 import { useIsCheckinV2 } from "../../experience-context";
 import { useIsOwnerOrAdmin } from "../../role-context";
 import { Stars, relativeDay, shortDate } from "../customers/loyalty-ui";
+import GoogleConnectModal from "./google-connect-modal";
 
 /**
  * Reseñas — la reputación del negocio, con Google como parte nativa.
@@ -45,6 +46,10 @@ interface Overview {
     connected: boolean;
     profileUrl: string | null;
     lastSyncedAt: string | null;
+    placeDisplayName: string | null;
+    placeRating: number | null;
+    placeUserRatingCount: number | null;
+    placeReviewsUri: string | null;
   };
   summary: {
     rating: number | null;
@@ -105,6 +110,7 @@ export default function ReviewsClient({
   const [savingUrl, setSavingUrl] = useState(false);
   const [urlDraft, setUrlDraft] = useState("");
   const [editingUrl, setEditingUrl] = useState(false);
+  const [showSearchModal, setShowSearchModal] = useState(false);
 
   const load = useCallback(async (period: number) => {
     setError(null);
@@ -191,6 +197,14 @@ export default function ReviewsClient({
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EAF7EF] px-3 py-1.5 text-xs font-semibold text-[#147A5B]">
               <span className="h-1.5 w-1.5 rounded-full bg-[#22A06B]" />
               Google conectado
+              {google.placeRating != null ? (
+                <span className="font-normal text-[#147A5B]/70">
+                  · {google.placeRating.toFixed(1)}★
+                  {google.placeUserRatingCount != null
+                    ? ` (${google.placeUserRatingCount})`
+                    : ""}
+                </span>
+              ) : null}
             </span>
           ) : (
             <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FFF7EE] px-3 py-1.5 text-xs font-semibold text-[#8A520D]">
@@ -212,22 +226,42 @@ export default function ReviewsClient({
             experiencia después de una visita.
           </p>
           {canConnect ? (
-            <div className="mx-auto mt-6 flex max-w-md flex-col gap-2.5 sm:flex-row">
-              <input
-                value={urlDraft}
-                onChange={(e) => setUrlDraft(e.target.value)}
-                placeholder="https://g.page/tu-negocio"
-                aria-label="Link de tu ficha en Google"
-                className="h-11 flex-1 rounded-[11px] border border-[#E3E5F0] bg-white px-4 text-sm text-[#202333] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
-              />
+            <div className="mx-auto mt-6 max-w-md">
               <button
                 type="button"
-                onClick={() => void saveGoogleUrl()}
-                disabled={savingUrl || urlDraft.trim().length < 5}
-                className="inline-flex h-11 items-center justify-center rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+                onClick={() => setShowSearchModal(true)}
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
               >
-                Conectar Google
+                Buscar mi negocio en Google
               </button>
+
+              {editingUrl ? (
+                <div className="mt-3 flex flex-col gap-2.5 sm:flex-row">
+                  <input
+                    value={urlDraft}
+                    onChange={(e) => setUrlDraft(e.target.value)}
+                    placeholder="https://g.page/tu-negocio"
+                    aria-label="Link de tu ficha en Google"
+                    className="h-11 flex-1 rounded-[11px] border border-[#E3E5F0] bg-white px-4 text-sm text-[#202333] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void saveGoogleUrl()}
+                    disabled={savingUrl || urlDraft.trim().length < 5}
+                    className="inline-flex h-11 items-center justify-center rounded-[11px] border border-[#E3E5F0] bg-white px-5 text-sm font-semibold text-[#202333] hover:border-[#5C6BC0] disabled:opacity-50"
+                  >
+                    Guardar link
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setEditingUrl(true)}
+                  className="mt-3 text-xs font-semibold text-[#8891A4] hover:text-[#5C6BC0] hover:underline"
+                >
+                  ¿No lo encontrás? Pegá el link de tu ficha a mano
+                </button>
+              )}
             </div>
           ) : (
             <p className="mt-4 text-xs text-[#8891A4]">
@@ -235,6 +269,16 @@ export default function ReviewsClient({
             </p>
           )}
         </section>
+      ) : null}
+
+      {showSearchModal ? (
+        <GoogleConnectModal
+          onClose={() => setShowSearchModal(false)}
+          onConnected={() => {
+            setShowSearchModal(false);
+            void load(days);
+          }}
+        />
       ) : null}
 
       {/* ── Período + KPIs ────────────────────────────────────────────── */}

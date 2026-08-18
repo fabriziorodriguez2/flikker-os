@@ -4,6 +4,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RetentionBudgetService } from './retention-budget.service';
 import { estimateIncentiveCost } from './incentive-cost';
+import { PlansService } from '../plans/plans.service';
 
 /**
  * Turns an authorized RetentionIncentiveDefinition into an individual reward a
@@ -70,6 +71,7 @@ export class IncentiveIssuerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly budget: RetentionBudgetService,
+    private readonly plans: PlansService,
   ) {}
 
   /**
@@ -141,6 +143,18 @@ export class IncentiveIssuerService {
     // Re-checked at issue time, not just at experiment start: the owner may
     // have deactivated or de-authorized the incentive in the meantime.
     if (!definition || !definition.active || !definition.automationEligible) {
+      return { status: 'skipped', reason: 'NOT_AUTHORIZED' };
+    }
+
+    // Trial de Beneficios vencido y sin Pro: "no usar Benefits existentes en
+    // nuevas reactivaciones automáticas" — el re-check real, en el momento
+    // del envío, no solo al autorizar (`BenefitsService#setRetentionBridge`)
+    // ni al construir la generación (`RetentionV2BootstrapService`). Un
+    // assignment ya emitido antes del vencimiento (chequeado arriba) nunca
+    // se toca — esto solo impide MINTAR uno nuevo. Reusa el mismo código de
+    // motivo que "de-autorizado en el medio" — para el dueño es la misma
+    // situación: esta promesa ya no puede cumplirse automáticamente.
+    if (await this.plans.isBenefitsBlocked(assignment.businessId)) {
       return { status: 'skipped', reason: 'NOT_AUTHORIZED' };
     }
 

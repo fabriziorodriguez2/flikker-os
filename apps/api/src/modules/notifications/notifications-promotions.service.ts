@@ -7,6 +7,7 @@ import {
   type LoyaltyFilter,
 } from '../customers/loyalty/customer-loyalty.service';
 import { VisitSourcesService } from '../visit-sources/visit-sources.service';
+import { PlansService } from '../plans/plans.service';
 import type { SendPromotionDto } from './dto/send-promotion.dto';
 
 /**
@@ -47,6 +48,7 @@ export class NotificationsPromotionsService {
     private readonly campaigns: CampaignsService,
     private readonly benefits: BenefitsService,
     private readonly visitSources: VisitSourcesService,
+    private readonly plans: PlansService,
   ) {}
 
   /**
@@ -77,6 +79,13 @@ export class NotificationsPromotionsService {
     let benefitTitle: string | null = null;
 
     if (dto.benefitId) {
+      // "Futuras promociones con Benefit también deben quedar bloqueadas" —
+      // esta YA es esa promoción (una campaña manual que promete un
+      // beneficio). Mismo guard centralizado que crear un beneficio o
+      // autorizar reactivación; una promoción SIN beneficio (mensaje suelto)
+      // nunca pasa por acá y sigue funcionando siempre.
+      await this.plans.assertBenefitsProActionAllowed(businessId);
+
       /**
        * Solo se puede prometer un beneficio que el cliente pueda ABRIR.
        *

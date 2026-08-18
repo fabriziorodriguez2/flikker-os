@@ -174,6 +174,16 @@ function ProgramaClientContent() {
     await readJson(res);
   }
 
+  /** Capacidad independiente de sellos — ver `RetentionSettings.benefitsEnabled`. */
+  async function toggleBenefitsCatalog(enabled: boolean) {
+    const res = await fetch("/api/proxy/loyalty-program/benefits-enabled", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled }),
+    });
+    await readJson(res);
+  }
+
   async function saveStampsCardConfig(patch: {
     stampsRequired: number;
     rewardBenefitId?: string;
@@ -345,6 +355,21 @@ function ProgramaClientContent() {
           />
           {overview.enabled ? "Activo" : "Inactivo"}
         </span>
+        <span
+          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
+            overview.benefitsEnabled
+              ? "bg-[#EAF6EE] text-[#1D9E75]"
+              : "bg-[#F0F1F6] text-[#8891A4]"
+          }`}
+        >
+          <span
+            className={`h-1.5 w-1.5 rounded-full ${
+              overview.benefitsEnabled ? "bg-[#1D9E75]" : "bg-[#B0B8C9]"
+            }`}
+            aria-hidden="true"
+          />
+          Beneficios {overview.benefitsEnabled ? "visibles" : "ocultos"}
+        </span>
       </div>
 
       <div className="flex w-fit overflow-hidden rounded-[10px] border border-[#E8EAF0] bg-white text-sm font-semibold">
@@ -395,6 +420,7 @@ function ProgramaClientContent() {
           onCreateBenefit={createBenefit}
           onDeleteBenefit={deleteBenefit}
           onSetBenefitUse={setBenefitUse}
+          onToggleBenefits={toggleBenefitsCatalog}
           onSaveBenefitTerms={saveBenefitTerms}
           onReload={load}
         />

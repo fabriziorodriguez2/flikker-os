@@ -5,7 +5,9 @@ import { RetentionSettingsService } from '../retention-v2/retention-settings.ser
 import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
 import { BenefitsRepository } from '../benefits/benefits.repository';
 import { ProgramAuditService } from '../program-audit/program-audit.service';
+import { PlansService } from '../plans/plans.service';
 import type {
+  SetBenefitsEnabledDto,
   SetStampsCardEnabledDto,
   UpdateStampsCardConfigDto,
 } from './dto/loyalty-program.dto';
@@ -38,6 +40,7 @@ export class LoyaltyProgramService {
     private readonly benefits: BenefitsRepository,
     private readonly programAudit: ProgramAuditService,
     private readonly retentionBootstrap: RetentionV2BootstrapService,
+    private readonly plans: PlansService,
   ) {}
 
   async getOverview(businessId: string) {
@@ -52,6 +55,7 @@ export class LoyaltyProgramService {
       welcomeBenefit,
       recentActivity,
       benefitsCount,
+      selfService,
     ] = await Promise.all([
       // Clientes distintos que alguna vez tuvieron una tarjeta.
       this.prisma.customerRewardGoal
@@ -85,6 +89,7 @@ export class LoyaltyProgramService {
         .then((row) => row?.welcomeBenefit ?? null),
       this.buildRecentActivity(businessId),
       this.prisma.benefit.count({ where: { businessId } }),
+      this.plans.getSelfServiceStatus(businessId),
     ]);
 
     const stampsRequired =
@@ -92,6 +97,10 @@ export class LoyaltyProgramService {
 
     return {
       enabled: settings.rewardGoalsEnabled,
+      // Capacidad independiente — ver `RetentionSettings.benefitsEnabled`.
+      // Sellos y Beneficios pueden estar prendidos, apagados, o cualquier
+      // combinación de los dos al mismo tiempo.
+      benefitsEnabled: settings.benefitsEnabled,
       feedbackBonusEnabled: settings.rewardGoalFeedbackBonusEnabled,
       stampsRequired,
       reward: rewardBenefit
@@ -108,6 +117,16 @@ export class LoyaltyProgramService {
       },
       recentActivity,
       benefitsCount,
+      // Self-service (plan Free / trial de Beneficios) — `null` en
+      // `maxCustomers` significa "sin tope" (Pro, o sin Subscription —
+      // LEGACY/Platform Admin/negocios anteriores a esta feature).
+      plan: {
+        maxCustomers: selfService.maxCustomers,
+        benefitsTrialExpired: selfService.benefitsTrialExpired,
+        trialEndsAt: selfService.trialEndsAt?.toISOString() ?? null,
+        isPro: selfService.isPro,
+        planName: selfService.planName,
+      },
     };
   }
 
@@ -149,6 +168,23 @@ export class LoyaltyProgramService {
         : { rewardGoalsEnabled: false, progressReminderEnabled: false },
     });
 
+    if (dto.enabled) {
+      // Cambio de modalidad reversible (Programa → Configuración): un
+      // negocio que arrancó "solo Beneficios" y activa sellos más tarde
+      // necesita el plan Free (tope de 50 clientes participantes) igual que
+      // si lo hubiera elegido en el onboarding. Nunca pisa una Subscription
+      // existente (Pro sigue Pro).
+      await this.plans.ensureFreeSubscriptionIfMissing(businessId);
+      // Si Beneficios ya estaba (o queda) prendido en este momento, esta es
+      // la primera vez que el negocio tiene un plan self-service real — el
+      // trial de 30 días arranca acá si nunca corrió. Sin esto, un negocio
+      // que activa sellos primero y Beneficios ya viene prendido por
+      // default tendría Beneficios Pro gratis para siempre.
+      if (current.benefitsEnabled) {
+        await this.plans.startBenefitsTrialIfNeeded(businessId);
+      }
+    }
+
     await this.programAudit.record({
       businessId,
       actorUserId,
@@ -156,6 +192,49 @@ export class LoyaltyProgramService {
       message: dto.enabled
         ? 'Activaste la tarjeta de sellos'
         : 'Desactivaste la tarjeta de sellos',
+    });
+
+    return this.getOverview(businessId);
+  }
+
+  /**
+   * Capacidad independiente de sellos: visibilidad pública del catálogo de
+   * Beneficios (regalo de bienvenida + beneficio activo del check-in).
+   * Apagarla nunca borra el catálogo — solo deja de mostrarlo/entregarlo
+   * (ver `BenefitsService#resolveActiveBenefit`/`getWelcomeGiftState`).
+   */
+  async setBenefitsEnabled(
+    businessId: string,
+    dto: SetBenefitsEnabledDto,
+    actorUserId?: string,
+  ) {
+    const current = await this.settings.getOrCreate(businessId);
+    if (current.benefitsEnabled === dto.enabled) {
+      return this.getOverview(businessId);
+    }
+
+    await this.prisma.retentionSettings.update({
+      where: { businessId },
+      data: { benefitsEnabled: dto.enabled },
+    });
+
+    if (dto.enabled) {
+      // Primera vez que se prende de VERDAD (no el default de schema): esto
+      // es lo que arranca el trial de 30 días de Beneficios si nunca corrió,
+      // y asegura el plan Free si el negocio todavía no tenía Subscription.
+      await this.plans.ensureFreeSubscriptionIfMissing(businessId);
+      await this.plans.startBenefitsTrialIfNeeded(businessId);
+    }
+
+    await this.programAudit.record({
+      businessId,
+      actorUserId,
+      type: dto.enabled
+        ? 'benefits_catalog_activated'
+        : 'benefits_catalog_deactivated',
+      message: dto.enabled
+        ? 'Activaste el catálogo de beneficios'
+        : 'Desactivaste el catálogo de beneficios',
     });
 
     return this.getOverview(businessId);

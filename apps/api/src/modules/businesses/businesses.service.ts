@@ -15,6 +15,8 @@ import { normalizeToE164 } from '../../common/utils/phone.util';
 import { GoogleReviewsProvider } from '../../jobs/google-reviews.provider';
 import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.queue';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { GooglePlacesProvider } from '../../jobs/google-places.provider';
+import { PlansService } from '../plans/plans.service';
 
 /**
  * Valid status transitions.
@@ -45,7 +47,80 @@ export class BusinessesService {
     private readonly googleReviewsProvider: GoogleReviewsProvider,
     private readonly googleReviewDetectionQueue: GoogleReviewDetectionQueue,
     private readonly whatsAppBspService: WhatsAppBspService,
+    private readonly googlePlacesProvider: GooglePlacesProvider,
+    private readonly plans: PlansService,
   ) {}
+
+  /** Configuración → Suscripción — todo lo que la pantalla necesita, ya resuelto. */
+  getSubscriptionOverview(businessId: string) {
+    return this.plans.getSubscriptionOverview(businessId);
+  }
+
+  /**
+   * Google Places API (New) — búsqueda por nombre para "Reseñas → Conectar
+   * Google". Nunca lanza si la API key no está configurada: devuelve lista
+   * vacía (el controller/frontend ya sabe mostrar "no disponible" — mismo
+   * criterio que el resto del repo para integraciones opcionales).
+   */
+  async searchGooglePlaces(query?: string) {
+    const trimmed = query?.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Ingresá el nombre de tu negocio');
+    }
+    const available = this.googlePlacesProvider.isAvailable();
+    const results = available
+      ? await this.googlePlacesProvider.searchText(trimmed)
+      : [];
+    return { available, results };
+  }
+
+  /**
+   * Conecta el Place elegido: guarda placeId + datos de solo lectura de
+   * Google (nombre, dirección, rating, links de Maps) y dispara el MISMO
+   * scrape inicial que ya usaba `verifyGooglePlace` — no se duplica el
+   * pipeline de reseñas, solo se reemplaza cómo se obtiene/verifica el
+   * Place ID (antes: pegado a mano + Scrape.do como "verificación"; ahora:
+   * Places API real).
+   *
+   * `googleBusinessProfileUrl`/`defaultReviewRedirectUrl` se pisan con el
+   * `writeAReviewUri` REAL de Google en vez del link armado a mano — mismos
+   * campos de siempre, dato más confiable.
+   */
+  async connectGooglePlace(businessId: string, placeId: string) {
+    const details = await this.googlePlacesProvider.getDetails(placeId);
+    if (!details) {
+      throw new BadRequestException(
+        'No pudimos conectar ese negocio con Google',
+      );
+    }
+
+    const reviewUrl = details.writeAReviewUri ?? buildGoogleReviewUrl(placeId);
+
+    await this.repository.update(businessId, {
+      googlePlaceId: details.placeId,
+      googleBusinessProfileUrl: reviewUrl,
+      defaultReviewRedirectUrl: reviewUrl,
+      googleReviewsLastSyncAt: null,
+      googlePlaceDisplayName: details.displayName,
+      googlePlaceFormattedAddress: details.formattedAddress,
+      googlePlaceRating: details.rating,
+      googlePlaceUserRatingCount: details.userRatingCount,
+      googlePlaceReviewsUri: details.reviewsUri,
+    });
+
+    void this.googleReviewDetectionQueue
+      .enqueueInitialScrape(businessId)
+      .catch(() => undefined);
+
+    return {
+      placeId: details.placeId,
+      displayName: details.displayName,
+      formattedAddress: details.formattedAddress,
+      rating: details.rating,
+      userRatingCount: details.userRatingCount,
+      reviewsUri: details.reviewsUri,
+    };
+  }
 
   /**
    * Creates a new business and sets the requesting user as OWNER.

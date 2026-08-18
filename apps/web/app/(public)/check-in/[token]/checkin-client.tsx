@@ -1071,7 +1071,15 @@ function RewardGoalCard({
 
 // ── Layout primitives ────────────────────────────────────────────────────────
 
-function Shell({
+/**
+ * Exportado (no solo local a este archivo): Programa → Página de inscripción
+ * lo reusa para su preview en vivo, en vez de mantener una maqueta
+ * desconectada — mismo fondo, mismo logo, mismo pie de "Powered by Flikker"
+ * que ve el cliente real. `brandOverride` es opcional a propósito: la
+ * preview del panel no necesita (ni puede, sin un token real) la extracción
+ * de paleta desde el logo — pasa los colores configurados directamente.
+ */
+export function Shell({
   landing,
   brandOverride,
   children,

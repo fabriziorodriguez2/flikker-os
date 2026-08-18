@@ -5,6 +5,7 @@ import type { CampaignsService } from '../campaigns/campaigns.service';
 import type { BenefitsService } from '../benefits/benefits.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { VisitSourcesService } from '../visit-sources/visit-sources.service';
+import type { PlansService } from '../plans/plans.service';
 
 /**
  * Promociones: lo que el dueño manda a mano.
@@ -60,7 +61,12 @@ function makeDeps(
       (token: string) => `https://flikker.site/check-in/${token}`,
     ),
   };
-  return { prisma, loyalty, campaigns, benefits, visitSources };
+  // Default "nunca bloqueado" — el gate de trial de Beneficios tiene su
+  // propio describe block más abajo.
+  const plans = {
+    assertBenefitsProActionAllowed: jest.fn().mockResolvedValue(undefined),
+  };
+  return { prisma, loyalty, campaigns, benefits, visitSources, plans };
 }
 
 const service = (d: ReturnType<typeof makeDeps>) =>
@@ -70,6 +76,7 @@ const service = (d: ReturnType<typeof makeDeps>) =>
     d.campaigns as unknown as CampaignsService,
     d.benefits as unknown as BenefitsService,
     d.visitSources as unknown as VisitSourcesService,
+    d.plans as unknown as PlansService,
   );
 
 describe('Promociones — audiencia', () => {
@@ -173,6 +180,38 @@ describe('Promociones — beneficio', () => {
       'user-1',
       expect.objectContaining({ messageBody: 'Este viernes 2x1.' }),
     );
+  });
+
+  it('con el trial de Beneficios vencido, una promoción CON beneficio se bloquea', async () => {
+    const deps = makeDeps({ benefit: { id: 'ben-1', title: 'Café gratis' } });
+    deps.plans.assertBenefitsProActionAllowed.mockRejectedValue(
+      new Error('Tu prueba de 30 días terminó.'),
+    );
+
+    await expect(
+      service(deps).send('biz-1', 'user-1', {
+        message: 'Te esperamos.',
+        audience: 'todos',
+        benefitId: 'ben-1',
+      }),
+    ).rejects.toThrow(/prueba de 30 días/);
+    expect(deps.benefits.ensureRedemptionCode).not.toHaveBeenCalled();
+    expect(deps.campaigns.sendManual).not.toHaveBeenCalled();
+  });
+
+  it('con el trial vencido, una promoción SIN beneficio sigue funcionando (nunca pasa por el guard)', async () => {
+    const deps = makeDeps();
+    deps.plans.assertBenefitsProActionAllowed.mockRejectedValue(
+      new Error('Tu prueba de 30 días terminó.'),
+    );
+
+    await service(deps).send('biz-1', 'user-1', {
+      message: 'Este viernes 2x1.',
+      audience: 'todos',
+    });
+
+    expect(deps.plans.assertBenefitsProActionAllowed).not.toHaveBeenCalled();
+    expect(deps.campaigns.sendManual).toHaveBeenCalled();
   });
 
   it('con beneficio emite un código por cliente y lo suma al mensaje', async () => {

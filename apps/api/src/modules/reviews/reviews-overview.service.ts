@@ -36,6 +36,10 @@ export class ReviewsOverviewService {
         googleBusinessProfileUrl: true,
         googlePlaceId: true,
         experienceVersion: true,
+        googlePlaceDisplayName: true,
+        googlePlaceRating: true,
+        googlePlaceUserRatingCount: true,
+        googlePlaceReviewsUri: true,
       },
     });
 
@@ -168,6 +172,17 @@ export class ReviewsOverviewService {
         profileUrl: business?.googleBusinessProfileUrl ?? null,
         /** Cuándo detectamos una reseña nueva por última vez. */
         lastSyncedAt: lastSynced?.detectedAt ?? null,
+        /**
+         * Datos de Google Places API (New), del Place conectado —
+         * distintos de `summary.rating`/`total` (que vienen de nuestras
+         * propias `GoogleReview` ya sincronizadas): esto es el rating/
+         * cantidad que Google muestra HOY en su propio perfil, disponible
+         * apenas se conecta, sin esperar al primer scrape.
+         */
+        placeDisplayName: business?.googlePlaceDisplayName ?? null,
+        placeRating: business?.googlePlaceRating ?? null,
+        placeUserRatingCount: business?.googlePlaceUserRatingCount ?? null,
+        placeReviewsUri: business?.googlePlaceReviewsUri ?? null,
       },
 
       summary: {

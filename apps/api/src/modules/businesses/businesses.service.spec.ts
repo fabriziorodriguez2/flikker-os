@@ -15,6 +15,8 @@ import { AuditService } from '../../common/services/audit.service';
 import { GoogleReviewsProvider } from '../../jobs/google-reviews.provider';
 import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.queue';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { GooglePlacesProvider } from '../../jobs/google-places.provider';
+import { PlansService } from '../plans/plans.service';
 
 const OWNER_ID = 'user-owner';
 const OTHER_USER_ID = 'user-other';
@@ -94,6 +96,14 @@ const mockGoogleReviewDetectionQueue = {
 const mockWhatsAppBspService = {
   sendText: jest.fn().mockResolvedValue(undefined),
 };
+const mockGooglePlacesProvider = {
+  isAvailable: jest.fn().mockReturnValue(false),
+  searchText: jest.fn().mockResolvedValue([]),
+  getDetails: jest.fn().mockResolvedValue(null),
+};
+const mockPlansService = {
+  getSubscriptionOverview: jest.fn().mockResolvedValue({}),
+};
 
 describe('BusinessesService', () => {
   let service: BusinessesService;
@@ -111,6 +121,8 @@ describe('BusinessesService', () => {
           useValue: mockGoogleReviewDetectionQueue,
         },
         { provide: WhatsAppBspService, useValue: mockWhatsAppBspService },
+        { provide: GooglePlacesProvider, useValue: mockGooglePlacesProvider },
+        { provide: PlansService, useValue: mockPlansService },
       ],
     }).compile();
 
@@ -429,6 +441,84 @@ describe('BusinessesService', () => {
           status: BusinessStatus.INACTIVE,
         }),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('Google Places API (New) — Reseñas → Conectar Google', () => {
+    it('searchGooglePlaces reporta "no disponible" sin GOOGLE_PLACES_API_KEY, sin llamar a Google', async () => {
+      mockGooglePlacesProvider.isAvailable.mockReturnValue(false);
+
+      const result = await service.searchGooglePlaces('Café Uno');
+
+      expect(result).toEqual({ available: false, results: [] });
+      expect(mockGooglePlacesProvider.searchText).not.toHaveBeenCalled();
+    });
+
+    it('searchGooglePlaces rechaza una consulta vacía', async () => {
+      await expect(service.searchGooglePlaces('  ')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('searchGooglePlaces devuelve los resultados de Google cuando está disponible', async () => {
+      mockGooglePlacesProvider.isAvailable.mockReturnValue(true);
+      mockGooglePlacesProvider.searchText.mockResolvedValue([
+        {
+          placeId: 'p1',
+          displayName: 'Café Uno',
+          formattedAddress: 'x',
+          rating: 4.5,
+          userRatingCount: 10,
+        },
+      ]);
+
+      const result = await service.searchGooglePlaces('Café Uno');
+
+      expect(result.available).toBe(true);
+      expect(result.results).toHaveLength(1);
+    });
+
+    it('connectGooglePlace guarda placeId + datos de Google y usa writeAReviewUri real', async () => {
+      mockGooglePlacesProvider.getDetails.mockResolvedValue({
+        placeId: 'p1',
+        displayName: 'Café Uno',
+        formattedAddress: 'Av. Siempre Viva 123',
+        rating: 4.5,
+        userRatingCount: 10,
+        writeAReviewUri:
+          'https://search.google.com/local/writereview?placeid=p1',
+        reviewsUri: 'https://maps.google.com/?cid=p1',
+      });
+      mockRepository.update.mockResolvedValue({});
+
+      await service.connectGooglePlace(BUSINESS_ID, 'p1');
+
+      expect(mockRepository.update).toHaveBeenCalledWith(
+        BUSINESS_ID,
+        expect.objectContaining({
+          googlePlaceId: 'p1',
+          googleBusinessProfileUrl:
+            'https://search.google.com/local/writereview?placeid=p1',
+          defaultReviewRedirectUrl:
+            'https://search.google.com/local/writereview?placeid=p1',
+          googlePlaceDisplayName: 'Café Uno',
+          googlePlaceRating: 4.5,
+          googlePlaceUserRatingCount: 10,
+          googlePlaceReviewsUri: 'https://maps.google.com/?cid=p1',
+        }),
+      );
+      expect(
+        mockGoogleReviewDetectionQueue.enqueueInitialScrape,
+      ).toHaveBeenCalledWith(BUSINESS_ID);
+    });
+
+    it('connectGooglePlace rechaza si Google no devuelve detalles para ese Place ID', async () => {
+      mockGooglePlacesProvider.getDetails.mockResolvedValue(null);
+
+      await expect(
+        service.connectGooglePlace(BUSINESS_ID, 'bad-id'),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockRepository.update).not.toHaveBeenCalled();
     });
   });
 });

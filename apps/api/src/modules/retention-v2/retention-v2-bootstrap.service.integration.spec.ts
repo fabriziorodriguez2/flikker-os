@@ -13,6 +13,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { RetentionSettingsService } from './retention-settings.service';
 import { RetentionExperimentsAdminService } from './retention-experiments-admin.service';
 import { RetentionV2BootstrapService } from './retention-v2-bootstrap.service';
+import { IncentiveIssuerService } from './incentive-issuer.service';
+import { RetentionBudgetService } from './retention-budget.service';
+import { PlansService } from '../plans/plans.service';
+import { PlansRepository } from '../plans/plans.repository';
 
 /**
  * The self-service bootstrap against real Postgres.
@@ -26,6 +30,7 @@ describe('RetentionV2BootstrapService (integration)', () => {
   let prisma: PrismaService;
   let bootstrap: RetentionV2BootstrapService;
   let admin: RetentionExperimentsAdminService;
+  let issuer: IncentiveIssuerService;
 
   const businesses: string[] = [];
 
@@ -36,12 +41,17 @@ describe('RetentionV2BootstrapService (integration)', () => {
         RetentionSettingsService,
         RetentionExperimentsAdminService,
         RetentionV2BootstrapService,
+        RetentionBudgetService,
+        IncentiveIssuerService,
+        PlansService,
+        PlansRepository,
       ],
     }).compile();
 
     prisma = moduleRef.get(PrismaService);
     bootstrap = moduleRef.get(RetentionV2BootstrapService);
     admin = moduleRef.get(RetentionExperimentsAdminService);
+    issuer = moduleRef.get(IncentiveIssuerService);
     await prisma.$connect();
   });
 
@@ -431,6 +441,221 @@ describe('RetentionV2BootstrapService (integration)', () => {
           (v) => v.strategyType === RetentionStrategyType.SOFT_BENEFIT,
         ),
       ).toBe(false);
+    });
+  });
+
+  // ── Cierre del último gap del trial Pro ─────────────────────────────────
+
+  describe('trial de Beneficios vencido (sin Pro) — Retention degrada a reminder-only', () => {
+    it('el trial vencido dispara una nueva generación SIN el arm de beneficio — mismo mecanismo que de-autorizar a mano', async () => {
+      const businessId = await makeBusiness();
+      await makeAuthorizedBenefit(businessId, 'Cappuccino gratis');
+      await bootstrap.ensureDefaultRetentionSetup(businessId);
+
+      const [before] = await runningExperiments(
+        businessId,
+        RetentionObjective.AT_RISK_RECOVERY,
+      );
+      expect(
+        before.variants.some(
+          (v) => v.strategyType === RetentionStrategyType.SOFT_BENEFIT,
+        ),
+      ).toBe(true);
+
+      // Backdatea el trial — sin tocar `automationEligible`, que sigue en
+      // `true` en la base: la definición SIGUE autorizada, es el trial lo
+      // que la vuelve inutilizable para una generación nueva.
+      await prisma.business.update({
+        where: { id: businessId },
+        data: {
+          benefitsTrialStartedAt: new Date('2020-01-01T00:00:00.000Z'),
+          benefitsTrialEndsAt: new Date('2020-01-31T00:00:00.000Z'),
+        },
+      });
+
+      await bootstrap.ensureDefaultRetentionSetup(businessId);
+
+      const [after] = await runningExperiments(
+        businessId,
+        RetentionObjective.AT_RISK_RECOVERY,
+      );
+      expect(after.id).not.toBe(before.id); // reemplazada, nueva generación
+      expect(
+        after.variants.some(
+          (v) => v.strategyType === RetentionStrategyType.SOFT_BENEFIT,
+        ),
+      ).toBe(false);
+      // Reminder-only: CONTROL + REMINDER siguen presentes — Retención
+      // sigue funcionando, solo sin beneficios.
+      expect(after.variants.map((v) => v.strategyType).sort()).toEqual(
+        [RetentionStrategyType.CONTROL, RetentionStrategyType.REMINDER].sort(),
+      );
+
+      // La generación vieja no se borró — queda COMPLETED, con su historia intacta.
+      const oldExperiment = await prisma.retentionExperiment.findUniqueOrThrow({
+        where: { id: before.id },
+      });
+      expect(oldExperiment.status).toBe(RetentionExperimentStatus.COMPLETED);
+    });
+
+    /**
+     * TEST CLAVE (pedido explícito): un Benefit autorizado DURANTE el trial,
+     * ya emitido a un cliente, sigue siendo canjeable después de que el
+     * trial vence — pero Retention ya no puede emitirlo a nadie NUEVO.
+     * Reminder-only (sin beneficio) sigue funcionando sin ningún cambio.
+     */
+    it('Benefit autorizado durante el trial → trial vence → ya no se puede emitir, pero lo ya emitido sigue canjeable y el reminder-only sigue andando', async () => {
+      const businessId = await makeBusiness();
+      // Presupuesto generoso — el punto de este test es el gate del trial de
+      // Beneficios, no el de presupuesto (que ya tiene su propia suite).
+      await prisma.retentionSettings.update({
+        where: { businessId },
+        data: {
+          maxAutomatedIncentivesPerMonth: 1000,
+          maxEstimatedIncentiveCostPerMonth: null,
+        },
+      });
+      const benefit = await makeAuthorizedBenefit(businessId, 'Café gratis');
+      await bootstrap.ensureDefaultRetentionSetup(businessId);
+
+      const [experiment] = await runningExperiments(
+        businessId,
+        RetentionObjective.AT_RISK_RECOVERY,
+      );
+      const benefitVariant = experiment.variants.find(
+        (v) => v.strategyType === RetentionStrategyType.SOFT_BENEFIT,
+      )!;
+      const reminderVariant = experiment.variants.find(
+        (v) => v.strategyType === RetentionStrategyType.REMINDER,
+      )!;
+
+      const customerBefore = await prisma.customer.create({
+        data: {
+          businessId,
+          name: 'Cliente Antes',
+          phoneE164: `+5989${String(Date.now()).slice(-7)}`,
+        },
+      });
+      const assignmentBefore = await prisma.retentionAssignment.create({
+        data: {
+          experimentId: experiment.id,
+          variantId: benefitVariant.id,
+          businessId,
+          customerId: customerBefore.id,
+          segmentAtAssignment: CustomerSegment.AT_RISK,
+          visitCountAtAssignment: 1,
+          daysSinceLastVisit: 20,
+        },
+      });
+
+      // Trial TODAVÍA activo: el beneficio se emite normalmente.
+      const issuedBefore = await issuer.issueForAssignment(assignmentBefore.id);
+      expect(issuedBefore.status).toBe('issued');
+      const codeBefore =
+        issuedBefore.status === 'issued' ? issuedBefore.code : null;
+      expect(codeBefore).toBeTruthy();
+
+      // El trial vence — sin Pro.
+      await prisma.business.update({
+        where: { id: businessId },
+        data: {
+          benefitsTrialStartedAt: new Date('2020-01-01T00:00:00.000Z'),
+          benefitsTrialEndsAt: new Date('2020-01-31T00:00:00.000Z'),
+        },
+      });
+
+      // 1) Lo ya emitido sigue siendo canjeable — nunca se toca.
+      const stillIssued = await issuer.issueForAssignment(assignmentBefore.id);
+      expect(stillIssued).toEqual({
+        status: 'already_issued',
+        participationId:
+          issuedBefore.status === 'issued'
+            ? issuedBefore.participationId
+            : undefined,
+      });
+      const participation = await prisma.benefitParticipation.findUnique({
+        where: {
+          id: (stillIssued as { participationId: string }).participationId,
+        },
+      });
+      expect(participation?.redemptionCode).toBe(codeBefore);
+      expect(participation?.redeemedAt).toBeNull(); // sigue sin canjear, listo para canjearse
+
+      // 2) Una reactivación NUEVA (assignment nuevo, mismo arm) ya no puede
+      // emitir el beneficio — el re-check real, en el momento del envío.
+      const customerAfter = await prisma.customer.create({
+        data: {
+          businessId,
+          name: 'Cliente Después',
+          phoneE164: `+5989${String(Date.now() + 1).slice(-7)}`,
+        },
+      });
+      const assignmentAfter = await prisma.retentionAssignment.create({
+        data: {
+          experimentId: experiment.id,
+          variantId: benefitVariant.id,
+          businessId,
+          customerId: customerAfter.id,
+          segmentAtAssignment: CustomerSegment.AT_RISK,
+          visitCountAtAssignment: 1,
+          daysSinceLastVisit: 20,
+        },
+      });
+      expect(await issuer.issueForAssignment(assignmentAfter.id)).toEqual({
+        status: 'skipped',
+        reason: 'NOT_AUTHORIZED',
+      });
+      const noParticipation =
+        await prisma.retentionAssignment.findUniqueOrThrow({
+          where: { id: assignmentAfter.id },
+        });
+      expect(noParticipation.benefitParticipationId).toBeNull();
+
+      // 3) Reminder-only (sin beneficio) nunca pasó por ningún gate de
+      // Beneficios — sigue funcionando exactamente igual, trial vencido o no.
+      const customerReminder = await prisma.customer.create({
+        data: {
+          businessId,
+          name: 'Cliente Reminder',
+          phoneE164: `+5989${String(Date.now() + 2).slice(-7)}`,
+        },
+      });
+      const reminderAssignment = await prisma.retentionAssignment.create({
+        data: {
+          experimentId: experiment.id,
+          variantId: reminderVariant.id,
+          businessId,
+          customerId: customerReminder.id,
+          segmentAtAssignment: CustomerSegment.AT_RISK,
+          visitCountAtAssignment: 1,
+          daysSinceLastVisit: 20,
+        },
+      });
+      expect(reminderAssignment.variantId).toBe(reminderVariant.id);
+      // Un REMINDER nunca llama a `issueForAssignment` en producción (no hay
+      // incentiveDefinition que emitir); confirmarlo explícitamente:
+      expect(reminderVariant.incentiveDefinitionId).toBeNull();
+
+      // 4) Y la degradación natural de Retención: la PRÓXIMA generación que
+      // se construya para este negocio ya no ofrece el arm de beneficio.
+      await bootstrap.ensureDefaultRetentionSetup(businessId);
+      const [nextGeneration] = await runningExperiments(
+        businessId,
+        RetentionObjective.AT_RISK_RECOVERY,
+      );
+      expect(nextGeneration.id).not.toBe(experiment.id);
+      expect(
+        nextGeneration.variants.some(
+          (v) => v.strategyType === RetentionStrategyType.SOFT_BENEFIT,
+        ),
+      ).toBe(false);
+
+      // El catálogo/definición autorizada sigue existiendo, sin borrarse.
+      const stillDefined = await prisma.retentionIncentiveDefinition.findUnique(
+        { where: { id: benefit.id } },
+      );
+      expect(stillDefined).not.toBeNull();
+      expect(stillDefined?.automationEligible).toBe(true);
     });
   });
 

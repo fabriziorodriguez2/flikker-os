@@ -481,6 +481,19 @@ model Business {
   /// casos). Se marca true al terminar el paso 2, sin importar qué camino
   /// eligió (Beneficios o Beneficios + sellos).
   retentionProgramDecided      Boolean           @default(false) @map("retention_program_decided")
+  /// Self-service — acceso Pro TEMPORAL a Beneficios (30 días), no una
+  /// "modalidad" fija: arranca la primera vez que el negocio prende de
+  /// verdad `RetentionSettings.benefitsEnabled` (onboarding "solo
+  /// Beneficios", o el toggle de Programa → Configuración más adelante,
+  /// lo que ocurra primero) y nunca se reinicia por apagar/prender de
+  /// nuevo. Independiente de `Subscription`/`Plan`: un negocio puede estar
+  /// en el plan Free de sellos Y tener un trial de Beneficios corriendo al
+  /// mismo tiempo — por eso vive acá y no en Subscription.status, que es
+  /// una sola fila por negocio. Null = todavía nunca lo activó (LEGACY,
+  /// Platform Admin, o self-service que solo eligió sellos) — nunca
+  /// bloqueado. Ver `PlansService#isBenefitsBlocked`.
+  benefitsTrialStartedAt       DateTime?         @map("benefits_trial_started_at")
+  benefitsTrialEndsAt          DateTime?         @map("benefits_trial_ends_at")
   /// Onboarding self-service: null mientras el dueño lo está completando.
   /// Es el ancla de reanudación — `POST /onboarding/business` reutiliza el
   /// negocio incompleto del usuario en vez de crear otro si refresca o
@@ -491,6 +504,19 @@ model Business {
   googlePlaceId                String?           @map("google_place_id")
   googleRefreshToken           String?           @map("google_refresh_token")
   googleReviewsLastSyncAt      DateTime?         @map("google_reviews_last_sync_at")
+  /// Google Places API (New) — datos de solo lectura del Place conectado
+  /// (Reseñas → Conectar Google). `googlePlaceId` y `googleBusinessProfileUrl`
+  /// ya existían y NO se duplican: `googleBusinessProfileUrl`/
+  /// `defaultReviewRedirectUrl` pasan a poblarse con el `writeAReviewUri` real
+  /// de Google en vez del link armado a mano. Estos cuatro son estrictamente
+  /// nuevos — Google no los expone en ningún campo existente.
+  googlePlaceDisplayName       String?           @map("google_place_display_name")
+  googlePlaceFormattedAddress  String?           @map("google_place_formatted_address")
+  googlePlaceRating            Float?            @map("google_place_rating")
+  googlePlaceUserRatingCount   Int?              @map("google_place_user_rating_count")
+  /// Link a TODAS las reseñas del local (distinto de `defaultReviewRedirectUrl`,
+  /// que abre directamente la pantalla de escribir una reseña).
+  googlePlaceReviewsUri        String?           @map("google_place_reviews_uri")
   whatsappPhoneId              String?           @map("whatsapp_phone_id")
   messageQuotaMonthly          Int               @default(600) @map("message_quota_monthly")
   messageCountCurrentMonth     Int               @default(0) @map("message_count_current_month")
@@ -625,6 +651,18 @@ model RetentionSettings {
   // Fase E — Reward Goals ("te faltan N visitas para X"). Off by default: an
   // owner opts in explicitly, same philosophy as automation above.
   rewardGoalsEnabled                 Boolean @default(false) @map("reward_goals_enabled")
+  /// Capacidad independiente de `rewardGoalsEnabled` (sellos): visibilidad
+  /// pública del catálogo de Beneficios — regalo de bienvenida y el
+  /// beneficio activo del check-in (`BenefitsService#resolveActiveBenefit`/
+  /// `getWelcomeGiftState`/`grantWelcomeGift`). Default `true` a propósito:
+  /// todo negocio existente ya se comportaba así (no había ningún gate), así
+  /// que esto es puramente aditivo hasta que alguien lo apaga explícitamente
+  /// desde Programa → Configuración. Apagarlo NUNCA borra el catálogo ni el
+  /// historial — solo deja de mostrarlo/entregarlo en el check-in público,
+  /// igual que `rewardGoalsEnabled` con la tarjeta de sellos. Sellos y
+  /// Beneficios son capacidades independientes: cualquier combinación de
+  /// ambos flags es válida (Fiddelik-style "activar/desactivar por separado").
+  benefitsEnabled                    Boolean @default(true) @map("benefits_enabled")
   /// Optional override range for how many additional visits a goal may ask
   /// for. Null means "the engine's own per-segment defaults apply" — the
   /// owner is never required to configure this (Fase E §30/§31).
@@ -1394,9 +1432,27 @@ model Plan {
   maxMembers          Int
   maxCampaigns        Int
   maxReviewsPerMonth  Int
+  /// Self-service: tope de clientes IDENTIFICADOS PARTICIPANTES de la tarjeta
+  /// de sellos (con al menos un CustomerRewardGoal alguna vez, cualquier
+  /// status — mismo criterio que `LoyaltyProgramService#getOverview`). Null
+  /// = sin tope (todo plan que no sea el FREE self-service de sellos). Vive
+  /// en el plan, no en Business, para que cambiar de plan cambie el límite
+  /// sin tocar cada negocio.
+  maxCustomers        Int?
   priceMonthly        Int      @default(0)
   priceUsd            Int      @default(0)
   setupFeeUsd         Int      @default(0)
+  /// Moneda de `priceAmount` (ISO 4217, ej. "USD", "UYU"). Default "USD"
+  /// para no cambiar el significado de los planes ya existentes
+  /// (starter/pro), que siguen siendo USD vía `priceUsd`. Genérico a
+  /// propósito: `priceUsd`/`priceMonthly` quedan como el histórico en dólares,
+  /// pero un plan nuevo en otra moneda (ej. Pro self-service en UYU) usa
+  /// `currency`/`priceAmount` en vez de forzar una conversión falsa a USD.
+  currency            String   @default("USD")
+  /// Precio en unidades enteras de `currency` (ej. 1000 para "UYU 1.000",
+  /// nunca centavos) — lo que muestra Configuración → Suscripción. Para
+  /// starter/pro (USD) coincide con `priceUsd`.
+  priceAmount         Int      @default(0)
   messageQuotaMonthly Int      @default(0)
   trialDays           Int      @default(0)
   isActive            Boolean  @default(true)
@@ -2360,6 +2416,11 @@ enum ProgramAuditEventType {
   /// Sin este evento, "el dueño lo apagó" y "nunca se inicializó" son
   /// indistinguibles mirando solo el booleano actual.
   automation_toggled
+  /// Programa → Configuración: el OWNER prendió/apagó la visibilidad
+  /// pública del catálogo de Beneficios (`RetentionSettings.benefitsEnabled`)
+  /// — independiente de `card_activated`/`card_deactivated`, que son sellos.
+  benefits_catalog_activated
+  benefits_catalog_deactivated
 }
 
 model ProgramAuditEvent {

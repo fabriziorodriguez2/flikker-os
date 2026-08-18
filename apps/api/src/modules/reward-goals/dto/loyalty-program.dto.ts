@@ -14,6 +14,12 @@ export class SetStampsCardEnabledDto {
   enabled!: boolean;
 }
 
+/** Capacidad independiente — ver `RetentionSettings.benefitsEnabled`. */
+export class SetBenefitsEnabledDto {
+  @IsBoolean()
+  enabled!: boolean;
+}
+
 /**
  * Misma forma que el paso "Beneficios + sellos" del onboarding
  * (`OnboardingProgramDto`) — es la misma decisión, solo que desde el

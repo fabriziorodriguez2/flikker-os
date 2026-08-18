@@ -6,6 +6,7 @@ import {
   DECISION_CODES,
   RetentionDecisionLogService,
 } from '../retention-v2/retention-decision-log.service';
+import { PlansService } from '../plans/plans.service';
 import { decideRewardGoal, type RewardGoalDecision } from './reward-goal-rules';
 
 /** Goals that still represent a live promise — not yet redeemed or closed out. */
@@ -37,6 +38,7 @@ export class RewardGoalEngineService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly decisions: RetentionDecisionLogService,
+    private readonly plans: PlansService,
   ) {}
 
   /**
@@ -88,7 +90,7 @@ export class RewardGoalEngineService {
         ),
       ]);
 
-    const decision = decideRewardGoal({
+    let decision = decideRewardGoal({
       segment: context.segment,
       hasActiveGoal,
       cooldownActive,
@@ -96,6 +98,26 @@ export class RewardGoalEngineService {
       overrideMinVisits: settings.rewardGoalMinVisits,
       overrideMaxVisits: settings.rewardGoalMaxVisits,
     });
+
+    // Self-service FREE (tarjeta de sellos): tope de clientes participantes.
+    // Se chequea DESPUÉS de que las reglas puras ya decidieron crear una
+    // tarjeta — nunca antes — porque un cliente que ya participaba jamás se
+    // bloquea acá (`canAddParticipant` lo deja pasar de entrada); esto solo
+    // frena ALTAS nuevas cuando el negocio ya está en el límite. Sin
+    // Subscription (LEGACY / Platform Admin / cualquier negocio anterior a
+    // esta feature) nunca se activa.
+    if (decision.action === 'CREATE_GOAL') {
+      const canAdd = await this.plans.canAddParticipant(
+        context.businessId,
+        context.customerId,
+      );
+      if (!canAdd) {
+        decision = {
+          action: 'NO_GOAL',
+          reasonCode: 'PARTICIPANT_LIMIT_REACHED',
+        };
+      }
+    }
 
     await this.logDecision(context, decision, effectiveDryRun);
 

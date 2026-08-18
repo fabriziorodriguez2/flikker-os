@@ -19,6 +19,8 @@ import { RetentionBudgetService } from '../retention-v2/retention-budget.service
 import { ProgramAuditService } from '../program-audit/program-audit.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { NotificationsService } from './notifications.service';
+import { PlansService } from '../plans/plans.service';
+import { PlansRepository } from '../plans/plans.repository';
 
 /**
  * Notificaciones contra DB real.
@@ -47,6 +49,8 @@ describe('Notificaciones — fachada sobre Retention V2 (integration)', () => {
         RetentionBudgetService,
         ProgramAuditService,
         WhatsAppBspService,
+        PlansService,
+        PlansRepository,
         {
           // Los resultados vienen del motor; acá solo se prueba la traducción.
           provide: RetentionResultsOverviewService,

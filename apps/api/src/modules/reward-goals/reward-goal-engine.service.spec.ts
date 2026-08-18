@@ -71,6 +71,13 @@ function makeDecisions() {
   return { record: jest.fn().mockResolvedValue(undefined) };
 }
 
+// Default "puede sumar" para que cada test de este archivo (sobre las reglas
+// puras de reward goals, no sobre el tope de clientes) siga pasando sin
+// cambios — el tope self-service tiene su propio describe block más abajo.
+function makePlans() {
+  return { canAddParticipant: jest.fn().mockResolvedValue(true) };
+}
+
 function context(overrides: Record<string, unknown> = {}) {
   return {
     businessId: 'biz-1',
@@ -90,6 +97,7 @@ describe('RewardGoalEngineService — the owner kill switch', () => {
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     const result = await service.evaluate(context());
@@ -109,6 +117,7 @@ describe('RewardGoalEngineService — creating a goal', () => {
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     const result = await service.evaluate(context({ visitCount: 1 }));
@@ -134,6 +143,7 @@ describe('RewardGoalEngineService — creating a goal', () => {
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     await service.evaluate(context());
@@ -154,6 +164,7 @@ describe('RewardGoalEngineService — gating', () => {
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     const result = await service.evaluate(context());
@@ -174,6 +185,7 @@ describe('RewardGoalEngineService — gating', () => {
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     const result = await service.evaluate(context());
@@ -195,6 +207,7 @@ describe('RewardGoalEngineService — gating', () => {
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     const result = await service.evaluate(context());
@@ -208,6 +221,7 @@ describe('RewardGoalEngineService — gating', () => {
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     const result = await service.evaluate(
@@ -238,6 +252,7 @@ describe('RewardGoalEngineService — capacity protection (Fase E §10)', () => 
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     const result = await service.evaluate(context());
@@ -258,6 +273,7 @@ describe('RewardGoalEngineService — capacity protection (Fase E §10)', () => 
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     const result = await service.evaluate(context());
@@ -279,6 +295,7 @@ describe('RewardGoalEngineService — capacity protection (Fase E §10)', () => 
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     const result = await service.evaluate(context());
@@ -297,6 +314,7 @@ describe('RewardGoalEngineService — dry run (Fase E §32)', () => {
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     const result = await service.evaluate(context(), { dryRun: true });
@@ -311,6 +329,7 @@ describe('RewardGoalEngineService — dry run (Fase E §32)', () => {
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     await service.evaluate(context(), { dryRun: true });
@@ -335,6 +354,7 @@ describe('RewardGoalEngineService — dry run (Fase E §32)', () => {
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     await service.evaluate(context({ segment: CustomerSegment.AT_RISK }), {
@@ -361,6 +381,7 @@ describe('RewardGoalEngineService — business-level dry run (Fase E §32)', () 
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     // The check-in trigger always calls with dryRun: false (default) — the
@@ -402,6 +423,7 @@ describe('RewardGoalEngineService — concurrency', () => {
     const service = new RewardGoalEngineService(
       prisma as never,
       decisions as never,
+      makePlans() as never,
     );
 
     const result = await service.evaluate(context());
@@ -409,5 +431,59 @@ describe('RewardGoalEngineService — concurrency', () => {
     expect(result.action).toBe('CREATE_GOAL');
     expect(prisma.customerRewardGoal.create).toHaveBeenCalledTimes(1);
     expect(activeGoalCalls).toBe(2);
+  });
+});
+
+describe('RewardGoalEngineService — tope self-service de 50 clientes (Fase FREE sellos)', () => {
+  it('no crea la tarjeta cuando el negocio ya está en el límite — nunca la unicidad de la fila', async () => {
+    const prisma = makePrisma();
+    const decisions = makeDecisions();
+    const plans = makePlans();
+    plans.canAddParticipant.mockResolvedValue(false);
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      decisions as never,
+      plans as never,
+    );
+
+    const result = await service.evaluate(context());
+
+    expect(result).toEqual({
+      action: 'NO_GOAL',
+      reasonCode: 'PARTICIPANT_LIMIT_REACHED',
+    });
+    expect(prisma.customerRewardGoal.create).not.toHaveBeenCalled();
+    expect(plans.canAddParticipant).toHaveBeenCalledWith('biz-1', 'cust-1');
+  });
+
+  it('sin límite (canAddParticipant true) crea la tarjeta normalmente', async () => {
+    const prisma = makePrisma();
+    const decisions = makeDecisions();
+    const plans = makePlans();
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      decisions as never,
+      plans as never,
+    );
+
+    const result = await service.evaluate(context());
+
+    expect(result.action).toBe('CREATE_GOAL');
+    expect(prisma.customerRewardGoal.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('nunca consulta el límite si la decisión ya era NO_GOAL por otro motivo', async () => {
+    const prisma = makePrisma({ settings: { rewardGoalsEnabled: false } });
+    const decisions = makeDecisions();
+    const plans = makePlans();
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      decisions as never,
+      plans as never,
+    );
+
+    await service.evaluate(context());
+
+    expect(plans.canAddParticipant).not.toHaveBeenCalled();
   });
 });

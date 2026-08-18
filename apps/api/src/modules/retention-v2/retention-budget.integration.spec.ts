@@ -8,6 +8,8 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { RetentionBudgetService } from './retention-budget.service';
 import { IncentiveIssuerService } from './incentive-issuer.service';
+import { PlansService } from '../plans/plans.service';
+import { PlansRepository } from '../plans/plans.repository';
 
 /**
  * Real-Postgres concurrency test for the monthly incentive budget. Verifies
@@ -116,9 +118,13 @@ describe('RetentionBudgetService concurrency (integration)', () => {
         assignmentIds.push(assignment.id);
       }
 
+      // Real PlansService, real DB: sin Subscription para este negocio de
+      // test, `isBenefitsBlocked` es siempre `false` — cero comportamiento
+      // nuevo para este archivo.
       issuer = new IncentiveIssuerService(
         prisma,
         new RetentionBudgetService(prisma),
+        new PlansService(new PlansRepository(prisma)),
       );
       available = true;
     } catch {

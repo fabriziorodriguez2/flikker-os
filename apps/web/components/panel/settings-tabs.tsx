@@ -26,6 +26,11 @@ const TABS = [
     label: "Integraciones",
     managersOnly: true,
   },
+  {
+    href: "/dashboard/settings/suscripcion",
+    label: "Suscripción",
+    managersOnly: true,
+  },
   // La cuenta es de cada persona: cualquier miembro cambia su contraseña.
   { href: "/dashboard/settings/cuenta", label: "Cuenta", managersOnly: false },
 ];

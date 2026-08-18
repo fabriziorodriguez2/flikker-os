@@ -101,6 +101,12 @@ describe('Self-service — smoke end to end (integration)', () => {
         where: { businessId: id },
       });
       await prisma.retentionSettings.deleteMany({ where: { businessId: id } });
+      // El paso 2 del onboarding (cualquiera de los dos caminos) ahora da de
+      // alta una Subscription self-service (FREE sellos o trial Beneficios)
+      // — sin borrarla, el borrado de Business choca contra su FK.
+      await prisma.subscription
+        .deleteMany({ where: { businessId: id } })
+        .catch(() => undefined);
       await prisma.business.update({
         where: { id },
         data: { welcomeBenefitId: null },

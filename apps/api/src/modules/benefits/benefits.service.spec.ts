@@ -1,10 +1,15 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { BenefitType } from '@prisma/client';
 import { BenefitsService } from './benefits.service';
 import type { BenefitsRepository } from './benefits.repository';
 import type { ProgramAuditService } from '../program-audit/program-audit.service';
 import type { RetentionSettingsService } from '../retention-v2/retention-settings.service';
 import type { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
+import type { PlansService } from '../plans/plans.service';
 
 // Plain object of jest mocks (not typed as the class) so eslint's unbound-method
 // rule doesn't flag the assertions below. Cast to the repo type only at the seam.
@@ -23,6 +28,7 @@ function makeRepo() {
     findRetentionBridge: jest.fn(),
     setRetentionBridge: jest.fn(),
     countLiveGoalsForDefinition: jest.fn().mockResolvedValue(0),
+    findRedemption: jest.fn(),
   };
 }
 
@@ -36,11 +42,23 @@ function makeProgramAudit() {
 function makeRetentionSettings() {
   return {
     assertBudgetReadyToAuthorize: jest.fn().mockResolvedValue(undefined),
+    // Default "catálogo prendido" — el gate de `benefitsEnabled` tiene su
+    // propio describe block más abajo.
+    getOrCreate: jest.fn().mockResolvedValue({ benefitsEnabled: true }),
   };
 }
 
 function makeRetentionBootstrap() {
   return { ensureDefaultRetentionSetup: jest.fn().mockResolvedValue([]) };
+}
+
+// Defaults to "nunca bloqueado" so every existing test here keeps passing
+// unmodified — el gate de trial de Beneficios tiene su propio describe block.
+function makePlans() {
+  return {
+    assertBenefitsProActionAllowed: jest.fn().mockResolvedValue(undefined),
+    isBenefitsBlocked: jest.fn().mockResolvedValue(false),
+  };
 }
 
 function makeService(
@@ -52,12 +70,14 @@ function makeService(
   retentionBootstrap: ReturnType<
     typeof makeRetentionBootstrap
   > = makeRetentionBootstrap(),
+  plans: ReturnType<typeof makePlans> = makePlans(),
 ) {
   return new BenefitsService(
     repo as unknown as BenefitsRepository,
     programAudit as unknown as ProgramAuditService,
     retentionSettings as unknown as RetentionSettingsService,
     retentionBootstrap as unknown as RetentionV2BootstrapService,
+    plans as unknown as PlansService,
   );
 }
 
@@ -247,6 +267,7 @@ describe('BenefitsService.setRetentionBridge — presupuesto (fase de budget)', 
       assertBudgetReadyToAuthorize: jest
         .fn()
         .mockRejectedValue(new Error('Configurá un límite mensual')),
+      getOrCreate: jest.fn(),
     };
     const service = makeService(repo, makeProgramAudit(), retentionSettings);
 
@@ -270,6 +291,7 @@ describe('BenefitsService.setRetentionBridge — presupuesto (fase de budget)', 
     const repo = makeAuthorizeAttempt({ wasAutomationEligible: true });
     const retentionSettings = {
       assertBudgetReadyToAuthorize: jest.fn(),
+      getOrCreate: jest.fn(),
     };
     const service = makeService(repo, makeProgramAudit(), retentionSettings);
 
@@ -291,6 +313,7 @@ describe('BenefitsService.setRetentionBridge — presupuesto (fase de budget)', 
     });
     const retentionSettings = {
       assertBudgetReadyToAuthorize: jest.fn(),
+      getOrCreate: jest.fn(),
     };
     const service = makeService(repo, makeProgramAudit(), retentionSettings);
 
@@ -774,5 +797,255 @@ describe('BenefitsService — "no cambiar una promesa que ya tiene un cliente"',
         actorUserId: 'user-1',
       }),
     );
+  });
+
+  describe('trial de 30 días (self-service Beneficios) — guard centralizado en PlansService', () => {
+    it('create rechaza con 403 cuando el trial venció (PlansService lo bloquea)', async () => {
+      const repo = makeRepo();
+      const plans = makePlans();
+      plans.assertBenefitsProActionAllowed.mockRejectedValue(
+        new ForbiddenException(
+          'Tu prueba de 30 días terminó. Actualizá tu plan para seguir usando funciones Pro de Beneficios.',
+        ),
+      );
+      const service = makeService(repo, undefined, undefined, undefined, plans);
+
+      await expect(
+        service.create('biz-1', { type: BenefitType.gift, title: 'x' }),
+      ).rejects.toThrow(/prueba de 30 días/);
+      expect(repo.create).not.toHaveBeenCalled();
+    });
+
+    it('create sigue funcionando normalmente sin Subscription (LEGACY/Platform Admin)', async () => {
+      const repo = makeRepo();
+      repo.create.mockResolvedValue({ id: 'b1' });
+      const plans = makePlans(); // assertBenefitsProActionAllowed: nunca bloquea por default
+      const service = makeService(repo, undefined, undefined, undefined, plans);
+
+      await service.create('biz-1', { type: BenefitType.gift, title: 'x' });
+
+      expect(repo.create).toHaveBeenCalled();
+      expect(plans.assertBenefitsProActionAllowed).toHaveBeenCalledWith(
+        'biz-1',
+      );
+    });
+  });
+
+  describe('reactivación (recoveryEnabled) — autorizar NUEVA reactivación es una acción Pro de Beneficios', () => {
+    function makeAuthorizeAttempt() {
+      const repo = makeRepo();
+      repo.findRetentionBridge.mockResolvedValue({
+        title: 'Café gratis',
+        retentionIncentiveDefinition: { automationEligible: false },
+      });
+      repo.setRetentionBridge.mockResolvedValue({
+        automationEligible: true,
+        rewardGoalEligible: false,
+        percentageValue: null,
+        fixedValue: null,
+        estimatedCost: null,
+      });
+      return repo;
+    }
+
+    it('rechaza autorizar reactivación con el trial vencido, sin llegar a chequear presupuesto', async () => {
+      const repo = makeAuthorizeAttempt();
+      const plans = makePlans();
+      plans.assertBenefitsProActionAllowed.mockRejectedValue(
+        new ForbiddenException('Tu prueba de 30 días terminó.'),
+      );
+      const retentionSettings = makeRetentionSettings();
+      const service = makeService(
+        repo,
+        undefined,
+        retentionSettings,
+        undefined,
+        plans,
+      );
+
+      await expect(
+        service.setRetentionBridge('biz-1', 'b1', { recoveryEnabled: true }),
+      ).rejects.toThrow(/prueba de 30 días/);
+      expect(repo.setRetentionBridge).not.toHaveBeenCalled();
+      expect(
+        retentionSettings.assertBudgetReadyToAuthorize,
+      ).not.toHaveBeenCalled();
+    });
+
+    it('permite autorizar reactivación cuando NO está bloqueado (Pro, o trial vigente)', async () => {
+      const repo = makeAuthorizeAttempt();
+      const plans = makePlans();
+      const service = makeService(repo, undefined, undefined, undefined, plans);
+
+      await service.setRetentionBridge('biz-1', 'b1', {
+        recoveryEnabled: true,
+      });
+
+      expect(plans.assertBenefitsProActionAllowed).toHaveBeenCalledWith(
+        'biz-1',
+      );
+      expect(repo.setRetentionBridge).toHaveBeenCalled();
+    });
+
+    it('desautorizar (true→false) nunca pasa por el guard Pro — nunca borra ni bloquea apagar', async () => {
+      const repo = makeRepo();
+      repo.findRetentionBridge.mockResolvedValue({
+        title: 'Café gratis',
+        retentionIncentiveDefinition: { automationEligible: true },
+      });
+      repo.setRetentionBridge.mockResolvedValue({
+        automationEligible: false,
+        rewardGoalEligible: false,
+        percentageValue: null,
+        fixedValue: null,
+        estimatedCost: null,
+      });
+      const plans = makePlans();
+      const service = makeService(repo, undefined, undefined, undefined, plans);
+
+      await service.setRetentionBridge('biz-1', 'b1', {
+        recoveryEnabled: false,
+      });
+
+      expect(plans.assertBenefitsProActionAllowed).not.toHaveBeenCalled();
+    });
+
+    it('re-autorizar lo que ya estaba autorizado (no es una transición) tampoco pasa por el guard', async () => {
+      const repo = makeRepo();
+      repo.findRetentionBridge.mockResolvedValue({
+        title: 'Café gratis',
+        retentionIncentiveDefinition: { automationEligible: true },
+      });
+      repo.setRetentionBridge.mockResolvedValue({
+        automationEligible: true,
+        rewardGoalEligible: false,
+        percentageValue: null,
+        fixedValue: null,
+        estimatedCost: null,
+      });
+      const plans = makePlans();
+      const service = makeService(repo, undefined, undefined, undefined, plans);
+
+      await service.setRetentionBridge('biz-1', 'b1', {
+        recoveryEnabled: true,
+      });
+
+      expect(plans.assertBenefitsProActionAllowed).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('capacidad independiente de sellos: catálogo de Beneficios (Programa → Configuración)', () => {
+    it('resolveActiveBenefit no muestra nada con benefitsEnabled: false, sin tocar el catálogo', async () => {
+      const repo = makeRepo();
+      const retentionSettings = {
+        ...makeRetentionSettings(),
+        getOrCreate: jest.fn().mockResolvedValue({ benefitsEnabled: false }),
+      };
+      const service = makeService(repo, undefined, retentionSettings);
+
+      const result = await service.resolveActiveBenefit('biz-1');
+
+      expect(result).toBeNull();
+      // Ni siquiera se consulta el beneficio activo — apagado significa
+      // "no mostrar nada", nunca "borrar o desactivar el catálogo".
+      expect(repo.findActive).not.toHaveBeenCalled();
+    });
+
+    it('resolveActiveBenefit sigue funcionando igual con benefitsEnabled: true (default)', async () => {
+      const repo = makeRepo();
+      repo.findActive.mockResolvedValue({
+        id: 'ben-1',
+        type: BenefitType.gift,
+        startDate: null,
+        endDate: null,
+      });
+      const service = makeService(repo);
+
+      const result = await service.resolveActiveBenefit('biz-1');
+
+      expect(result).toMatchObject({ id: 'ben-1' });
+    });
+  });
+
+  describe('trial de Beneficios vencido (sin Pro) — resolveActiveBenefit', () => {
+    function activeBenefit() {
+      return {
+        id: 'ben-1',
+        type: BenefitType.gift,
+        startDate: null,
+        endDate: null,
+      };
+    }
+
+    it('cliente SIN una promesa previa no ve una oferta nueva', async () => {
+      const repo = makeRepo();
+      repo.findActive.mockResolvedValue(activeBenefit());
+      repo.findRedemption.mockResolvedValue(null);
+      const plans = {
+        ...makePlans(),
+        isBenefitsBlocked: jest.fn().mockResolvedValue(true),
+      };
+      const service = makeService(repo, undefined, undefined, undefined, plans);
+
+      const result = await service.resolveActiveBenefit(
+        'biz-1',
+        new Date(),
+        'cust-1',
+      );
+
+      expect(result).toBeNull();
+    });
+
+    it('sin customerId (anónimo / registro) tampoco ve una oferta nueva', async () => {
+      const repo = makeRepo();
+      repo.findActive.mockResolvedValue(activeBenefit());
+      const plans = {
+        ...makePlans(),
+        isBenefitsBlocked: jest.fn().mockResolvedValue(true),
+      };
+      const service = makeService(repo, undefined, undefined, undefined, plans);
+
+      const result = await service.resolveActiveBenefit('biz-1');
+
+      expect(result).toBeNull();
+      expect(repo.findRedemption).not.toHaveBeenCalled();
+    });
+
+    it('CLIENTE TEST clave: uno con una BenefitParticipation previa (código ya emitido) sigue viendo y pudiendo canjear su beneficio', async () => {
+      const repo = makeRepo();
+      repo.findActive.mockResolvedValue(activeBenefit());
+      repo.findRedemption.mockResolvedValue({
+        redemptionCode: 'ABCD1234',
+        redeemedAt: null,
+      });
+      const plans = {
+        ...makePlans(),
+        isBenefitsBlocked: jest.fn().mockResolvedValue(true),
+      };
+      const service = makeService(repo, undefined, undefined, undefined, plans);
+
+      const result = await service.resolveActiveBenefit(
+        'biz-1',
+        new Date(),
+        'cust-1',
+      );
+
+      expect(result).toMatchObject({ id: 'ben-1' });
+      expect(repo.findRedemption).toHaveBeenCalledWith(
+        'biz-1',
+        'ben-1',
+        'cust-1',
+      );
+    });
+
+    it('sin bloqueo, ni siquiera se consulta si existe una promesa previa', async () => {
+      const repo = makeRepo();
+      repo.findActive.mockResolvedValue(activeBenefit());
+      const service = makeService(repo);
+
+      await service.resolveActiveBenefit('biz-1', new Date(), 'cust-1');
+
+      expect(repo.findRedemption).not.toHaveBeenCalled();
+    });
   });
 });

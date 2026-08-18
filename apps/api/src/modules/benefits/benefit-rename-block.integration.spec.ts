@@ -13,6 +13,8 @@ import {
   createTestBusiness,
   makeTestSuffix,
 } from '../reviews/reviews.test-helpers';
+import { PlansService } from '../plans/plans.service';
+import { PlansRepository } from '../plans/plans.repository';
 
 /**
  * "No cambiar una promesa que ya tiene un cliente" — contra DB real.
@@ -43,6 +45,8 @@ describe('BenefitsService — bloqueo de edición por promesa viva (integration)
         RetentionSettingsService,
         RetentionExperimentsAdminService,
         RetentionV2BootstrapService,
+        PlansService,
+        PlansRepository,
       ],
     }).compile();
 

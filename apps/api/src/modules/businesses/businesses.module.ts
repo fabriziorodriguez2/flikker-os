@@ -6,9 +6,10 @@ import { TenantGuard } from '../../common/guards/tenant.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuditService } from '../../common/services/audit.service';
 import { JobsModule } from '../../jobs/jobs.module';
+import { PlansModule } from '../plans/plans.module';
 
 @Module({
-  imports: [JobsModule],
+  imports: [JobsModule, PlansModule],
   controllers: [BusinessesController],
   providers: [
     BusinessesService,

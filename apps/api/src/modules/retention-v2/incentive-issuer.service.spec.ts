@@ -87,10 +87,24 @@ function makePrisma(
   };
 }
 
-function makeService(prisma: ReturnType<typeof makePrisma>) {
+// Default "nunca bloqueado" — el gate de trial de Beneficios tiene su propio
+// describe block más abajo.
+function makePlans(overrides: { isBenefitsBlocked?: boolean } = {}) {
+  return {
+    isBenefitsBlocked: jest
+      .fn()
+      .mockResolvedValue(overrides.isBenefitsBlocked ?? false),
+  };
+}
+
+function makeService(
+  prisma: ReturnType<typeof makePrisma>,
+  plans: ReturnType<typeof makePlans> = makePlans(),
+) {
   return new IncentiveIssuerService(
     prisma as never,
     new RetentionBudgetService(prisma as never),
+    plans as never,
   );
 }
 
@@ -229,6 +243,29 @@ describe('IncentiveIssuerService — authorization is re-checked at issue time',
     expect(await service.issueForAssignment('assign-1', NOW)).toEqual({
       status: 'skipped',
       reason: 'NOT_AUTHORIZED',
+    });
+  });
+
+  it('refuses a NEW issue once el trial de Beneficios venció (sin Pro)', async () => {
+    const prisma = makePrisma();
+    const service = makeService(prisma, makePlans({ isBenefitsBlocked: true }));
+
+    expect(await service.issueForAssignment('assign-1', NOW)).toEqual({
+      status: 'skipped',
+      reason: 'NOT_AUTHORIZED',
+    });
+    expect(prisma.tx.benefitParticipation.upsert).not.toHaveBeenCalled();
+  });
+
+  it('un assignment YA emitido antes del vencimiento nunca se toca — sigue "already_issued"', async () => {
+    const prisma = makePrisma({
+      assignment: assignmentFixture({ benefitParticipationId: 'part-old' }),
+    });
+    const service = makeService(prisma, makePlans({ isBenefitsBlocked: true }));
+
+    expect(await service.issueForAssignment('assign-1', NOW)).toEqual({
+      status: 'already_issued',
+      participationId: 'part-old',
     });
   });
 

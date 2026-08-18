@@ -12,6 +12,8 @@ import {
   createTestBusiness,
   makeTestSuffix,
 } from '../reviews/reviews.test-helpers';
+import { PlansService } from '../plans/plans.service';
+import { PlansRepository } from '../plans/plans.repository';
 
 /**
  * §9 pilot ask — contra DB real, sin mocks: prueba que el sello de feedback
@@ -34,6 +36,8 @@ describe('Reward Goals — feedback bonus (integration)', () => {
         RewardGoalUnlockService,
         RewardGoalOrchestratorService,
         RewardGoalFeedbackService,
+        PlansService,
+        PlansRepository,
       ],
     }).compile();
 

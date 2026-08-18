@@ -451,6 +451,8 @@ async function main() {
       maxReviewsPerMonth: 200,
       priceMonthly: 6900,
       priceUsd: 69,
+      currency: 'USD',
+      priceAmount: 69,
       setupFeeUsd: 0,
       messageQuotaMonthly: 200,
       trialDays: 0,
@@ -461,17 +463,76 @@ async function main() {
       slug: 'pro',
       name: 'Pro',
       description:
-        'USD 129/mes + setup USD 99, incluye 600 mensajes WhatsApp/mes.',
+        'USD 129/mes + setup USD 99, incluye 600 mensajes WhatsApp/mes. Asignado a mano por Platform Admin — no lo usa el self-service de Mercado Pago (ver "pro-selfservice").',
       maxBranches: 10,
       maxMembers: 15,
       maxCampaigns: 20,
       maxReviewsPerMonth: 600,
       priceMonthly: 12900,
       priceUsd: 129,
+      currency: 'USD',
+      priceAmount: 129,
       setupFeeUsd: 99,
       messageQuotaMonthly: 600,
       trialDays: 0,
       displayOrder: 2,
+      isActive: true,
+    },
+    // Self-service (signup/onboarding CHECKIN_V2) — sellos y Beneficios son
+    // capacidades independientes (`RetentionSettings.rewardGoalsEnabled`/
+    // `benefitsEnabled`), así que un solo plan Free alcanza para cualquier
+    // combinación. `maxCustomers` solo importa si los sellos están
+    // realmente prendidos (ver `PlansService#canAddParticipant`). Debe
+    // existir en toda instalación limpia — ver `PlansRepository#ensureFreePlan`,
+    // que hace exactamente este mismo upsert en runtime si por lo que sea no
+    // llegó a correr el seed.
+    {
+      slug: 'free',
+      name: 'Free — sellos y beneficios',
+      description:
+        'Gratis. Hasta 50 clientes participantes, tarjeta de sellos y QR/check-in.',
+      maxBranches: 1,
+      maxMembers: 2,
+      maxCampaigns: 1,
+      maxReviewsPerMonth: 20,
+      maxCustomers: 50,
+      priceMonthly: 0,
+      priceUsd: 0,
+      currency: 'UYU',
+      priceAmount: 0,
+      setupFeeUsd: 0,
+      messageQuotaMonthly: 0,
+      trialDays: 0,
+      displayOrder: 0,
+      isActive: true,
+    },
+    // Pro self-service — el que activa Mercado Pago
+    // (https://mpago.la/1Acxajh) vía `PlatformService#confirmProSubscription`.
+    // Slug DISTINTO de 'pro': ese es el histórico en USD que ya usan
+    // negocios reales asignados a mano — pisarlo le cambiaría el precio a
+    // Subscriptions que no tienen nada que ver con este flujo. Mismos
+    // límites generosos que 'pro' (10 sucursales, sin tope de clientes);
+    // la única diferencia real es moneda, precio y cómo se llega a él. Debe
+    // existir en toda instalación limpia — ver
+    // `PlansRepository#ensureProSelfServicePlan`, mismo upsert en runtime.
+    {
+      slug: 'pro-selfservice',
+      name: 'Pro',
+      description:
+        'UYU 1.000/mes. Beneficios sin límite de trial, clientes sin tope.',
+      maxBranches: 10,
+      maxMembers: 15,
+      maxCampaigns: 20,
+      maxReviewsPerMonth: 600,
+      maxCustomers: null,
+      priceMonthly: 0,
+      priceUsd: 0,
+      currency: 'UYU',
+      priceAmount: 1000,
+      setupFeeUsd: 0,
+      messageQuotaMonthly: 600,
+      trialDays: 0,
+      displayOrder: 3,
       isActive: true,
     },
   ];
@@ -483,7 +544,7 @@ async function main() {
 
   console.log('\n📋 Plans');
   await prisma.plan.updateMany({
-    where: { slug: { notIn: ['starter', 'pro'] } },
+    where: { slug: { notIn: ['starter', 'pro', 'free', 'pro-selfservice'] } },
     data: { isActive: false },
   });
 

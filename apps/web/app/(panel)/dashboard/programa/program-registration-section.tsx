@@ -2,10 +2,8 @@
 
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
-import {
-  DEFAULT_CARD_COLOR,
-  buildLoyaltyCardTheme,
-} from "@/lib/loyalty-card-theme";
+import { Shell } from "@/app/(public)/check-in/[token]/checkin-client";
+import type { CheckinLanding } from "@/app/(public)/check-in/[token]/page";
 import type { LoyaltyAppearance } from "./types";
 
 const MAX_LEN = 160;
@@ -14,11 +12,18 @@ const MAX_LEN = 160;
  * "Página de inscripción" — la landing pública (`/check-in/[token]`) que ve
  * el cliente al escanear el QR, antes de dejar sus datos.
  *
- * Lo único editable acá es el encabezado (`checkinWelcomeMessage`): el resto
- * de esa pantalla (logo, colores, botón, beneficio) ya se arma solo a partir
- * de Tarjeta digital y del beneficio activo — auditado antes de construir
- * esto, no hay copy suelta editable más allá de eso. Dejarlo en null vuelve
- * al comportamiento de siempre (el título del beneficio activo).
+ * La preview reusa `Shell` — el MISMO componente que la landing real monta
+ * (fondo con gradiente de marca, logo, pie "Powered by Flikker") — en vez de
+ * una maqueta desconectada. No reusa `RegisterScreen` completo a propósito:
+ * ese componente hace un POST real de registro al enviarse, y esta pantalla
+ * es de un dueño autenticado editando, nunca un cliente real — reusar su
+ * lógica de submit acá sería el riesgo real, no el ahorro. El título/
+ * subtítulo/botón que se ven abajo son la MISMA derivación que usa
+ * `RegisterScreen` (comentario ahí mismo), solo sin el formulario interactivo.
+ *
+ * Lo único editable es el encabezado (`checkinWelcomeMessage`): auditado
+ * antes de construir esto — no hay más copy suelta en esa pantalla, el resto
+ * ya se arma solo a partir de Tarjeta digital y del beneficio activo.
  */
 export default function ProgramRegistrationSection({
   appearance,
@@ -35,10 +40,6 @@ export default function ProgramRegistrationSection({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const theme = buildLoyaltyCardTheme(
-    appearance.loyaltyCardColor ?? appearance.primaryColor ?? DEFAULT_CARD_COLOR,
-  );
-
   async function save() {
     setSaving(true);
     setError(null);
@@ -50,6 +51,24 @@ export default function ProgramRegistrationSection({
       setSaving(false);
     }
   }
+
+  const previewLanding: CheckinLanding = {
+    source: { name: "Preview", type: "qr" },
+    business: {
+      businessName: businessName || "Tu negocio",
+      logoUrl: appearance.logoUrl,
+      primaryColor: appearance.primaryColor,
+      googleBusinessProfileUrl: null,
+      loyaltyCardColor: appearance.loyaltyCardColor,
+      loyaltyStampColor: appearance.loyaltyStampColor,
+      loyaltyStampIcon: appearance.loyaltyStampIcon,
+    },
+    benefit: null,
+    benefitText: null,
+    welcomeMessage: message.trim() || null,
+  };
+  const title =
+    previewLanding.welcomeMessage ?? `Sumate a ${previewLanding.business.businessName}`;
 
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -104,37 +123,22 @@ export default function ProgramRegistrationSection({
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
           Vista previa
         </p>
-        <div
-          className="overflow-hidden rounded-[24px] p-6 shadow-[0_10px_24px_rgba(12,16,30,0.14)]"
-          style={{ backgroundColor: theme.card }}
-        >
-          {appearance.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={appearance.logoUrl}
-              alt=""
-              className="h-10 w-10 rounded-[10px] object-contain"
-            />
-          ) : null}
-          <p
-            className="mt-4 text-lg font-bold leading-tight"
-            style={{ color: theme.text }}
-          >
-            {message.trim() || `Sumate a ${businessName || "tu negocio"}`}
-          </p>
-          <p className="mt-2 text-xs" style={{ color: theme.textMuted }}>
-            Dejanos tu nombre y número para registrar tu visita.
-          </p>
-          <div
-            className="mt-5 rounded-[10px] px-4 py-2.5 text-center text-xs font-semibold"
-            style={{ backgroundColor: theme.accent, color: theme.onAccent }}
-          >
-            Registrar mi visita
-          </div>
+        <div className="overflow-hidden rounded-[24px] shadow-[0_10px_24px_rgba(12,16,30,0.14)]">
+          <Shell landing={previewLanding}>
+            <h1 className="text-center text-lg font-bold leading-tight text-white">
+              {title}
+            </h1>
+            <p className="mt-3 text-center text-xs text-white/70">
+              Dejanos tu nombre y número para registrar tu visita.
+            </p>
+            <div className="mt-6 w-full max-w-sm rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-center text-xs font-semibold text-white/80">
+              Nombre y teléfono (formulario real acá)
+            </div>
+          </Shell>
         </div>
         <p className="mt-3 text-xs text-[#8891A4]">
-          Aproximado — el logo y los colores son los mismos que en Tarjeta
-          digital.
+          Mismo fondo, logo y pie que ve tu cliente — el formulario real pide
+          nombre y teléfono debajo del encabezado.
         </p>
       </aside>
     </div>

@@ -42,6 +42,7 @@ function makeDeps(
   const settings = {
     getOrCreate: jest.fn().mockResolvedValue({
       rewardGoalsEnabled: true,
+      benefitsEnabled: true,
       rewardGoalFeedbackBonusEnabled: false,
       rewardGoalMinVisits: 5,
       rewardGoalMaxVisits: 5,
@@ -56,7 +57,28 @@ function makeDeps(
   const retentionBootstrap = {
     ensureDefaultRetentionSetup: jest.fn().mockResolvedValue([]),
   };
-  return { prisma, settings, benefits, programAudit, retentionBootstrap };
+  // Default "sin Subscription" (LEGACY/Platform Admin/negocio anterior a
+  // self-service) — sin tope, sin trial. El tope/trial reales tienen su
+  // propio describe block en `plans.service.spec.ts`.
+  const plans = {
+    getSelfServiceStatus: jest.fn().mockResolvedValue({
+      maxCustomers: null,
+      benefitsTrialExpired: false,
+      trialEndsAt: null,
+      isPro: false,
+      planName: null,
+    }),
+    ensureFreeSubscriptionIfMissing: jest.fn().mockResolvedValue({}),
+    startBenefitsTrialIfNeeded: jest.fn().mockResolvedValue(undefined),
+  };
+  return {
+    prisma,
+    settings,
+    benefits,
+    programAudit,
+    retentionBootstrap,
+    plans,
+  };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
@@ -66,6 +88,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.benefits as never,
     deps.programAudit as never,
     deps.retentionBootstrap as never,
+    deps.plans as never,
   );
 }
 
@@ -81,6 +104,7 @@ describe('LoyaltyProgramService — traduce el estado interno a lenguaje de nego
     // Nada de "rewardGoal", "incentiveDefinition" ni "retention" en la salida.
     expect(Object.keys(result)).toEqual([
       'enabled',
+      'benefitsEnabled',
       'feedbackBonusEnabled',
       'stampsRequired',
       'reward',
@@ -88,7 +112,40 @@ describe('LoyaltyProgramService — traduce el estado interno a lenguaje de nego
       'stats',
       'recentActivity',
       'benefitsCount',
+      'plan',
     ]);
+    // Sellos y Beneficios son capacidades independientes — ambas visibles.
+    expect(result.benefitsEnabled).toBe(true);
+    // Self-service: sin Subscription (el mock default) no hay tope ni trial.
+    expect(result.plan).toEqual({
+      maxCustomers: null,
+      benefitsTrialExpired: false,
+      trialEndsAt: null,
+      isPro: false,
+      planName: null,
+    });
+  });
+
+  it('refleja el tope/trial self-service tal cual los devuelve PlansService', async () => {
+    const deps = makeDeps();
+    deps.plans.getSelfServiceStatus.mockResolvedValue({
+      maxCustomers: 50,
+      benefitsTrialExpired: true,
+      trialEndsAt: new Date('2026-01-01T00:00:00.000Z'),
+      isPro: false,
+      planName: 'Free — sellos y beneficios',
+    });
+    const service = makeService(deps);
+
+    const result = await service.getOverview('biz-1');
+
+    expect(result.plan).toEqual({
+      maxCustomers: 50,
+      benefitsTrialExpired: true,
+      trialEndsAt: '2026-01-01T00:00:00.000Z',
+      isPro: false,
+      planName: 'Free — sellos y beneficios',
+    });
   });
 
   it('sin recompensa autorizada devuelve null en vez de inventar una', async () => {
@@ -215,6 +272,31 @@ describe('LoyaltyProgramService — Sellos: toggle ON/OFF', () => {
         actorUserId: 'user-1',
       }),
     );
+    // Cambio de modalidad reversible: activar sellos asegura el plan Free
+    // (tope de 50) igual que si se hubiera elegido en el onboarding.
+    expect(deps.plans.ensureFreeSubscriptionIfMissing).toHaveBeenCalledWith(
+      'biz-1',
+    );
+    // Gap cerrado: Beneficios ya está prendido (default `true`) en este
+    // momento, así que activar sellos es la primera vez que el negocio
+    // tiene un plan self-service real — el trial de 30 días arranca acá,
+    // para que "Beneficios + sellos" nunca deje Beneficios Pro gratis para
+    // siempre.
+    expect(deps.plans.startBenefitsTrialIfNeeded).toHaveBeenCalledWith('biz-1');
+  });
+
+  it('activar sellos con Beneficios ya apagado NO arranca el trial (nada que "usar" todavía)', async () => {
+    const deps = makeDeps({
+      settings: { rewardGoalsEnabled: false, benefitsEnabled: false },
+    });
+    const service = makeService(deps);
+
+    await service.setStampsCardEnabled('biz-1', { enabled: true });
+
+    expect(deps.plans.ensureFreeSubscriptionIfMissing).toHaveBeenCalledWith(
+      'biz-1',
+    );
+    expect(deps.plans.startBenefitsTrialIfNeeded).not.toHaveBeenCalled();
   });
 
   it('desactivar apaga la tarjeta Y el recordatorio de progreso, sin tocar la recompensa', async () => {
@@ -228,6 +310,9 @@ describe('LoyaltyProgramService — Sellos: toggle ON/OFF', () => {
       data: { rewardGoalsEnabled: false, progressReminderEnabled: false },
     });
     expect(deps.benefits.setRetentionBridge).not.toHaveBeenCalled();
+    // Apagar nunca provisiona ni toca el plan — solo prender lo hace.
+    expect(deps.plans.ensureFreeSubscriptionIfMissing).not.toHaveBeenCalled();
+    expect(deps.plans.startBenefitsTrialIfNeeded).not.toHaveBeenCalled();
   });
 
   it('reafirmar el mismo estado es un no-op silencioso', async () => {
@@ -238,6 +323,58 @@ describe('LoyaltyProgramService — Sellos: toggle ON/OFF', () => {
 
     expect(deps.prisma.retentionSettings.update).not.toHaveBeenCalled();
     expect(deps.programAudit.record).not.toHaveBeenCalled();
+  });
+});
+
+describe('LoyaltyProgramService — Beneficios: toggle ON/OFF (capacidad independiente de sellos)', () => {
+  it('activar prende el flag, asegura el plan Free y arranca el trial si nunca corrió', async () => {
+    const deps = makeDeps({ settings: { benefitsEnabled: false } });
+    const service = makeService(deps);
+
+    await service.setBenefitsEnabled('biz-1', { enabled: true }, 'user-1');
+
+    expect(deps.prisma.retentionSettings.update).toHaveBeenCalledWith({
+      where: { businessId: 'biz-1' },
+      data: { benefitsEnabled: true },
+    });
+    expect(deps.plans.ensureFreeSubscriptionIfMissing).toHaveBeenCalledWith(
+      'biz-1',
+    );
+    expect(deps.plans.startBenefitsTrialIfNeeded).toHaveBeenCalledWith('biz-1');
+    expect(deps.programAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'benefits_catalog_activated',
+        actorUserId: 'user-1',
+      }),
+    );
+  });
+
+  it('desactivar apaga el flag sin tocar el plan ni el trial — el catálogo sigue intacto', async () => {
+    const deps = makeDeps({ settings: { benefitsEnabled: true } });
+    const service = makeService(deps);
+
+    await service.setBenefitsEnabled('biz-1', { enabled: false });
+
+    expect(deps.prisma.retentionSettings.update).toHaveBeenCalledWith({
+      where: { businessId: 'biz-1' },
+      data: { benefitsEnabled: false },
+    });
+    expect(deps.plans.ensureFreeSubscriptionIfMissing).not.toHaveBeenCalled();
+    expect(deps.plans.startBenefitsTrialIfNeeded).not.toHaveBeenCalled();
+    expect(deps.programAudit.record).toHaveBeenCalledWith(
+      expect.objectContaining({ type: 'benefits_catalog_deactivated' }),
+    );
+  });
+
+  it('reafirmar el mismo estado es un no-op silencioso', async () => {
+    const deps = makeDeps({ settings: { benefitsEnabled: true } });
+    const service = makeService(deps);
+
+    await service.setBenefitsEnabled('biz-1', { enabled: true });
+
+    expect(deps.prisma.retentionSettings.update).not.toHaveBeenCalled();
+    expect(deps.programAudit.record).not.toHaveBeenCalled();
+    expect(deps.plans.ensureFreeSubscriptionIfMissing).not.toHaveBeenCalled();
   });
 });
 

@@ -9,6 +9,8 @@ import { RewardGoalUnlockService } from './reward-goal-unlock.service';
 import { RewardGoalOrchestratorService } from './reward-goal-orchestrator.service';
 import { CustomerLoyaltyRepository } from '../customers/loyalty/customer-loyalty.repository';
 import { CustomerOverviewService } from '../customers/loyalty/customer-overview.service';
+import { PlansService } from '../plans/plans.service';
+import { PlansRepository } from '../plans/plans.repository';
 import {
   createTestBusiness,
   makeTestSuffix,
@@ -59,6 +61,8 @@ describe('Reward Goals — sellos OFF con un ciclo vivo (integration)', () => {
         RewardGoalOrchestratorService,
         CustomerLoyaltyRepository,
         CustomerOverviewService,
+        PlansService,
+        PlansRepository,
       ],
     }).compile();
 
@@ -160,7 +164,10 @@ describe('Reward Goals — sellos OFF con un ciclo vivo (integration)', () => {
       await visitOn(business.id, customer.id, daysFrom(1));
       await visitOn(business.id, customer.id, daysFrom(2));
       const v4 = await visitOn(business.id, customer.id, daysFrom(3));
-      expect(v4.goal).toMatchObject({ progressVisits: 3, targetAdditionalVisits: 5 });
+      expect(v4.goal).toMatchObject({
+        progressVisits: 3,
+        targetAdditionalVisits: 5,
+      });
 
       // El dueño apaga sellos — exactamente lo que
       // LoyaltyProgramService.setStampsCardEnabled(false) hace (ya probado

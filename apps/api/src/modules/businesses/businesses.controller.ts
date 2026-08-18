@@ -16,6 +16,7 @@ import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
 import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
 import { UpdateBrandProfileDto } from './dto/update-brand-profile.dto';
+import { ConnectGooglePlaceDto } from './dto/connect-google-place.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -77,6 +78,51 @@ export class BusinessesController {
     return this.businessesService.updateBrandProfile(
       req.currentBusinessId!,
       dto,
+    );
+  }
+
+  /**
+   * Configuración → Suscripción. Lectura abierta a cualquier miembro del
+   * negocio (igual que `GET current`) — la pantalla en sí ya está detrás de
+   * `managersOnly` en el sidebar, pero el dato no es sensible entre tenants.
+   */
+  @Get('current/subscription')
+  @UseGuards(TenantGuard)
+  getSubscription(@Req() req: AuthenticatedRequest) {
+    return this.businessesService.getSubscriptionOverview(
+      req.currentBusinessId!,
+    );
+  }
+
+  /**
+   * Google Places API (New) — Reseñas → Conectar Google, paso "buscá tu
+   * negocio". Reemplaza pegar un Place ID a mano por buscar por nombre.
+   * Reservado a OWNER/ADMIN: es una escritura potencial (el resultado se
+   * usa para conectar), no una lectura pública.
+   */
+  @Get('current/google-places/search')
+  @UseGuards(TenantGuard, RolesGuard)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
+  searchGooglePlaces(@Query('query') query: string) {
+    return this.businessesService.searchGooglePlaces(query);
+  }
+
+  /**
+   * Conecta el Place elegido: guarda placeId + datos de solo lectura
+   * (nombre, dirección, rating, links de Maps) y dispara el scrape inicial
+   * de reseñas — mismo pipeline que ya usa `verify-google-place` (Scrape.do
+   * + `GoogleReviewDetectionQueue`), sin duplicarlo.
+   */
+  @Post('current/google-places/connect')
+  @UseGuards(TenantGuard, RolesGuard)
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
+  connectGooglePlace(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: ConnectGooglePlaceDto,
+  ) {
+    return this.businessesService.connectGooglePlace(
+      req.currentBusinessId!,
+      dto.placeId,
     );
   }
 

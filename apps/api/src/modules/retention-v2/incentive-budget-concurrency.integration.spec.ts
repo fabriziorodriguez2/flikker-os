@@ -11,6 +11,8 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { IncentiveIssuerService } from './incentive-issuer.service';
 import { RetentionBudgetService } from './retention-budget.service';
+import { PlansService } from '../plans/plans.service';
+import { PlansRepository } from '../plans/plans.repository';
 
 /**
  * §17 — audits whether the existing budget check already has real atomicity
@@ -28,9 +30,13 @@ describe('Incentive budget — cap math and concurrency (integration)', () => {
 
   beforeAll(async () => {
     prisma = new PrismaService();
+    // Real PlansService, real DB: ninguno de estos negocios de test tiene
+    // Subscription, así que `isBenefitsBlocked` es siempre `false` — cero
+    // comportamiento nuevo para este archivo.
     issuer = new IncentiveIssuerService(
       prisma,
       new RetentionBudgetService(prisma),
+      new PlansService(new PlansRepository(prisma)),
     );
     await prisma.$connect();
   });
