@@ -10,6 +10,7 @@ import BusinessLogo from "@/components/business/business-logo";
 import GoogleLogo from "@/components/icons/google-logo";
 import BusinessSelector from "./business-selector";
 import LogoutButton from "./logout-button";
+import { supportWhatsAppHref } from "@/src/config/support";
 
 interface SidebarProps {
   memberships: SessionMembership[];
@@ -135,6 +136,22 @@ const CheckinIcon = () => (
     <path d="M20 12v6a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h9" />
     <path d="m9 11 3 3 8-8" />
   </Icon>
+);
+
+const WhatsAppIcon = () => (
+  <svg
+    viewBox="0 0 24 24"
+    aria-hidden="true"
+    className="h-[17px] w-[17px] shrink-0"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M20.5 11.6a8.5 8.5 0 0 1-12.6 7.5L3.5 20.5l1.4-4.3a8.5 8.5 0 1 1 15.6-4.6Z" />
+    <path d="M8.2 7.9c.2-.4.4-.4.7-.4h.5c.2 0 .4.1.5.4l.8 1.8c.1.3 0 .5-.2.7l-.6.7c-.2.2-.1.4 0 .6.6 1.1 1.5 1.9 2.6 2.5.2.1.4.1.6-.1l.8-1c.2-.2.4-.3.7-.2l1.8.9c.3.1.4.3.4.6 0 .4-.2 1.3-.8 1.8-.6.5-1.4.8-2.4.6-1-.2-2.3-.7-3.9-2.1-1.3-1.1-2.4-2.6-2.8-3.8-.4-1.2 0-2.3.4-2.8l.9-.2Z" />
+  </svg>
 );
 
 export interface NavItem {
@@ -504,6 +521,18 @@ export default function Sidebar(props: SidebarProps) {
           </div>
         ))}
       </nav>
+
+      <div className="px-4 pb-3">
+        <a
+          href={supportWhatsAppHref("Hola, necesito ayuda con Flikker.")}
+          target="_blank"
+          rel="noreferrer"
+          className="flex h-9 w-full items-center justify-center gap-2 rounded-full bg-[#25D366] px-4 text-xs font-bold text-white shadow-[0_5px_14px_rgba(37,211,102,0.2)] hover:bg-[#20BD5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/40 focus-visible:ring-offset-2"
+        >
+          <WhatsAppIcon />
+          Ayuda y soporte
+        </a>
+      </div>
 
       <div
         className="relative mt-auto border-t border-[#E4E5EB] px-4 pb-5 pt-4"

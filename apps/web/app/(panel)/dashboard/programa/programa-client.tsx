@@ -314,7 +314,7 @@ function ProgramaClientContent() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 xl:max-w-6xl">
+    <div className="mx-auto w-full max-w-[1440px] space-y-5">
       <PageHeader
         title="Programa"
         subtitle="Todo lo que tu negocio ofrece para que tus clientes vuelvan."
@@ -372,14 +372,14 @@ function ProgramaClientContent() {
         </span>
       </div>
 
-      <div className="flex w-fit overflow-hidden rounded-[10px] border border-[#E8EAF0] bg-white text-sm font-semibold">
+      <div className="flex w-fit rounded-[12px] bg-[#ECEEF4] p-1 text-sm font-semibold">
         <button
           type="button"
           onClick={() => setTab("resumen")}
-          className={`px-4 py-2 transition-colors ${
+          className={`rounded-[9px] px-4 py-2 transition-colors ${
             tab === "resumen"
-              ? "bg-[#5C6BC0] text-white"
-              : "bg-white text-[#8891A4] hover:bg-[#F5F6FA] hover:text-[#1A202C]"
+              ? "bg-white text-[#4A56A6] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
+              : "text-[#7F879C] hover:bg-white/60 hover:text-[#1A202C]"
           }`}
         >
           Resumen
@@ -387,10 +387,10 @@ function ProgramaClientContent() {
         <button
           type="button"
           onClick={() => setTab("configuracion")}
-          className={`border-l border-[#E8EAF0] px-4 py-2 transition-colors ${
+          className={`rounded-[9px] px-4 py-2 transition-colors ${
             tab === "configuracion"
-              ? "bg-[#5C6BC0] text-white"
-              : "bg-white text-[#8891A4] hover:bg-[#F5F6FA] hover:text-[#1A202C]"
+              ? "bg-white text-[#4A56A6] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
+              : "text-[#7F879C] hover:bg-white/60 hover:text-[#1A202C]"
           }`}
         >
           Configuración
