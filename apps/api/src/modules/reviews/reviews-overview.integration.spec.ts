@@ -201,6 +201,75 @@ describe('Reseñas — overview (integration)', () => {
     });
   });
 
+  // ── Gráfico + "desde que conectaste" ────────────────────────────────────
+
+  describe('gráfico diario', () => {
+    it('un punto por día del período, en orden, sin huecos', async () => {
+      const businessId = await makeBusiness('https://g.page/x');
+      await addReview(businessId, 5, { postedAt: daysAgo(2) });
+      await addReview(businessId, 4, { postedAt: daysAgo(2) });
+      await addReview(businessId, 3, { postedAt: daysAgo(6) });
+
+      const data = await overview(businessId, 7);
+
+      expect(data.chart).toHaveLength(8); // 7 días atrás + hoy, inclusive
+      expect(data.chart.map((p) => p.date)).toEqual(
+        [...data.chart.map((p) => p.date)].sort(),
+      );
+      const byDate = new Map(data.chart.map((p) => [p.date, p.count]));
+      expect(byDate.get(daysAgo(2).toISOString().slice(0, 10))).toBe(2);
+      expect(byDate.get(daysAgo(6).toISOString().slice(0, 10))).toBe(1);
+    });
+
+    it('un negocio sin reseñas tiene el gráfico en cero, no vacío', async () => {
+      const businessId = await makeBusiness('https://g.page/x');
+
+      const data = await overview(businessId, 7);
+
+      expect(data.chart).toHaveLength(8);
+      expect(data.chart.every((p) => p.count === 0)).toBe(true);
+    });
+
+    it('una reseña fuera del período no aparece en el gráfico', async () => {
+      const businessId = await makeBusiness('https://g.page/x');
+      await addReview(businessId, 5, { postedAt: daysAgo(60) });
+
+      const data = await overview(businessId, 7);
+
+      expect(data.chart.reduce((sum, p) => sum + p.count, 0)).toBe(0);
+    });
+  });
+
+  describe('"desde que conectaste"', () => {
+    it('sin `googlePlaceConnectedAt`, `sinceConnected` es null — no se inventa un número', async () => {
+      const businessId = await makeBusiness('https://g.page/x');
+      await addReview(businessId, 5, { postedAt: daysAgo(2) });
+
+      const data = await overview(businessId);
+
+      expect(data.google.connectedAt).toBeNull();
+      expect(data.summary.sinceConnected).toBeNull();
+    });
+
+    it('con `googlePlaceConnectedAt`, cuenta solo lo posterior a esa fecha', async () => {
+      const businessId = await makeBusiness('https://g.page/x');
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { googlePlaceConnectedAt: daysAgo(10) },
+      });
+      await addReview(businessId, 5, { postedAt: daysAgo(20) }); // antes de conectar
+      await addReview(businessId, 4, { postedAt: daysAgo(5) }); // después
+      await addReview(businessId, 3, { postedAt: daysAgo(1) }); // después
+
+      const data = await overview(businessId);
+
+      expect(data.google.connectedAt).toEqual(daysAgo(10));
+      expect(data.summary.sinceConnected).toBe(2);
+      // El total histórico no cambia — sigue contando todo.
+      expect(data.summary.total).toBe(3);
+    });
+  });
+
   // ── Separación Google / feedback ────────────────────────────────────────
 
   describe('Google y feedback privado no se mezclan', () => {

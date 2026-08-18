@@ -106,6 +106,9 @@ export class BusinessesService {
       googlePlaceRating: details.rating,
       googlePlaceUserRatingCount: details.userRatingCount,
       googlePlaceReviewsUri: details.reviewsUri,
+      // Ancla de "reseñas desde que usás Flikker" — se pisa en cada
+      // reconexión, siempre habla del Place conectado ahora.
+      googlePlaceConnectedAt: new Date(),
     });
 
     void this.googleReviewDetectionQueue

@@ -517,6 +517,11 @@ model Business {
   /// Link a TODAS las reseñas del local (distinto de `defaultReviewRedirectUrl`,
   /// que abre directamente la pantalla de escribir una reseña).
   googlePlaceReviewsUri        String?           @map("google_place_reviews_uri")
+  /// Cuándo se conectó el Place actual (`connectGooglePlace`) — el ancla real
+  /// de "reseñas desde que usás Flikker". Se pisa en cada reconexión: el
+  /// conteo "desde que conectaste" siempre habla del Place conectado HOY, no
+  /// de uno viejo que el negocio pudo haber desconectado.
+  googlePlaceConnectedAt       DateTime?         @map("google_place_connected_at")
   whatsappPhoneId              String?           @map("whatsapp_phone_id")
   messageQuotaMonthly          Int               @default(600) @map("message_quota_monthly")
   messageCountCurrentMonth     Int               @default(0) @map("message_count_current_month")

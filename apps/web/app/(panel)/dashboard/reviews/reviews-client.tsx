@@ -4,10 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Check,
+  Copy,
   ExternalLink,
   Loader2,
+  MapPin,
   QrCode,
-  RefreshCw,
   Search,
   Sparkles,
 } from "lucide-react";
@@ -17,6 +18,7 @@ import { useIsCheckinV2 } from "../../experience-context";
 import { useIsOwnerOrAdmin } from "../../role-context";
 import { Stars, relativeDay, shortDate } from "../customers/loyalty-ui";
 import GoogleConnectModal from "./google-connect-modal";
+import ReviewsChart from "./reviews-chart";
 
 /**
  * Reseñas — la reputación del negocio, con Google como parte nativa.
@@ -51,14 +53,20 @@ interface Overview {
     placeRating: number | null;
     placeUserRatingCount: number | null;
     placeReviewsUri: string | null;
+    /** Cuándo se conectó el Place actual — `null` para conexiones viejas. */
+    connectedAt: string | null;
   };
   summary: {
     rating: number | null;
     total: number;
     inPeriod: number;
+    /** "Desde que usás Flikker" — `null` si no hay ancla real (`connectedAt`). */
+    sinceConnected: number | null;
     feedbackInPeriod: number;
     ratingDistribution: Record<string, number>;
   };
+  /** Serie diaria de reseñas nuevas, un punto por día del período elegido. */
+  chart: { date: string; count: number }[];
   reviews: {
     id: string;
     author: string | null;
@@ -287,44 +295,178 @@ export default function ReviewsClient({
         />
       ) : null}
 
-      {/* ── Período + KPIs ────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex gap-1.5">
-          {PERIODS.map((p) => (
-            <button
-              key={p.days}
-              type="button"
-              onClick={() => setDays(p.days)}
-              className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-                days === p.days
-                  ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#4A56A6]"
-                  : "border-[#E3E5F0] bg-white text-[#7F879C] hover:border-[#5C6BC0]"
-              }`}
-            >
-              {p.label}
-            </button>
-          ))}
-        </div>
-      </div>
+      {/*
+        ── Métricas + gráfico + local vinculado ─────────────────────────
+        Solo con Google conectado: sin eso no hay nada real que graficar, y
+        mostrar la grilla en "—" justo debajo del CTA de conectar es ruido,
+        no información.
+      */}
+      {google.connected ? (
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex gap-1.5">
+              {PERIODS.map((p) => (
+                <button
+                  key={p.days}
+                  type="button"
+                  onClick={() => setDays(p.days)}
+                  className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                    days === p.days
+                      ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#4A56A6]"
+                      : "border-[#E3E5F0] bg-white text-[#7F879C] hover:border-[#5C6BC0]"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+          </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi
-          label="Calificación"
-          value={summary.rating !== null ? `${summary.rating} ★` : "—"}
-          hint={summary.rating === null ? "Todavía sin reseñas" : "En Google"}
-        />
-        <Kpi label="Reseñas totales" value={String(summary.total)} hint="En Google" />
-        <Kpi
-          label="Nuevas"
-          value={String(summary.inPeriod)}
-          hint={`En los últimos ${data.periodDays} días`}
-        />
-        <Kpi
-          label="Feedback recibido"
-          value={String(summary.feedbackInPeriod)}
-          hint={`En los últimos ${data.periodDays} días`}
-        />
-      </div>
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Kpi
+              label="Reseñas con Flikker"
+              value={
+                summary.sinceConnected !== null
+                  ? String(summary.sinceConnected)
+                  : String(summary.total)
+              }
+              hint={
+                summary.sinceConnected !== null
+                  ? "Desde que conectaste tu perfil"
+                  : "Historial disponible en Google"
+              }
+            />
+            <Kpi
+              label="Nuevas"
+              value={String(summary.inPeriod)}
+              hint={`En los últimos ${data.periodDays} días`}
+            />
+            <Kpi
+              label="Calificación"
+              value={summary.rating !== null ? `${summary.rating} ★` : "—"}
+              hint={summary.rating === null ? "Todavía sin reseñas" : "En Google"}
+            />
+            <Kpi
+              label="Feedback recibido"
+              value={String(summary.feedbackInPeriod)}
+              hint={`En los últimos ${data.periodDays} días`}
+            />
+          </div>
+
+          <section className="rounded-[18px] border border-[#E8EAF0] bg-white p-5 shadow-[0_2px_8px_rgba(17,22,59,0.025)] sm:p-6">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+              Reseñas — últimos {data.periodDays} días
+            </p>
+            <div className="mt-3">
+              <ReviewsChart data={data.chart} />
+            </div>
+          </section>
+
+          <section>
+            <SectionTitle>Locales vinculados</SectionTitle>
+            <div className="mt-3 rounded-[18px] border border-[#E8EAF0] bg-white p-5 shadow-[0_2px_8px_rgba(17,22,59,0.025)]">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div className="flex min-w-0 items-start gap-3">
+                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F5F6FA]">
+                    <MapPin className="h-4 w-4 text-[#7F879C]" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="truncate font-display text-base font-semibold text-[#202333]">
+                      {google.placeDisplayName ?? businessName}
+                    </p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      {google.placeRating != null ? (
+                        <>
+                          <Stars score={Math.round(google.placeRating)} />
+                          <span className="text-sm font-semibold text-[#202333]">
+                            {google.placeRating.toFixed(1)}
+                          </span>
+                        </>
+                      ) : null}
+                      {google.placeUserRatingCount != null ? (
+                        <span className="text-sm text-[#8891A4]">
+                          {google.placeUserRatingCount}{" "}
+                          {google.placeUserRatingCount === 1
+                            ? "reseña"
+                            : "reseñas"}
+                        </span>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+                {canConnect ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUrlDraft(google.profileUrl ?? "");
+                      setEditingUrl((v) => !v);
+                    }}
+                    className="shrink-0 text-xs font-semibold text-[#5C6BC0] hover:underline"
+                  >
+                    Cambiar link
+                  </button>
+                ) : null}
+              </div>
+
+              {google.placeReviewsUri ?? google.profileUrl ? (
+                <div className="mt-4 flex items-center gap-2 rounded-[10px] bg-[#F7F8FC] px-3.5 py-2.5">
+                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[#8891A4]" />
+                  <a
+                    href={google.placeReviewsUri ?? google.profileUrl ?? "#"}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="min-w-0 flex-1 truncate text-xs text-[#5F6780] hover:text-[#5C6BC0] hover:underline"
+                  >
+                    {google.placeReviewsUri ?? google.profileUrl}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void navigator.clipboard.writeText(
+                        google.placeReviewsUri ?? google.profileUrl ?? "",
+                      )
+                    }
+                    aria-label="Copiar link"
+                    className="shrink-0 text-[#8891A4] hover:text-[#5C6BC0]"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              ) : null}
+
+              <p className="mt-3 text-xs leading-5 text-[#8891A4]">
+                {google.lastSyncedAt
+                  ? `Última actualización: ${relativeDay(google.lastSyncedAt)}`
+                  : "Todavía no encontramos reseñas nuevas."}
+              </p>
+
+              {editingUrl ? (
+                <div className="mt-3 flex flex-col gap-2.5 sm:flex-row">
+                  <input
+                    value={urlDraft}
+                    onChange={(e) => setUrlDraft(e.target.value)}
+                    aria-label="Link de tu ficha en Google"
+                    className="h-10 flex-1 rounded-[10px] border border-[#E3E5F0] bg-white px-3.5 text-sm text-[#202333] outline-none focus:border-[#5C6BC0]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => void saveGoogleUrl()}
+                    disabled={savingUrl}
+                    className="flk-glossy inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+                  >
+                    {savingUrl ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Check className="h-4 w-4" />
+                    )}
+                    Guardar
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          </section>
+        </>
+      ) : null}
 
       {/* ── Tabs Google / Feedback ────────────────────────────────────── */}
       <div>
@@ -638,69 +780,6 @@ export default function ReviewsClient({
         </section>
       ) : null}
 
-      {/* ── Sincronización ───────────────────────────────────────────── */}
-      {google.connected ? (
-        <section>
-          <SectionTitle>Sincronización con Google</SectionTitle>
-          <div className="mt-3 rounded-[16px] border border-[#E8EAF0] bg-white px-5 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2.5">
-                <RefreshCw className="h-4 w-4 text-[#5C6BC0]" />
-                <div>
-                  <p className="text-sm font-semibold text-[#202333]">
-                    Conectado
-                  </p>
-                  <p className="mt-0.5 text-xs text-[#8891A4]">
-                    {google.lastSyncedAt
-                      ? `Última actualización: ${relativeDay(google.lastSyncedAt)}`
-                      : "Todavía no encontramos reseñas nuevas"}
-                  </p>
-                </div>
-              </div>
-              {canConnect ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setUrlDraft(google.profileUrl ?? "");
-                    setEditingUrl((v) => !v);
-                  }}
-                  className="text-xs font-semibold text-[#5C6BC0] hover:underline"
-                >
-                  Cambiar link
-                </button>
-              ) : null}
-            </div>
-
-            <p className="mt-3 text-xs leading-5 text-[#8891A4]">
-              Flikker revisa periódicamente las reseñas nuevas de tu negocio.
-            </p>
-
-            {editingUrl ? (
-              <div className="mt-3 flex flex-col gap-2.5 sm:flex-row">
-                <input
-                  value={urlDraft}
-                  onChange={(e) => setUrlDraft(e.target.value)}
-                  aria-label="Link de tu ficha en Google"
-                  className="h-10 flex-1 rounded-[10px] border border-[#E3E5F0] bg-white px-3.5 text-sm text-[#202333] outline-none focus:border-[#5C6BC0]"
-                />
-                <button
-                  type="button"
-                  onClick={() => void saveGoogleUrl()}
-                  disabled={savingUrl}
-                  className="flk-glossy inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
-                >
-                  {savingUrl ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <Check className="h-4 w-4" />
-                  )}
-                  Guardar
-                </button>
-              </div>
-            ) : null}
-          </div>
-        </section>
-      ) : null}
     </div>
   );
 }

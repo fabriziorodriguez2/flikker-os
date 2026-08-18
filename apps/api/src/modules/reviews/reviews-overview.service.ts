@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { CustomerEventType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import {
+  bucketByDay,
+  dayKeysBetween,
+  parsePeriodDays,
+  resolvePeriod,
+} from '../dashboard/dashboard-period';
 
 /**
  * Reseñas — fachada de lectura para la pantalla del panel.
@@ -29,6 +35,7 @@ export class ReviewsOverviewService {
 
   async forBusiness(businessId: string, days = 30, now: Date = new Date()) {
     const since = new Date(now.getTime() - days * MS_PER_DAY);
+    const period = resolvePeriod(parsePeriodDays(String(days)), now);
 
     const business = await this.prisma.business.findUnique({
       where: { id: businessId },
@@ -40,6 +47,7 @@ export class ReviewsOverviewService {
         googlePlaceRating: true,
         googlePlaceUserRatingCount: true,
         googlePlaceReviewsUri: true,
+        googlePlaceConnectedAt: true,
       },
     });
 
@@ -48,10 +56,12 @@ export class ReviewsOverviewService {
     const [
       total,
       inPeriod,
+      sinceConnected,
       rating,
       distribution,
       lastSynced,
       recent,
+      chartRows,
       feedbackInPeriod,
       recentFeedback,
       pendingFeedback,
@@ -64,6 +74,17 @@ export class ReviewsOverviewService {
       this.prisma.googleReview.count({
         where: { businessId, postedAt: { gte: since } },
       }),
+      // `null` (no un conteo) para negocios conectados antes de que este
+      // campo existiera — mejor "no sabemos" que un número que no significa
+      // "desde que conectaste" de verdad.
+      business?.googlePlaceConnectedAt
+        ? this.prisma.googleReview.count({
+            where: {
+              businessId,
+              postedAt: { gte: business.googlePlaceConnectedAt },
+            },
+          })
+        : Promise.resolve(null),
       this.prisma.googleReview.aggregate({
         where: { businessId },
         _avg: { stars: true },
@@ -93,6 +114,12 @@ export class ReviewsOverviewService {
           postedAt: true,
           attributedMessageId: true,
         },
+      }),
+      // Serie diaria para el gráfico — mismo `postedAt` que ya usa
+      // `inPeriod`, solo bucketizado por día en vez de sumado.
+      this.prisma.googleReview.findMany({
+        where: { businessId, postedAt: { gte: period.from } },
+        select: { postedAt: true },
       }),
       this.prisma.checkinFeedback.count({
         where: { businessId, createdAt: { gte: since } },
@@ -164,6 +191,11 @@ export class ReviewsOverviewService {
       }
     }
 
+    const dailyCounts = bucketByDay(
+      chartRows.map((r) => r.postedAt),
+      period,
+    );
+
     return {
       periodDays: days,
 
@@ -183,6 +215,8 @@ export class ReviewsOverviewService {
         placeRating: business?.googlePlaceRating ?? null,
         placeUserRatingCount: business?.googlePlaceUserRatingCount ?? null,
         placeReviewsUri: business?.googlePlaceReviewsUri ?? null,
+        /** Cuándo se conectó el Place actual — `null` si es de antes de este campo. */
+        connectedAt: business?.googlePlaceConnectedAt ?? null,
       },
 
       summary: {
@@ -192,9 +226,24 @@ export class ReviewsOverviewService {
           total > 0 ? Math.round((rating._avg.stars ?? 0) * 10) / 10 : null,
         total,
         inPeriod,
+        /**
+         * "Reseñas desde que usás Flikker" — `null` (no 0) para un negocio
+         * conectado antes de que `googlePlaceConnectedAt` existiera: no hay
+         * ancla real, así que no se inventa un número.
+         */
+        sinceConnected,
         feedbackInPeriod,
         ratingDistribution,
       },
+
+      /**
+       * Serie diaria de reseñas nuevas, alineada al mismo período que
+       * `summary.inPeriod` — un día por punto, en orden, sin huecos.
+       */
+      chart: dayKeysBetween(period.from, period.to).map((date, i) => ({
+        date,
+        count: dailyCounts[i],
+      })),
 
       reviews: recent.map((r) => ({
         id: r.id,

@@ -7,6 +7,7 @@ import { ReviewsRepository } from '../reviews/reviews.repository';
 import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
 import { RetentionResultsOverviewService } from '../retention-v2/retention-results-overview.service';
 import {
+  bucketByDay,
   computeChange,
   dayKeysBetween,
   dayKeyOf,
@@ -706,17 +707,6 @@ export class DashboardOverviewService {
 
     return { inProgress, unlockedInPeriod, redeemedInPeriod };
   }
-}
-
-/** Cuenta cuántas `dates` caen en cada día del período, en orden. */
-function bucketByDay(dates: Date[], period: DashboardPeriod): number[] {
-  const keys = dayKeysBetween(period.from, period.to);
-  const counts = new Map<string, number>();
-  for (const date of dates) {
-    const key = dayKeyOf(date);
-    counts.set(key, (counts.get(key) ?? 0) + 1);
-  }
-  return keys.map((key) => counts.get(key) ?? 0);
 }
 
 function sum(values: number[]): number {

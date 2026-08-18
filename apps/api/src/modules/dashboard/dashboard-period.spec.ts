@@ -1,4 +1,5 @@
 import {
+  bucketByDay,
   computeChange,
   dayKeysBetween,
   parsePeriodDays,
@@ -65,5 +66,28 @@ describe('dayKeysBetween', () => {
       '2026-08-03',
       '2026-08-04',
     ]);
+  });
+});
+
+describe('bucketByDay', () => {
+  it('counts how many dates fall on each day, aligned to dayKeysBetween', () => {
+    const period = resolvePeriod(7, new Date('2026-08-08T12:00:00.000Z'));
+    const dates = [
+      new Date('2026-08-03T09:00:00.000Z'),
+      new Date('2026-08-03T22:00:00.000Z'),
+      new Date('2026-08-05T00:00:00.000Z'),
+    ];
+    const counts = bucketByDay(dates, period);
+    const keys = dayKeysBetween(period.from, period.to);
+
+    expect(counts).toHaveLength(keys.length);
+    expect(counts[keys.indexOf('2026-08-03')]).toBe(2);
+    expect(counts[keys.indexOf('2026-08-05')]).toBe(1);
+    expect(counts.reduce((sum, v) => sum + v, 0)).toBe(3);
+  });
+
+  it('returns all zeros for an empty list of dates', () => {
+    const period = resolvePeriod(7, new Date('2026-08-08T12:00:00.000Z'));
+    expect(bucketByDay([], period).every((v) => v === 0)).toBe(true);
   });
 });
