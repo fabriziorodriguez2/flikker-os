@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2, Lock, Sparkles } from "lucide-react";
+import {
+  CakeSlice,
+  Clock3,
+  Loader2,
+  Lock,
+  Mail,
+  TimerReset,
+  UserRoundSearch,
+} from "lucide-react";
 import { useIsOwnerOrAdmin } from "../../role-context";
 
 /**
@@ -37,6 +45,7 @@ import { useIsOwnerOrAdmin } from "../../role-context";
 
 type AutomationState =
   | "activo"
+  | "inactivo"
   | "modo_prueba"
   | "sin_canal"
   | "preparando"
@@ -169,95 +178,38 @@ export default function AutomationsTab() {
   const reactivacion = data.automations.find((a) => a.key === "te_extranamos");
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="font-display text-xl font-semibold tracking-[-0.02em] text-[#202333]">
-          Notificaciones automáticas
-        </h2>
-        <p className="mt-1.5 max-w-2xl text-sm leading-6 text-[#7F879C]">
-          Flikker puede contactar a tus clientes en momentos importantes, sin
-          que tengas que hacerlo manualmente.
-        </p>
-      </div>
-
+    <div className="space-y-3">
       {error ? (
         <p className="rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-[#C0392B]">
           {error}
         </p>
       ) : null}
 
-      {/*
-        ── Estado general — UNA sola jerarquía, nunca dos empty states ni un
-        problema de canal como alerta principal si no hay nada intentando
-        enviar (§3/§4).
-
-        `hasBlockedByChannel`: hay al menos una automatización ENCENDIDA que
-        el canal está bloqueando ahora mismo — es justo lo que ya significa
-        el estado por-item `sin_canal` (ver `resolveAutomationState`), así
-        que no hace falta recalcular nada, solo mirar lo que el backend ya
-        resolvió.
-      */}
       {(() => {
         const hasBlockedByChannel = data.automations.some(
           (a) => a.state === "sin_canal",
         );
         return (
-          <div className="rounded-[16px] border border-[#E8EAF0] bg-white px-5 py-4">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-                  Automatizaciones
-                </p>
-                <p className="mt-1 font-display text-xl font-semibold text-[#202333]">
-                  {data.status.activeCount === 0
-                    ? "Ninguna activa"
-                    : data.status.activeCount === 1
-                      ? "1 activa"
-                      : `${data.status.activeCount} activas`}
-                </p>
-              </div>
-              {data.status.activeCount > 0 && !data.status.testMode ? (
-                <p className="flex items-center gap-1.5 text-sm text-[#147A5B]">
-                  <Sparkles className="h-4 w-4" />
-                  Flikker está trabajando en segundo plano.
-                </p>
-              ) : null}
-            </div>
-
-            {/* A) 0 activas — una sola línea de ayuda, no un segundo bloque
-                repitiendo lo mismo. */}
+          <>
             {data.status.activeCount === 0 ? (
-              <p className="mt-2 text-sm text-[#8891A4]">
-                Activá una automatización para que Flikker empiece a
-                ayudarte.
+              <p className="rounded-[11px] border border-[#E8EAF0] bg-white px-4 py-3 text-sm text-[#8891A4]">
+                Activá una automatización para que Flikker empiece a ayudarte.
               </p>
             ) : null}
-
-            {/*
-              E) dry-run — `dryRunEnabled` dicho como producto. Importa
-              mostrarlo: sin esto el dueño vería 0 mensajes enviados y
-              pensaría que algo se rompió.
-            */}
             {data.status.testMode ? (
-              <p className="mt-3 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-sm leading-5 text-[#8A520D]">
+              <p className="rounded-[11px] bg-[#FFF7EE] px-4 py-3 text-sm leading-5 text-[#8A520D]">
                 <strong>Modo de prueba.</strong> Flikker está detectando a
                 quién contactaría, pero todavía no envía mensajes.
               </p>
             ) : null}
-
-            {/*
-              C) automatización ON + canal no disponible — banner solo si de
-              verdad hay algo intentando enviar. Con 0 activas nunca se
-              muestra: no hay ningún envío bloqueado (regla A).
-            */}
             {hasBlockedByChannel ? (
-              <p className="mt-3 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-sm leading-5 text-[#8A520D]">
+              <p className="rounded-[11px] bg-[#FFF7EE] px-4 py-3 text-sm leading-5 text-[#8A520D]">
                 <strong>Los mensajes están temporalmente pausados.</strong>{" "}
                 Tus automatizaciones siguen configuradas y se reanudarán
                 cuando vuelva la mensajería.
               </p>
             ) : null}
-          </div>
+          </>
         );
       })()}
 
@@ -268,6 +220,7 @@ export default function AutomationsTab() {
       */}
       {sellosPorVencer ? (
         <AutomationCard
+          icon={TimerReset}
           title="Sellos por vencer"
           description="Avisale si ganó un premio con su tarjeta y todavía no lo canjeó, antes de que venza."
           example="“Tu premio vence en 3 días.”"
@@ -287,6 +240,7 @@ export default function AutomationsTab() {
       */}
       {progreso ? (
         <AutomationCard
+          icon={Clock3}
           title="Casi llegás"
           description="Recordale al cliente cuando esté cerca de completar su tarjeta."
           example="“Te falta 1 sello para tus 3 medialunas gratis.”"
@@ -300,6 +254,7 @@ export default function AutomationsTab() {
       {/* ── C. Cumpleaños ────────────────────────────────────────────── */}
       {cumpleanos ? (
         <AutomationCard
+          icon={CakeSlice}
           title="Cumpleaños"
           description="Un saludo al cliente el día de su cumpleaños."
           example="“¡Feliz cumpleaños de parte de tu negocio! 🎉”"
@@ -318,6 +273,7 @@ export default function AutomationsTab() {
         repiten.
       */}
       <AutomationCard
+        icon={UserRoundSearch}
         title="Te extrañamos"
         channels={reactivacion?.channels ?? ["whatsapp"]}
         description="Flikker detecta clientes que solían venir y hace tiempo que no aparecen."
@@ -389,6 +345,7 @@ export default function AutomationsTab() {
 }
 
 function AutomationCard({
+  icon: Icon,
   title,
   description,
   example,
@@ -398,6 +355,7 @@ function AutomationCard({
   channels = [],
   onToggle,
 }: {
+  icon: typeof Clock3;
   title: string;
   description: string;
   example?: string;
@@ -405,86 +363,89 @@ function AutomationCard({
   disabled: boolean;
   /** Función Pro sin acceso — el toggle se reemplaza por el badge + link. */
   locked?: boolean;
-  /** Canales que de verdad van a salir ahora mismo. Nunca Push ni Wallet. */
+  /** Canales reales devueltos por el backend. Nunca Push ni Wallet. */
   channels?: Channel[];
   onToggle: (value: boolean) => void;
 }) {
   return (
-    <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
+    <section className="rounded-[14px] border border-[#E8EAF0] bg-white px-4 py-3.5 shadow-[0_1px_4px_rgba(17,22,59,0.035)] sm:px-5">
+      <div className="flex items-center gap-3.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[9px] bg-[#F5F6FA] text-[#7F879C]">
+          <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+        </span>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <h3 className="font-display text-lg font-semibold text-[#202333]">
-              {title}
-            </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-[#202333]">{title}</h3>
             {locked ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[#FFF3DC] px-2 py-0.5 text-[11px] font-semibold text-[#8A5A0D]">
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#F1EDFF] px-2 py-0.5 text-[10px] font-semibold text-[#7258D6]">
                 <Lock className="h-3 w-3" /> PRO
               </span>
-            ) : (
+            ) : enabled ? (
               <span
-                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                  enabled
-                    ? "bg-[#EAF7EF] text-[#147A5B]"
-                    : "bg-[#F3F4F8] text-[#6B7280]"
-                }`}
+                className="rounded-full bg-[#EAF7EF] px-2 py-0.5 text-[10px] font-semibold text-[#147A5B]"
               >
-                {enabled ? "Activo" : "Desactivado"}
+                Activo
               </span>
-            )}
+            ) : null}
             <ChannelBadges channels={channels} />
           </div>
-          <p className="mt-1.5 max-w-lg text-sm leading-6 text-[#7F879C]">
+          <p className="mt-1 text-xs leading-5 text-[#8891A4]">
             {description}
           </p>
           {example ? (
-            <p className="mt-2 text-sm italic text-[#B0B8C9]">{example}</p>
-          ) : null}
-          {locked ? (
-            <Link
-              href="/dashboard/settings/suscripcion"
-              className="mt-2 inline-block text-xs font-semibold text-[#5C6BC0] hover:underline"
-            >
-              Ver planes →
-            </Link>
+            <p className="mt-0.5 hidden text-xs italic text-[#B0B8C9] lg:block">{example}</p>
           ) : null}
         </div>
 
-        {/* Toggle grande: tiene que poder usarse con el pulgar. */}
-        <button
-          type="button"
-          role="switch"
-          aria-checked={enabled}
-          aria-label={title}
-          disabled={disabled || locked}
-          onClick={() => onToggle(!enabled)}
-          className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-            enabled ? "flk-glossy bg-[#5C6BC0]" : "bg-[#DDE1EC]"
-          }`}
-        >
-          <span
-            className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow-sm transition-transform ${
-              enabled ? "translate-x-7" : "translate-x-1"
+        {locked ? (
+          <Link
+            href="/dashboard/settings/suscripcion"
+            className="shrink-0 text-xs font-semibold text-[#6D4AFF] hover:underline"
+          >
+            Ver planes
+          </Link>
+        ) : (
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            aria-label={title}
+            disabled={disabled}
+            onClick={() => onToggle(!enabled)}
+            className={`relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+              enabled ? "bg-[#6D4AFF]" : "bg-[#DDE1EC]"
             }`}
-          />
-        </button>
+          >
+            <span
+              className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+                enabled ? "translate-x-[18px]" : "translate-x-0.5"
+              }`}
+            />
+          </button>
+        )}
       </div>
     </section>
   );
 }
 
 /**
- * Badge de canal — solo WhatsApp, y solo en las automatizaciones que de
- * verdad salen por ahí. Nunca Email, Push ni Wallet (Fiddelik los tiene,
- * Flikker no expone esos acá): si el canal real no es WhatsApp, no se
- * muestra ningún badge — mostrar uno falso sería peor que no mostrar nada.
+ * Badges de los canales que devuelve el backend. Flikker usa WhatsApp y
+ * email; nunca se muestran Push ni Wallet por imitar la referencia.
  */
 function ChannelBadges({ channels }: { channels: Channel[] }) {
-  if (!channels.includes("whatsapp")) return null;
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-[#EAF7EF] px-2 py-0.5 text-[11px] font-semibold text-[#147A5B]">
-      <WhatsAppIcon /> WhatsApp
-    </span>
+    <>
+      {channels.includes("whatsapp") ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#EAF7EF] px-2 py-0.5 text-[10px] font-semibold text-[#147A5B]">
+          <WhatsAppIcon /> WhatsApp
+        </span>
+      ) : null}
+      {channels.includes("email") ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#EEF4FF] px-2 py-0.5 text-[10px] font-semibold text-[#4565B2]">
+          <Mail className="h-3 w-3" aria-hidden="true" /> Email
+        </span>
+      ) : null}
+    </>
   );
 }
 
