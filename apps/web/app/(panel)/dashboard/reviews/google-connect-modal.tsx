@@ -101,7 +101,7 @@ export default function GoogleConnectModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/45 p-4"
       onClick={onClose}
       role="presentation"
     >
@@ -110,22 +110,22 @@ export default function GoogleConnectModal({
         aria-modal="true"
         aria-label="Buscá tu negocio en Google"
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-lg rounded-[16px] border border-[#E8EAF0] bg-white p-6"
+        className="w-full max-w-lg rounded-[20px] border border-[#E8EAF0] bg-white p-7 shadow-[0_28px_60px_-16px_rgba(17,22,59,0.32)]"
       >
-        <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg font-bold text-[#1A202C]">
+        <div className="flex items-start justify-between gap-3">
+          <h2 className="font-display text-xl font-bold text-[#1A202C]">
             ¿Cuál es tu negocio?
           </h2>
           <button
             type="button"
             onClick={onClose}
             aria-label="Cerrar"
-            className="flex h-8 w-8 items-center justify-center rounded-[8px] text-[#8891A4] hover:bg-[#F5F6FA]"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] text-[#8891A4] hover:bg-[#F5F6FA]"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
-        <p className="mt-1 text-sm text-[#8891A4]">
+        <p className="mt-1.5 text-sm leading-6 text-[#8891A4]">
           Buscamos en Google:{" "}
           <span className="font-semibold text-[#1A202C]">{businessName}</span>
           . Elegí el resultado correcto para conectarlo.
@@ -136,22 +136,22 @@ export default function GoogleConnectModal({
             e.preventDefault();
             void search(query);
           }}
-          className="mt-4 flex gap-2"
+          className="mt-5 flex gap-2"
         >
           <label className="relative flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8891A4]" />
+            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8891A4]" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Nombre de tu negocio…"
               autoFocus
-              className="h-11 w-full rounded-[10px] border border-[#E8EAF0] bg-white pl-9 pr-3 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
+              className="h-12 w-full rounded-[12px] border border-[#E8EAF0] bg-white pl-10 pr-3 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0] focus:ring-2 focus:ring-[#5C6BC0]/12"
             />
           </label>
           <button
             type="submit"
             disabled={searching || !query.trim()}
-            className="inline-flex h-11 items-center gap-2 rounded-[10px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+            className="flk-glossy inline-flex h-12 items-center gap-2 rounded-[12px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {searching ? <Loader2 className="h-4 w-4 animate-spin" /> : "Buscar"}
           </button>
@@ -160,13 +160,13 @@ export default function GoogleConnectModal({
         {error ? <p className="mt-3 text-sm text-[#C0392B]">{error}</p> : null}
 
         {searching && results === null ? (
-          <p className="mt-4 flex items-center gap-2 text-sm text-[#8891A4]">
+          <p className="mt-5 flex items-center gap-2 text-sm text-[#8891A4]">
             <Loader2 className="h-4 w-4 animate-spin" /> Buscando...
           </p>
         ) : null}
 
         {unavailable ? (
-          <p className="mt-4 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-sm text-[#8A520D]">
+          <p className="mt-5 rounded-[12px] bg-[#FFF7EE] px-3.5 py-2.5 text-sm text-[#8A520D]">
             La búsqueda por nombre no está disponible ahora. Cerrá esta
             ventana y pegá el link de tu ficha de Google directamente.
           </p>
@@ -174,54 +174,64 @@ export default function GoogleConnectModal({
 
         {results !== null && !unavailable ? (
           results.length === 0 ? (
-            <p className="mt-4 text-sm text-[#8891A4]">
+            <p className="mt-5 text-sm text-[#8891A4]">
               No encontramos resultados para &quot;{query}&quot;. Probá con
               otro nombre o agregá la ciudad.
             </p>
           ) : (
-            <ul className="mt-4 max-h-72 space-y-2 overflow-y-auto">
-              {results.map((place) => (
-                <li
-                  key={place.placeId}
-                  className="rounded-[12px] border border-[#E8EAF0] p-3.5"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-[#1A202C]">
-                        {place.displayName}
-                      </p>
-                      {place.formattedAddress ? (
-                        <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-[#8891A4]">
-                          <MapPin className="h-3 w-3 shrink-0" />
-                          {place.formattedAddress}
-                        </p>
-                      ) : null}
-                      {place.rating != null ? (
-                        <p className="mt-1 flex items-center gap-1 text-xs font-semibold text-[#C6900A]">
-                          <Star className="h-3 w-3 fill-current" />
-                          {place.rating.toFixed(1)}
-                          {place.userRatingCount != null ? (
-                            <span className="font-normal text-[#8891A4]">
-                              ({place.userRatingCount})
-                            </span>
-                          ) : null}
-                        </p>
-                      ) : null}
-                    </div>
+            <ul className="mt-5 max-h-80 space-y-1.5 overflow-y-auto">
+              {results.map((place) => {
+                const connecting = connectingId === place.placeId;
+                return (
+                  <li key={place.placeId}>
                     <button
                       type="button"
                       onClick={() => void connect(place.placeId)}
                       disabled={connectingId !== null}
-                      className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-[8px] bg-[#5C6BC0] px-3 text-xs font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+                      className="group flex w-full items-start justify-between gap-3 rounded-[14px] border border-transparent p-3.5 text-left transition-colors hover:border-[#E8EAF0] hover:bg-[#F8F9FD] disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {connectingId === place.placeId ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : null}
-                      Elegir
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <p className="truncate text-sm font-semibold text-[#1A202C]">
+                            {place.displayName}
+                          </p>
+                          {place.rating != null ? (
+                            <span className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-[#C6900A]">
+                              <Star className="h-3 w-3 fill-current" />
+                              {place.rating.toFixed(1)}
+                              {place.userRatingCount != null ? (
+                                <span className="font-normal text-[#8891A4]">
+                                  ({place.userRatingCount})
+                                </span>
+                              ) : null}
+                            </span>
+                          ) : null}
+                        </div>
+                        {place.formattedAddress ? (
+                          <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-[#8891A4]">
+                            <MapPin className="h-3 w-3 shrink-0" />
+                            {place.formattedAddress}
+                          </p>
+                        ) : null}
+                      </div>
+                      <span
+                        aria-hidden="true"
+                        className={`mt-0.5 flex h-7 shrink-0 items-center rounded-full bg-[#EEF0FB] px-2.5 text-[11px] font-semibold text-[#4A56A6] transition-opacity ${
+                          connecting
+                            ? "opacity-100"
+                            : "opacity-0 group-hover:opacity-100"
+                        }`}
+                      >
+                        {connecting ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          "Elegir"
+                        )}
+                      </span>
                     </button>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )
         ) : null}

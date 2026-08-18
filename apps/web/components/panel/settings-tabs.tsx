@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useIsOwnerOrAdmin } from "@/app/(panel)/role-context";
+import { useIsCheckinV2 } from "@/app/(panel)/experience-context";
+import { Building2, CreditCard } from "lucide-react";
 
 /**
  * Barra de Configuración.
@@ -35,17 +37,34 @@ const TABS = [
   { href: "/dashboard/settings/cuenta", label: "Cuenta", managersOnly: false },
 ];
 
+export function resolveSettingsTabs(isCheckinV2: boolean, canManage: boolean) {
+  const availableTabs = isCheckinV2
+    ? TABS.filter((tab) =>
+        ["/dashboard/settings", "/dashboard/settings/suscripcion"].includes(tab.href),
+      )
+    : TABS;
+
+  return isCheckinV2
+    ? availableTabs
+    : availableTabs.filter((tab) => !tab.managersOnly || canManage);
+}
+
 export default function SettingsTabs() {
   const pathname = usePathname();
   const canManage = useIsOwnerOrAdmin();
+  const isCheckinV2 = useIsCheckinV2();
 
-  const visible = TABS.filter((tab) => !tab.managersOnly || canManage);
+  const visible = resolveSettingsTabs(isCheckinV2, canManage);
 
   return (
     <div
       role="tablist"
       aria-label="Secciones de configuración"
-      className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
+      className={
+        isCheckinV2
+          ? "flex w-fit rounded-[12px] bg-[#ECEEF4] p-1"
+          : "-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
+      }
     >
       {visible.map((tab) => {
         // Exacto y no `startsWith`: si no, "Negocio" quedaría activo estando
@@ -57,12 +76,27 @@ export default function SettingsTabs() {
             href={tab.href}
             role="tab"
             aria-selected={active}
-            className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-              active
-                ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#4A56A6]"
-                : "border-[#E3E5F0] bg-white text-[#7F879C] hover:border-[#5C6BC0]"
-            }`}
+            className={
+              isCheckinV2
+                ? `inline-flex shrink-0 items-center gap-2 rounded-[9px] px-4 py-2 text-sm font-semibold ${
+                    active
+                      ? "bg-white text-[#4A56A6] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
+                      : "text-[#7F879C] hover:bg-white/60 hover:text-[#1A202C]"
+                  }`
+                : `shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
+                    active
+                      ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#4A56A6]"
+                      : "border-[#E3E5F0] bg-white text-[#7F879C] hover:border-[#5C6BC0]"
+                  }`
+            }
           >
+            {isCheckinV2 ? (
+              tab.href === "/dashboard/settings" ? (
+                <Building2 className="h-4 w-4" aria-hidden="true" />
+              ) : (
+                <CreditCard className="h-4 w-4" aria-hidden="true" />
+              )
+            ) : null}
             {tab.label}
           </Link>
         );

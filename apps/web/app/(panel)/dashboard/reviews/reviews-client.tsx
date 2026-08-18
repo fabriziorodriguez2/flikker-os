@@ -8,6 +8,7 @@ import {
   Loader2,
   QrCode,
   RefreshCw,
+  Search,
   Sparkles,
 } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
@@ -157,7 +158,7 @@ export default function ReviewsClient({
         <button
           type="button"
           onClick={() => void load(days)}
-          className="inline-flex h-10 items-center rounded-[10px] border border-[#E3E5F0] bg-white px-4 text-sm font-semibold text-[#202333] hover:border-[#5C6BC0]"
+          className="flk-glossy-secondary inline-flex h-10 items-center rounded-[10px] border border-[#E3E5F0] bg-white px-4 text-sm font-semibold text-[#202333] hover:border-[#5C6BC0]"
         >
           Reintentar
         </button>
@@ -216,22 +217,26 @@ export default function ReviewsClient({
 
       {/* ── Google sin conectar ───────────────────────────────────────── */}
       {!google.connected ? (
-        <section className="rounded-[18px] border border-[#E8EAF0] bg-white px-6 py-10 text-center">
-          <GoogleLogo className="mx-auto h-8 w-8" />
-          <p className="mt-4 font-display text-lg font-semibold text-[#202333]">
-            Conectá tu negocio de Google
+        <section className="rounded-[20px] border border-[#E8EAF0] bg-white px-6 py-12 text-center shadow-[0_2px_8px_rgba(17,22,59,0.025)]">
+          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F5F6FA]">
+            <GoogleLogo className="h-7 w-7" />
+          </span>
+          <p className="mt-5 font-display text-lg font-semibold text-[#202333]">
+            Ningún local vinculado
           </p>
           <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#7F879C]">
-            Así podés ver tus reseñas y permitir que tus clientes compartan su
-            experiencia después de una visita.
+            Conectá el perfil de Google de tu negocio para ver tus reseñas y
+            permitir que tus clientes compartan su experiencia después de una
+            visita.
           </p>
           {canConnect ? (
             <div className="mx-auto mt-6 max-w-md">
               <button
                 type="button"
                 onClick={() => setShowSearchModal(true)}
-                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
+                className="flk-glossy inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
               >
+                <Search className="h-4 w-4" aria-hidden="true" />
                 Buscar mi negocio en Google
               </button>
 
@@ -248,7 +253,7 @@ export default function ReviewsClient({
                     type="button"
                     onClick={() => void saveGoogleUrl()}
                     disabled={savingUrl || urlDraft.trim().length < 5}
-                    className="inline-flex h-11 items-center justify-center rounded-[11px] border border-[#E3E5F0] bg-white px-5 text-sm font-semibold text-[#202333] hover:border-[#5C6BC0] disabled:opacity-50"
+                    className="flk-glossy-secondary inline-flex h-11 items-center justify-center rounded-[11px] border border-[#E3E5F0] bg-white px-5 text-sm font-semibold text-[#202333] hover:border-[#5C6BC0] disabled:opacity-50"
                   >
                     Guardar link
                   </button>
@@ -624,7 +629,7 @@ export default function ReviewsClient({
                 )}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex h-10 items-center rounded-[10px] border border-[#E3E5F0] bg-white px-4 text-sm font-semibold text-[#5C6BC0] hover:border-[#5C6BC0]"
+                className="flk-glossy-secondary inline-flex h-10 items-center rounded-[10px] border border-[#E3E5F0] bg-white px-4 text-sm font-semibold text-[#5C6BC0] hover:border-[#5C6BC0]"
               >
                 Pedir soporte
               </a>
@@ -682,7 +687,7 @@ export default function ReviewsClient({
                   type="button"
                   onClick={() => void saveGoogleUrl()}
                   disabled={savingUrl}
-                  className="inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+                  className="flk-glossy inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
                 >
                   {savingUrl ? (
                     <Loader2 className="h-4 w-4 animate-spin" />

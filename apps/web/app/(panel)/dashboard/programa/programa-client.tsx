@@ -321,7 +321,7 @@ function ProgramaClientContent() {
         actions={
           <Link
             href="/dashboard/qr"
-            className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
+            className="flk-glossy inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
           >
             <QrCode className="h-4 w-4" aria-hidden="true" />
             Invitar clientes

@@ -25,6 +25,11 @@ export class UpdateBusinessDto {
 
   @IsOptional()
   @IsString()
+  @MaxLength(80)
+  vertical?: string;
+
+  @IsOptional()
+  @IsString()
   @MaxLength(500)
   description?: string;
 

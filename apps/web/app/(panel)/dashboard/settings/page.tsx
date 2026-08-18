@@ -1,7 +1,6 @@
 import { redirect } from "next/navigation";
 import { getSession } from "@/lib/auth";
-import SettingsTabs from "@/components/panel/settings-tabs";
-import SettingsClient from "./settings-client";
+import SettingsPageContent from "./settings-page-content";
 
 /**
  * Configuración — el único lugar visible de ajustes generales.
@@ -14,10 +13,5 @@ export default async function SettingsPage() {
   const session = await getSession();
   if (!session) redirect("/login");
 
-  return (
-    <div className="space-y-6">
-      <SettingsTabs />
-      <SettingsClient />
-    </div>
-  );
+  return <SettingsPageContent />;
 }

@@ -527,7 +527,7 @@ export default function Sidebar(props: SidebarProps) {
           href={supportWhatsAppHref("Hola, necesito ayuda con Flikker.")}
           target="_blank"
           rel="noreferrer"
-          className="flex h-9 w-full items-center justify-center gap-2 rounded-full bg-[#25D366] px-4 text-xs font-bold text-white shadow-[0_5px_14px_rgba(37,211,102,0.2)] hover:bg-[#20BD5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/40 focus-visible:ring-offset-2"
+          className="flk-glossy flex h-9 w-full items-center justify-center gap-2 rounded-full bg-[#25D366] px-4 text-xs font-bold text-white shadow-[0_5px_14px_rgba(37,211,102,0.2)] hover:bg-[#20BD5A] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366]/40 focus-visible:ring-offset-2"
         >
           <WhatsAppIcon />
           Ayuda y soporte

@@ -200,7 +200,7 @@ export default function SettingsClient() {
     'mt-2 w-full rounded-[16px] border border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3 text-sm text-[color:var(--foreground)] outline-none transition-colors placeholder:text-[color:var(--text-soft)] focus:border-[color:var(--brand-accent)] focus:ring-2 focus:ring-[color:rgba(145,136,245,0.14)] disabled:cursor-not-allowed disabled:border-[color:var(--surface-subtle)] disabled:bg-[color:var(--surface-muted)] disabled:text-[color:var(--text-muted)]';
   const textareaClass = `${inputClass} min-h-[112px] resize-y`;
   const actionButtonClass =
-    'inline-flex items-center rounded-[16px] bg-[color:var(--brand-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,4,65,0.18)] transition-colors hover:bg-[color:var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60';
+    'flk-glossy inline-flex items-center rounded-[16px] bg-[color:var(--brand-primary)] px-5 py-3 text-sm font-semibold text-white transition-colors hover:bg-[color:var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60';
 
   const businessFieldsFilled = [
     bizWebsite,
