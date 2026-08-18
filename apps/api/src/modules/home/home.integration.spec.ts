@@ -343,7 +343,11 @@ describe('Inicio — portada (integration)', () => {
 
       const inicio = await home.overview(businessId);
 
+      // "Cumpleaños" no depende de sellos (aparece siempre, bloqueado sin
+      // Pro) — solo "cerca del premio"/"sellos por vencer" desaparecen
+      // cuando no hay tarjeta.
       expect(inicio.automations?.items.map((i) => i.key)).toEqual([
+        'cumpleanos',
         'te_extranamos',
       ]);
     });

@@ -153,6 +153,25 @@ export class PlansService {
   }
 
   /**
+   * ¿Tiene ESTE negocio acceso a funciones Pro AHORA MISMO — pagando o en
+   * trial vigente? Deliberadamente distinto de `!isBenefitsBlocked`: ese
+   * método también devuelve "no bloqueado" cuando el trial NUNCA arrancó
+   * (nada que usar todavía), que no es lo mismo que "tiene Pro". Usado para
+   * gatear funciones Pro nuevas que no son "crear/usar un beneficio"
+   * (ej. los emails de Notificaciones — cumpleaños, casi llegás, etc.), así
+   * que necesitan la pregunta afirmativa, no la negativa.
+   */
+  async hasProAccess(businessId: string): Promise<boolean> {
+    if (await this.isOnProPlan(businessId)) return true;
+
+    const business = await this.repository.findBusinessTrialFields(businessId);
+    if (!business?.benefitsTrialStartedAt || !business.benefitsTrialEndsAt) {
+      return false;
+    }
+    return business.benefitsTrialEndsAt.getTime() >= Date.now();
+  }
+
+  /**
    * Self-service Beneficios: ¿está bloqueado usar funciones Pro de
    * Beneficios? Pro = nunca bloqueado. Sin Pro: bloqueado solo si el trial de
    * 30 días YA arrancó (`Business.benefitsTrialStartedAt`) y venció, o si la

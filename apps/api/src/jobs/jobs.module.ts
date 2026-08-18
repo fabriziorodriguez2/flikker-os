@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { PrismaModule } from '../prisma/prisma.module';
 import { RetentionV2Module } from '../modules/retention-v2/retention-v2.module';
 import { RewardGoalsModule } from '../modules/reward-goals/reward-goals.module';
+import { PlansModule } from '../modules/plans/plans.module';
 import { OwnerNotificationsQueue } from './owner-notifications.queue';
 import { GoogleReviewDetectionQueue } from './google-review-detection.queue';
 import { GoogleReviewsProvider } from './google-reviews.provider';
@@ -31,9 +32,14 @@ import { EmailService } from './email.service';
 import { RepeatsProcessor } from './repeats.processor';
 import { RetentionProcessor } from './retention.processor';
 import { RaffleProcessor } from './raffle.processor';
+import { LifecycleEmailsService } from './lifecycle-emails.service';
+import { LifecycleEmailsQueue } from './lifecycle-emails.queue';
+import { LifecycleEmailsWorker } from './workers/lifecycle-emails.worker';
+import { StampsExpiryEmailService } from './stamps-expiry-email.service';
+import { BirthdayEmailService } from './birthday-email.service';
 
 @Module({
-  imports: [PrismaModule, RetentionV2Module, RewardGoalsModule],
+  imports: [PrismaModule, RetentionV2Module, RewardGoalsModule, PlansModule],
   providers: [
     ReviewRequestQueue,
     RepeatsQueue,
@@ -64,6 +70,11 @@ import { RaffleProcessor } from './raffle.processor';
     ReviewRequestWorker,
     WhatsAppBspService,
     EmailService,
+    LifecycleEmailsService,
+    LifecycleEmailsQueue,
+    LifecycleEmailsWorker,
+    StampsExpiryEmailService,
+    BirthdayEmailService,
   ],
   exports: [
     ReviewRequestQueue,

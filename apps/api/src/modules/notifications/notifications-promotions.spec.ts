@@ -6,6 +6,7 @@ import type { BenefitsService } from '../benefits/benefits.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { VisitSourcesService } from '../visit-sources/visit-sources.service';
 import type { PlansService } from '../plans/plans.service';
+import type { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 
 /**
  * Promociones: lo que el dueño manda a mano.
@@ -20,14 +21,20 @@ const AUDIENCE_ROWS = [{ id: 'c1' }, { id: 'c2' }, { id: 'c3' }];
 function makeDeps(
   options: {
     audienceRows?: { id: string }[];
-    customers?: { id: string; name: string; phoneE164: string }[];
+    customers?: {
+      id: string;
+      name: string;
+      phoneE164: string;
+      email?: string | null;
+    }[];
     benefit?: { id: string; title: string; type?: string } | null;
+    hasProAccess?: boolean;
   } = {},
 ) {
   const customers = options.customers ?? [
-    { id: 'c1', name: 'Ana', phoneE164: '+59891111111' },
-    { id: 'c2', name: 'Beto', phoneE164: '+59892222222' },
-    { id: 'c3', name: 'Caro', phoneE164: '+59893333333' },
+    { id: 'c1', name: 'Ana', phoneE164: '+59891111111', email: null },
+    { id: 'c2', name: 'Beto', phoneE164: '+59892222222', email: null },
+    { id: 'c3', name: 'Caro', phoneE164: '+59893333333', email: null },
   ];
 
   const prisma = {
@@ -35,6 +42,9 @@ function makeDeps(
       findFirst: jest.fn().mockResolvedValue(options.benefit ?? null),
     },
     customer: { findMany: jest.fn().mockResolvedValue(customers) },
+    business: {
+      findUnique: jest.fn().mockResolvedValue({ name: 'Café Test' }),
+    },
   };
   const loyalty = {
     list: jest
@@ -65,8 +75,18 @@ function makeDeps(
   // propio describe block más abajo.
   const plans = {
     assertBenefitsProActionAllowed: jest.fn().mockResolvedValue(undefined),
+    hasProAccess: jest.fn().mockResolvedValue(options.hasProAccess ?? false),
   };
-  return { prisma, loyalty, campaigns, benefits, visitSources, plans };
+  const lifecycleEmails = { sendOnce: jest.fn().mockResolvedValue('sent') };
+  return {
+    prisma,
+    loyalty,
+    campaigns,
+    benefits,
+    visitSources,
+    plans,
+    lifecycleEmails,
+  };
 }
 
 const service = (d: ReturnType<typeof makeDeps>) =>
@@ -77,7 +97,13 @@ const service = (d: ReturnType<typeof makeDeps>) =>
     d.benefits as unknown as BenefitsService,
     d.visitSources as unknown as VisitSourcesService,
     d.plans as unknown as PlansService,
+    d.lifecycleEmails as unknown as LifecycleEmailsService,
   );
+
+/** El envío de email es fire-and-forget — deja correr los microtasks pendientes. */
+async function flush() {
+  await new Promise((resolve) => setImmediate(resolve));
+}
 
 describe('Promociones — audiencia', () => {
   /**
@@ -343,5 +369,123 @@ describe('Promociones — beneficio', () => {
     });
 
     expect(deps.prisma.benefit).not.toHaveProperty('create');
+  });
+});
+
+describe('Promociones — email adicional (Pro)', () => {
+  it('manda el email a los destinatarios con email cuando el negocio es Pro', async () => {
+    const deps = makeDeps({
+      hasProAccess: true,
+      customers: [
+        {
+          id: 'c1',
+          name: 'Ana',
+          phoneE164: '+59891111111',
+          email: 'ana@test.com',
+        },
+        { id: 'c2', name: 'Beto', phoneE164: '+59892222222', email: null },
+      ],
+    });
+
+    await service(deps).send('biz-1', 'user-1', {
+      message: 'Este viernes 2x1.',
+      audience: 'todos',
+    });
+    await flush();
+
+    expect(deps.lifecycleEmails.sendOnce).toHaveBeenCalledTimes(1);
+    expect(deps.lifecycleEmails.sendOnce).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: 'biz-1',
+        customerId: 'c1',
+        kind: 'promotion',
+        dedupeKey: 'camp-1:c1',
+        to: 'ana@test.com',
+      }),
+    );
+  });
+
+  it('nunca manda email si el negocio es Free, aunque haya destinatarios con email', async () => {
+    const deps = makeDeps({
+      hasProAccess: false,
+      customers: [
+        {
+          id: 'c1',
+          name: 'Ana',
+          phoneE164: '+59891111111',
+          email: 'ana@test.com',
+        },
+      ],
+    });
+
+    await service(deps).send('biz-1', 'user-1', {
+      message: 'Este viernes 2x1.',
+      audience: 'todos',
+    });
+    await flush();
+
+    expect(deps.lifecycleEmails.sendOnce).not.toHaveBeenCalled();
+  });
+
+  it('nunca manda email si ningún destinatario tiene email, aunque el negocio sea Pro', async () => {
+    const deps = makeDeps({ hasProAccess: true });
+
+    await service(deps).send('biz-1', 'user-1', {
+      message: 'Hola',
+      audience: 'todos',
+    });
+    await flush();
+
+    expect(deps.lifecycleEmails.sendOnce).not.toHaveBeenCalled();
+  });
+
+  it('el email sigue funcionando cuando la promoción es un beneficio', async () => {
+    const deps = makeDeps({
+      hasProAccess: true,
+      benefit: { id: 'ben-1', title: 'Café gratis' },
+      customers: [
+        {
+          id: 'c1',
+          name: 'Ana',
+          phoneE164: '+59891111111',
+          email: 'ana@test.com',
+        },
+      ],
+    });
+
+    await service(deps).send('biz-1', 'user-1', {
+      message: 'Te esperamos.',
+      audience: 'todos',
+      benefitId: 'ben-1',
+    });
+    await flush();
+
+    expect(deps.lifecycleEmails.sendOnce).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'promotion', to: 'ana@test.com' }),
+    );
+  });
+
+  it('un fallo del email no afecta el envío por WhatsApp de la promoción', async () => {
+    const deps = makeDeps({
+      hasProAccess: true,
+      customers: [
+        {
+          id: 'c1',
+          name: 'Ana',
+          phoneE164: '+59891111111',
+          email: 'ana@test.com',
+        },
+      ],
+    });
+    deps.plans.hasProAccess.mockRejectedValue(new Error('db down'));
+
+    const result = await service(deps).send('biz-1', 'user-1', {
+      message: 'Hola',
+      audience: 'todos',
+    });
+    await flush();
+
+    expect(deps.campaigns.sendManual).toHaveBeenCalled();
+    expect(result.campaignId).toBe('camp-1');
   });
 });

@@ -18,12 +18,15 @@ function messageFixture(overrides: Record<string, unknown> = {}) {
     body: 'Hace tiempo que no venís. Te esperamos de vuelta.',
     business: {
       id: 'biz-1',
+      name: 'Café Test',
       retentionEngineV2Enabled: true,
       messageQuotaMonthly: 600,
       messageCountCurrentMonth: 10,
     },
     customer: {
       id: 'cust-1',
+      name: 'Cliente Test',
+      email: null,
       optedOut: false,
       phoneE164: '+59891111111',
     },
@@ -55,7 +58,12 @@ function makeDeps(message: unknown = messageFixture()) {
     sendText: jest.fn().mockResolvedValue({ whatsappMessageId: 'wa-1' }),
     isChannelAvailable: jest.fn().mockResolvedValue(true),
   };
-  return { prisma, settings, decisions, whatsApp };
+  // El fixture de customer no trae `email`, así que `maybeSendEmail` corta
+  // antes de llegar a preguntarle a `plans` — estos mocks solo existen para
+  // satisfacer el constructor, no participan en las aserciones de arriba.
+  const lifecycleEmails = { sendOnce: jest.fn().mockResolvedValue('sent') };
+  const plans = { hasProAccess: jest.fn().mockResolvedValue(false) };
+  return { prisma, settings, decisions, whatsApp, lifecycleEmails, plans };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
@@ -64,6 +72,8 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.settings as never,
     deps.decisions as never,
     deps.whatsApp as never,
+    deps.lifecycleEmails as never,
+    deps.plans as never,
   );
 }
 
@@ -370,6 +380,123 @@ describe('RetentionV2MessageDispatchService — idempotency', () => {
 
     expect(result).toEqual({ status: 'already_processed' });
     expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+  });
+});
+
+describe('RetentionV2MessageDispatchService — email side-channel (Pro)', () => {
+  async function flush() {
+    await new Promise((resolve) => setImmediate(resolve));
+  }
+
+  it('sends the email alongside WhatsApp for a Pro business with a customer email', async () => {
+    const deps = makeDeps(
+      messageFixture({
+        customer: {
+          id: 'cust-1',
+          name: 'Cliente Test',
+          email: 'cliente@test.com',
+          optedOut: false,
+          phoneE164: '+59891111111',
+        },
+      }),
+    );
+    deps.plans.hasProAccess.mockResolvedValue(true);
+    const service = makeService(deps);
+
+    const result = await service.dispatch('msg-1', NOW);
+    await flush();
+
+    expect(result.status).toBe('sent');
+    expect(deps.lifecycleEmails.sendOnce).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+        kind: 'reactivation',
+        dedupeKey: 'msg-1',
+        to: 'cliente@test.com',
+      }),
+    );
+  });
+
+  it('never emails a Free business, even with a customer email on file', async () => {
+    const deps = makeDeps(
+      messageFixture({
+        customer: {
+          id: 'cust-1',
+          name: 'Cliente Test',
+          email: 'cliente@test.com',
+          optedOut: false,
+          phoneE164: '+59891111111',
+        },
+      }),
+    );
+    deps.plans.hasProAccess.mockResolvedValue(false);
+    const service = makeService(deps);
+
+    await service.dispatch('msg-1', NOW);
+    await flush();
+
+    expect(deps.lifecycleEmails.sendOnce).not.toHaveBeenCalled();
+  });
+
+  it('never emails a customer with no email on file, even if the business is Pro', async () => {
+    const deps = makeDeps(); // customer.email is null in the base fixture
+    deps.plans.hasProAccess.mockResolvedValue(true);
+    const service = makeService(deps);
+
+    await service.dispatch('msg-1', NOW);
+    await flush();
+
+    expect(deps.lifecycleEmails.sendOnce).not.toHaveBeenCalled();
+  });
+
+  it('still sends the WhatsApp message when the email side-channel fails', async () => {
+    const deps = makeDeps(
+      messageFixture({
+        customer: {
+          id: 'cust-1',
+          name: 'Cliente Test',
+          email: 'cliente@test.com',
+          optedOut: false,
+          phoneE164: '+59891111111',
+        },
+      }),
+    );
+    deps.plans.hasProAccess.mockRejectedValue(new Error('db down'));
+    const service = makeService(deps);
+
+    const result = await service.dispatch('msg-1', NOW);
+    await flush();
+
+    expect(result.status).toBe('sent');
+    expect(deps.whatsApp.sendText).toHaveBeenCalled();
+  });
+
+  it('marks the progress-reminder kind for a REWARD_GOAL_PROGRESS message', async () => {
+    const deps = makeDeps(
+      messageFixture({
+        customer: {
+          id: 'cust-1',
+          name: 'Cliente Test',
+          email: 'cliente@test.com',
+          optedOut: false,
+          phoneE164: '+59891111111',
+        },
+        retentionAssignment: {
+          id: 'assign-1',
+          experiment: { objective: RetentionObjective.REWARD_GOAL_PROGRESS },
+        },
+      }),
+    );
+    deps.plans.hasProAccess.mockResolvedValue(true);
+    const service = makeService(deps);
+
+    await service.dispatch('msg-1', NOW);
+    await flush();
+
+    expect(deps.lifecycleEmails.sendOnce).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'progress_reminder' }),
+    );
   });
 });
 

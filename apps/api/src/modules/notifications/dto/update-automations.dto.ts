@@ -24,6 +24,23 @@ export class UpdateAutomationsDto {
   teExtranamos?: boolean;
 
   /**
+   * "Sellos por vencer" (Free) → RetentionSettings.stampsExpiryEmailEnabled.
+   * Nunca bloqueado por plan — sellos es Free.
+   */
+  @IsOptional()
+  @IsBoolean()
+  sellosPorVencer?: boolean;
+
+  /**
+   * "Cumpleaños" (Pro) → RetentionSettings.birthdayEmailEnabled. Prenderlo
+   * sin acceso Pro (ni trial vigente) se rechaza en el servicio — nunca
+   * confiar en que el frontend ya lo bloqueó.
+   */
+  @IsOptional()
+  @IsBoolean()
+  cumpleanos?: boolean;
+
+  /**
    * Beneficios autorizados para reactivación. Lista COMPLETA, no un delta:
    * lo que no venga acá queda desautorizado. Omitir el campo no toca nada.
    * Array vacío = "solo recordatorios, sin beneficio".

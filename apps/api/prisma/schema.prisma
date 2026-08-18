@@ -593,6 +593,7 @@ model Business {
   rewardGoalBonusStamps         RewardGoalBonusStamp[]
   aiUsageEvents                 AiUsageEvent[]
   optimizationRuns              RetentionOptimizationRun[]
+  emailLogs                     EmailLog[]
 }
 
 // ---------------------------------------------------------------------------
@@ -682,6 +683,18 @@ model RetentionSettings {
   /// ("recordar cerca del premio" y "reactivar clientes") serían alias del
   /// mismo campo y no podrían activarse por separado.
   progressReminderEnabled            Boolean @default(false) @map("progress_reminder_enabled")
+  /// Notificaciones (Free) — email de "sellos por vencer": cuando un cliente
+  /// completó su tarjeta y el premio (BenefitParticipation) todavía no fue
+  /// canjeado y está por vencer. Independiente de `progressReminderEnabled`
+  /// (eso es WhatsApp, "casi llegás"); esto es el aviso de vencimiento del
+  /// premio YA ganado, y no tiene costo de plan — disponible en Free. Off
+  /// por default, mismo criterio que el resto de estos toggles.
+  stampsExpiryEmailEnabled           Boolean @default(false) @map("stamps_expiry_email_enabled")
+  /// Notificaciones (Pro) — email de cumpleaños. No hay un objetivo de
+  /// Retention V2 para esto (no es un problema de recruitment/control group,
+  /// es un calendario): se resuelve con un sweep diario propio
+  /// (`BirthdayEmailService`), no con un experimento nuevo. Off por default.
+  birthdayEmailEnabled               Boolean @default(false) @map("birthday_email_enabled")
   /// Days after a goal is UNLOCKED (or CANCELLED/EXPIRED) before the engine
   /// will consider creating another one for the same customer — the guard
   /// against "immediately after unlocking, infinite new goals" (Fase E §33).
@@ -1241,6 +1254,46 @@ model RewardGoalBonusStamp {
 }
 
 // ---------------------------------------------------------------------------
+// EmailLog — idempotencia + historial COMPARTIDO para toda notificación por
+// email (sellos por vencer, casi llegás, cumpleaños, reactivación,
+// promociones). Deliberadamente un log plano, no un motor: la DECISIÓN de a
+// quién y cuándo sigue viviendo donde ya vivía (reward goals, Retention V2,
+// un sweep de cumpleaños) — esto solo garantiza "nunca dos veces" y "qué
+// pasó". `kind`/`dedupeKey` son strings, no enums, para que un tipo nuevo de
+// email nunca necesite una migración.
+//
+// El `@@unique([businessId, kind, dedupeKey])` ES el mecanismo de
+// idempotencia: se inserta la fila ANTES de mandar el email (mismo patrón
+// que `ensureRedemptionCode`/`RewardGoalBonusStamp`), así que un segundo
+// intento (reintento, sweep que corre dos veces) choca contra el índice
+// único y nunca duplica el envío. `dedupeKey` es, según el tipo:
+//   stamps_expiry     → el id de la BenefitParticipation
+//   progress_reminder → el id del Message que Retention V2 ya creó
+//   reactivation       → el id del Message que Retention V2 ya creó
+//   birthday           → `${año}` (a lo sumo un cumpleaños por año)
+//   promotion          → el id del ManualCampaign
+model EmailLog {
+  id           String    @id @default(uuid())
+  businessId   String    @map("business_id")
+  customerId   String    @map("customer_id")
+  kind         String
+  dedupeKey    String    @map("dedupe_key")
+  /// 'sent' | 'failed' — nunca 'queued': la fila se crea en el mismo
+  /// instante en que se intenta enviar, no antes.
+  status       String
+  errorMessage String?   @map("error_message")
+  sentAt       DateTime? @map("sent_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, kind, dedupeKey])
+  @@index([businessId, createdAt])
+  @@map("email_logs")
+}
+
+// ---------------------------------------------------------------------------
 // AI Layer (Fase F) — observability/cost tracking only. The AI never writes
 // here to decide anything; every row is a record of ONE generation attempt.
 // ---------------------------------------------------------------------------
@@ -1593,6 +1646,7 @@ model Customer {
   rewardGoals              CustomerRewardGoal[]
   checkinFeedback          CheckinFeedback[]
   rewardGoalBonusStamps    RewardGoalBonusStamp[]
+  emailLogs                EmailLog[]
 
   @@index([businessId])
   @@index([businessId, isActive])

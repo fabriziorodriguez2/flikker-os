@@ -186,6 +186,10 @@ export default function PromotionsTab() {
               Vos elegís qué mandar y cuándo. Para los mensajes que Flikker
               decide solo, mirá la pestaña Automáticas.
             </p>
+            <p className="mt-1 max-w-2xl text-xs leading-5 text-[#B0B8C9]">
+              Se manda por WhatsApp. Si tu plan es Pro, también les llega por
+              email a quienes tengan uno registrado.
+            </p>
           </div>
           {canSend ? (
             <button

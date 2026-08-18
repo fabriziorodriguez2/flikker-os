@@ -10,6 +10,16 @@ interface SendEmailInput {
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
 
+  /**
+   * Mismo patrón que `WhatsAppBspService.isChannelAvailable()`/
+   * `GooglePlacesProvider.isAvailable()` — nunca hardcodeado a `true`, para
+   * que el panel pueda mostrar "no disponible" en vez de un botón roto
+   * cuando todavía no se configuró `RESEND_API_KEY`/`RESEND_FROM_EMAIL`.
+   */
+  isAvailable(): boolean {
+    return Boolean(process.env.RESEND_API_KEY && process.env.RESEND_FROM_EMAIL);
+  }
+
   async send(input: SendEmailInput) {
     const apiKey = process.env.RESEND_API_KEY;
     const from = process.env.RESEND_FROM_EMAIL;

@@ -2,22 +2,24 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ChevronDown, Loader2, Sparkles } from "lucide-react";
+import { ChevronDown, Loader2, Lock, Mail, Sparkles } from "lucide-react";
 import { useIsOwnerOrAdmin } from "../../role-context";
 
 /**
  * Automáticas — los mensajes que Flikker manda solo.
  *
  * Solo se muestran las automatizaciones que EXISTEN de verdad, y solo cuando
- * tienen sentido para ESTE negocio. Hoy son dos como máximo:
- *  - "Te extrañamos" — siempre puede mostrarse. No depende de tarjeta de
- *    sellos ni de tener beneficios: sin nada de eso, manda un recordatorio
- *    simple.
- *  - "Cerca del premio" — solo si el negocio tiene tarjeta de sellos activa
- *    (`overview.automations` directamente no la incluye si no). Mostrarla
- *    apagada igual sería confuso: no es que esté desactivada, es que no
- *    aplica.
- * Hubo una tercera candidata ("recordar recompensa disponible") que no se
+ * tienen sentido para ESTE negocio:
+ *  - "Sellos por vencer" (Free, email) — solo si el negocio usa tarjeta de
+ *    sellos. Avisa antes de que se pierda un premio ya ganado.
+ *  - "Cerca del premio" (Free, WhatsApp + email si hay Pro) — solo si el
+ *    negocio tiene tarjeta de sellos activa. Mostrarla apagada igual sería
+ *    confuso: no es que esté desactivada, es que no aplica.
+ *  - "Cumpleaños" (Pro, email) — siempre visible, bloqueada con badge PRO
+ *    hasta que el negocio tenga Pro o un trial Pro vigente.
+ *  - "Te extrañamos" (Free, WhatsApp + email si hay Pro) — siempre puede
+ *    mostrarse. No depende de sellos ni de beneficios.
+ * Hubo una candidata más ("recordar recompensa disponible") que no se
  * incluye porque el motor no tiene con qué ejecutarla: su único objetivo de
  * progreso recluta tarjetas en curso y excluye las ya desbloqueadas. Un
  * checkbox que no hace nada es peor que uno que falta.
@@ -30,11 +32,16 @@ type AutomationState =
   | "preparando"
   | "desactivado";
 
+type Channel = "whatsapp" | "email";
+
 interface Overview {
   automations: {
-    key: "cerca_del_premio" | "te_extranamos";
+    key: "sellos_por_vencer" | "cerca_del_premio" | "cumpleanos" | "te_extranamos";
     enabled: boolean;
     state: AutomationState;
+    plan: "free" | "pro";
+    locked: boolean;
+    channels: Channel[];
   }[];
   status: {
     activeCount: number;
@@ -42,6 +49,8 @@ interface Overview {
     engineEnabled: boolean;
     /** El único estado de canal que existe de verdad — ver `## Canal`. */
     channel: "activo" | "no_conectado";
+    /** Pro o trial Pro vigente. */
+    proAccess: boolean;
   };
   benefits: { id: string; name: string; authorized: boolean }[];
   /**
@@ -191,7 +200,11 @@ export default function AutomationsTab() {
 
   if (!data) return null;
 
+  const sellosPorVencer = data.automations.find(
+    (a) => a.key === "sellos_por_vencer",
+  );
   const progreso = data.automations.find((a) => a.key === "cerca_del_premio");
+  const cumpleanos = data.automations.find((a) => a.key === "cumpleanos");
   const reactivacion = data.automations.find((a) => a.key === "te_extranamos");
   const authorizedIds = data.benefits.filter((b) => b.authorized).map((b) => b.id);
 
@@ -289,25 +302,63 @@ export default function AutomationsTab() {
       })()}
 
       {/*
-        ── A. Cerca del premio ─────────────────────────────────────────
+        ── A. Sellos por vencer (Free) ──────────────────────────────────
+        Solo existe como concepto si el negocio usa tarjeta de sellos — sin
+        `sellosPorVencer` en `automations`, ni se muestra.
+      */}
+      {sellosPorVencer ? (
+        <AutomationCard
+          title="Sellos por vencer"
+          description="Avisale por email si ganó un premio con su tarjeta y todavía no lo canjeó, antes de que venza."
+          example="“Tu premio vence en 3 días.”"
+          enabled={sellosPorVencer.enabled}
+          locked={sellosPorVencer.locked}
+          channels={sellosPorVencer.channels}
+          disabled={!canManage || saving}
+          onToggle={(value) => void patch({ sellosPorVencer: value })}
+        />
+      ) : null}
+
+      {/*
+        ── B. Cerca del premio ─────────────────────────────────────────
         Solo existe como concepto si el negocio usa tarjeta de sellos — sin
         `progreso` en `automations` (sellos apagados), ni se muestra: no es
         "Desactivado", es una automatización que no aplica a este negocio.
       */}
       {progreso ? (
         <AutomationCard
-          title="Cerca del premio"
+          title="Casi llegás"
           description="Recordale al cliente cuando esté cerca de completar su tarjeta."
           example="“Te falta 1 sello para tus 3 medialunas gratis.”"
           enabled={progreso.enabled}
+          channels={progreso.channels}
+          upsellChannel={!progreso.channels.includes("email") ? "email" : null}
           disabled={!canManage || saving}
           onToggle={(value) => void patch({ cercaDelPremio: value })}
         />
       ) : null}
 
-      {/* ── B. Te extrañamos ──────────────────────────────────────────── */}
+      {/* ── C. Cumpleaños (Pro) ──────────────────────────────────────── */}
+      {cumpleanos ? (
+        <AutomationCard
+          title="Cumpleaños"
+          description="Un saludo por email el día del cumpleaños del cliente."
+          example="“¡Feliz cumpleaños de parte de tu negocio! 🎉”"
+          enabled={cumpleanos.enabled}
+          locked={cumpleanos.locked}
+          channels={cumpleanos.channels}
+          disabled={!canManage || saving}
+          onToggle={(value) => void patch({ cumpleanos: value })}
+        />
+      ) : null}
+
+      {/* ── D. Te extrañamos ──────────────────────────────────────────── */}
       <AutomationCard
         title="Te extrañamos"
+        channels={reactivacion?.channels ?? ["whatsapp"]}
+        upsellChannel={
+          !reactivacion?.channels.includes("email") ? "email" : null
+        }
         description="Flikker detecta clientes que solían venir y hace tiempo que no aparecen."
         enabled={reactivacion?.enabled ?? false}
         disabled={!canManage || saving}
@@ -542,6 +593,9 @@ function AutomationCard({
   example,
   enabled,
   disabled,
+  locked = false,
+  channels = [],
+  upsellChannel = null,
   onToggle,
   children,
 }: {
@@ -550,6 +604,12 @@ function AutomationCard({
   example?: string;
   enabled: boolean;
   disabled: boolean;
+  /** Función Pro sin acceso — el toggle se reemplaza por el badge + link. */
+  locked?: boolean;
+  /** Canales que de verdad van a salir ahora mismo. Nunca Push ni Wallet. */
+  channels?: Channel[];
+  /** Canal que se suma con Pro pero hoy no está incluido (upsell suave). */
+  upsellChannel?: Channel | null;
   onToggle: (value: boolean) => void;
   children?: React.ReactNode;
 }) {
@@ -561,21 +621,36 @@ function AutomationCard({
             <h3 className="font-display text-lg font-semibold text-[#202333]">
               {title}
             </h3>
-            <span
-              className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-                enabled
-                  ? "bg-[#EAF7EF] text-[#147A5B]"
-                  : "bg-[#F3F4F8] text-[#6B7280]"
-              }`}
-            >
-              {enabled ? "Activo" : "Desactivado"}
-            </span>
+            {locked ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#FFF3DC] px-2 py-0.5 text-[11px] font-semibold text-[#8A5A0D]">
+                <Lock className="h-3 w-3" /> PRO
+              </span>
+            ) : (
+              <span
+                className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+                  enabled
+                    ? "bg-[#EAF7EF] text-[#147A5B]"
+                    : "bg-[#F3F4F8] text-[#6B7280]"
+                }`}
+              >
+                {enabled ? "Activo" : "Desactivado"}
+              </span>
+            )}
+            <ChannelBadges channels={channels} upsellChannel={upsellChannel} />
           </div>
           <p className="mt-1.5 max-w-lg text-sm leading-6 text-[#7F879C]">
             {description}
           </p>
           {example ? (
             <p className="mt-2 text-sm italic text-[#B0B8C9]">{example}</p>
+          ) : null}
+          {locked ? (
+            <Link
+              href="/dashboard/settings/suscripcion"
+              className="mt-2 inline-block text-xs font-semibold text-[#5C6BC0] hover:underline"
+            >
+              Ver planes →
+            </Link>
           ) : null}
         </div>
 
@@ -585,7 +660,7 @@ function AutomationCard({
           role="switch"
           aria-checked={enabled}
           aria-label={title}
-          disabled={disabled}
+          disabled={disabled || locked}
           onClick={() => onToggle(!enabled)}
           className={`relative h-8 w-14 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
             enabled ? "bg-[#5C6BC0]" : "bg-[#DDE1EC]"
@@ -600,6 +675,61 @@ function AutomationCard({
       </div>
       {children}
     </section>
+  );
+}
+
+/**
+ * Badges de canal — solo los que Flikker realmente soporta. Nunca "Push" ni
+ * "Wallet" (Fiddelik los tiene, Flikker no): si un canal no está en la
+ * lista, no se inventa un badge para él.
+ */
+function ChannelBadges({
+  channels,
+  upsellChannel,
+}: {
+  channels: Channel[];
+  upsellChannel?: Channel | null;
+}) {
+  if (channels.length === 0 && !upsellChannel) return null;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      {channels.includes("whatsapp") ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#EAF7EF] px-2 py-0.5 text-[11px] font-semibold text-[#147A5B]">
+          <WhatsAppIcon /> WhatsApp
+        </span>
+      ) : null}
+      {channels.includes("email") ? (
+        <span className="inline-flex items-center gap-1 rounded-full bg-[#EEF0FB] px-2 py-0.5 text-[11px] font-semibold text-[#4A56A6]">
+          <Mail className="h-3 w-3" /> Email
+        </span>
+      ) : null}
+      {upsellChannel === "email" ? (
+        <Link
+          href="/dashboard/settings/suscripcion"
+          className="inline-flex items-center gap-1 rounded-full bg-[#F3F4F8] px-2 py-0.5 text-[11px] font-semibold text-[#6B7280] hover:bg-[#EEF0FB] hover:text-[#4A56A6]"
+        >
+          <Mail className="h-3 w-3" /> + Email con Pro
+        </Link>
+      ) : null}
+    </span>
+  );
+}
+
+/** Mismo ícono que usa el botón de soporte del sidebar — un solo trazo, consistente en todo Flikker. */
+function WhatsAppIcon() {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className="h-3 w-3 shrink-0"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20.5 11.6a8.5 8.5 0 0 1-12.6 7.5L3.5 20.5l1.4-4.3a8.5 8.5 0 1 1 15.6-4.6Z" />
+    </svg>
   );
 }
 

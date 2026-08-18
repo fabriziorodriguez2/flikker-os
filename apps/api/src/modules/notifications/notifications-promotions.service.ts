@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BenefitsService } from '../benefits/benefits.service';
 import { CampaignsService } from '../campaigns/campaigns.service';
@@ -8,6 +8,8 @@ import {
 } from '../customers/loyalty/customer-loyalty.service';
 import { VisitSourcesService } from '../visit-sources/visit-sources.service';
 import { PlansService } from '../plans/plans.service';
+import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
+import { promotionEmail } from '../../jobs/email-templates';
 import type { SendPromotionDto } from './dto/send-promotion.dto';
 
 /**
@@ -42,6 +44,8 @@ const MAX_RECIPIENTS = 500;
 
 @Injectable()
 export class NotificationsPromotionsService {
+  private readonly logger = new Logger(NotificationsPromotionsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly loyalty: CustomerLoyaltyService,
@@ -49,6 +53,7 @@ export class NotificationsPromotionsService {
     private readonly benefits: BenefitsService,
     private readonly visitSources: VisitSourcesService,
     private readonly plans: PlansService,
+    private readonly lifecycleEmails: LifecycleEmailsService,
   ) {}
 
   /**
@@ -75,8 +80,10 @@ export class NotificationsPromotionsService {
       );
     }
 
-    let messageBody = dto.message.trim();
+    const rawMessage = dto.message.trim();
+    let messageBody = rawMessage;
     let benefitTitle: string | null = null;
+    let checkinLink: string | null = null;
 
     if (dto.benefitId) {
       // "Futuras promociones con Benefit también deben quedar bloqueadas" —
@@ -129,9 +136,9 @@ export class NotificationsPromotionsService {
       // El link es el acceso de siempre del negocio: el cliente lo abre, lo
       // reconocemos y ve su beneficio con el código. Nada de códigos técnicos
       // largos pegados en el WhatsApp.
-      const link = await this.checkinLink(businessId);
+      checkinLink = await this.checkinLink(businessId);
       messageBody = `${messageBody}\n\n🎁 ${active.title}`;
-      if (link) messageBody = `${messageBody}\n${link}`;
+      if (checkinLink) messageBody = `${messageBody}\n${checkinLink}`;
     }
 
     const result = await this.campaigns.sendManual(businessId, userId, {
@@ -143,7 +150,63 @@ export class NotificationsPromotionsService {
       messageBody,
     });
 
+    // Email (Pro) — canal adicional para la MISMA promoción, para los
+    // destinatarios que además tienen email. Nunca bloquea ni afecta el
+    // resultado de la campaña por WhatsApp de arriba.
+    void this.maybeSendEmails({
+      businessId,
+      campaignId: result.campaignId,
+      recipients,
+      rawMessage,
+      benefitTitle,
+      checkinLink,
+    }).catch((error) => {
+      this.logger.warn(
+        `Promotion email side-channel failed for campaign ${result.campaignId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    });
+
     return { ...result, audience: dto.audience, benefitTitle };
+  }
+
+  private async maybeSendEmails(input: {
+    businessId: string;
+    campaignId: string;
+    recipients: { customerId: string; name: string; email: string | null }[];
+    rawMessage: string;
+    benefitTitle: string | null;
+    checkinLink: string | null;
+  }): Promise<void> {
+    const recipientsWithEmail = input.recipients.filter((r) => r.email);
+    if (recipientsWithEmail.length === 0) return;
+    if (!(await this.plans.hasProAccess(input.businessId))) return;
+
+    const business = await this.prisma.business.findUnique({
+      where: { id: input.businessId },
+      select: { name: true },
+    });
+    if (!business) return;
+
+    for (const recipient of recipientsWithEmail) {
+      const { subject, html } = promotionEmail({
+        businessName: business.name,
+        customerName: recipient.name,
+        messageBody: input.rawMessage,
+        benefitTitle: input.benefitTitle,
+        checkinLink: input.checkinLink,
+      });
+      await this.lifecycleEmails.sendOnce({
+        businessId: input.businessId,
+        customerId: recipient.customerId,
+        kind: 'promotion',
+        dedupeKey: `${input.campaignId}:${recipient.customerId}`,
+        to: recipient.email,
+        subject,
+        html,
+      });
+    }
   }
 
   /**
@@ -191,13 +254,14 @@ export class NotificationsPromotionsService {
           isActive: true,
           optedOut: false,
         },
-        select: { id: true, name: true, phoneE164: true },
+        select: { id: true, name: true, phoneE164: true, email: true },
       })
       .then((rows) =>
         rows.map((r) => ({
           customerId: r.id,
           name: r.name,
           phoneE164: r.phoneE164,
+          email: r.email,
         })),
       );
   }

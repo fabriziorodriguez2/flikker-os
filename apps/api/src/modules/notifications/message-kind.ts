@@ -17,6 +17,8 @@ export type MessageKind =
   | 'recordatorio_progreso'
   | 'invitacion_volver'
   | 'promocion'
+  | 'sellos_por_vencer'
+  | 'cumpleanos'
   | 'otro';
 
 export function messageKindOf(objective?: RetentionObjective): MessageKind {
@@ -31,4 +33,28 @@ export function messageKindOf(objective?: RetentionObjective): MessageKind {
     return 'invitacion_volver';
   }
   return 'otro';
+}
+
+/**
+ * Misma traducción que `messageKindOf`, para el otro origen de historial:
+ * `EmailLog.kind` (ver `LifecycleEmailKind` en `lifecycle-emails.service.ts`).
+ * `stamps_expiry` y `birthday` no tienen equivalente en `RetentionObjective`
+ * porque no son Retention V2 — son las dos automatizaciones de email que no
+ * pasan por ahí.
+ */
+export function emailMessageKindOf(kind: string): MessageKind {
+  switch (kind) {
+    case 'stamps_expiry':
+      return 'sellos_por_vencer';
+    case 'progress_reminder':
+      return 'recordatorio_progreso';
+    case 'reactivation':
+      return 'invitacion_volver';
+    case 'birthday':
+      return 'cumpleanos';
+    case 'promotion':
+      return 'promocion';
+    default:
+      return 'otro';
+  }
 }

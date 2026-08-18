@@ -26,6 +26,8 @@ import { RetentionOptimizationService } from './retention-optimization.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { RetentionV2BootstrapService } from './retention-v2-bootstrap.service';
 import { PlansModule } from '../plans/plans.module';
+import { EmailService } from '../../jobs/email.service';
+import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 
 /**
  * Retention Engine V2 runtime, plus the Fase C.5 configuration surface
@@ -56,6 +58,12 @@ import { PlansModule } from '../plans/plans.module';
     // the workers. WhatsAppBspService is stateless, so a second instance
     // costs nothing.
     WhatsAppBspService,
+    // Mismo motivo que WhatsAppBspService arriba — "casi llegás"/"te
+    // extrañamos" por email (Pro) se mandan desde
+    // RetentionV2MessageDispatchService, en el mismo momento que el
+    // WhatsApp de esa automatización.
+    EmailService,
+    LifecycleEmailsService,
     RetentionV2MessageDispatchService,
     RetentionIncentivesService,
     RetentionExperimentsAdminService,

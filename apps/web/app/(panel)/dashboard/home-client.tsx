@@ -89,7 +89,11 @@ interface HomeOverview {
   program: HomeProgram;
   automations: {
     items: {
-      key: "cerca_del_premio" | "te_extranamos";
+      key:
+        | "sellos_por_vencer"
+        | "cerca_del_premio"
+        | "cumpleanos"
+        | "te_extranamos";
       enabled: boolean;
       state: AutomationItemState;
     }[];

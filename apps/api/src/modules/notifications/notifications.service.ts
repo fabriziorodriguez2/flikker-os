@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma, RetentionObjective } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
@@ -10,9 +10,14 @@ import { RetentionBudgetService } from '../retention-v2/retention-budget.service
 import { resolveEffectiveAutomationState } from '../retention-v2/effective-automation-state';
 import { RECOVERY_OBJECTIVES } from '../retention-v2/retention-v2-bootstrap-plan';
 import { ProgramAuditService } from '../program-audit/program-audit.service';
+import { PlansService } from '../plans/plans.service';
 import { resolveAutomationState } from './automation-state';
 import { resolveBenefitsAutomationStatus } from './benefits-automation-status';
-import { messageKindOf, type MessageKind } from './message-kind';
+import {
+  emailMessageKindOf,
+  messageKindOf,
+  type MessageKind,
+} from './message-kind';
 import type { UpdateAutomationsDto } from './dto/update-automations.dto';
 import type { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
 
@@ -57,38 +62,50 @@ export class NotificationsService {
     private readonly budget: RetentionBudgetService,
     private readonly programAudit: ProgramAuditService,
     private readonly whatsApp: WhatsAppBspService,
+    private readonly plans: PlansService,
   ) {}
 
   /** Todo lo que necesita la pestaña Automáticas, en una sola llamada. */
   async overview(businessId: string, now: Date = new Date()) {
-    const [settings, incentives, resultsOverview, running, whatsappAvailable] =
-      await Promise.all([
-        this.settingsFor(businessId),
-        // El catálogo es de Programa. Notificaciones NO tiene uno propio:
-        // solo marca cuáles de esos beneficios están autorizados para
-        // reactivación.
-        this.prisma.retentionIncentiveDefinition.findMany({
-          where: { businessId, active: true },
-          select: {
-            id: true,
-            name: true,
-            benefitId: true,
-            automationEligible: true,
-          },
-          orderBy: { createdAt: 'desc' },
-        }),
-        this.results.forBusiness(businessId).catch(() => []),
-        // §16/§17 — un GET nunca crea infraestructura (eso es
-        // RetentionV2BootstrapService, llamado desde los triggers
-        // explícitos: onboarding, este mismo toggle, y Programa. Acá solo
-        // se LEE si ya existe un experiment válido y corriendo — "listo
-        // para funcionar", no "funcionando ahora mismo".
-        this.experiments.findUsableRunning(businessId),
-        // Migración WHAPI → WaSenderAPI: antes era `Boolean(WHAPI_TOKEN)`
-        // acá mismo. Ahora la pregunta la responde la abstracción — ver
-        // `## Canal/status` en el informe.
-        this.whatsApp.isChannelAvailable(),
-      ]);
+    const [
+      settings,
+      incentives,
+      resultsOverview,
+      running,
+      whatsappAvailable,
+      proAccess,
+    ] = await Promise.all([
+      this.settingsFor(businessId),
+      // El catálogo es de Programa. Notificaciones NO tiene uno propio:
+      // solo marca cuáles de esos beneficios están autorizados para
+      // reactivación.
+      this.prisma.retentionIncentiveDefinition.findMany({
+        where: { businessId, active: true },
+        select: {
+          id: true,
+          name: true,
+          benefitId: true,
+          automationEligible: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.results.forBusiness(businessId).catch(() => []),
+      // §16/§17 — un GET nunca crea infraestructura (eso es
+      // RetentionV2BootstrapService, llamado desde los triggers
+      // explícitos: onboarding, este mismo toggle, y Programa. Acá solo
+      // se LEE si ya existe un experiment válido y corriendo — "listo
+      // para funcionar", no "funcionando ahora mismo".
+      this.experiments.findUsableRunning(businessId),
+      // Migración WHAPI → WaSenderAPI: antes era `Boolean(WHAPI_TOKEN)`
+      // acá mismo. Ahora la pregunta la responde la abstracción — ver
+      // `## Canal/status` en el informe.
+      this.whatsApp.isChannelAvailable(),
+      // Pro o trial Pro vigente — el ÚNICO lugar que decide si "Cumpleaños"
+      // se puede prender y si el email adicional de "Casi llegás"/"Te
+      // extrañamos" sale. Centralizado en PlansService (ver
+      // hasProAccess) — nunca reevaluado acá.
+      this.plans.hasProAccess(businessId),
+    ]);
 
     const recoverySetupReady = running.some((e) =>
       RECOVERY_OBJECTIVES.includes(e.objective),
@@ -116,6 +133,17 @@ export class NotificationsService {
       ...(settings.rewardGoalsEnabled
         ? [
             {
+              key: 'sellos_por_vencer' as const,
+              state: settings.stampsExpiryEmailEnabled
+                ? ('activo' as const)
+                : ('inactivo' as const),
+              // Free, siempre — sellos es Free y este email no depende de
+              // Retention V2 ni de ningún plan.
+              plan: 'free' as const,
+              locked: false,
+              channels: ['email'] as const,
+            },
+            {
               key: 'cerca_del_premio' as const,
               state: resolveAutomationState({
                 toggledOn: effective.progressReminderEffective,
@@ -123,9 +151,28 @@ export class NotificationsService {
                 whatsappAvailable,
                 setupReady: progressSetupReady,
               }),
+              // El toggle en sí es Free (WhatsApp siempre sale); el email
+              // adicional ("casi llegás") solo se suma si hay Pro — ver
+              // `proAccess` en `status`, no un segundo flag por fila.
+              plan: 'free' as const,
+              locked: false,
+              channels: proAccess
+                ? (['whatsapp', 'email'] as const)
+                : (['whatsapp'] as const),
             },
           ]
         : []),
+      {
+        key: 'cumpleanos' as const,
+        state: settings.birthdayEmailEnabled
+          ? ('activo' as const)
+          : ('inactivo' as const),
+        // Pro (o trial Pro vigente) — la única automatización de esta lista
+        // sin ningún equivalente Free detrás.
+        plan: 'pro' as const,
+        locked: !proAccess,
+        channels: ['email'] as const,
+      },
       {
         key: 'te_extranamos' as const,
         state: resolveAutomationState({
@@ -134,6 +181,11 @@ export class NotificationsService {
           whatsappAvailable,
           setupReady: recoverySetupReady,
         }),
+        plan: 'free' as const,
+        locked: false,
+        channels: proAccess
+          ? (['whatsapp', 'email'] as const)
+          : (['whatsapp'] as const),
       },
       // `enabled` kept alongside `state` for the existing consumers
       // (activeCount, the toggle UI) — "Activo" is the only state that means
@@ -190,6 +242,8 @@ export class NotificationsService {
         channel: whatsappAvailable
           ? ('activo' as const)
           : ('no_conectado' as const),
+        /** Pro o trial Pro vigente — ver PlansService.hasProAccess. */
+        proAccess,
       },
       benefits: incentives.map((i) => ({
         id: i.id,
@@ -216,6 +270,20 @@ export class NotificationsService {
 
     const progress = dto.cercaDelPremio ?? current.progressReminderEnabled;
     const reactivate = dto.teExtranamos ?? current.automaticCampaignsEnabled;
+    const stampsExpiryEmail =
+      dto.sellosPorVencer ?? current.stampsExpiryEmailEnabled;
+    const birthdayEmail = dto.cumpleanos ?? current.birthdayEmailEnabled;
+
+    // "Cumpleaños" es Pro — nunca confiar en que el frontend ya lo bloqueó.
+    // Prenderlo sin acceso Pro (ni trial vigente) se rechaza acá, en el
+    // único lugar que decide esto (PlansService.hasProAccess).
+    if (birthdayEmail && !current.birthdayEmailEnabled) {
+      if (!(await this.plans.hasProAccess(businessId))) {
+        throw new ForbiddenException(
+          'Cumpleaños es una función Pro. Actualizá tu plan para activarla.',
+        );
+      }
+    }
 
     // El presupuesto se valida ANTES de escribir nada — nunca dejar un
     // beneficio autorizado sin forma de emitirse. Cubre las dos formas en
@@ -259,6 +327,8 @@ export class NotificationsService {
           businessId,
           progressReminderEnabled: progress,
           automaticCampaignsEnabled: reactivate,
+          stampsExpiryEmailEnabled: stampsExpiryEmail,
+          birthdayEmailEnabled: birthdayEmail,
           ...(dto.automaticIncentiveMonthlyLimit !== undefined
             ? {
                 maxAutomatedIncentivesPerMonth:
@@ -269,6 +339,8 @@ export class NotificationsService {
         update: {
           progressReminderEnabled: progress,
           automaticCampaignsEnabled: reactivate,
+          stampsExpiryEmailEnabled: stampsExpiryEmail,
+          birthdayEmailEnabled: birthdayEmail,
           ...(dto.automaticIncentiveMonthlyLimit !== undefined
             ? {
                 maxAutomatedIncentivesPerMonth:
@@ -336,6 +408,31 @@ export class NotificationsService {
         metadata: { automation: 'te_extranamos', enabled: reactivate },
       });
     }
+    if (stampsExpiryEmail !== current.stampsExpiryEmailEnabled) {
+      await this.programAudit.record({
+        businessId,
+        actorUserId,
+        type: 'automation_toggled',
+        message: stampsExpiryEmail
+          ? 'Activaste el email de Sellos por vencer'
+          : 'Desactivaste el email de Sellos por vencer',
+        metadata: {
+          automation: 'sellos_por_vencer',
+          enabled: stampsExpiryEmail,
+        },
+      });
+    }
+    if (birthdayEmail !== current.birthdayEmailEnabled) {
+      await this.programAudit.record({
+        businessId,
+        actorUserId,
+        type: 'automation_toggled',
+        message: birthdayEmail
+          ? 'Activaste el email de Cumpleaños'
+          : 'Desactivaste el email de Cumpleaños',
+        metadata: { automation: 'cumpleanos', enabled: birthdayEmail },
+      });
+    }
 
     // §9 trigger B — this is a real, explicit action (the owner touched
     // Notificaciones), never a bare GET. Covers three cases in one call:
@@ -384,7 +481,7 @@ export class NotificationsService {
    * manuales), y el dueño no tiene por qué saberlo.
    */
   async history(businessId: string, limit = 50) {
-    const [messages, manualCampaigns] = await Promise.all([
+    const [messages, manualCampaigns, emailLogs] = await Promise.all([
       this.prisma.message.findMany({
         where: { businessId, retentionAssignment: { isNot: null } },
         select: {
@@ -421,6 +518,23 @@ export class NotificationsService {
         orderBy: { createdAt: 'desc' },
         take: limit,
       }),
+      // Lo que salió por email — canal adicional de las mismas
+      // automatizaciones de arriba, más las dos que no tienen equivalente
+      // WhatsApp (sellos por vencer, cumpleaños). Fila propia por envío: el
+      // dueño ve exactamente qué salió y por qué canal, igual que WhatsApp.
+      this.prisma.emailLog.findMany({
+        where: { businessId },
+        select: {
+          id: true,
+          kind: true,
+          status: true,
+          sentAt: true,
+          createdAt: true,
+          customer: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: limit,
+      }),
     ]);
 
     const automatic = messages.map((m) => ({
@@ -438,6 +552,7 @@ export class NotificationsService {
       failed: m.status === 'failed' ? 1 : 0,
       state: stateOfMessage(m.status),
       message: null as string | null,
+      channel: 'whatsapp' as const,
     }));
 
     const promotions = manualCampaigns.map((c) => ({
@@ -454,9 +569,24 @@ export class NotificationsService {
           ? ('fallo' as const)
           : ('enviado' as const),
       message: c.messageBody,
+      channel: 'whatsapp' as const,
     }));
 
-    return [...automatic, ...promotions]
+    const emails = emailLogs.map((e) => ({
+      id: e.id,
+      at: e.sentAt ?? e.createdAt,
+      kind: emailMessageKindOf(e.kind),
+      recipientCount: 1,
+      customer: e.customer,
+      benefitName: null,
+      sent: e.status === 'failed' ? 0 : 1,
+      failed: e.status === 'failed' ? 1 : 0,
+      state: e.status === 'failed' ? ('fallo' as const) : ('enviado' as const),
+      message: null as string | null,
+      channel: 'email' as const,
+    }));
+
+    return [...automatic, ...promotions, ...emails]
       .sort((a, b) => b.at.getTime() - a.at.getTime())
       .slice(0, limit);
   }
@@ -529,6 +659,8 @@ export class NotificationsService {
       // "Sellos activos" — la misma fuente de verdad que Programa usa para
       // decidir si el negocio tiene tarjeta.
       rewardGoalsEnabled: settings?.rewardGoalsEnabled ?? false,
+      stampsExpiryEmailEnabled: settings?.stampsExpiryEmailEnabled ?? false,
+      birthdayEmailEnabled: settings?.birthdayEmailEnabled ?? false,
       dryRunEnabled: settings?.dryRunEnabled ?? false,
       sendingHourStart: settings?.sendingHourStart ?? 10,
       sendingHourEnd: settings?.sendingHourEnd ?? 20,

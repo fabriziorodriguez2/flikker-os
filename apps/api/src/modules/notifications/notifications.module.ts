@@ -7,6 +7,8 @@ import { RetentionV2Module } from '../retention-v2/retention-v2.module';
 import { ProgramAuditModule } from '../program-audit/program-audit.module';
 import { VisitSourcesModule } from '../visit-sources/visit-sources.module';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { EmailService } from '../../jobs/email.service';
+import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { NotificationsPromotionsService } from './notifications-promotions.service';
@@ -44,6 +46,10 @@ import { PlansModule } from '../plans/plans.module';
     // Instancia propia, como en jobs/retention-v2/public/customers modules
     // — es stateless, no hace falta compartirla vía export.
     WhatsAppBspService,
+    // Mismo motivo — promociones (Pro) manda el email adicional desde
+    // NotificationsPromotionsService, sin importar JobsModule.
+    EmailService,
+    LifecycleEmailsService,
   ],
   // Inicio reusa el overview de automatizaciones para no redefinir los flags.
   exports: [NotificationsService],

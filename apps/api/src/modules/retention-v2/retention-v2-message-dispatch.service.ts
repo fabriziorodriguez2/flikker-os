@@ -2,7 +2,10 @@ import { Injectable, Logger } from '@nestjs/common';
 import { MessageStatus, RetentionObjective } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
+import { retentionMessageEmail } from '../../jobs/email-templates';
 import { RetentionSettingsService } from './retention-settings.service';
+import { PlansService } from '../plans/plans.service';
 import {
   DECISION_CODES,
   RetentionDecisionLogService,
@@ -52,6 +55,8 @@ export class RetentionV2MessageDispatchService {
     private readonly settings: RetentionSettingsService,
     private readonly decisions: RetentionDecisionLogService,
     private readonly whatsApp: WhatsAppBspService,
+    private readonly lifecycleEmails: LifecycleEmailsService,
+    private readonly plans: PlansService,
   ) {}
 
   private load(messageId: string) {
@@ -114,6 +119,20 @@ export class RetentionV2MessageDispatchService {
     if (message.customer.optedOut) {
       return this.skipTerminal(message, 'OPTED_OUT');
     }
+
+    // Email (Pro) — canal ADICIONAL, independiente del WhatsApp de acá
+    // abajo: corre igual si no hay WhatsApp configurado, y su resultado
+    // nunca afecta el `DispatchOutcome` de este método (WhatsApp sigue
+    // siendo la automatización "real"; el email es un extra de plan). El
+    // mismo `body` que Retention V2 ya compuso para el WhatsApp — no se
+    // redacta un segundo mensaje.
+    void this.maybeSendEmail(message, isProgressReminder).catch((error) => {
+      this.logger.warn(
+        `Retention V2 email side-channel failed for message ${messageId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    });
 
     if (!message.customer.phoneE164) {
       return this.skipTerminal(message, 'NO_CONTACT_CHANNEL');
@@ -199,6 +218,45 @@ export class RetentionV2MessageDispatchService {
       );
       throw error;
     }
+  }
+
+  /**
+   * "Casi llegás" / "Te extrañamos" por email — Pro únicamente. Best-effort:
+   * nunca lanza hacia `dispatch()` (el caller ya envuelve esto en un
+   * `.catch`), nunca reclama ni muta el `Message` (eso sigue siendo del
+   * WhatsApp), y no reintenta — `sendOnce` decide sent/failed/duplicate y
+   * ese estado queda en `EmailLog`, no en `Message`.
+   */
+  private async maybeSendEmail(
+    message: {
+      id: string;
+      businessId: string;
+      customerId: string;
+      body: string | null;
+      business: { name: string };
+      customer: { name: string; email: string | null };
+    },
+    isProgressReminder: boolean,
+  ): Promise<void> {
+    if (!message.customer.email || !message.body) return;
+    if (!(await this.plans.hasProAccess(message.businessId))) return;
+
+    const { subject, html } = retentionMessageEmail({
+      businessName: message.business.name,
+      customerName: message.customer.name,
+      messageBody: message.body,
+      isProgressReminder,
+    });
+
+    await this.lifecycleEmails.sendOnce({
+      businessId: message.businessId,
+      customerId: message.customerId,
+      kind: isProgressReminder ? 'progress_reminder' : 'reactivation',
+      dedupeKey: message.id,
+      to: message.customer.email,
+      subject,
+      html,
+    });
   }
 
   /**

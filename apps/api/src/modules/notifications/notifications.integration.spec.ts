@@ -704,9 +704,14 @@ describe('Notificaciones — fachada sobre Retention V2 (integration)', () => {
 
       expect(overview.status.activeCount).toBe(0);
       // Sin fila de settings, `rewardGoalsEnabled` cae en su default (false)
-      // — sellos apagados, así que "cerca del premio" ni aparece. Ver el
-      // describe de sellos más abajo para el contrato completo.
-      expect(overview.automations.map((a) => a.key)).toEqual(['te_extranamos']);
+      // — sellos apagados, así que "cerca del premio"/"sellos por vencer" ni
+      // aparecen. "Cumpleaños" no depende de sellos, así que sigue
+      // apareciendo (bloqueado, sin acceso Pro). Ver el describe de sellos
+      // más abajo para el contrato completo.
+      expect(overview.automations.map((a) => a.key)).toEqual([
+        'cumpleanos',
+        'te_extranamos',
+      ]);
       expect(overview.benefits).toEqual([]);
     });
 
@@ -737,7 +742,9 @@ describe('Notificaciones — fachada sobre Retention V2 (integration)', () => {
     const overview = await service.overview(businessId);
 
     expect(overview.automations.map((a) => a.key)).toEqual([
+      'sellos_por_vencer',
       'cerca_del_premio',
+      'cumpleanos',
       'te_extranamos',
     ]);
     // "Recordar recompensa disponible" no existe en el motor y no se inventa.
@@ -756,7 +763,10 @@ describe('Notificaciones — fachada sobre Retention V2 (integration)', () => {
 
       const overview = await service.overview(businessId);
 
-      expect(overview.automations.map((a) => a.key)).toEqual(['te_extranamos']);
+      expect(overview.automations.map((a) => a.key)).toEqual([
+        'cumpleanos',
+        'te_extranamos',
+      ]);
     });
 
     it('sellos ON: "cerca del premio" aparece y refleja su propio interruptor', async () => {
@@ -786,6 +796,159 @@ describe('Notificaciones — fachada sobre Retention V2 (integration)', () => {
       expect(
         overview.automations.find((a) => a.key === 'te_extranamos')?.enabled,
       ).toBe(true);
+    });
+  });
+
+  // ── Email — "sellos por vencer" (Free) y "cumpleaños" (Pro) ──────────────
+
+  describe('## Email', () => {
+    it('"sellos por vencer" se prende sin importar el plan — es Free', async () => {
+      const businessId = await makeBusiness();
+      await prisma.retentionSettings.update({
+        where: { businessId },
+        data: { rewardGoalsEnabled: true },
+      });
+
+      await service.updateAutomations(businessId, { sellosPorVencer: true });
+      const overview = await service.overview(businessId);
+
+      const row = overview.automations.find(
+        (a) => a.key === 'sellos_por_vencer',
+      );
+      expect(row?.enabled).toBe(true);
+      expect(row?.plan).toBe('free');
+      expect(row?.locked).toBe(false);
+    });
+
+    it('"cumpleaños" aparece bloqueado para un negocio Free', async () => {
+      const businessId = await makeBusiness();
+
+      const overview = await service.overview(businessId);
+
+      const row = overview.automations.find((a) => a.key === 'cumpleanos');
+      expect(row?.plan).toBe('pro');
+      expect(row?.locked).toBe(true);
+      expect(row?.enabled).toBe(false);
+    });
+
+    it('prender "cumpleaños" sin acceso Pro se rechaza — nunca confía en el frontend', async () => {
+      const businessId = await makeBusiness();
+
+      await expect(
+        service.updateAutomations(businessId, { cumpleanos: true }),
+      ).rejects.toThrow(/Pro/);
+
+      const overview = await service.overview(businessId);
+      expect(
+        overview.automations.find((a) => a.key === 'cumpleanos')?.enabled,
+      ).toBe(false);
+    });
+
+    it('con un trial Pro vigente, "cumpleaños" se puede prender', async () => {
+      const businessId = await makeBusiness();
+      await prisma.business.update({
+        where: { id: businessId },
+        data: {
+          benefitsTrialStartedAt: new Date(),
+          benefitsTrialEndsAt: new Date(Date.now() + 30 * 86_400_000),
+        },
+      });
+
+      await service.updateAutomations(businessId, { cumpleanos: true });
+      const overview = await service.overview(businessId);
+
+      const row = overview.automations.find((a) => a.key === 'cumpleanos');
+      expect(row?.enabled).toBe(true);
+      expect(row?.locked).toBe(false);
+    });
+
+    it('apagar "cumpleaños" nunca necesita acceso Pro', async () => {
+      const businessId = await makeBusiness();
+      await prisma.business.update({
+        where: { id: businessId },
+        data: {
+          benefitsTrialStartedAt: new Date(),
+          benefitsTrialEndsAt: new Date(Date.now() + 30 * 86_400_000),
+        },
+      });
+      await service.updateAutomations(businessId, { cumpleanos: true });
+
+      // El trial vence: ya no hay acceso Pro.
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { benefitsTrialEndsAt: new Date('2020-01-01T00:00:00.000Z') },
+      });
+
+      await expect(
+        service.updateAutomations(businessId, { cumpleanos: false }),
+      ).resolves.toBeDefined();
+    });
+
+    it('el historial incluye lo enviado por email, con su propio canal y estado', async () => {
+      const businessId = await makeBusiness();
+      const customer = await prisma.customer.create({
+        data: {
+          id: randomUUID(),
+          businessId,
+          name: 'Cliente Email',
+          phoneE164: '+59891234567',
+          email: 'cliente@test.com',
+        },
+      });
+      await prisma.emailLog.create({
+        data: {
+          businessId,
+          customerId: customer.id,
+          kind: 'birthday',
+          dedupeKey: '2026',
+          status: 'sent',
+          sentAt: new Date(),
+        },
+      });
+
+      const history = await service.history(businessId);
+
+      expect(history).toHaveLength(1);
+      expect(history[0]).toMatchObject({
+        channel: 'email',
+        kind: 'cumpleanos',
+        state: 'enviado',
+        sent: 1,
+        failed: 0,
+      });
+    });
+
+    it('un email fallido aparece como "fallo" en el historial', async () => {
+      const businessId = await makeBusiness();
+      const customer = await prisma.customer.create({
+        data: {
+          id: randomUUID(),
+          businessId,
+          name: 'Cliente Email',
+          phoneE164: '+59891234568',
+          email: 'cliente2@test.com',
+        },
+      });
+      await prisma.emailLog.create({
+        data: {
+          businessId,
+          customerId: customer.id,
+          kind: 'stamps_expiry',
+          dedupeKey: 'part-1',
+          status: 'failed',
+          errorMessage: 'EMAIL_NOT_CONFIGURED',
+        },
+      });
+
+      const history = await service.history(businessId);
+
+      expect(history[0]).toMatchObject({
+        channel: 'email',
+        kind: 'sellos_por_vencer',
+        state: 'fallo',
+        sent: 0,
+        failed: 1,
+      });
     });
   });
 
