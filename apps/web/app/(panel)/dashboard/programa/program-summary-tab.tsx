@@ -91,7 +91,7 @@ export default function ProgramSummaryTab({
 
   return (
     <div className="space-y-4">
-      <section className="min-h-[322px] overflow-hidden rounded-[16px] border border-[#E8EAF0] bg-white shadow-[0_2px_8px_rgba(17,22,59,0.025)]">
+      <section className="overflow-hidden rounded-[16px] border border-[#E8EAF0] bg-white shadow-[0_2px_8px_rgba(17,22,59,0.025)]">
         <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-5 sm:px-6">
           <div>
             <h2 className="text-base font-bold text-[#1A202C]">Actividad</h2>
@@ -150,7 +150,7 @@ export default function ProgramSummaryTab({
               })}
             </ul>
             {history.length > 0 ? (
-              <div className="pt-4 text-right">
+              <div className="pt-3 text-right">
                 <button
                   type="button"
                   onClick={() => setShowAllActivity(true)}

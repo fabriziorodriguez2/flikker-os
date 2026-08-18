@@ -3,7 +3,14 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
-import { Loader2, QrCode, Stamp, Target } from "lucide-react";
+import {
+  LayoutDashboard,
+  Loader2,
+  QrCode,
+  Settings2,
+  Stamp,
+  Target,
+} from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
 import { useIsCheckinV2 } from "../../experience-context";
 import { useIsOwnerOrAdmin } from "../../role-context";
@@ -376,23 +383,25 @@ function ProgramaClientContent() {
         <button
           type="button"
           onClick={() => setTab("resumen")}
-          className={`rounded-[9px] px-4 py-2 transition-colors ${
+          className={`inline-flex items-center gap-2 rounded-[9px] px-4 py-2 transition-colors ${
             tab === "resumen"
               ? "bg-white text-[#4A56A6] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
-              : "text-[#7F879C] hover:bg-white/60 hover:text-[#1A202C]"
+              : "text-[#7F879C] hover:bg-[#F5F3FF] hover:text-[#5C6BC0]"
           }`}
         >
+          <LayoutDashboard className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
           Resumen
         </button>
         <button
           type="button"
           onClick={() => setTab("configuracion")}
-          className={`rounded-[9px] px-4 py-2 transition-colors ${
+          className={`inline-flex items-center gap-2 rounded-[9px] px-4 py-2 transition-colors ${
             tab === "configuracion"
               ? "bg-white text-[#4A56A6] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
-              : "text-[#7F879C] hover:bg-white/60 hover:text-[#1A202C]"
+              : "text-[#7F879C] hover:bg-[#F5F3FF] hover:text-[#5C6BC0]"
           }`}
         >
+          <Settings2 className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
           Configuración
         </button>
       </div>

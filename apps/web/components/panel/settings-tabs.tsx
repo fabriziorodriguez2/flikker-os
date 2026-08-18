@@ -81,7 +81,7 @@ export default function SettingsTabs() {
                 ? `inline-flex shrink-0 items-center gap-2 rounded-[9px] px-4 py-2 text-sm font-semibold ${
                     active
                       ? "bg-white text-[#4A56A6] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
-                      : "text-[#7F879C] hover:bg-white/60 hover:text-[#1A202C]"
+                      : "text-[#7F879C] hover:bg-[#F5F3FF] hover:text-[#5C6BC0]"
                   }`
                 : `shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
                     active

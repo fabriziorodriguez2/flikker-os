@@ -93,8 +93,8 @@ export default function NotificacionesPage() {
               onClick={() => setTab(option.key)}
               className={`inline-flex shrink-0 items-center gap-2 rounded-[9px] px-3.5 py-2 text-sm font-semibold transition-colors ${
                 tab === option.key
-                  ? "bg-white text-[#202333] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
-                  : "text-[#7F879C] hover:bg-white/60 hover:text-[#202333]"
+                  ? "bg-white text-[#5C6BC0] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
+                  : "text-[#7F879C] hover:bg-[#F5F3FF] hover:text-[#5C6BC0]"
               }`}
             >
               <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
