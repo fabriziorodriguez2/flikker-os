@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Loader2, MapPin, Search, Star, X } from "lucide-react";
 
 interface PlaceSearchResult {
@@ -32,27 +32,29 @@ async function readJson(res: Response) {
  * puerta de entrada del cliente.
  */
 export default function GoogleConnectModal({
+  businessName,
   onClose,
   onConnected,
 }: {
+  businessName: string;
   onClose: () => void;
   onConnected: () => void;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(businessName);
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<PlaceSearchResult[] | null>(null);
   const [connectingId, setConnectingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [unavailable, setUnavailable] = useState(false);
 
-  async function search(e: React.FormEvent) {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const search = useCallback(async (rawQuery: string) => {
+    const trimmed = rawQuery.trim();
+    if (!trimmed) return;
     setSearching(true);
     setError(null);
     try {
       const res = await fetch(
-        `/api/proxy/businesses/current/google-places/search?query=${encodeURIComponent(query.trim())}`,
+        `/api/proxy/businesses/current/google-places/search?query=${encodeURIComponent(trimmed)}`,
       );
       const data = (await readJson(res)) as {
         available: boolean;
@@ -65,7 +67,16 @@ export default function GoogleConnectModal({
     } finally {
       setSearching(false);
     }
-  }
+  }, []);
+
+  // Al abrir el modal, buscamos automáticamente con el nombre real del
+  // negocio — el dueño no debería tener que tipear lo que ya sabemos.
+  // Deliberadamente solo al montar: `businessName` no cambia en la vida de
+  // este modal, y `search` es estable (useCallback sin dependencias).
+  useEffect(() => {
+    void search(businessName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   async function connect(placeId: string) {
     setConnectingId(placeId);
@@ -115,10 +126,18 @@ export default function GoogleConnectModal({
           </button>
         </div>
         <p className="mt-1 text-sm text-[#8891A4]">
-          Buscamos en Google — elegí el resultado correcto para conectarlo.
+          Buscamos en Google:{" "}
+          <span className="font-semibold text-[#1A202C]">{businessName}</span>
+          . Elegí el resultado correcto para conectarlo.
         </p>
 
-        <form onSubmit={(e) => void search(e)} className="mt-4 flex gap-2">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            void search(query);
+          }}
+          className="mt-4 flex gap-2"
+        >
           <label className="relative flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[#8891A4]" />
             <input
@@ -139,6 +158,12 @@ export default function GoogleConnectModal({
         </form>
 
         {error ? <p className="mt-3 text-sm text-[#C0392B]">{error}</p> : null}
+
+        {searching && results === null ? (
+          <p className="mt-4 flex items-center gap-2 text-sm text-[#8891A4]">
+            <Loader2 className="h-4 w-4 animate-spin" /> Buscando...
+          </p>
+        ) : null}
 
         {unavailable ? (
           <p className="mt-4 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-sm text-[#8A520D]">

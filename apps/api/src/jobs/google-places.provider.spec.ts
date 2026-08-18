@@ -128,6 +128,31 @@ describe('GooglePlacesProvider', () => {
       expect(await provider.getDetails('bad-id')).toBeNull();
     });
 
+    it('loguea el motivo real que devuelve Google (no solo el status code)', async () => {
+      const warnSpy = jest
+        .spyOn((provider as unknown as { logger: { warn: () => void } }).logger, 'warn')
+        .mockImplementation(() => undefined);
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        ok: false,
+        status: 403,
+        statusText: 'Forbidden',
+        text: async () =>
+          JSON.stringify({
+            error: {
+              code: 403,
+              message: 'Places API (New) has not been used in project ... or it is disabled.',
+              status: 'PERMISSION_DENIED',
+            },
+          }),
+      } as Response);
+
+      await provider.searchText('x');
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('PERMISSION_DENIED'),
+      );
+    });
+
     it('nunca lanza si fetch rechaza (red caída) — degrada a [] / null', async () => {
       jest.spyOn(global, 'fetch').mockRejectedValue(new Error('network down'));
 

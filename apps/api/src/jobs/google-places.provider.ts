@@ -148,9 +148,13 @@ export class GooglePlacesProvider {
             await sleep(500 * 2 ** attempt);
             continue;
           }
+          // Google devuelve el motivo real en el body (ej. "API not enabled",
+          // "billing not enabled", "API key not valid") — sin esto, un 403/400
+          // era indistinguible en los logs y había que adivinar la causa.
           // Nunca incluir el header Authorization/API key en el log.
+          const errorBody = await response.text().catch(() => '');
           this.logger.warn(
-            `Google Places respondió ${response.status} ${response.statusText}`,
+            `Google Places respondió ${response.status} ${response.statusText}: ${errorBody.slice(0, 500)}`,
           );
           return null;
         }

@@ -273,6 +273,7 @@ export default function ReviewsClient({
 
       {showSearchModal ? (
         <GoogleConnectModal
+          businessName={businessName}
           onClose={() => setShowSearchModal(false)}
           onConnected={() => {
             setShowSearchModal(false);
