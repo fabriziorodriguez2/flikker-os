@@ -1,38 +1,19 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
-import {
-  Check,
-  Copy,
-  ExternalLink,
-  Loader2,
-  MapPin,
-  QrCode,
-  Search,
-  Sparkles,
-} from "lucide-react";
+import { Check, Copy, ExternalLink, Loader2, MapPin, Search } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
 import GoogleLogo from "@/components/icons/google-logo";
-import { useIsCheckinV2 } from "../../experience-context";
 import { useIsOwnerOrAdmin } from "../../role-context";
-import { Stars, relativeDay, shortDate } from "../customers/loyalty-ui";
+import { Stars, relativeDay } from "../customers/loyalty-ui";
 import GoogleConnectModal from "./google-connect-modal";
 import ReviewsChart from "./reviews-chart";
 
 /**
- * Reseñas — la reputación del negocio, con Google como parte nativa.
- *
- * Dos ideas que NUNCA se mezclan, y por eso viven en pestañas separadas:
- *
- *  - **Google**: opiniones públicas que cualquiera ve en el perfil del
- *    negocio. Flikker las lee; no las escribe.
- *  - **Feedback privado**: lo que el cliente contesta después de una visita.
- *    No es público y no llega a Google.
- *
- * Sobre el embudo: el paso de Google se llama "abrieron Google" y no "dejaron
- * una reseña", porque un click es lo único observable. Que alguien abra el
- * perfil no prueba que haya publicado nada, y la pantalla no lo insinúa.
+ * Reseñas — vista analítica, no una bandeja de comentarios: números,
+ * gráfico y el local vinculado. Sin listas de reseñas ni de feedback (ni
+ * comentarios de clientes) — eso vive en otro lado del producto; acá solo
+ * el pulso de la reputación en Google.
  */
 
 const PERIODS = [
@@ -40,8 +21,6 @@ const PERIODS = [
   { days: 30, label: "30 días" },
   { days: 90, label: "90 días" },
 ] as const;
-
-const FLIKKER_WHATSAPP = "59891624988";
 
 interface Overview {
   periodDays: number;
@@ -67,53 +46,16 @@ interface Overview {
   };
   /** Serie diaria de reseñas nuevas, un punto por día del período elegido. */
   chart: { date: string; count: number }[];
-  reviews: {
-    id: string;
-    author: string | null;
-    stars: number;
-    text: string | null;
-    postedAt: string;
-    linkedToFlikkerActivity: boolean;
-  }[];
-  feedback: {
-    id: string;
-    customer: { id: string; name: string } | null;
-    score: number;
-    comment: string | null;
-    createdAt: string;
-    gaveBonusStamp: boolean;
-  }[];
-  toReview: {
-    id: string;
-    customer: { id: string; name: string } | null;
-    score: number;
-    comment: string | null;
-    createdAt: string;
-  }[];
-  funnel: {
-    visits: number;
-    feedback: number;
-    openedGoogle: number;
-    linkedReviews: number;
-  };
 }
-
-type Tab = "google" | "feedback";
-type StarFilter = "todas" | "5" | "4" | "3" | "2" | "1";
-type FeedbackFilter = "todos" | "positivos" | "neutros" | "revisar";
 
 export default function ReviewsClient({
   businessName,
 }: {
   businessName: string;
 }) {
-  const isCheckinV2 = useIsCheckinV2();
   const canConnect = useIsOwnerOrAdmin();
 
   const [days, setDays] = useState<number>(30);
-  const [tab, setTab] = useState<Tab>("google");
-  const [starFilter, setStarFilter] = useState<StarFilter>("todas");
-  const [feedbackFilter, setFeedbackFilter] = useState<FeedbackFilter>("todos");
   const [data, setData] = useState<Overview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [savingUrl, setSavingUrl] = useState(false);
@@ -182,19 +124,7 @@ export default function ReviewsClient({
     );
   }
 
-  const { google, summary, funnel } = data;
-
-  const reviews =
-    starFilter === "todas"
-      ? data.reviews
-      : data.reviews.filter((r) => r.stars === Number(starFilter));
-
-  const feedback = data.feedback.filter((f) => {
-    if (feedbackFilter === "positivos") return f.score >= 4;
-    if (feedbackFilter === "neutros") return f.score === 3;
-    if (feedbackFilter === "revisar") return f.score <= 3 && f.comment !== null;
-    return true;
-  });
+  const { google, summary } = data;
 
   return (
     <div className="space-y-7">
@@ -467,346 +397,7 @@ export default function ReviewsClient({
           </section>
         </>
       ) : null}
-
-      {/* ── Tabs Google / Feedback ────────────────────────────────────── */}
-      <div>
-        <div
-          role="tablist"
-          className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1"
-        >
-          <TabButton
-            active={tab === "google"}
-            onClick={() => setTab("google")}
-            label="Reseñas de Google"
-          />
-          <TabButton
-            active={tab === "feedback"}
-            onClick={() => setTab("feedback")}
-            label="Feedback privado"
-          />
-        </div>
-
-        <p className="mt-3 text-sm leading-6 text-[#7F879C]">
-          {tab === "google"
-            ? "Opiniones públicas que aparecen en tu perfil de Google."
-            : "Comentarios privados que tus clientes dejan después de una visita."}
-        </p>
-      </div>
-
-      {/* ── Google ────────────────────────────────────────────────────── */}
-      {tab === "google" ? (
-        <section className="space-y-4">
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-            {(["todas", "5", "4", "3", "2", "1"] as StarFilter[]).map((f) => (
-              <button
-                key={f}
-                type="button"
-                onClick={() => setStarFilter(f)}
-                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-                  starFilter === f
-                    ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#4A56A6]"
-                    : "border-[#E3E5F0] bg-white text-[#7F879C] hover:border-[#5C6BC0]"
-                }`}
-              >
-                {f === "todas" ? "Todas" : `${f} ★`}
-              </button>
-            ))}
-          </div>
-
-          {reviews.length === 0 ? (
-            <Empty>
-              {!google.connected
-                ? "Conectá Google para ver tus reseñas acá."
-                : "Todavía no encontramos reseñas."}
-            </Empty>
-          ) : (
-            // Cards, no tabla: en el celular una tabla de reseñas es ilegible.
-            <ul className="space-y-3">
-              {reviews.map((review) => (
-                <li
-                  key={review.id}
-                  className="rounded-[16px] border border-[#E8EAF0] bg-white px-5 py-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <Stars score={review.stars} />
-                      <span className="text-sm font-semibold text-[#202333]">
-                        {review.author ?? "Cliente de Google"}
-                      </span>
-                    </div>
-                    <span className="text-xs text-[#8891A4]">
-                      {relativeDay(review.postedAt)}
-                    </span>
-                  </div>
-
-                  {review.text ? (
-                    <p className="mt-2 text-sm leading-6 text-[#5F6780]">
-                      {review.text}
-                    </p>
-                  ) : null}
-
-                  <div className="mt-3 flex flex-wrap items-center gap-3">
-                    {/*
-                      Flikker no puede escribir respuestas en Google: las
-                      reseñas se leen, no se contestan desde acá. En vez de
-                      simular un envío que no ocurre, se abre el perfil real
-                      para que el dueño responda donde sí se puede.
-                    */}
-                    {google.profileUrl ? (
-                      <a
-                        href={google.profileUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#5C6BC0] hover:underline"
-                      >
-                        Responder en Google
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    ) : null}
-                    {/*
-                      Asociación temporal, no causalidad: la reseña apareció
-                      después de un mensaje nuestro. No afirmamos haberla
-                      generado.
-                    */}
-                    {review.linkedToFlikkerActivity ? (
-                      <span className="text-xs text-[#8891A4]">
-                        Asociada a actividad de Flikker
-                      </span>
-                    ) : null}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
-
-      {/* ── Feedback privado ──────────────────────────────────────────── */}
-      {tab === "feedback" ? (
-        <section className="space-y-4">
-          <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
-            {(
-              [
-                ["todos", "Todos"],
-                ["positivos", "Positivos"],
-                ["neutros", "Neutros"],
-                ["revisar", "Para revisar"],
-              ] as [FeedbackFilter, string][]
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setFeedbackFilter(key)}
-                className={`shrink-0 rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-                  feedbackFilter === key
-                    ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#4A56A6]"
-                    : "border-[#E3E5F0] bg-white text-[#7F879C] hover:border-[#5C6BC0]"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {feedback.length === 0 ? (
-            <Empty>Tus clientes todavía no dejaron feedback.</Empty>
-          ) : (
-            <ul className="space-y-3">
-              {feedback.map((item) => (
-                <li
-                  key={item.id}
-                  className="rounded-[16px] border border-[#E8EAF0] bg-white px-5 py-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex flex-wrap items-center gap-2.5">
-                      <Stars score={item.score} />
-                      {item.customer ? (
-                        <Link
-                          href={`/dashboard/customers/${item.customer.id}`}
-                          className="text-sm font-semibold text-[#5C6BC0] hover:underline"
-                        >
-                          {item.customer.name}
-                        </Link>
-                      ) : null}
-                    </div>
-                    <span className="text-xs text-[#8891A4]">
-                      {shortDate(item.createdAt)}
-                    </span>
-                  </div>
-
-                  {/* Sin comentario se muestran solo las estrellas. */}
-                  {item.comment ? (
-                    <p className="mt-2 text-sm leading-6 text-[#5F6780]">
-                      “{item.comment}”
-                    </p>
-                  ) : null}
-
-                  {/* El sello es por el feedback, nunca por publicar en Google. */}
-                  {item.gaveBonusStamp ? (
-                    <p className="mt-2 text-xs text-[#8891A4]">
-                      +1 sello otorgado
-                    </p>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
-
-      {/* ── Comentarios para revisar ──────────────────────────────────── */}
-      {isCheckinV2 ? (
-        <section>
-          <SectionTitle>Comentarios para revisar</SectionTitle>
-          {data.toReview.length === 0 ? (
-            <p className="mt-3 rounded-[16px] border border-dashed border-[#DDE1EC] bg-white px-5 py-6 text-center text-sm text-[#8891A4]">
-              Todo al día.
-            </p>
-          ) : (
-            <ul className="mt-3 space-y-2.5">
-              {data.toReview.map((item) => (
-                <li
-                  key={item.id}
-                  className="rounded-[14px] border border-[#FFE0C2] bg-[#FFFBF6] px-5 py-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="flex items-center gap-2.5">
-                      <Stars score={item.score} />
-                      {item.customer ? (
-                        <Link
-                          href={`/dashboard/customers/${item.customer.id}`}
-                          className="text-sm font-semibold text-[#5C6BC0] hover:underline"
-                        >
-                          {item.customer.name}
-                        </Link>
-                      ) : null}
-                    </div>
-                    <span className="text-xs text-[#8891A4]">
-                      {shortDate(item.createdAt)}
-                    </span>
-                  </div>
-                  {item.comment ? (
-                    <p className="mt-2 text-sm leading-6 text-[#5F6780]">
-                      “{item.comment}”
-                    </p>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
-
-      {/* ── Embudo ────────────────────────────────────────────────────── */}
-      {isCheckinV2 && funnel.visits > 0 ? (
-        <section>
-          <SectionTitle>Cómo llegan tus reseñas</SectionTitle>
-          <div className="mt-3 grid gap-2.5 rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:grid-cols-4">
-            <FunnelStep label="Visitas" value={funnel.visits} />
-            <FunnelStep label="Dejaron feedback" value={funnel.feedback} />
-            <FunnelStep label="Abrieron Google" value={funnel.openedGoogle} />
-            <FunnelStep
-              label="Reseñas asociadas"
-              value={funnel.linkedReviews}
-            />
-          </div>
-          {/*
-            La aclaración no es opcional: sin esto "Abrieron Google" y
-            "Reseñas asociadas" se leen como el mismo embudo lineal, y el
-            dueño concluiría que Flikker le generó N reseñas.
-          */}
-          <p className="mt-2 text-xs leading-5 text-[#8891A4]">
-            Abrir Google no significa haber publicado una reseña: Flikker no
-            puede saber si el cliente la dejó. “Reseñas asociadas” son las que
-            aparecieron después de un mensaje nuestro.
-          </p>
-        </section>
-      ) : null}
-
-      {/* ── Conseguí más reseñas ──────────────────────────────────────── */}
-      {isCheckinV2 ? (
-        <section>
-          <SectionTitle>Conseguí más reseñas</SectionTitle>
-          <div className="mt-3 rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:p-6">
-            <p className="max-w-2xl text-sm leading-6 text-[#5F6780]">
-              Después de una visita, Flikker puede pedirle feedback al cliente y
-              ofrecerle compartir su experiencia en Google.
-            </p>
-
-            {/* El orden importa: el sello es por el feedback, y Google es opcional. */}
-            <ol className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-2 text-sm">
-              <Step>Visita</Step>
-              <Arrow />
-              <Step>Feedback</Step>
-              <Arrow />
-              <Step muted>Google (opcional)</Step>
-            </ol>
-            <p className="mt-3 text-xs leading-5 text-[#8891A4]">
-              El sello extra se otorga por completar el feedback, sin importar
-              el puntaje. Nunca por publicar una reseña en Google.
-            </p>
-
-            {/* Un solo acceso: no existe un QR de reseñas aparte. */}
-            <div className="mt-5 rounded-[12px] bg-[#F7F8FC] px-4 py-3.5">
-              <p className="text-sm font-semibold text-[#202333]">
-                Tu QR y NFC de Flikker ya sirven para esto.
-              </p>
-              <Link
-                href="/dashboard/qr"
-                className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-[#5C6BC0] hover:underline"
-              >
-                <QrCode className="h-4 w-4" />
-                Ver mi QR y NFC
-              </Link>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-3 border-t border-[#EFF1F7] pt-4">
-              <Sparkles className="h-4 w-4 shrink-0 text-[#5C6BC0]" />
-              <p className="min-w-0 flex-1 text-sm text-[#5F6780]">
-                ¿Querés poner Flikker en el mostrador? Pedí tu soporte QR + NFC.
-              </p>
-              <a
-                href={`https://wa.me/${FLIKKER_WHATSAPP}?text=${encodeURIComponent(
-                  `Hola, quiero pedir un soporte QR + NFC para ${businessName}.`,
-                )}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flk-glossy-secondary inline-flex h-10 items-center rounded-[10px] border border-[#E3E5F0] bg-white px-4 text-sm font-semibold text-[#5C6BC0] hover:border-[#5C6BC0]"
-              >
-                Pedir soporte
-              </a>
-            </div>
-          </div>
-        </section>
-      ) : null}
-
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      role="tab"
-      aria-selected={active}
-      onClick={onClick}
-      className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-        active
-          ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#4A56A6]"
-          : "border-[#E3E5F0] bg-white text-[#7F879C] hover:border-[#5C6BC0]"
-      }`}
-    >
-      {label}
-    </button>
   );
 }
 
@@ -824,7 +415,8 @@ function Kpi({
       <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
         {label}
       </p>
-      <p className="mt-1.5 font-display text-2xl font-semibold tracking-[-0.02em] text-[#202333]">
+      {/* Montserrat (font-sans), no Syne — pedido explícito para los KPIs. */}
+      <p className="mt-1.5 font-sans text-2xl font-semibold tracking-[-0.02em] text-[#202333]">
         {value}
       </p>
       <p className="mt-1 text-[11px] leading-4 text-[#B0B8C9]">{hint}</p>
@@ -837,52 +429,5 @@ function SectionTitle({ children }: { children: React.ReactNode }) {
     <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8891A4]">
       {children}
     </h2>
-  );
-}
-
-function Empty({ children }: { children: React.ReactNode }) {
-  return (
-    <p className="rounded-[16px] border border-dashed border-[#DDE1EC] bg-white px-5 py-10 text-center text-sm text-[#8891A4]">
-      {children}
-    </p>
-  );
-}
-
-function FunnelStep({ label, value }: { label: string; value: number }) {
-  return (
-    <div>
-      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
-        {label}
-      </p>
-      <p className="mt-1 font-display text-xl font-semibold text-[#202333]">
-        {value}
-      </p>
-    </div>
-  );
-}
-
-function Step({
-  children,
-  muted,
-}: {
-  children: React.ReactNode;
-  muted?: boolean;
-}) {
-  return (
-    <li
-      className={`rounded-full px-3 py-1.5 text-xs font-semibold ${
-        muted ? "bg-[#F3F4F8] text-[#6B7280]" : "bg-[#EEF0FB] text-[#4A56A6]"
-      }`}
-    >
-      {children}
-    </li>
-  );
-}
-
-function Arrow() {
-  return (
-    <li aria-hidden="true" className="text-[#C8D0E0]">
-      →
-    </li>
   );
 }
