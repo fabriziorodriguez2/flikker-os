@@ -458,14 +458,14 @@ export default function QrNfcClient() {
               type="button"
               onClick={() => void createPoint()}
               disabled={creating || newName.trim().length < 2}
-              className="inline-flex h-11 items-center gap-2 rounded-[11px] border border-[#E8EAF0] bg-white px-5 text-sm font-semibold text-[#5C6BC0] transition-colors hover:border-[#5C6BC0] disabled:cursor-not-allowed disabled:opacity-50"
+              className="flk-glossy inline-flex h-11 items-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4F5EB0] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:bg-[#5C6BC0]"
             >
               {creating ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <Plus className="h-4 w-4" />
               )}
-              Agregar punto de acceso
+              Crear nuevo acceso
             </button>
           </div>
         ) : null}

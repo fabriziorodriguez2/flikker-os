@@ -131,7 +131,7 @@ export default function PhysicalSupportNotice({
           <button
             type="button"
             onClick={() => setOrderOpen(true)}
-            className="flk-glossy inline-flex h-11 shrink-0 items-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white shadow-[0_8px_18px_rgba(92,107,192,0.22)] hover:bg-[#4F5EB0]"
+            className="flk-glossy inline-flex h-11 shrink-0 items-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4F5EB0]"
           >
             <ShoppingBag className="h-4 w-4" aria-hidden="true" />
             Pedir soporte físico
