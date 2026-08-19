@@ -2,10 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, UserPlus } from "lucide-react";
-import {
-  RegisterFormFields,
-  Shell,
-} from "@/app/(public)/check-in/[token]/checkin-client";
+import { RegisterScreenContent } from "@/app/(public)/check-in/[token]/checkin-client";
 import type { CheckinLanding } from "@/app/(public)/check-in/[token]/page";
 import { useImagePalette } from "@/lib/use-logo-palette";
 import PhoneFrame from "@/components/ui/phone-frame";
@@ -18,15 +15,11 @@ const MAX_LEN = 160;
  * "Página de inscripción" — la landing pública (`/check-in/[token]`) que ve
  * el cliente al escanear el QR, antes de dejar sus datos.
  *
- * La preview reusa `Shell` y `RegisterFormFields` — los MISMOS componentes
- * que monta la landing real (fondo con gradiente de marca, logo, pie
- * "Powered by Flikker", inputs de nombre/teléfono/fecha) — en vez de una
- * maqueta desconectada. No reusa `RegisterScreen` completo: ese componente
- * decide A DÓNDE mandar el registro (el `token` real); `RegisterFormFields`
- * es solo la parte visual, y sin pasarle `onSubmit` el formulario no tiene
- * ningún request a donde ir — cero riesgo de POST real desde un dueño
- * autenticado editando. El título/subtítulo/botón acá son la MISMA
- * derivación que usa `RegisterScreen` (comentario ahí mismo).
+ * La preview monta `RegisterScreenContent`, exactamente la misma pantalla
+ * visual que usa el check-in real: fondo, logo, copy, campos, enlace y pie.
+ * En el panel se activa su modo `preview`, que vuelve inerte todo el árbol y
+ * además no recibe `onSubmit`; conserva el diseño sin permitir escritura,
+ * clics ni requests reales.
  *
  * Lo único editable es el encabezado (`checkinWelcomeMessage`): auditado
  * antes de construir esto — no hay más copy suelta en esa pantalla, el resto
@@ -89,10 +82,6 @@ export default function ProgramRegistrationSection({
     benefitText: null,
     welcomeMessage: message.trim() || null,
   };
-  const title =
-    previewLanding.welcomeMessage ??
-    `Sumate a ${previewLanding.business.businessName}`;
-
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
@@ -145,19 +134,13 @@ export default function ProgramRegistrationSection({
           Vista previa
         </p>
         <PhoneFrame>
-          <Shell landing={previewLanding} brandOverride={palette} fill={false}>
-            <h1 className="text-center text-2xl font-bold leading-tight text-white">
-              {title}
-            </h1>
-            <p className="mt-3 text-center text-sm text-white/70">
-              Dejanos tu nombre y número para registrar tu visita.
-            </p>
-            <RegisterFormFields
-              benefit={previewLanding.benefit}
-              palette={palette}
-              submitLabel="Registrar mi visita"
-            />
-          </Shell>
+          <RegisterScreenContent
+            landing={previewLanding}
+            palette={palette}
+            fill={false}
+            preview
+            onRecoverInstead={() => undefined}
+          />
         </PhoneFrame>
         <p className="mt-3 text-xs text-[#8891A4]">
           Es el mismo formulario que ve tu cliente — no manda ningún registro

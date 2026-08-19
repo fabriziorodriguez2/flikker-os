@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Gift, Loader2, Plus, Trash2 } from "lucide-react";
+import FlikkerSelect from "@/components/ui/flikker-select";
 import ProgramSectionHeading from "./program-section-heading";
 import {
   BENEFIT_TYPE_LABELS,
@@ -160,38 +161,33 @@ export default function ProgramBenefitsTab({
         {!benefitsEnabled ? (
           <p className="mt-4 rounded-[10px] bg-[#F0F1F6] px-3.5 py-2.5 text-sm text-[#5C6478]">
             Tus clientes no ven el catálogo ahora mismo — nada se borró, podés
-            volver a mostrarlo cuando quieras. Podés seguir editándolo acá
-            abajo mientras está apagado.
+            volver a mostrarlo cuando quieras. Podés seguir editándolo acá abajo
+            mientras está apagado.
           </p>
         ) : null}
 
         {trialExpired ? (
           <p className="mt-4 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-sm text-[#8A520D]">
-            Tu prueba de 30 días terminó — tu catálogo sigue funcionando
-            igual, pero para agregar beneficios nuevos necesitás actualizar
-            tu plan.
+            Tu prueba de 30 días terminó — tu catálogo sigue funcionando igual,
+            pero para agregar beneficios nuevos necesitás actualizar tu plan.
           </p>
         ) : null}
 
         {creating && !trialExpired ? (
           <div className="mt-5 rounded-[12px] border border-[#E8EAF0] bg-[#F9FAFD] p-4">
             <div className="grid gap-3 sm:grid-cols-[160px_1fr]">
-              <label className="block">
+              <div>
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
                   Tipo
                 </span>
-                <select
+                <FlikkerSelect
                   value={type}
-                  onChange={(e) => setType(e.target.value)}
-                  className={inputClass}
-                >
-                  {CREATABLE_BENEFIT_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+                  onChange={setType}
+                  ariaLabel="Tipo de beneficio"
+                  className="mt-1"
+                  options={CREATABLE_BENEFIT_TYPES}
+                />
+              </div>
               <label className="block">
                 <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
                   Nombre
@@ -271,7 +267,9 @@ export default function ProgramBenefitsTab({
                     {canMutate ? (
                       <button
                         type="button"
-                        onClick={() => void run(benefit.id, () => onDelete(benefit.id))}
+                        onClick={() =>
+                          void run(benefit.id, () => onDelete(benefit.id))
+                        }
                         disabled={busy}
                         aria-label={`Eliminar ${benefit.title}`}
                         className="inline-flex h-9 w-9 items-center justify-center rounded-[8px] border border-[#E8EAF0] text-[#8891A4] hover:border-[#C0392B] hover:text-[#C0392B] disabled:opacity-50"
@@ -292,7 +290,11 @@ export default function ProgramBenefitsTab({
                         disabled={!canMutate || busy}
                         onChange={(e) =>
                           void run(benefit.id, () =>
-                            onSetUse(benefit.id, "rewardCard", e.target.checked),
+                            onSetUse(
+                              benefit.id,
+                              "rewardCard",
+                              e.target.checked,
+                            ),
                           )
                         }
                         className="mt-0.5 h-4 w-4 accent-[#5C6BC0]"
@@ -308,7 +310,11 @@ export default function ProgramBenefitsTab({
                         disabled={!canMutate || busy}
                         onChange={(e) =>
                           void run(benefit.id, () =>
-                            onSetUse(benefit.id, "welcomeGift", e.target.checked),
+                            onSetUse(
+                              benefit.id,
+                              "welcomeGift",
+                              e.target.checked,
+                            ),
                           )
                         }
                         className="mt-0.5 h-4 w-4 accent-[#5C6BC0]"

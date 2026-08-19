@@ -2,8 +2,13 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Percent, Plus, Trash2 } from "lucide-react";
+import FlikkerSelect from "@/components/ui/flikker-select";
 import ProgramSectionHeading from "./program-section-heading";
-import { CREATABLE_BENEFIT_TYPES, WEEKDAY_LABELS, type ProgramIncentive } from "./types";
+import {
+  CREATABLE_BENEFIT_TYPES,
+  WEEKDAY_LABELS,
+  type ProgramIncentive,
+} from "./types";
 
 const inputClass =
   "mt-1 w-full rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]";
@@ -138,11 +143,14 @@ export default function ProgramIncentivesSection({
 
   async function toggleActive(incentive: ProgramIncentive) {
     await run(incentive.id, async () => {
-      const res = await fetch(`/api/proxy/retention-v2/incentives/${incentive.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: !incentive.active }),
-      });
+      const res = await fetch(
+        `/api/proxy/retention-v2/incentives/${incentive.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ active: !incentive.active }),
+        },
+      );
       await readJson(res);
     });
   }
@@ -183,8 +191,8 @@ export default function ProgramIncentivesSection({
         {budget?.hasIncentiveBearingVariants && !budget.budgetConfigured ? (
           <p className="mt-3 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-sm text-[#8A520D]">
             Tenés un beneficio autorizado para reactivación sin límite
-            configurado — Flikker no puede entregarlo hasta que definas uno
-            acá abajo.
+            configurado — Flikker no puede entregarlo hasta que definas uno acá
+            abajo.
           </p>
         ) : null}
         <div className="mt-3 flex items-center gap-2">
@@ -207,7 +215,9 @@ export default function ProgramIncentivesSection({
               onClick={() => void saveLimit()}
               className="flk-glossy inline-flex h-10 items-center rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-60"
             >
-              {savingLimit ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              {savingLimit ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : null}
               Guardar
             </button>
           ) : null}
@@ -215,9 +225,8 @@ export default function ProgramIncentivesSection({
         {budget?.maxAutomatedIncentivesPerMonth != null ? (
           <p className="mt-2 text-xs leading-5 text-[#8891A4]">
             Flikker nunca entregará más de{" "}
-            {budget.maxAutomatedIncentivesPerMonth} beneficios automáticos
-            por mes. Los recordatorios sin beneficio no cuentan para este
-            límite.
+            {budget.maxAutomatedIncentivesPerMonth} beneficios automáticos por
+            mes. Los recordatorios sin beneficio no cuentan para este límite.
           </p>
         ) : null}
       </section>
@@ -296,7 +305,11 @@ export default function ProgramIncentivesSection({
                           : "Sin valor numérico"}
                       {incentive.validDays.length > 0
                         ? ` · ${incentive.validDays
-                            .map((d) => WEEKDAY_LABELS.find((w) => w.value === d)?.label)
+                            .map(
+                              (d) =>
+                                WEEKDAY_LABELS.find((w) => w.value === d)
+                                  ?.label,
+                            )
                             .join(", ")}`
                         : ""}
                     </p>
@@ -387,18 +400,18 @@ function IncentiveForm({
             className={inputClass}
           />
         </label>
-        <label className="block">
+        <div>
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
             Tipo
           </span>
-          <select value={type} onChange={(e) => setType(e.target.value)} className={inputClass}>
-            {CREATABLE_BENEFIT_TYPES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <FlikkerSelect
+            value={type}
+            onChange={setType}
+            ariaLabel="Tipo de incentivo"
+            className="mt-1"
+            options={CREATABLE_BENEFIT_TYPES}
+          />
+        </div>
       </div>
 
       <div className="mt-3 grid gap-3 sm:grid-cols-2">

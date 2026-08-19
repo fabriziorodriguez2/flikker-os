@@ -42,8 +42,8 @@ const ICONS: Record<StampIconKey, typeof Gift> = {
 };
 
 /**
- * Tarjeta de sellos. No tiene QR a propósito: los sellos se suman cuando el
- * cliente escanea en el local, así que esto solo comunica progreso.
+ * Grilla de sellos de la tarjeta. El QR y el resto de la composición viven en
+ * `LoyaltyCard`; este componente se ocupa únicamente del progreso visual.
  *
  * Ningún color está fijo acá. Todos salen de `buildLoyaltyCardTheme`, que
  * mide la luminancia del fondo real de la tarjeta y elige el lado legible —
@@ -78,7 +78,7 @@ export default function RewardGoalStamps({
 
   return (
     <div
-      className="grid gap-x-3 gap-y-3.5"
+      className="grid gap-x-2 gap-y-2.5"
       style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       role="img"
       aria-label={`${Math.min(progress, target)} de ${target} sellos`}

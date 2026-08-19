@@ -544,17 +544,18 @@ export default function ProgramDesignTab({
           </section>
         </div>
 
-        <aside className="lg:sticky lg:top-6 lg:self-start">
+        <aside className="lg:sticky lg:top-4 lg:self-start">
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
             Vista previa en vivo
           </p>
           <PhoneFrame>
-            <div className="flex h-full min-h-full items-start bg-[#111318] px-3 pb-6 pt-12">
+            <div className="flex h-full min-h-full items-start bg-white px-3 pb-6 pt-12">
               <div className="w-full">
                 <LoyaltyCard
                   rewardName={rewardName}
                   progress={Math.min(2, stampsRequired)}
                   target={stampsRequired}
+                  qrValue="https://flikker.site"
                   appearance={{
                     cardColor,
                     textColor: textColor || null,

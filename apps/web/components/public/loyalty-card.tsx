@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 import {
   bestContrastOn,
   buildLoyaltyCardTheme,
@@ -33,15 +35,17 @@ export default function LoyaltyCard({
   rewardName,
   progress,
   target,
-  bonusStamps = 0,
+  qrValue,
   appearance,
 }: {
   rewardName: string;
   progress: number;
   target: number;
   bonusStamps?: number;
+  qrValue?: string;
   appearance: LoyaltyCardAppearance;
 }) {
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const theme = buildLoyaltyCardTheme(
     appearance.cardColor,
     appearance.stampColor,
@@ -56,15 +60,29 @@ export default function LoyaltyCard({
     appearance.stampAreaColor,
   );
   const stampAreaText = bestContrastOn(stampAreaColor);
-  const remaining = Math.max(0, target - progress);
-  const pct = Math.min(100, Math.round((progress / Math.max(1, target)) * 100));
-  const progressLabel = bonusStamps
-    ? `${progress} de ${target} · incluye ${bonusStamps} extra`
-    : `${progress} de ${target} sellos`;
+  const qrContent = qrValue ?? "https://flikker.site";
+
+  useEffect(() => {
+    let cancelled = false;
+    const value = qrContent.startsWith("/")
+      ? `${window.location.origin}${qrContent}`
+      : qrContent;
+    void QRCode.toDataURL(value, {
+      width: 240,
+      margin: 1,
+      errorCorrectionLevel: "M",
+      color: { dark: "#111318", light: "#FFFFFF" },
+    }).then((dataUrl) => {
+      if (!cancelled) setQrDataUrl(dataUrl);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [qrContent]);
 
   return (
     <div
-      className="relative flex aspect-[3/5] min-h-[440px] w-full flex-col overflow-hidden rounded-[22px] shadow-[0_18px_42px_rgba(4,8,22,0.28)]"
+      className="relative w-full overflow-hidden rounded-[20px] shadow-[0_14px_32px_rgba(4,8,22,0.22)]"
       style={{ backgroundColor: theme.card, color: textColor }}
     >
       {appearance.backgroundImage ? (
@@ -77,18 +95,18 @@ export default function LoyaltyCard({
         />
       ) : null}
 
-      <header className="relative z-[1] flex min-h-[92px] items-center justify-between gap-4 px-5 py-4">
-        <div className="flex min-w-0 items-center gap-3">
+      <header className="relative z-[1] flex min-h-[68px] items-center justify-between gap-3 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2.5">
           {appearance.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={appearance.logoUrl}
               alt=""
-              className="h-12 w-16 shrink-0 object-contain object-left"
+              className="h-10 w-14 shrink-0 object-contain object-left"
             />
           ) : (
             <span
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border text-sm font-black uppercase"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-xs font-black uppercase"
               style={{ borderColor: `${textColor}66` }}
               aria-hidden="true"
             >
@@ -96,7 +114,7 @@ export default function LoyaltyCard({
             </span>
           )}
           {appearance.showBusinessName !== false ? (
-            <p className="truncate text-[15px] font-extrabold leading-tight">
+            <p className="truncate text-sm font-extrabold leading-tight">
               {appearance.businessName ?? "Tu negocio"}
             </p>
           ) : null}
@@ -105,7 +123,7 @@ export default function LoyaltyCard({
           <p className="text-[9px] font-bold uppercase tracking-[0.16em] opacity-65">
             Sellos
           </p>
-          <p className="mt-0.5 text-[23px] font-black leading-none">
+          <p className="mt-0.5 text-xl font-black leading-none">
             {Math.min(progress, target)}
             <span className="text-[11px] font-bold opacity-65">/{target}</span>
           </p>
@@ -113,7 +131,7 @@ export default function LoyaltyCard({
       </header>
 
       <div
-        className="relative z-[1] shrink-0 px-4 py-5"
+        className="relative z-[1] px-4 py-3.5"
         style={{ backgroundColor: stampAreaColor, color: stampAreaText }}
       >
         <RewardGoalStamps
@@ -126,47 +144,27 @@ export default function LoyaltyCard({
         />
       </div>
 
-      <div className="relative z-[1] flex flex-1 flex-col px-5 pb-5 pt-5">
-        <p className="text-[9px] font-bold uppercase tracking-[0.16em] opacity-65">
-          Tu premio
-        </p>
-        <p className="mt-1 text-[22px] font-extrabold leading-[1.08]">
-          {rewardName}
-        </p>
+      <div className="relative z-[1] flex min-h-[112px] items-center justify-between gap-4 px-4 py-3.5">
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-bold uppercase tracking-[0.16em] opacity-65">
+            Tu premio
+          </p>
+          <p className="mt-1 text-[19px] font-extrabold leading-[1.08]">
+            {rewardName}
+          </p>
+        </div>
 
-        <div
-          className="mt-auto rounded-[15px] border px-4 py-3"
-          style={{
-            borderColor: `${textColor}33`,
-            backgroundColor: `${textColor}0D`,
-          }}
-        >
-          <div className="flex items-end justify-between gap-3">
-            <div>
-              <p className="text-[9px] font-bold uppercase tracking-[0.14em] opacity-60">
-                Estado
-              </p>
-              <p className="mt-1 text-xs font-bold">
-                {remaining === 0
-                  ? "Recompensa desbloqueada"
-                  : remaining === 1
-                    ? "Falta 1 visita"
-                    : `Faltan ${remaining} visitas`}
-              </p>
-            </div>
-            <p className="text-right text-[11px] font-semibold opacity-70">
-              {progressLabel}
-            </p>
-          </div>
-          <div
-            className="mt-3 h-1.5 w-full overflow-hidden rounded-full"
-            style={{ backgroundColor: theme.track }}
-          >
-            <div
-              className="h-full rounded-full transition-all"
-              style={{ width: `${pct}%`, backgroundColor: theme.accent }}
+        <div className="shrink-0 rounded-[12px] bg-white p-1.5 shadow-[0_8px_20px_rgba(4,8,22,0.16)]">
+          {qrDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={qrDataUrl}
+              alt="QR de acceso al programa"
+              className="h-20 w-20"
             />
-          </div>
+          ) : (
+            <div className="h-20 w-20 animate-pulse rounded-[7px] bg-[#F0F1F5]" />
+          )}
         </div>
       </div>
     </div>
