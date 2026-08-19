@@ -206,7 +206,7 @@ export default function MiFlikkerClient({
           para empezar.
         </p>
       ) : (
-        <div ref={walletRef} className="mi-wallet mt-7 w-full pb-16">
+        <div ref={walletRef} className="mi-wallet mt-12 w-full pb-16">
           {places.map((place, index) => (
             <PlaceCard key={place.businessId} place={place} index={index} />
           ))}
