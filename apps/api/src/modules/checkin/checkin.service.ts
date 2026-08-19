@@ -45,8 +45,12 @@ type BusinessForCheckin = Pick<
   | 'checkinReviewPromptEveryDays'
   | 'experienceVersion'
   | 'loyaltyCardColor'
+  | 'loyaltyCardTextColor'
+  | 'loyaltyCardBackgroundImage'
+  | 'loyaltyStampAreaColor'
   | 'loyaltyStampColor'
   | 'loyaltyStampIcon'
+  | 'loyaltyShowBusinessName'
   | 'checkinWelcomeMessage'
 >;
 
@@ -510,8 +514,12 @@ export class CheckinService {
         checkinReviewPromptEveryDays: true,
         experienceVersion: true,
         loyaltyCardColor: true,
+        loyaltyCardTextColor: true,
+        loyaltyCardBackgroundImage: true,
+        loyaltyStampAreaColor: true,
         loyaltyStampColor: true,
         loyaltyStampIcon: true,
+        loyaltyShowBusinessName: true,
         checkinWelcomeMessage: true,
       },
     });
@@ -693,8 +701,12 @@ export class CheckinService {
       // Apariencia de la tarjeta de sellos. Null = usar la marca del
       // negocio, que es el comportamiento previo a Programa → Diseño.
       loyaltyCardColor: business.loyaltyCardColor ?? null,
+      loyaltyCardTextColor: business.loyaltyCardTextColor ?? null,
+      loyaltyCardBackgroundImage: business.loyaltyCardBackgroundImage ?? null,
+      loyaltyStampAreaColor: business.loyaltyStampAreaColor ?? null,
       loyaltyStampColor: business.loyaltyStampColor ?? null,
       loyaltyStampIcon: business.loyaltyStampIcon ?? null,
+      loyaltyShowBusinessName: business.loyaltyShowBusinessName,
     };
   }
 }

@@ -13,8 +13,12 @@ interface MyFlikkerPlace {
   logoUrl: string | null;
   /** Apariencia de la tarjeta. Null = usar la marca del negocio. */
   loyaltyCardColor?: string | null;
+  loyaltyCardTextColor?: string | null;
+  loyaltyCardBackgroundImage?: string | null;
+  loyaltyStampAreaColor?: string | null;
   loyaltyStampColor?: string | null;
   loyaltyStampIcon?: string | null;
+  loyaltyShowBusinessName?: boolean;
   primaryColor: string | null;
   visitsTotal: number;
   lastVisitAt: string | null;
@@ -26,7 +30,11 @@ interface MyFlikkerPlace {
     targetAdditionalVisits: number;
     remainingVisits: number;
   } | null;
-  benefitAvailable: { name: string; code: string; expiresAt: string | null } | null;
+  benefitAvailable: {
+    name: string;
+    code: string;
+    expiresAt: string | null;
+  } | null;
 }
 
 /**
@@ -34,11 +42,15 @@ interface MyFlikkerPlace {
  * current goal/progress, unlocked benefit. Never segment, assignment,
  * experiment or uplift; those never leave the business dashboard.
  */
-export default function PlaceDetailClient({ businessId }: { businessId: string }) {
+export default function PlaceDetailClient({
+  businessId,
+}: {
+  businessId: string;
+}) {
   const [place, setPlace] = useState<MyFlikkerPlace | null>(null);
-  const [status, setStatus] = useState<"loading" | "ok" | "error" | "unauthorized">(
-    "loading",
-  );
+  const [status, setStatus] = useState<
+    "loading" | "ok" | "error" | "unauthorized"
+  >("loading");
   const palette = useLogoPalette(
     place?.businessId ?? businessId,
     place?.logoUrl ?? null,
@@ -113,7 +125,9 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
 
       <section
         className="mi-coupon relative overflow-hidden rounded-[28px] p-6 text-white shadow-[0_10px_22px_rgba(20,24,40,0.14)]"
-        style={{ background: `linear-gradient(140deg, ${brand} 0%, ${palette.secondary} 115%)` }}
+        style={{
+          background: `linear-gradient(140deg, ${brand} 0%, ${palette.secondary} 115%)`,
+        }}
       >
         {place.logoUrl ? (
           <span
@@ -154,7 +168,9 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
           aria-label={`${place.visitsTotal} ${place.visitsTotal === 1 ? "visita" : "visitas"}`}
         >
           <Footprints className="h-6 w-6 text-white/75" aria-hidden="true" />
-          <span className="text-[30px] font-bold leading-none">{place.visitsTotal}</span>
+          <span className="text-[30px] font-bold leading-none">
+            {place.visitsTotal}
+          </span>
         </div>
 
         {place.rewardGoal ? (
@@ -166,6 +182,7 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
               progress={place.rewardGoal.progressVisits}
               target={place.rewardGoal.targetAdditionalVisits}
               cardColor={place.loyaltyCardColor ?? brand}
+              stampAreaColor={place.loyaltyStampAreaColor}
               stampColor={place.loyaltyStampColor}
               icon={place.loyaltyStampIcon}
             />
@@ -175,7 +192,8 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
                 {place.rewardGoal.remainingVisits === 1 ? "visita" : "visitas"}
               </span>
               <span>
-                {place.rewardGoal.progressVisits}/{place.rewardGoal.targetAdditionalVisits} sellos
+                {place.rewardGoal.progressVisits}/
+                {place.rewardGoal.targetAdditionalVisits} sellos
               </span>
             </div>
           </div>
@@ -190,12 +208,21 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
         </p>
       ) : (
         <section className="mt-5 rounded-[28px] bg-white/80 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: `color-mix(in srgb, ${brand} 12%, white)`, color: brand }}>
+          <span
+            className="flex h-11 w-11 items-center justify-center rounded-full"
+            style={{
+              backgroundColor: `color-mix(in srgb, ${brand} 12%, white)`,
+              color: brand,
+            }}
+          >
             <Gift className="h-5 w-5" aria-hidden="true" />
           </span>
-          <h2 className="mt-4 text-xl font-bold text-[#202333]">Próximo premio en camino</h2>
+          <h2 className="mt-4 text-xl font-bold text-[#202333]">
+            Próximo premio en camino
+          </h2>
           <p className="mt-2 text-sm leading-6 text-[#7B8295]">
-            Todavía no hay una recompensa activa. Escaneá el QR en tu próxima visita para descubrir novedades.
+            Todavía no hay una recompensa activa. Escaneá el QR en tu próxima
+            visita para descubrir novedades.
           </p>
         </section>
       )}
@@ -304,7 +331,13 @@ function GiftReveal({
   );
 }
 
-function Shell({ children, brand = "#5C6BC0" }: { children: React.ReactNode; brand?: string }) {
+function Shell({
+  children,
+  brand = "#5C6BC0",
+}: {
+  children: React.ReactNode;
+  brand?: string;
+}) {
   return (
     <div
       className="flex min-h-screen flex-col items-center bg-[#F5F6FB] px-5 py-8"

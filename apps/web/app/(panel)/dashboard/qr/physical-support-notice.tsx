@@ -9,7 +9,6 @@ import {
   Palette,
   Plus,
   QrCode,
-  ShoppingBag,
   X,
 } from "lucide-react";
 
@@ -128,14 +127,17 @@ export default function PhysicalSupportNotice({
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setOrderOpen(true)}
-            className="flk-glossy inline-flex h-11 shrink-0 items-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4F5EB0]"
-          >
-            <ShoppingBag className="h-4 w-4" aria-hidden="true" />
-            Pedir soporte físico
-          </button>
+          <div className="flex shrink-0 flex-col items-center gap-2">
+            <WhatsAppBadge />
+            <button
+              type="button"
+              onClick={() => setOrderOpen(true)}
+              className="flk-glossy inline-flex h-11 items-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4F5EB0]"
+            >
+              <WhatsAppIcon className="h-4 w-4" />
+              Pedir por WhatsApp
+            </button>
+          </div>
         </div>
       </aside>
 
@@ -154,9 +156,12 @@ export default function PhysicalSupportNotice({
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5C6BC0]">
-                  Soporte QR + NFC
-                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[#5C6BC0]">
+                    Soporte QR + NFC
+                  </p>
+                  <WhatsAppBadge />
+                </div>
                 <h2
                   id="physical-support-title"
                   className="mt-1 font-display text-xl font-semibold text-[#202333]"
@@ -245,13 +250,41 @@ export default function PhysicalSupportNotice({
                 rel="noopener noreferrer"
                 className="flk-glossy inline-flex h-11 items-center justify-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4F5EB0]"
               >
-                Continuar por WhatsApp
+                <WhatsAppIcon className="h-4 w-4" />
+                Pedir por WhatsApp
               </a>
             </div>
           </section>
         </div>
       ) : null}
     </>
+  );
+}
+
+function WhatsAppBadge() {
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E7F7ED] px-2.5 py-1 text-[10px] font-bold text-[#147A5B] ring-1 ring-inset ring-[#25D366]/20">
+      <WhatsAppIcon className="h-3.5 w-3.5" />
+      Se coordina por WhatsApp
+    </span>
+  );
+}
+
+function WhatsAppIcon({ className }: { className: string }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      aria-hidden="true"
+      className={`${className} shrink-0`}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M20.5 11.6a8.5 8.5 0 0 1-12.6 7.5L3.5 20.5l1.4-4.3a8.5 8.5 0 1 1 15.6-4.6Z" />
+      <path d="M8.2 7.9c.2-.4.4-.4.7-.4h.5c.2 0 .4.1.5.4l.8 1.8c.1.3 0 .5-.2.7l-.6.7c-.2.2-.1.4 0 .6.6 1.1 1.5 1.9 2.6 2.5.2.1.4.1.6-.1l.8-1c.2-.2.4-.3.7-.2l1.8.9c.3.1.4.3.4.6 0 .4-.2 1.3-.8 1.8-.6.5-1.4.8-2.4.6-1-.2-2.3-.7-3.9-2.1-1.3-1.1-2.4-2.6-2.8-3.8-.4-1.2 0-2.3.4-2.8l.9-.2Z" />
+    </svg>
   );
 }
 

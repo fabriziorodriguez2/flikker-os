@@ -9,8 +9,12 @@ export interface MyFlikkerPlace {
   logoUrl: string | null;
   primaryColor: string | null;
   loyaltyCardColor: string | null;
+  loyaltyCardTextColor: string | null;
+  loyaltyCardBackgroundImage: string | null;
+  loyaltyStampAreaColor: string | null;
   loyaltyStampColor: string | null;
   loyaltyStampIcon: string | null;
+  loyaltyShowBusinessName: boolean;
   visitsTotal: number;
   lastVisitAt: string | null;
   rewardGoal: {
@@ -59,8 +63,12 @@ export class MyFlikkerService {
             logoUrl: true,
             primaryColor: true,
             loyaltyCardColor: true,
+            loyaltyCardTextColor: true,
+            loyaltyCardBackgroundImage: true,
+            loyaltyStampAreaColor: true,
             loyaltyStampColor: true,
             loyaltyStampIcon: true,
+            loyaltyShowBusinessName: true,
           },
         },
       },
@@ -90,8 +98,12 @@ export class MyFlikkerService {
             logoUrl: true,
             primaryColor: true,
             loyaltyCardColor: true,
+            loyaltyCardTextColor: true,
+            loyaltyCardBackgroundImage: true,
+            loyaltyStampAreaColor: true,
             loyaltyStampColor: true,
             loyaltyStampIcon: true,
+            loyaltyShowBusinessName: true,
           },
         },
       },
@@ -116,8 +128,12 @@ export class MyFlikkerService {
       logoUrl: string | null;
       primaryColor: string | null;
       loyaltyCardColor: string | null;
+      loyaltyCardTextColor: string | null;
+      loyaltyCardBackgroundImage: string | null;
+      loyaltyStampAreaColor: string | null;
       loyaltyStampColor: string | null;
       loyaltyStampIcon: string | null;
+      loyaltyShowBusinessName: boolean;
     },
   ): Promise<MyFlikkerPlace> {
     const [visitsTotal, lastVisit, rewardView, unclaimedBenefit] =
@@ -157,8 +173,12 @@ export class MyFlikkerService {
       logoUrl: business.logoUrl,
       primaryColor: business.primaryColor,
       loyaltyCardColor: business.loyaltyCardColor,
+      loyaltyCardTextColor: business.loyaltyCardTextColor,
+      loyaltyCardBackgroundImage: business.loyaltyCardBackgroundImage,
+      loyaltyStampAreaColor: business.loyaltyStampAreaColor,
       loyaltyStampColor: business.loyaltyStampColor,
       loyaltyStampIcon: business.loyaltyStampIcon,
+      loyaltyShowBusinessName: business.loyaltyShowBusinessName,
       visitsTotal,
       lastVisitAt: lastVisit?.occurredAt.toISOString() ?? null,
       rewardGoal: rewardView.goal,

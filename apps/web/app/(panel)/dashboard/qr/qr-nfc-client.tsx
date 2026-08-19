@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Check,
   Copy,
@@ -66,6 +66,8 @@ export default function QrNfcClient() {
 
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newNameError, setNewNameError] = useState(false);
+  const newNameInputRef = useRef<HTMLInputElement>(null);
   const [repairing, setRepairing] = useState(false);
 
   const load = useCallback(async () => {
@@ -190,7 +192,12 @@ export default function QrNfcClient() {
 
   async function createPoint() {
     const name = newName.trim();
-    if (name.length < 2) return;
+    if (name.length < 2) {
+      setNewNameError(true);
+      newNameInputRef.current?.focus();
+      return;
+    }
+    setNewNameError(false);
     setCreating(true);
     setActionError(null);
     try {
@@ -442,31 +449,63 @@ export default function QrNfcClient() {
         )}
 
         {canManage ? (
-          <div className="mt-4 flex flex-wrap items-center gap-2.5">
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void createPoint();
-              }}
-              placeholder="Terraza"
-              maxLength={60}
-              aria-label="Nombre del punto de acceso"
-              className="h-11 w-full max-w-[240px] rounded-[11px] border border-[#E8EAF0] bg-white px-4 text-sm text-[#202333] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
-            />
-            <button
-              type="button"
-              onClick={() => void createPoint()}
-              disabled={creating || newName.trim().length < 2}
-              className="flk-glossy inline-flex h-11 items-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4F5EB0] disabled:cursor-not-allowed disabled:opacity-55 disabled:hover:bg-[#5C6BC0]"
-            >
-              {creating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-              Crear nuevo acceso
-            </button>
+          <div className="mt-5 rounded-[16px] border border-[#C9D0F4] bg-[#F8F8FF] p-4 sm:p-5">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E7EAFE] text-[#4F5EB0]">
+                <Plus className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-sm font-bold text-[#171B35]">
+                  Agregar otro punto de acceso
+                </p>
+                <p className="mt-0.5 text-sm text-[#707993]">
+                  Creá un QR diferente para cada sector, mesa o caja.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-start">
+              <div className="w-full sm:max-w-[300px]">
+                <input
+                  ref={newNameInputRef}
+                  value={newName}
+                  onChange={(e) => {
+                    setNewName(e.target.value);
+                    if (newNameError) setNewNameError(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void createPoint();
+                  }}
+                  placeholder="Ej: Terraza, Caja o Mesa 1"
+                  maxLength={60}
+                  aria-label="Nombre del punto de acceso"
+                  aria-invalid={newNameError}
+                  className={`h-12 w-full rounded-[11px] border bg-white px-4 text-sm text-[#202333] outline-none placeholder:text-[#A8B0C2] focus:ring-4 focus:ring-[#5C6BC0]/10 ${
+                    newNameError
+                      ? "border-[#D84A4A]"
+                      : "border-[#C9CEE1] focus:border-[#5C6BC0]"
+                  }`}
+                />
+                {newNameError ? (
+                  <p className="mt-1.5 text-xs font-medium text-[#C23D3D]">
+                    Escribí un nombre para crear el acceso.
+                  </p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => void createPoint()}
+                disabled={creating}
+                className="flk-glossy inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[11px] bg-[#5C6BC0] px-6 text-sm font-bold text-white hover:bg-[#4F5EB0] disabled:cursor-wait disabled:opacity-70"
+              >
+                {creating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                Crear acceso
+              </button>
+            </div>
           </div>
         ) : null}
       </section>

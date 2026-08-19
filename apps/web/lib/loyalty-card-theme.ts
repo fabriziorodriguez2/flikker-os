@@ -12,12 +12,12 @@
  * mientras configura es literalmente el mismo cálculo que verá su cliente.
  */
 
-export const DEFAULT_CARD_COLOR = '#5C6BC0';
+export const DEFAULT_CARD_COLOR = "#5C6BC0";
 
 /** Blanco y tinta base. No son "el color del sello": son los dos extremos
  *  entre los que el contraste elige. */
-const LIGHT = '#FFFFFF';
-const DARK = '#171A2B';
+const LIGHT = "#FFFFFF";
+const DARK = "#171A2B";
 
 export interface LoyaltyCardTheme {
   /** Fondo de la tarjeta. */
@@ -42,7 +42,7 @@ export interface LoyaltyCardTheme {
   isDarkCard: boolean;
 }
 
-function normalizeHex(hex: string | null | undefined): string | null {
+export function normalizeHex(hex: string | null | undefined): string | null {
   if (!hex) return null;
   const value = hex.trim();
   if (/^#[0-9A-Fa-f]{6}$/.test(value)) return value.toUpperCase();
@@ -117,7 +117,9 @@ export function buildLoyaltyCardTheme(
   // 3:1 es el mínimo WCAG para elementos gráficos no textuales — que es
   // exactamente lo que es un sello.
   const accent =
-    requested && contrastRatio(requested, card) >= 3 ? requested : fallbackAccent;
+    requested && contrastRatio(requested, card) >= 3
+      ? requested
+      : fallbackAccent;
 
   return {
     card,
@@ -137,14 +139,24 @@ export function buildLoyaltyCardTheme(
 
 /** Íconos disponibles para el sello. La clave se guarda en `loyaltyStampIcon`. */
 export const STAMP_ICONS = [
-  { key: 'gift', label: 'Regalo' },
-  { key: 'star', label: 'Estrella' },
-  { key: 'coffee', label: 'Café' },
-  { key: 'heart', label: 'Corazón' },
-  { key: 'check', label: 'Tilde' },
+  { key: "gift", label: "Regalo" },
+  { key: "star", label: "Estrella" },
+  { key: "coffee", label: "Café" },
+  { key: "heart", label: "Corazón" },
+  { key: "check", label: "Tilde" },
+  { key: "sparkles", label: "Brillos" },
+  { key: "flame", label: "Fuego" },
+  { key: "leaf", label: "Hoja" },
+  { key: "wine", label: "Copa" },
+  { key: "scissors", label: "Tijera" },
+  { key: "bag", label: "Bolsa" },
+  { key: "utensils", label: "Comida" },
+  { key: "zap", label: "Rayo" },
+  { key: "tag", label: "Etiqueta" },
+  { key: "crown", label: "Corona" },
 ] as const;
 
-export type StampIconKey = (typeof STAMP_ICONS)[number]['key'];
+export type StampIconKey = (typeof STAMP_ICONS)[number]["key"];
 
 export function isStampIconKey(value: unknown): value is StampIconKey {
   return STAMP_ICONS.some((icon) => icon.key === value);

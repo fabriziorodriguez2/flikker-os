@@ -127,113 +127,54 @@ textarea {
     opacity 160ms ease;
 }
 
-/*
- * Selects personalizables, aplicados de forma global para que todos los
- * dropdowns conserven el mismo lenguaje visual. En navegadores sin soporte
- * para `base-select` el control nativo sigue funcionando como fallback.
- */
+/* Stable select treatment shared by every dropdown in the app. */
 select {
+  -webkit-appearance: none;
+  appearance: none;
   font-family: var(--font-montserrat), sans-serif;
   color-scheme: light;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237F879C' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px 16px;
+  padding-right: 42px !important;
 }
 
-@supports (appearance: base-select) {
-  select,
-  select::picker(select) {
-    appearance: base-select;
-  }
+select:hover:not(:disabled) {
+  border-color: rgba(92, 107, 192, 0.7);
+}
 
-  select {
-    cursor: pointer;
-  }
+select:focus,
+select:focus-visible {
+  border-color: #5c6bc0;
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(92, 107, 192, 0.1),
+    0 0 10px rgba(92, 107, 192, 0.05);
+}
 
-  select::picker-icon {
-    color: #7f879c;
-    transition: rotate 160ms ease;
-  }
+select:disabled {
+  cursor: not-allowed;
+  background-color: var(--surface-muted);
+  opacity: 0.65;
+}
 
-  select:open::picker-icon {
-    rotate: 180deg;
-  }
+select option {
+  background: #ffffff;
+  color: #1a202c;
+  font-family: var(--font-montserrat), sans-serif;
+  font-size: 0.875rem;
+}
 
-  select::picker(select) {
-    max-height: min(20rem, 50vh);
-    margin-top: 6px;
-    padding: 6px;
-    overflow-y: auto;
-    border: 1px solid var(--border-strong);
-    border-radius: 12px;
-    background: var(--surface);
-    color: var(--foreground);
-    box-shadow:
-      0 18px 42px rgba(17, 22, 59, 0.14),
-      0 4px 12px rgba(17, 22, 59, 0.08);
-    opacity: 0;
-    transform: translateY(-4px) scale(0.985);
-    transform-origin: top center;
-    transition:
-      opacity 140ms ease,
-      transform 140ms ease,
-      display 140ms allow-discrete,
-      overlay 140ms allow-discrete;
-  }
+:root[data-theme="dark"] select {
+  color-scheme: dark;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23AEB5C7' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+}
 
-  select:open::picker(select) {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-
-  @starting-style {
-    select:open::picker(select) {
-      opacity: 0;
-      transform: translateY(-4px) scale(0.985);
-    }
-  }
-
-  select option {
-    min-height: 38px;
-    padding: 9px 11px;
-    border: 0;
-    border-radius: 8px;
-    background: transparent;
-    color: var(--foreground);
-    font-size: 0.875rem;
-    line-height: 1.25rem;
-    cursor: pointer;
-    transition:
-      color 120ms ease,
-      background-color 120ms ease;
-  }
-
-  select option + option {
-    margin-top: 2px;
-  }
-
-  select option:hover,
-  select option:focus {
-    background: var(--surface-muted);
-  }
-
-  select option:checked {
-    background: var(--brand-soft);
-    color: var(--brand-primary);
-    font-weight: 600;
-  }
-
-  select option:disabled {
-    color: var(--text-soft);
-    cursor: not-allowed;
-  }
-
-  select option::checkmark {
-    order: 1;
-    margin-left: auto;
-    color: var(--brand-primary);
-  }
-
-  select:disabled {
-    cursor: not-allowed;
-  }
+:root[data-theme="dark"] select option {
+  background: #151a2c;
+  color: #f5f6fb;
 }
 
 ::selection {

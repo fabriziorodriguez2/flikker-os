@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsString,
   IsOptional,
   IsUrl,
@@ -74,12 +75,7 @@ export class UpdateBrandProfileDto {
   })
   qrA4BgColor?: string;
 
-  /**
-   * Programa → Diseño de tarjeta. Los colores de RELLENO/BORDE de cada sello
-   * no se guardan: se derivan por contraste desde `loyaltyCardColor` en el
-   * cliente (`lib/loyalty-card-theme.ts`), así el dueño no puede dejar una
-   * tarjeta con sellos ilegibles sobre su propio fondo.
-   */
+  /** Programa → Diseño de tarjeta. El cliente valida contraste al renderizar. */
   @IsOptional()
   @IsString()
   @MaxLength(7)
@@ -92,14 +88,39 @@ export class UpdateBrandProfileDto {
   @IsString()
   @MaxLength(7)
   @Matches(/^#[0-9A-Fa-f]{6}$/, {
+    message: 'loyaltyCardTextColor must be a hex color (e.g. #FFFFFF)',
+  })
+  loyaltyCardTextColor?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(3000000)
+  loyaltyCardBackgroundImage?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(7)
+  @Matches(/^#[0-9A-Fa-f]{6}$/, {
+    message: 'loyaltyStampAreaColor must be a hex color (e.g. #4285F4)',
+  })
+  loyaltyStampAreaColor?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(7)
+  @Matches(/^#[0-9A-Fa-f]{6}$/, {
     message: 'loyaltyStampColor must be a hex color (e.g. #FFAB76)',
   })
   loyaltyStampColor?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(24)
+  @MaxLength(500000)
   loyaltyStampIcon?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  loyaltyShowBusinessName?: boolean;
 
   /**
    * Programa → Página de inscripción. Encabezado propio de la landing

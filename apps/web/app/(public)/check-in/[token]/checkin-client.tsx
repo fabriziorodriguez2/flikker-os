@@ -68,9 +68,10 @@ async function postJson(url: string, body?: unknown): Promise<JsonResult> {
       headers: { "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
     });
-    const data = (await res
-      .json()
-      .catch(() => null)) as Record<string, unknown> | null;
+    const data = (await res.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null;
     return { ok: res.ok, status: res.status, data };
   } catch {
     return { ok: false, status: 0, data: null };
@@ -111,9 +112,7 @@ export default function CheckinClient({
       if (!active) return;
       if (result.ok && result.data) {
         setPersonal(result.data.personal as PersonalSpace);
-        setCheckinStatus(
-          (result.data.status as CheckinStatus) ?? "checked_in",
-        );
+        setCheckinStatus((result.data.status as CheckinStatus) ?? "checked_in");
         setMode("personal");
       } else {
         setMode("register");
@@ -328,7 +327,9 @@ export function RegisterFormFields({
             // de limpiarlo, perdiendo dígitos reales. `normalizeUruguayNationalPhone`
             // ya limpia y recorta el prefijo "598"/"0" ANTES de recortar a 9
             // — mismo helper que ya usa PhoneInput en onboarding.
-            onChange={(e) => setPhone(normalizeUruguayNationalPhone(e.target.value))}
+            onChange={(e) =>
+              setPhone(normalizeUruguayNationalPhone(e.target.value))
+            }
             placeholder="91624988"
             required
             className="w-full bg-transparent py-4 pl-3 pr-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:outline-none"
@@ -579,7 +580,9 @@ function RecoverScreen({
                 type="tel"
                 inputMode="numeric"
                 value={phone}
-                onChange={(e) => setPhone(normalizeUruguayNationalPhone(e.target.value))}
+                onChange={(e) =>
+                  setPhone(normalizeUruguayNationalPhone(e.target.value))
+                }
                 placeholder="91624988"
                 className="w-full bg-transparent py-4 pl-3 pr-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:outline-none"
               />
@@ -589,25 +592,26 @@ function RecoverScreen({
               disabled={busy || phone.length < 8}
               onClick={() => void sendCode(phone)}
               className="w-full rounded-2xl py-4 text-base font-bold shadow-[0_10px_24px_rgba(12,16,30,0.2)] transition-opacity disabled:opacity-45"
-              style={{ backgroundColor: palette.accent, color: palette.accentText }}
+              style={{
+                backgroundColor: palette.accent,
+                color: palette.accentText,
+              }}
             >
               {busy ? "Enviando…" : "Enviar código"}
             </button>
           </>
         ) : (
           <>
-            <OtpInput
-              value={code}
-              onChange={setCode}
-              tone="dark"
-              autoFocus
-            />
+            <OtpInput value={code} onChange={setCode} tone="dark" autoFocus />
             <button
               type="button"
               disabled={busy || code.length !== 6}
               onClick={() => void verify()}
               className="w-full rounded-2xl py-4 text-base font-bold shadow-[0_10px_24px_rgba(12,16,30,0.2)] transition-opacity disabled:opacity-45"
-              style={{ backgroundColor: palette.accent, color: palette.accentText }}
+              style={{
+                backgroundColor: palette.accent,
+                color: palette.accentText,
+              }}
             >
               {busy ? "Verificando…" : "Confirmar"}
             </button>
@@ -899,14 +903,13 @@ function PersonalScreen({
     });
   }
 
-  const firstName = personal.customer.name.split(" ")[0] || personal.customer.name;
+  const firstName =
+    personal.customer.name.split(" ")[0] || personal.customer.name;
 
   return (
     <Shell landing={landing} brandOverride={palette}>
       <div className="flex w-full max-w-md flex-col items-center">
-        <div
-          className="checkin-success-pop mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/14 text-white"
-        >
+        <div className="checkin-success-pop mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/14 text-white">
           <CheckCircle2 className="h-6 w-6" />
         </div>
         <h1 className="checkin-enter text-center text-[28px] font-bold tracking-[-0.035em] text-white">
@@ -937,9 +940,11 @@ function PersonalScreen({
                   <Footprints className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div>
-                    <p className="text-sm font-bold text-[#24283A]">¡Seguís sumando!</p>
+                  <p className="text-sm font-bold text-[#24283A]">
+                    ¡Seguís sumando!
+                  </p>
                   <p className="mt-0.5 text-xs text-[#8A91A3]">
-                      Cada visita te acerca a algo lindo
+                    Cada visita te acerca a algo lindo
                   </p>
                 </div>
               </div>
@@ -1135,10 +1140,14 @@ function RewardGoalCard({
           bonusStamps={bonusStamps ?? 0}
           appearance={{
             cardColor: landing.business.loyaltyCardColor ?? brand,
+            textColor: landing.business.loyaltyCardTextColor,
+            backgroundImage: landing.business.loyaltyCardBackgroundImage,
+            stampAreaColor: landing.business.loyaltyStampAreaColor,
             stampColor: landing.business.loyaltyStampColor,
             stampIcon: landing.business.loyaltyStampIcon,
             logoUrl: landing.business.logoUrl,
             businessName: landing.business.businessName,
+            showBusinessName: landing.business.loyaltyShowBusinessName,
           }}
         />
       </div>

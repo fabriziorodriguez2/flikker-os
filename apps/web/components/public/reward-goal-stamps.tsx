@@ -1,6 +1,22 @@
 "use client";
 
-import { Check, Coffee, Gift, Heart, Star } from "lucide-react";
+import {
+  Check,
+  Coffee,
+  Crown,
+  Flame,
+  Gift,
+  Heart,
+  Leaf,
+  Scissors,
+  ShoppingBag,
+  Sparkles,
+  Star,
+  Tag,
+  Utensils,
+  Wine,
+  Zap,
+} from "lucide-react";
 import {
   buildLoyaltyCardTheme,
   isStampIconKey,
@@ -13,6 +29,16 @@ const ICONS: Record<StampIconKey, typeof Gift> = {
   coffee: Coffee,
   heart: Heart,
   check: Check,
+  sparkles: Sparkles,
+  flame: Flame,
+  leaf: Leaf,
+  wine: Wine,
+  scissors: Scissors,
+  bag: ShoppingBag,
+  utensils: Utensils,
+  zap: Zap,
+  tag: Tag,
+  crown: Crown,
 };
 
 /**
@@ -30,6 +56,7 @@ export default function RewardGoalStamps({
   target,
   /** Fondo real sobre el que se dibujan los sellos. */
   cardColor,
+  stampAreaColor,
   /** Acento elegido por el dueño. Se ignora si no contrasta lo suficiente. */
   stampColor,
   icon,
@@ -37,25 +64,29 @@ export default function RewardGoalStamps({
   progress: number;
   target: number;
   cardColor?: string | null;
+  stampAreaColor?: string | null;
   stampColor?: string | null;
   icon?: string | null;
 }) {
   if (target <= 0 || target > 12) return null;
 
-  const theme = buildLoyaltyCardTheme(cardColor, stampColor);
+  const theme = buildLoyaltyCardTheme(stampAreaColor ?? cardColor, stampColor);
   const Icon = isStampIconKey(icon) ? ICONS[icon] : Gift;
+  const customIcon = typeof icon === "string" && icon.startsWith("data:image/");
   const stamps = Array.from({ length: target }, (_, i) => i < progress);
+  const columns = Math.min(target, 5);
 
   return (
     <div
-      className="grid grid-cols-3 gap-2.5 sm:grid-cols-4"
+      className="grid gap-2.5"
+      style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       role="img"
       aria-label={`${Math.min(progress, target)} de ${target} sellos`}
     >
       {stamps.map((filled, i) => (
         <span
           key={i}
-          className="flex h-14 min-w-0 items-center justify-center rounded-[14px] border transition-colors duration-300"
+          className="flex aspect-square min-w-0 items-center justify-center rounded-full border transition-colors duration-300"
           style={
             filled
               ? {
@@ -70,11 +101,20 @@ export default function RewardGoalStamps({
                 }
           }
         >
-          <Icon
-            className="h-6 w-6"
-            strokeWidth={filled ? 2.4 : 1.8}
-            aria-hidden="true"
-          />
+          {customIcon ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={icon}
+              alt=""
+              className={`h-[52%] w-[52%] object-contain ${filled ? "" : "opacity-55"}`}
+            />
+          ) : (
+            <Icon
+              className="h-[48%] w-[48%]"
+              strokeWidth={filled ? 2.4 : 1.8}
+              aria-hidden="true"
+            />
+          )}
         </span>
       ))}
     </div>

@@ -43,7 +43,9 @@ export default function ProgramRegistrationSection({
   canMutate: boolean;
   onSave: (patch: Record<string, unknown>) => Promise<void>;
 }) {
-  const [message, setMessage] = useState(appearance.checkinWelcomeMessage ?? "");
+  const [message, setMessage] = useState(
+    appearance.checkinWelcomeMessage ?? "",
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Misma extracción de paleta que usa la landing real (`RegisterScreen`),
@@ -76,15 +78,20 @@ export default function ProgramRegistrationSection({
       primaryColor: appearance.primaryColor,
       googleBusinessProfileUrl: null,
       loyaltyCardColor: appearance.loyaltyCardColor,
+      loyaltyCardTextColor: appearance.loyaltyCardTextColor,
+      loyaltyCardBackgroundImage: appearance.loyaltyCardBackgroundImage,
+      loyaltyStampAreaColor: appearance.loyaltyStampAreaColor,
       loyaltyStampColor: appearance.loyaltyStampColor,
       loyaltyStampIcon: appearance.loyaltyStampIcon,
+      loyaltyShowBusinessName: appearance.loyaltyShowBusinessName,
     },
     benefit: null,
     benefitText: null,
     welcomeMessage: message.trim() || null,
   };
   const title =
-    previewLanding.welcomeMessage ?? `Sumate a ${previewLanding.business.businessName}`;
+    previewLanding.welcomeMessage ??
+    `Sumate a ${previewLanding.business.businessName}`;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -153,8 +160,8 @@ export default function ProgramRegistrationSection({
           </Shell>
         </PhoneFrame>
         <p className="mt-3 text-xs text-[#8891A4]">
-          Es el mismo formulario que ve tu cliente — no manda ningún
-          registro real desde acá.
+          Es el mismo formulario que ve tu cliente — no manda ningún registro
+          real desde acá.
         </p>
       </aside>
     </div>

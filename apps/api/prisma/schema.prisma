@@ -442,16 +442,15 @@ model Business {
   qrA4Subtitle                 String?           @map("qr_a4_subtitle")
   qrA4BgColor                  String?           @map("qr_a4_bg_color")
   /// Apariencia de la tarjeta de sellos que ve el cliente (Programa →
-  /// Diseño). Los tres son nullable: null = "usar la marca del negocio"
-  /// (`primaryColor` / sello por defecto), que es exactamente el
-  /// comportamiento anterior a que existiera esta pantalla.
-  /// El color de RELLENO y de BORDE de cada sello nunca se guarda: se
-  /// deriva por contraste desde `loyaltyCardColor` en tiempo de render
-  /// (ver `apps/web/lib/loyalty-card-theme.ts`), para que nunca pueda
-  /// quedar un sello ilegible sobre su propia tarjeta.
+  /// Diseño). Los valores opcionales usan null para indicar "automático";
+  /// el render final siempre valida contraste antes de aplicar colores.
   loyaltyCardColor             String?           @map("loyalty_card_color")
+  loyaltyCardTextColor         String?           @map("loyalty_card_text_color")
+  loyaltyCardBackgroundImage   String?           @map("loyalty_card_background_image")
+  loyaltyStampAreaColor        String?           @map("loyalty_stamp_area_color")
   loyaltyStampColor            String?           @map("loyalty_stamp_color")
   loyaltyStampIcon             String?           @map("loyalty_stamp_icon")
+  loyaltyShowBusinessName      Boolean           @default(true) @map("loyalty_show_business_name")
   /// Programa → Página de inscripción. Encabezado propio, editable, para la
   /// landing pública de check-in (`/check-in/[token]`). Null = seguir usando
   /// el título del beneficio activo como encabezado (comportamiento previo a

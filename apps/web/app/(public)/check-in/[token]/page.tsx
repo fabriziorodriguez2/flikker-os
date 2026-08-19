@@ -18,8 +18,12 @@ export interface CheckinLanding {
     googleBusinessProfileUrl: string | null;
     /** Apariencia de la tarjeta de sellos. Null = usar la marca del negocio. */
     loyaltyCardColor: string | null;
+    loyaltyCardTextColor: string | null;
+    loyaltyCardBackgroundImage: string | null;
+    loyaltyStampAreaColor: string | null;
     loyaltyStampColor: string | null;
     loyaltyStampIcon: string | null;
+    loyaltyShowBusinessName: boolean;
   };
   benefit: PublicBenefit | null;
   benefitText: string | null;

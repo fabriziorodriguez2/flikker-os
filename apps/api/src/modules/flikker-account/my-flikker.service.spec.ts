@@ -179,8 +179,12 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
       // cliente literalmente la ve), así que no viola §20 — lo que nunca
       // puede salir es segmento/assignment/experimento/uplift.
       'loyaltyCardColor',
+      'loyaltyCardTextColor',
+      'loyaltyCardBackgroundImage',
+      'loyaltyStampAreaColor',
       'loyaltyStampColor',
       'loyaltyStampIcon',
+      'loyaltyShowBusinessName',
       'visitsTotal',
       'lastVisitAt',
       'rewardGoal',

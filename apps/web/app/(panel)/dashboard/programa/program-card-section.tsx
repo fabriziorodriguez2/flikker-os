@@ -10,7 +10,11 @@ import PhoneFrame from "@/components/ui/phone-frame";
 import ProgramStampsSection from "./program-stamps-section";
 import ProgramFeedbackBonusSection from "./program-feedback-bonus-section";
 import ProgramDesignTab from "./program-design-tab";
-import type { LoyaltyAppearance, LoyaltyProgramOverview, ProgramBenefit } from "./types";
+import type {
+  LoyaltyAppearance,
+  LoyaltyProgramOverview,
+  ProgramBenefit,
+} from "./types";
 
 /**
  * "Tarjeta digital" — todo lo que define la tarjeta de sellos en un solo
@@ -73,8 +77,12 @@ export default function ProgramCardSection({
         primaryColor: appearance.primaryColor,
         googleBusinessProfileUrl: null,
         loyaltyCardColor: appearance.loyaltyCardColor,
+        loyaltyCardTextColor: appearance.loyaltyCardTextColor,
+        loyaltyCardBackgroundImage: appearance.loyaltyCardBackgroundImage,
+        loyaltyStampAreaColor: appearance.loyaltyStampAreaColor,
         loyaltyStampColor: appearance.loyaltyStampColor,
         loyaltyStampIcon: appearance.loyaltyStampIcon,
+        loyaltyShowBusinessName: appearance.loyaltyShowBusinessName,
       },
       benefit: null,
       benefitText: null,
@@ -137,8 +145,8 @@ export default function ProgramCardSection({
             </Shell>
           </PhoneFrame>
           <p className="mt-3 text-xs text-[#8891A4]">
-            Así ve tu cliente su beneficio, sin tarjeta de sellos de por
-            medio — con datos de ejemplo.
+            Así ve tu cliente su beneficio, sin tarjeta de sellos de por medio —
+            con datos de ejemplo.
           </p>
         </aside>
       </div>
