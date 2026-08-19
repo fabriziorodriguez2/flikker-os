@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { FileText, Loader2 } from "lucide-react";
+import ProgramSectionHeading from "./program-section-heading";
 import type { LoyaltyProgramOverview, ProgramBenefit } from "./types";
 
 const MAX_LEN = 500;
@@ -65,22 +66,20 @@ export default function ProgramTermsSection({
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-sm text-[#8891A4]">
           Creá al menos un beneficio en{" "}
-          <span className="font-semibold text-[#5C6BC0]">Premios</span> para
-          poder escribirle sus bases legales.
+          <span className="font-semibold text-[#5C6BC0]">Beneficios</span>{" "}
+          para poder escribirle sus bases legales.
         </p>
       </section>
     );
   }
 
   return (
-    <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
-      <h2 className="font-display text-base font-bold text-[#1A202C]">
-        Términos y condiciones
-      </h2>
-      <p className="mt-1 text-sm text-[#8891A4]">
-        Las bases del beneficio elegido — se muestran al cliente en la página
-        de inscripción y en su tarjeta.
-      </p>
+    <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
+      <ProgramSectionHeading
+        icon={FileText}
+        title="Términos y condiciones"
+        description="Las bases del beneficio elegido — se muestran al cliente en la página de inscripción y en su tarjeta."
+      />
 
       <div className="mt-5">
         <label className="block">
@@ -134,7 +133,7 @@ export default function ProgramTermsSection({
             type="button"
             onClick={() => void save()}
             disabled={saving}
-            className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+            className="flk-glossy inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
             Guardar términos

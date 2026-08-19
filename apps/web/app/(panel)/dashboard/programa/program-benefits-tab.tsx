@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Gift, Loader2, Plus, Trash2 } from "lucide-react";
+import ProgramSectionHeading from "./program-section-heading";
 import {
   BENEFIT_TYPE_LABELS,
   CREATABLE_BENEFIT_TYPES,
@@ -117,49 +118,44 @@ export default function ProgramBenefitsTab({
 
   return (
     <div className="space-y-5">
-      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-base font-bold text-[#1A202C]">Beneficios</h2>
-            <p className="mt-1 text-sm text-[#8891A4]">
-              Un beneficio es algo que tu negocio ofrece para darle a un
-              cliente una razón para volver — café gratis, 10% de descuento,
-              2x1, un upgrade. Cada uno puede usarse para una o varias cosas a
-              la vez: recompensa de la tarjeta, regalo de bienvenida,
-              reactivación o promoción suelta.
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-3">
-            {canMutate ? (
-              <label className="flex items-center gap-2 text-sm font-semibold text-[#4A56A6]">
-                <input
-                  type="checkbox"
-                  checked={benefitsEnabled}
-                  disabled={togglingCatalog}
-                  onChange={() => void toggleCatalog()}
-                  className="h-4 w-4 accent-[#5C6BC0]"
-                  aria-label="Mostrar el catálogo de beneficios a tus clientes"
-                />
-                Visible para tus clientes
-              </label>
-            ) : null}
-            {canMutate ? (
-              <button
-                type="button"
-                onClick={() => setCreating((v) => !v)}
-                disabled={trialExpired}
-                title={
-                  trialExpired
-                    ? "Tu prueba de 30 días terminó — actualizá tu plan para crear beneficios nuevos."
-                    : undefined
-                }
-                className="flk-glossy inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <Plus className="h-4 w-4" /> Nuevo beneficio
-              </button>
-            ) : null}
-          </div>
-        </div>
+      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
+        <ProgramSectionHeading
+          icon={Gift}
+          title="Beneficios"
+          description="Un beneficio es algo que tu negocio ofrece para darle a un cliente una razón para volver — café gratis, 10% de descuento, 2x1, un upgrade. Cada uno puede usarse para una o varias cosas a la vez: recompensa de la tarjeta, regalo de bienvenida, reactivación o promoción suelta."
+          action={
+            <div className="flex shrink-0 items-center gap-3">
+              {canMutate ? (
+                <label className="flex items-center gap-2 text-sm font-semibold text-[#4A56A6]">
+                  <input
+                    type="checkbox"
+                    checked={benefitsEnabled}
+                    disabled={togglingCatalog}
+                    onChange={() => void toggleCatalog()}
+                    className="h-4 w-4 accent-[#5C6BC0]"
+                    aria-label="Mostrar el catálogo de beneficios a tus clientes"
+                  />
+                  Visible para tus clientes
+                </label>
+              ) : null}
+              {canMutate ? (
+                <button
+                  type="button"
+                  onClick={() => setCreating((v) => !v)}
+                  disabled={trialExpired}
+                  title={
+                    trialExpired
+                      ? "Tu prueba de 30 días terminó — actualizá tu plan para crear beneficios nuevos."
+                      : undefined
+                  }
+                  className="flk-glossy inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" /> Nuevo beneficio
+                </button>
+              ) : null}
+            </div>
+          }
+        />
 
         {!benefitsEnabled ? (
           <p className="mt-4 rounded-[10px] bg-[#F0F1F6] px-3.5 py-2.5 text-sm text-[#5C6478]">
@@ -231,7 +227,7 @@ export default function ProgramBenefitsTab({
                 type="button"
                 onClick={() => void submit()}
                 disabled={busyId === "new" || !title.trim()}
-                className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+                className="flk-glossy inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
               >
                 {busyId === "new" ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

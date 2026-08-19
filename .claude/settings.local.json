@@ -346,7 +346,18 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest platform.service.spec platform.experience.spec platform.create-experience.spec --runInBand)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest benefits.service welcome-gift notifications-promotions incentive-issuer retention-v2-bootstrap incentive-budget-concurrency retention-budget.integration notifications.integration home.integration --runInBand)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest checkin public.service --runInBand)",
-      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest retention-v2-bootstrap.service.integration --runInBand)"
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest retention-v2-bootstrap.service.integration --runInBand)",
+      "Bash(curl -s -o /dev/null -w \"dashboard/programa -> %{http_code}\\\\n\" http://localhost:3001/dashboard/programa)",
+      "Bash(curl -s -o /dev/null -w \"check-in/[token] -> %{http_code}\\\\n\" http://localhost:3001/check-in/fake-preview-token)",
+      "Bash(pkill -f \"next dev\")",
+      "Bash(curl -s -m 5 -o /dev/null -w \"login -> %{http_code}\\\\n\" http://localhost:3001/login)",
+      "Bash(powershell -NoProfile -Command \"Stop-Process -Id 37732 -Force\")",
+      "Bash(rm -rf .next)",
+      "Bash(nohup npm run dev)",
+      "Bash(disown)",
+      "Bash(curl -s -m 10 -o /dev/null -w \"login -> %{http_code}\\\\n\" http://localhost:3001/login)",
+      "Bash(curl -s -m 10 -o /dev/null -w \"dashboard/programa -> %{http_code}\\\\n\" http://localhost:3001/dashboard/programa)",
+      "Bash(powershell -NoProfile -Command \"Stop-Process -Id 22044 -Force\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

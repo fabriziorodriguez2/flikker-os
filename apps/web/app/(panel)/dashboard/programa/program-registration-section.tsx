@@ -1,9 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
-import { Shell } from "@/app/(public)/check-in/[token]/checkin-client";
+import { Loader2, UserPlus } from "lucide-react";
+import {
+  RegisterFormFields,
+  Shell,
+} from "@/app/(public)/check-in/[token]/checkin-client";
 import type { CheckinLanding } from "@/app/(public)/check-in/[token]/page";
+import { useImagePalette } from "@/lib/use-logo-palette";
+import PhoneFrame from "@/components/ui/phone-frame";
+import ProgramSectionHeading from "./program-section-heading";
 import type { LoyaltyAppearance } from "./types";
 
 const MAX_LEN = 160;
@@ -12,14 +18,15 @@ const MAX_LEN = 160;
  * "Página de inscripción" — la landing pública (`/check-in/[token]`) que ve
  * el cliente al escanear el QR, antes de dejar sus datos.
  *
- * La preview reusa `Shell` — el MISMO componente que la landing real monta
- * (fondo con gradiente de marca, logo, pie "Powered by Flikker") — en vez de
- * una maqueta desconectada. No reusa `RegisterScreen` completo a propósito:
- * ese componente hace un POST real de registro al enviarse, y esta pantalla
- * es de un dueño autenticado editando, nunca un cliente real — reusar su
- * lógica de submit acá sería el riesgo real, no el ahorro. El título/
- * subtítulo/botón que se ven abajo son la MISMA derivación que usa
- * `RegisterScreen` (comentario ahí mismo), solo sin el formulario interactivo.
+ * La preview reusa `Shell` y `RegisterFormFields` — los MISMOS componentes
+ * que monta la landing real (fondo con gradiente de marca, logo, pie
+ * "Powered by Flikker", inputs de nombre/teléfono/fecha) — en vez de una
+ * maqueta desconectada. No reusa `RegisterScreen` completo: ese componente
+ * decide A DÓNDE mandar el registro (el `token` real); `RegisterFormFields`
+ * es solo la parte visual, y sin pasarle `onSubmit` el formulario no tiene
+ * ningún request a donde ir — cero riesgo de POST real desde un dueño
+ * autenticado editando. El título/subtítulo/botón acá son la MISMA
+ * derivación que usa `RegisterScreen` (comentario ahí mismo).
  *
  * Lo único editable es el encabezado (`checkinWelcomeMessage`): auditado
  * antes de construir esto — no hay más copy suelta en esa pantalla, el resto
@@ -39,6 +46,15 @@ export default function ProgramRegistrationSection({
   const [message, setMessage] = useState(appearance.checkinWelcomeMessage ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Misma extracción de paleta que usa la landing real (`RegisterScreen`),
+  // solo que acá se le pasa el logo directo en vez del proxy `/logo` por
+  // token — no hay un token real en esta preview.
+  const palette = useImagePalette(
+    `programa-preview:${appearance.logoUrl ?? ""}`,
+    appearance.logoUrl ?? "",
+    appearance.logoUrl,
+    appearance.primaryColor,
+  );
 
   async function save() {
     setSaving(true);
@@ -71,15 +87,13 @@ export default function ProgramRegistrationSection({
     previewLanding.welcomeMessage ?? `Sumate a ${previewLanding.business.businessName}`;
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
-        <h2 className="font-display text-base font-bold text-[#1A202C]">
-          Página de inscripción
-        </h2>
-        <p className="mt-1 text-sm text-[#8891A4]">
-          Lo primero que ve un cliente nuevo al escanear tu QR, antes de dejar
-          sus datos.
-        </p>
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
+        <ProgramSectionHeading
+          icon={UserPlus}
+          title="Página de inscripción"
+          description="Lo primero que ve un cliente nuevo al escanear tu QR, antes de dejar sus datos."
+        />
 
         <div className="mt-5">
           <label className="block">
@@ -110,7 +124,7 @@ export default function ProgramRegistrationSection({
               type="button"
               onClick={() => void save()}
               disabled={saving}
-              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+              className="flk-glossy inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Guardar encabezado
@@ -123,22 +137,24 @@ export default function ProgramRegistrationSection({
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
           Vista previa
         </p>
-        <div className="overflow-hidden rounded-[24px] shadow-[0_10px_24px_rgba(12,16,30,0.14)]">
-          <Shell landing={previewLanding}>
-            <h1 className="text-center text-lg font-bold leading-tight text-white">
+        <PhoneFrame>
+          <Shell landing={previewLanding} brandOverride={palette} fill={false}>
+            <h1 className="text-center text-2xl font-bold leading-tight text-white">
               {title}
             </h1>
-            <p className="mt-3 text-center text-xs text-white/70">
+            <p className="mt-3 text-center text-sm text-white/70">
               Dejanos tu nombre y número para registrar tu visita.
             </p>
-            <div className="mt-6 w-full max-w-sm rounded-2xl border border-white/20 bg-white/10 px-4 py-3 text-center text-xs font-semibold text-white/80">
-              Nombre y teléfono (formulario real acá)
-            </div>
+            <RegisterFormFields
+              benefit={previewLanding.benefit}
+              palette={palette}
+              submitLabel="Registrar mi visita"
+            />
           </Shell>
-        </div>
+        </PhoneFrame>
         <p className="mt-3 text-xs text-[#8891A4]">
-          Mismo fondo, logo y pie que ve tu cliente — el formulario real pide
-          nombre y teléfono debajo del encabezado.
+          Es el mismo formulario que ve tu cliente — no manda ningún
+          registro real desde acá.
         </p>
       </aside>
     </div>

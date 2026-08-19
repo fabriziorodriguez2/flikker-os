@@ -25,7 +25,7 @@ import type { CheckinLanding, PublicBenefit } from "./page";
 
 // ── Types shared with the API responses ──────────────────────────────────────
 
-interface PersonalBenefit extends PublicBenefit {
+export interface PersonalBenefit extends PublicBenefit {
   redemption: { code: string; redeemed: boolean } | null;
 }
 
@@ -224,25 +224,37 @@ function buildBirthdateIso(
   return iso;
 }
 
-function RegisterScreen({
-  token,
-  landing,
-  onRegistered,
-  onExists,
+/**
+ * El formulario visual de inscripción — nombre, teléfono, fecha de
+ * nacimiento opcional, botón — SIN el submit real. Exportado a propósito:
+ * Programa → Página de inscripción lo reusa para su preview (pedido
+ * explícito: "reutilizar los componentes visuales reales del flujo público,
+ * pero en modo preview seguro, sin ejecutar registros ni POST reales").
+ *
+ * `onSubmit` es opcional exactamente por eso: si no se pasa, el `<form>`
+ * nunca dispara ningún request (el navegador no tiene a dónde mandarlo) —
+ * no hace falta ningún flag de "modo preview" esparcido en la lógica de
+ * negocio, alcanza con no pasarle un handler real.
+ */
+export function RegisterFormFields({
+  benefit,
+  palette,
+  submitLabel,
+  savingLabel,
+  onSubmit,
   onRecoverInstead,
 }: {
-  token: string;
-  landing: CheckinLanding;
-  onRegistered: (data: PersonalSpace) => void;
-  onExists: (phone: string) => void;
-  onRecoverInstead: (phone: string) => void;
+  benefit: CheckinLanding["benefit"];
+  palette: { accent: string; accentText: string };
+  submitLabel: string;
+  savingLabel?: string;
+  onSubmit?: (values: {
+    name: string;
+    phone: string;
+    birthdate?: string;
+  }) => Promise<{ error?: string } | void>;
+  onRecoverInstead?: (phone: string) => void;
 }) {
-  const palette = useImagePalette(
-    `${token}:${landing.business.logoUrl ?? ""}`,
-    `/api/checkin/${encodeURIComponent(token)}/logo`,
-    landing.business.logoUrl,
-    landing.business.primaryColor,
-  );
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [birthDay, setBirthDay] = useState("");
@@ -251,31 +263,13 @@ function RegisterScreen({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const isRaffle = landing.benefit?.type === "raffle";
-  // `welcomeMessage` SOLO reemplaza el título — el subtítulo y el botón de
-  // acá abajo siguen decidiéndose con `benefitText`, a propósito, para no
-  // romper esa lógica ("¿hay un beneficio real detrás?").
-  const title =
-    landing.welcomeMessage ??
-    landing.benefitText ??
-    `Sumate a ${landing.business.businessName}`;
-  const subtitle = isRaffle
-    ? "Dejanos tu nombre y número para participar del sorteo."
-    : landing.benefitText
-      ? "Dejanos tu nombre y número y te lo enviamos por WhatsApp."
-      : "Dejanos tu nombre y número para registrar tu visita.";
-  const btnLabel = isRaffle
-    ? "Quiero participar"
-    : landing.benefitText
-      ? "Quiero mi beneficio"
-      : "Registrar mi visita";
-
   const currentYear = new Date().getFullYear();
   const yearRange: number[] = [];
   for (let y = currentYear - 10; y >= currentYear - 100; y--) yearRange.push(y);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!onSubmit) return;
     setError(null);
     setSaving(true);
     const birthdate =
@@ -283,50 +277,30 @@ function RegisterScreen({
         ? (buildBirthdateIso(birthDay, birthMonth, birthYear) ?? undefined)
         : undefined;
 
-    const result = await postJson(`/api/checkin/${token}/register`, {
+    const result = await onSubmit({
       name: name.trim(),
       phone,
       ...(birthdate ? { birthdate } : {}),
     });
     setSaving(false);
-
-    if (result.ok && result.data?.status === "registered") {
-      onRegistered(result.data.personal as PersonalSpace);
-      return;
-    }
-    if (result.ok && result.data?.status === "exists") {
-      onExists(phone);
-      return;
-    }
-    setError(
-      (result.data?.message as string) ??
-        "No pudimos registrarte. Probá de nuevo.",
-    );
+    if (result?.error) setError(result.error);
   }
 
   return (
-    <Shell landing={landing} brandOverride={palette}>
-      <h1 className="text-center text-2xl font-bold leading-tight text-white">
-        {title}
-      </h1>
-      <p className="mt-3 text-center text-sm text-white/70">{subtitle}</p>
-
-      {landing.benefit &&
-        (landing.benefit.description || landing.benefit.terms) && (
-          <div className="mt-5 w-full max-w-sm rounded-2xl border border-[#e4e7ec] bg-white p-4 text-left shadow-sm">
-            {landing.benefit.description && (
-              <p className="text-sm text-[#344054]">
-                {landing.benefit.description}
-              </p>
-            )}
-            {landing.benefit.terms && (
-              <p className="mt-2 text-xs leading-relaxed text-[#667085]">
-                <span className="font-semibold">Condiciones:</span>{" "}
-                {landing.benefit.terms}
-              </p>
-            )}
-          </div>
-        )}
+    <>
+      {benefit && (benefit.description || benefit.terms) && (
+        <div className="mt-5 w-full max-w-sm rounded-2xl border border-[#e4e7ec] bg-white p-4 text-left shadow-sm">
+          {benefit.description && (
+            <p className="text-sm text-[#344054]">{benefit.description}</p>
+          )}
+          {benefit.terms && (
+            <p className="mt-2 text-xs leading-relaxed text-[#667085]">
+              <span className="font-semibold">Condiciones:</span>{" "}
+              {benefit.terms}
+            </p>
+          )}
+        </div>
+      )}
 
       <form
         onSubmit={(e) => void handleSubmit(e)}
@@ -420,17 +394,99 @@ function RegisterScreen({
           className="w-full rounded-2xl py-4 text-base font-bold shadow-[0_10px_24px_rgba(12,16,30,0.2)] transition-all hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-45"
           style={{ backgroundColor: palette.accent, color: palette.accentText }}
         >
-          {saving ? "Registrando…" : btnLabel}
+          {saving ? (savingLabel ?? "Guardando…") : submitLabel}
         </button>
       </form>
 
-      <button
-        type="button"
-        onClick={() => onRecoverInstead(phone)}
-        className="mt-5 text-xs font-medium text-white/70 underline underline-offset-2 hover:text-white"
-      >
-        Ya soy cliente
-      </button>
+      {onRecoverInstead ? (
+        <button
+          type="button"
+          onClick={() => onRecoverInstead(phone)}
+          className="mt-5 text-xs font-medium text-white/70 underline underline-offset-2 hover:text-white"
+        >
+          Ya soy cliente
+        </button>
+      ) : null}
+    </>
+  );
+}
+
+function RegisterScreen({
+  token,
+  landing,
+  onRegistered,
+  onExists,
+  onRecoverInstead,
+}: {
+  token: string;
+  landing: CheckinLanding;
+  onRegistered: (data: PersonalSpace) => void;
+  onExists: (phone: string) => void;
+  onRecoverInstead: (phone: string) => void;
+}) {
+  const palette = useImagePalette(
+    `${token}:${landing.business.logoUrl ?? ""}`,
+    `/api/checkin/${encodeURIComponent(token)}/logo`,
+    landing.business.logoUrl,
+    landing.business.primaryColor,
+  );
+
+  const isRaffle = landing.benefit?.type === "raffle";
+  // `welcomeMessage` SOLO reemplaza el título — el subtítulo y el botón de
+  // acá abajo siguen decidiéndose con `benefitText`, a propósito, para no
+  // romper esa lógica ("¿hay un beneficio real detrás?").
+  const title =
+    landing.welcomeMessage ??
+    landing.benefitText ??
+    `Sumate a ${landing.business.businessName}`;
+  const subtitle = isRaffle
+    ? "Dejanos tu nombre y número para participar del sorteo."
+    : landing.benefitText
+      ? "Dejanos tu nombre y número y te lo enviamos por WhatsApp."
+      : "Dejanos tu nombre y número para registrar tu visita.";
+  const btnLabel = isRaffle
+    ? "Quiero participar"
+    : landing.benefitText
+      ? "Quiero mi beneficio"
+      : "Registrar mi visita";
+
+  async function handleRegister(values: {
+    name: string;
+    phone: string;
+    birthdate?: string;
+  }) {
+    const result = await postJson(`/api/checkin/${token}/register`, values);
+
+    if (result.ok && result.data?.status === "registered") {
+      onRegistered(result.data.personal as PersonalSpace);
+      return;
+    }
+    if (result.ok && result.data?.status === "exists") {
+      onExists(values.phone);
+      return;
+    }
+    return {
+      error:
+        (result.data?.message as string) ??
+        "No pudimos registrarte. Probá de nuevo.",
+    };
+  }
+
+  return (
+    <Shell landing={landing} brandOverride={palette}>
+      <h1 className="text-center text-2xl font-bold leading-tight text-white">
+        {title}
+      </h1>
+      <p className="mt-3 text-center text-sm text-white/70">{subtitle}</p>
+
+      <RegisterFormFields
+        benefit={landing.benefit}
+        palette={palette}
+        submitLabel={btnLabel}
+        savingLabel="Registrando…"
+        onSubmit={handleRegister}
+        onRecoverInstead={onRecoverInstead}
+      />
     </Shell>
   );
 }
@@ -905,63 +961,11 @@ function PersonalScreen({
           />
 
           {personal.benefit && (
-            <div
-              className="checkin-enter-delay relative overflow-hidden rounded-[24px] border border-white/12 bg-black/20 p-5 text-left text-white shadow-[0_10px_24px_rgba(12,16,30,0.16)]"
-              style={{
-                backgroundColor: "rgba(14, 17, 29, 0.24)",
-              }}
-            >
-              <div className="relative flex items-start gap-3">
-                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/35 bg-white/20 backdrop-blur-sm">
-                  <BenefitIcon type={personal.benefit.type} />
-                </span>
-                <div className="min-w-0 pt-0.5">
-                  <p className="text-xs font-semibold text-white/75">
-                    Un regalo para vos
-                  </p>
-                  <p className="mt-1 text-lg font-bold leading-tight text-white">
-                    {personal.benefit.title}
-                  </p>
-                </div>
-              </div>
-              {personal.benefit.description && (
-                <p className="relative mt-3 text-sm leading-5 text-white/78">
-                  {personal.benefit.description}
-                </p>
-              )}
-              {personal.benefit.terms && (
-                <p className="relative mt-2 text-[11px] leading-relaxed text-white/58">
-                  <span className="font-bold text-white/72">Condiciones:</span>{" "}
-                  {personal.benefit.terms}
-                </p>
-              )}
-
-              {personal.benefit.redemption &&
-                (personal.benefit.redemption.redeemed ? (
-                  <div className="relative mt-4 flex items-center gap-2 rounded-[15px] border border-white/18 bg-white/14 px-3.5 py-3 text-xs font-bold text-white/82">
-                    <CheckCircle2 className="h-4 w-4" /> Ya disfrutaste este beneficio
-                  </div>
-                ) : (
-                  <div className="relative mt-5">
-                    <SlideToReveal
-                      code={personal.benefit.redemption.code}
-                      brand={brand}
-                      onReveal={onBenefitReveal}
-                    />
-                    <p className="mt-2 text-center text-[10px] text-white/60">
-                      Mostralo al personal cuando quieras disfrutarlo
-                    </p>
-                  </div>
-                ))}
-
-              {!personal.benefit.redemption &&
-                personal.benefit.type === "raffle" && (
-                  <div className="relative mt-4 flex items-center gap-2 rounded-[15px] border border-white/18 bg-white/14 px-3.5 py-3 text-xs font-bold text-white/86">
-                    <Ticket className="h-4 w-4" aria-hidden="true" />
-                    Ya estás participando. ¡Mucha suerte!
-                  </div>
-                )}
-            </div>
+            <BenefitRewardCard
+              benefit={personal.benefit}
+              brand={brand}
+              onReveal={onBenefitReveal}
+            />
           )}
         </div>
 
@@ -994,6 +998,81 @@ function PersonalScreen({
         </button>
       </div>
     </Shell>
+  );
+}
+
+/**
+ * "Un regalo para vos" — la card de beneficio real que ve el cliente en su
+ * espacio personal, exista o no una tarjeta de sellos. Exportada a
+ * propósito: Programa → Tarjeta digital la reusa para la preview del modo
+ * Solo-Beneficios, en vez de una maqueta desconectada.
+ */
+export function BenefitRewardCard({
+  benefit,
+  brand,
+  onReveal,
+}: {
+  benefit: PersonalBenefit;
+  brand: string;
+  onReveal?: () => void;
+}) {
+  return (
+    <div
+      className="checkin-enter-delay relative overflow-hidden rounded-[24px] border border-white/12 bg-black/20 p-5 text-left text-white shadow-[0_10px_24px_rgba(12,16,30,0.16)]"
+      style={{
+        backgroundColor: "rgba(14, 17, 29, 0.24)",
+      }}
+    >
+      <div className="relative flex items-start gap-3">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/35 bg-white/20 backdrop-blur-sm">
+          <BenefitIcon type={benefit.type} />
+        </span>
+        <div className="min-w-0 pt-0.5">
+          <p className="text-xs font-semibold text-white/75">
+            Un regalo para vos
+          </p>
+          <p className="mt-1 text-lg font-bold leading-tight text-white">
+            {benefit.title}
+          </p>
+        </div>
+      </div>
+      {benefit.description && (
+        <p className="relative mt-3 text-sm leading-5 text-white/78">
+          {benefit.description}
+        </p>
+      )}
+      {benefit.terms && (
+        <p className="relative mt-2 text-[11px] leading-relaxed text-white/58">
+          <span className="font-bold text-white/72">Condiciones:</span>{" "}
+          {benefit.terms}
+        </p>
+      )}
+
+      {benefit.redemption &&
+        (benefit.redemption.redeemed ? (
+          <div className="relative mt-4 flex items-center gap-2 rounded-[15px] border border-white/18 bg-white/14 px-3.5 py-3 text-xs font-bold text-white/82">
+            <CheckCircle2 className="h-4 w-4" /> Ya disfrutaste este beneficio
+          </div>
+        ) : (
+          <div className="relative mt-5">
+            <SlideToReveal
+              code={benefit.redemption.code}
+              brand={brand}
+              onReveal={onReveal ?? (() => undefined)}
+            />
+            <p className="mt-2 text-center text-[10px] text-white/60">
+              Mostralo al personal cuando quieras disfrutarlo
+            </p>
+          </div>
+        ))}
+
+      {!benefit.redemption && benefit.type === "raffle" && (
+        <div className="relative mt-4 flex items-center gap-2 rounded-[15px] border border-white/18 bg-white/14 px-3.5 py-3 text-xs font-bold text-white/86">
+          <Ticket className="h-4 w-4" aria-hidden="true" />
+          Ya estás participando. ¡Mucha suerte!
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1078,14 +1157,20 @@ function RewardGoalCard({
  * que ve el cliente real. `brandOverride` es opcional a propósito: la
  * preview del panel no necesita (ni puede, sin un token real) la extracción
  * de paleta desde el logo — pasa los colores configurados directamente.
+ *
+ * `fill`: `true` (default, comportamiento real sin cambios) ocupa el
+ * viewport completo (`min-h-[100dvh]`). La preview del panel pasa `false`
+ * para llenar en cambio el alto fijo del marco de celular (`PhoneFrame`).
  */
 export function Shell({
   landing,
   brandOverride,
+  fill = true,
   children,
 }: {
   landing: CheckinLanding;
   brandOverride?: { primary: string; secondary: string };
+  fill?: boolean;
   children: React.ReactNode;
 }) {
   const brand = brandOverride?.primary ?? brandOf(landing);
@@ -1094,7 +1179,9 @@ export function Shell({
 
   return (
     <div
-      className="relative flex min-h-[100dvh] w-full flex-col overflow-hidden"
+      className={`relative flex w-full flex-col overflow-hidden ${
+        fill ? "min-h-[100dvh]" : "h-full min-h-full"
+      }`}
       style={{
         backgroundImage: `linear-gradient(145deg, ${brand} 0%, ${secondary} 100%)`,
       }}

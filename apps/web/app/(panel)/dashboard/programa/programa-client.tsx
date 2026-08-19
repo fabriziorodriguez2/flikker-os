@@ -38,7 +38,7 @@ import type {
  * Navegación: solo dos pestañas — Resumen (estado + actividad) y
  * Configuración (todo lo editable, agrupado en una subnavegación lateral:
  * Tarjeta digital, Página de inscripción, Términos y condiciones,
- * Incentivos, Premios — ver `program-configuracion-tab.tsx` para el porqué
+ * Incentivos, Beneficios — ver `program-configuracion-tab.tsx` para el porqué
  * de cada una). El Historial no desaparece, se ve desde Resumen ("Ver toda la
  * actividad"), y ProgramAuditEvent sigue siendo la misma fuente.
  */

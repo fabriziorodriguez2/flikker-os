@@ -1,14 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Palette } from "lucide-react";
 import LoyaltyCard from "@/components/public/loyalty-card";
+import { Shell } from "@/app/(public)/check-in/[token]/checkin-client";
+import type { CheckinLanding } from "@/app/(public)/check-in/[token]/page";
+import PhoneFrame from "@/components/ui/phone-frame";
 import {
   DEFAULT_CARD_COLOR,
   STAMP_ICONS,
   buildLoyaltyCardTheme,
   contrastRatio,
 } from "@/lib/loyalty-card-theme";
+import ProgramSectionHeading from "./program-section-heading";
 import type { LoyaltyAppearance } from "./types";
 
 const PRESET_CARDS = [
@@ -50,6 +54,22 @@ export default function ProgramDesignTab({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const previewLanding: CheckinLanding = {
+    source: { name: "Preview", type: "qr" },
+    business: {
+      businessName: businessName || "Tu negocio",
+      logoUrl: appearance.logoUrl,
+      primaryColor: appearance.primaryColor,
+      googleBusinessProfileUrl: null,
+      loyaltyCardColor: cardColor,
+      loyaltyStampColor: stampColor || null,
+      loyaltyStampIcon: icon,
+    },
+    benefit: null,
+    benefitText: null,
+    welcomeMessage: null,
+  };
+
   const theme = buildLoyaltyCardTheme(cardColor, stampColor || null);
   // El acento pedido se descarta si no llega a 3:1 — se avisa en vez de
   // guardar en silencio algo que el cliente no va a poder leer.
@@ -75,15 +95,13 @@ export default function ProgramDesignTab({
   }
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
-      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
-        <h2 className="font-display text-base font-bold text-[#1A202C]">
-          Diseño de la tarjeta
-        </h2>
-        <p className="mt-1 text-sm text-[#8891A4]">
-          Así la ve tu cliente cuando escanea. El color de los sellos se ajusta
-          solo para que siempre se lean sobre tu tarjeta.
-        </p>
+    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
+        <ProgramSectionHeading
+          icon={Palette}
+          title="Diseño de la tarjeta"
+          description="Así la ve tu cliente cuando escanea. El color de los sellos se ajusta solo para que siempre se lean sobre tu tarjeta."
+        />
 
         <div className="mt-5">
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
@@ -182,7 +200,7 @@ export default function ProgramDesignTab({
               type="button"
               onClick={() => void save()}
               disabled={saving}
-              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+              className="flk-glossy inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               Guardar diseño
@@ -195,18 +213,24 @@ export default function ProgramDesignTab({
         <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
           Vista previa
         </p>
-        <LoyaltyCard
-          rewardName={rewardName}
-          progress={Math.min(2, stampsRequired)}
-          target={stampsRequired}
-          appearance={{
-            cardColor,
-            stampColor: stampColor || null,
-            stampIcon: icon,
-            logoUrl: appearance.logoUrl,
-            businessName,
-          }}
-        />
+        <PhoneFrame>
+          <Shell landing={previewLanding} fill={false}>
+            <div className="w-full max-w-sm">
+              <LoyaltyCard
+                rewardName={rewardName}
+                progress={Math.min(2, stampsRequired)}
+                target={stampsRequired}
+                appearance={{
+                  cardColor,
+                  stampColor: stampColor || null,
+                  stampIcon: icon,
+                  logoUrl: appearance.logoUrl,
+                  businessName,
+                }}
+              />
+            </div>
+          </Shell>
+        </PhoneFrame>
         <p className="mt-3 text-xs text-[#8891A4]">
           Es el mismo componente que ve tu cliente, con datos de ejemplo.
         </p>

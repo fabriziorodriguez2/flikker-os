@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Percent, Plus, Trash2 } from "lucide-react";
+import ProgramSectionHeading from "./program-section-heading";
 import { CREATABLE_BENEFIT_TYPES, WEEKDAY_LABELS, type ProgramIncentive } from "./types";
 
 const inputClass =
@@ -169,18 +170,16 @@ export default function ProgramIncentivesSection({
         vivía en Notificaciones. Reusa `retention-v2/settings`, que ya
         validaba esto (`RetentionSettingsService.assertBudgetReadyToAuthorize`,
         llamado también desde `BenefitsService#setRetentionBridge` cuando el
-        dueño autoriza un beneficio para reactivación en Programa → Premios).
+        dueño autoriza un beneficio para reactivación en Programa → Beneficios).
       */}
-      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
-        <h2 className="font-display text-base font-bold text-[#1A202C]">
-          Presupuesto de reactivación automática
-        </h2>
-        <p className="mt-1 text-sm text-[#8891A4]">
-          ¿Cuántos beneficios como máximo puede ofrecer Flikker por mes al
-          reactivar clientes? Sin esto, un beneficio autorizado para
-          reactivación (Premios → &quot;Autorizado para reactivar
-          clientes&quot;) no se puede activar.
-        </p>
+      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
+        <ProgramSectionHeading
+          icon={Percent}
+          title="Presupuesto de reactivación automática"
+          description={
+            'Cuántos beneficios como máximo puede ofrecer Flikker por mes al reactivar clientes. Sin esto, un beneficio autorizado para reactivación (Beneficios → "Autorizado para reactivar clientes") no se puede activar.'
+          }
+        />
         {budget?.hasIncentiveBearingVariants && !budget.budgetConfigured ? (
           <p className="mt-3 rounded-[10px] bg-[#FFF7EE] px-3.5 py-2.5 text-sm text-[#8A520D]">
             Tenés un beneficio autorizado para reactivación sin límite
@@ -223,27 +222,23 @@ export default function ProgramIncentivesSection({
         ) : null}
       </section>
 
-      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-base font-bold text-[#1A202C]">
-              Incentivos
-            </h2>
-            <p className="mt-1 text-sm text-[#8891A4]">
-              Reglas especiales y bonus además de tu programa base — ej. un
-              extra los fines de semana.
-            </p>
-          </div>
-          {canMutate ? (
-            <button
-              type="button"
-              onClick={() => setCreating((v) => !v)}
-              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
-            >
-              <Plus className="h-4 w-4" /> Nuevo incentivo
-            </button>
-          ) : null}
-        </div>
+      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
+        <ProgramSectionHeading
+          icon={Percent}
+          title="Incentivos"
+          description="Reglas especiales y bonus además de tu programa base — ej. un extra los fines de semana."
+          action={
+            canMutate ? (
+              <button
+                type="button"
+                onClick={() => setCreating((v) => !v)}
+                className="flk-glossy inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
+              >
+                <Plus className="h-4 w-4" /> Nuevo incentivo
+              </button>
+            ) : null
+          }
+        />
 
         {creating ? (
           <IncentiveForm
@@ -468,7 +463,7 @@ function IncentiveForm({
           type="button"
           onClick={() => void submit()}
           disabled={busy || !name.trim()}
-          className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+          className="flk-glossy inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
         >
           {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           Crear

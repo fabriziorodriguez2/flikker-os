@@ -1,6 +1,13 @@
 "use client";
 
-import { CreditCard, FileText, Gift, Percent, UserPlus } from "lucide-react";
+import {
+  ChevronRight,
+  CreditCard,
+  FileText,
+  Gift,
+  Percent,
+  UserPlus,
+} from "lucide-react";
 import ProgramCardSection from "./program-card-section";
 import ProgramRegistrationSection from "./program-registration-section";
 import ProgramTermsSection from "./program-terms-section";
@@ -18,10 +25,12 @@ import type { LoyaltyAppearance, LoyaltyProgramOverview, ProgramBenefit } from "
  *     preview en vivo. Todo "cómo es mi tarjeta" en un solo lugar.
  *  2. Página de inscripción — el encabezado de la landing pública de check-in.
  *  3. Términos y condiciones — las bases legales del beneficio elegido.
- *  4. Incentivos — reglas especiales/bonus además del programa base.
- *  5. Premios — el catálogo completo de beneficios, único lugar donde se
- *     administra (incluye elegir regalo de bienvenida y recompensa de
- *     tarjeta por ítem — no hace falta una sección aparte para eso).
+ *  4. Incentivos — reglas especiales/bonus además del programa base (%/$
+ *     time-boxed + presupuesto mensual de reactivación automática).
+ *  5. Beneficios (antes "Premios", mismo `key` interno por compatibilidad
+ *     con deep-links viejos) — el catálogo completo de beneficios, único
+ *     lugar donde se administra (incluye elegir regalo de bienvenida y
+ *     recompensa de tarjeta por ítem — no hace falta una sección aparte).
  */
 export type ConfigSection =
   | "tarjeta"
@@ -30,12 +39,42 @@ export type ConfigSection =
   | "incentivos"
   | "premios";
 
-const SECTIONS: { key: ConfigSection; label: string; icon: typeof CreditCard }[] = [
-  { key: "tarjeta", label: "Tarjeta digital", icon: CreditCard },
-  { key: "inscripcion", label: "Página de inscripción", icon: UserPlus },
-  { key: "terminos", label: "Términos y condiciones", icon: FileText },
-  { key: "incentivos", label: "Incentivos", icon: Percent },
-  { key: "premios", label: "Premios", icon: Gift },
+const SECTIONS: {
+  key: ConfigSection;
+  label: string;
+  description: string;
+  icon: typeof CreditCard;
+}[] = [
+  {
+    key: "tarjeta",
+    label: "Tarjeta digital",
+    description: "Diseño y colores de la tarjeta",
+    icon: CreditCard,
+  },
+  {
+    key: "inscripcion",
+    label: "Página de inscripción",
+    description: "Apariencia del formulario",
+    icon: UserPlus,
+  },
+  {
+    key: "terminos",
+    label: "Términos y condiciones",
+    description: "Bases legales del programa",
+    icon: FileText,
+  },
+  {
+    key: "incentivos",
+    label: "Incentivos",
+    description: "Reglas y presupuesto automático",
+    icon: Percent,
+  },
+  {
+    key: "premios",
+    label: "Beneficios",
+    description: "Catálogo de recompensas y ofertas",
+    icon: Gift,
+  },
 ];
 
 export function isConfigSection(value: string | null): value is ConfigSection {
@@ -103,16 +142,31 @@ export default function ProgramConfiguracionTab({
               key={option.key}
               type="button"
               onClick={() => onSectionChange(option.key)}
-              className={`flex shrink-0 items-center gap-2.5 rounded-[10px] px-3.5 py-2.5 text-left text-sm font-semibold transition-colors lg:shrink lg:w-full ${
+              className={`flex shrink-0 items-center gap-2.5 rounded-[10px] px-3.5 py-2.5 text-left transition-colors lg:shrink lg:w-full ${
                 active
                   ? "bg-[#EEF0FB] text-[#4A56A6]"
                   : "text-[#7B8295] hover:bg-[#F5F6FA] hover:text-[#1A202C]"
               }`}
             >
               <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
-              <span className="whitespace-nowrap lg:whitespace-normal">
-                {option.label}
+              <span className="min-w-0 flex-1">
+                <span className="block whitespace-nowrap text-sm font-semibold lg:whitespace-normal">
+                  {option.label}
+                </span>
+                <span
+                  className={`block truncate text-xs font-normal lg:whitespace-normal ${
+                    active ? "text-[#7C86C9]" : "text-[#A6ACBC]"
+                  }`}
+                >
+                  {option.description}
+                </span>
               </span>
+              {active ? (
+                <ChevronRight
+                  className="hidden h-4 w-4 shrink-0 lg:block"
+                  aria-hidden="true"
+                />
+              ) : null}
             </button>
           );
         })}

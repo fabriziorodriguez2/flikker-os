@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, Stamp } from "lucide-react";
+import ProgramSectionHeading from "./program-section-heading";
 import type { LoyaltyProgramOverview, ProgramBenefit } from "./types";
 
 const inputClass =
@@ -128,28 +129,24 @@ export default function ProgramStampsSection({
 
   return (
     <div className="space-y-5">
-      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-display text-base font-bold text-[#1A202C]">
-              Tarjeta de sellos activa
-            </h2>
-            <p className="mt-1 text-sm text-[#8891A4]">
-              Tus clientes juntan sellos en cada visita y, al completar la
-              tarjeta, se llevan la recompensa.
-            </p>
-          </div>
-          {canMutate ? (
-            <button
-              type="button"
-              onClick={() => void run(() => onToggle(false))}
-              disabled={saving}
-              className="shrink-0 text-sm font-semibold text-[#8891A4] hover:text-[#C0392B] disabled:opacity-50"
-            >
-              Desactivar
-            </button>
-          ) : null}
-        </div>
+      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
+        <ProgramSectionHeading
+          icon={Stamp}
+          title="Tarjeta de sellos activa"
+          description="Tus clientes juntan sellos en cada visita y, al completar la tarjeta, se llevan la recompensa."
+          action={
+            canMutate ? (
+              <button
+                type="button"
+                onClick={() => void run(() => onToggle(false))}
+                disabled={saving}
+                className="shrink-0 text-sm font-semibold text-[#8891A4] hover:text-[#C0392B] disabled:opacity-50"
+              >
+                Desactivar
+              </button>
+            ) : null
+          }
+        />
 
         {overview.reward && overview.stampsRequired ? (
           <p className="mt-4 rounded-[12px] bg-[#F5F6FB] px-4 py-3 text-sm font-semibold text-[#1A202C]">
@@ -212,15 +209,20 @@ function ConfigForm({
   note?: string;
 }) {
   return (
-    <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
-      <h2 className="font-display text-base font-bold text-[#1A202C]">Configurar sellos</h2>
+    <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
       {/* Sección 8 — clarísimo por estructura: es UNA recompensa para la
           tarjeta, no el catálogo completo (eso está en "Beneficios"). */}
-      <p className="mt-1 text-sm text-[#8891A4]">
-        Elegí la única recompensa que se entrega al completar la tarjeta. El
-        resto de tu catálogo vive en{" "}
-        <span className="font-semibold text-[#5C6BC0]">Beneficios</span>.
-      </p>
+      <ProgramSectionHeading
+        icon={Stamp}
+        title="Configurar sellos"
+        description={
+          <>
+            Elegí la única recompensa que se entrega al completar la tarjeta.
+            El resto de tu catálogo vive en{" "}
+            <span className="font-semibold text-[#5C6BC0]">Beneficios</span>.
+          </>
+        }
+      />
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
         <label className="block">
@@ -312,7 +314,7 @@ function ConfigForm({
           type="button"
           onClick={onSubmit}
           disabled={saving}
-          className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+          className="flk-glossy inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
           {submitLabel}

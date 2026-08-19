@@ -1,6 +1,12 @@
 "use client";
 
 import { Gift } from "lucide-react";
+import {
+  BenefitRewardCard,
+  Shell,
+} from "@/app/(public)/check-in/[token]/checkin-client";
+import type { CheckinLanding } from "@/app/(public)/check-in/[token]/page";
+import PhoneFrame from "@/components/ui/phone-frame";
 import ProgramStampsSection from "./program-stamps-section";
 import ProgramFeedbackBonusSection from "./program-feedback-bonus-section";
 import ProgramDesignTab from "./program-design-tab";
@@ -58,39 +64,84 @@ export default function ProgramCardSection({
   const neverConfiguredStamps = !overview.enabled && !overview.reward;
 
   if (neverConfiguredStamps) {
+    const previewBenefit = benefits.find((b) => b.active) ?? benefits[0];
+    const previewLanding: CheckinLanding = {
+      source: { name: "Preview", type: "qr" },
+      business: {
+        businessName: businessName || "Tu negocio",
+        logoUrl: appearance.logoUrl,
+        primaryColor: appearance.primaryColor,
+        googleBusinessProfileUrl: null,
+        loyaltyCardColor: appearance.loyaltyCardColor,
+        loyaltyStampColor: appearance.loyaltyStampColor,
+        loyaltyStampIcon: appearance.loyaltyStampIcon,
+      },
+      benefit: null,
+      benefitText: null,
+      welcomeMessage: null,
+    };
+
     return (
-      <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-8 text-center">
-        <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#EEF0FB] text-[#5C6BC0]">
-          <Gift className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <h2 className="mt-4 font-display text-base font-bold text-[#1A202C]">
-          Tu programa es de beneficios
-        </h2>
-        <p className="mx-auto mt-2 max-w-sm text-sm text-[#8891A4]">
-          Todavía no configuraste una tarjeta de sellos — tu catálogo de{" "}
-          <button
-            type="button"
-            onClick={onGoToPremios}
-            className="font-semibold text-[#5C6BC0] hover:underline"
-          >
-            Premios
-          </button>{" "}
-          es tu programa. Podés sumar sellos más adelante si querés premiar
-          las visitas frecuentes.
-        </p>
-        {canMutate ? (
-          <div className="mx-auto mt-5 max-w-sm">
-            <ProgramStampsSection
-              overview={overview}
-              benefits={benefits}
-              canMutate={canMutate}
-              onToggle={onToggle}
-              onSaveConfig={onSaveConfig}
-              onReload={onReload}
-            />
-          </div>
-        ) : null}
-      </section>
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-8 text-center">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#EEF0FB] text-[#5C6BC0]">
+            <Gift className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <h2 className="mt-4 font-display text-base font-bold text-[#1A202C]">
+            Tu programa es de beneficios
+          </h2>
+          <p className="mx-auto mt-2 max-w-sm text-sm text-[#8891A4]">
+            Todavía no configuraste una tarjeta de sellos — tu catálogo de{" "}
+            <button
+              type="button"
+              onClick={onGoToPremios}
+              className="font-semibold text-[#5C6BC0] hover:underline"
+            >
+              Beneficios
+            </button>{" "}
+            es tu programa. Podés sumar sellos más adelante si querés premiar
+            las visitas frecuentes.
+          </p>
+          {canMutate ? (
+            <div className="mx-auto mt-5 max-w-sm">
+              <ProgramStampsSection
+                overview={overview}
+                benefits={benefits}
+                canMutate={canMutate}
+                onToggle={onToggle}
+                onSaveConfig={onSaveConfig}
+                onReload={onReload}
+              />
+            </div>
+          ) : null}
+        </section>
+
+        <aside className="lg:sticky lg:top-6">
+          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+            Vista previa
+          </p>
+          <PhoneFrame>
+            <Shell landing={previewLanding} fill={false}>
+              <div className="w-full max-w-sm">
+                <BenefitRewardCard
+                  benefit={{
+                    type: previewBenefit?.type ?? "gift",
+                    title: previewBenefit?.title ?? "Tu beneficio",
+                    description: previewBenefit?.description ?? null,
+                    terms: previewBenefit?.terms ?? null,
+                    redemption: { code: "ABC123", redeemed: false },
+                  }}
+                  brand={appearance.primaryColor ?? "#5C6BC0"}
+                />
+              </div>
+            </Shell>
+          </PhoneFrame>
+          <p className="mt-3 text-xs text-[#8891A4]">
+            Así ve tu cliente su beneficio, sin tarjeta de sellos de por
+            medio — con datos de ejemplo.
+          </p>
+        </aside>
+      </div>
     );
   }
 

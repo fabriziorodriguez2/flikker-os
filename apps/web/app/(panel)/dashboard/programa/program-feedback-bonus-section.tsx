@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
+import ProgramSectionHeading from "./program-section-heading";
 import type { LoyaltyProgramOverview } from "./types";
 
 /**
@@ -58,12 +59,12 @@ export default function ProgramFeedbackBonusSection({
   }
 
   return (
-    <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5">
-      <h2 className="font-display text-base font-bold text-[#1A202C]">Bonus por feedback</h2>
-      <p className="mt-1 text-sm text-[#8891A4]">
-        Cuando un cliente completa el feedback privado, recibe un sello
-        extra.
-      </p>
+    <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
+      <ProgramSectionHeading
+        icon={Sparkles}
+        title="Bonus por feedback"
+        description="Cuando un cliente completa el feedback privado, recibe un sello extra."
+      />
 
       {!stampsReady ? (
         <p className="mt-4 rounded-[10px] bg-[#F5F6FB] px-3.5 py-2.5 text-sm text-[#7B8295]">
