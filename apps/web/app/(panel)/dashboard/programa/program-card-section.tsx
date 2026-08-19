@@ -154,25 +154,7 @@ export default function ProgramCardSection({
   }
 
   return (
-    <div className="space-y-5">
-      <ProgramStampsSection
-        overview={overview}
-        benefits={benefits}
-        canMutate={canMutate}
-        onToggle={onToggle}
-        onSaveConfig={onSaveConfig}
-        onReload={onReload}
-      />
-
-      {overview.enabled ? (
-        <ProgramFeedbackBonusSection
-          overview={overview}
-          canMutate={canMutate}
-          onSaveConfig={onSaveConfig}
-          onReload={onReload}
-        />
-      ) : null}
-
+    <>
       {overview.enabled ? (
         <ProgramDesignTab
           appearance={appearance}
@@ -181,8 +163,32 @@ export default function ProgramCardSection({
           stampsRequired={overview.stampsRequired ?? 5}
           canMutate={canMutate}
           onSave={onSaveDesign}
+        >
+          <ProgramStampsSection
+            overview={overview}
+            benefits={benefits}
+            canMutate={canMutate}
+            onToggle={onToggle}
+            onSaveConfig={onSaveConfig}
+            onReload={onReload}
+          />
+          <ProgramFeedbackBonusSection
+            overview={overview}
+            canMutate={canMutate}
+            onSaveConfig={onSaveConfig}
+            onReload={onReload}
+          />
+        </ProgramDesignTab>
+      ) : (
+        <ProgramStampsSection
+          overview={overview}
+          benefits={benefits}
+          canMutate={canMutate}
+          onToggle={onToggle}
+          onSaveConfig={onSaveConfig}
+          onReload={onReload}
         />
-      ) : null}
-    </div>
+      )}
+    </>
   );
 }

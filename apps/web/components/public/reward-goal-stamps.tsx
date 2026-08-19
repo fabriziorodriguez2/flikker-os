@@ -78,7 +78,7 @@ export default function RewardGoalStamps({
 
   return (
     <div
-      className="grid gap-2.5"
+      className="grid gap-x-3 gap-y-3.5"
       style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
       role="img"
       aria-label={`${Math.min(progress, target)} de ${target} sellos`}
@@ -86,7 +86,7 @@ export default function RewardGoalStamps({
       {stamps.map((filled, i) => (
         <span
           key={i}
-          className="flex aspect-square min-w-0 items-center justify-center rounded-full border transition-colors duration-300"
+          className="flex aspect-square min-w-0 items-center justify-center rounded-full border-[1.5px] transition-colors duration-300"
           style={
             filled
               ? {
@@ -101,17 +101,17 @@ export default function RewardGoalStamps({
                 }
           }
         >
-          {customIcon ? (
+          {!filled ? (
+            <span className="text-[11px] font-semibold tabular-nums opacity-75">
+              {String(i + 1).padStart(2, "0")}
+            </span>
+          ) : customIcon ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={icon}
-              alt=""
-              className={`h-[52%] w-[52%] object-contain ${filled ? "" : "opacity-55"}`}
-            />
+            <img src={icon} alt="" className="h-[52%] w-[52%] object-contain" />
           ) : (
             <Icon
               className="h-[48%] w-[48%]"
-              strokeWidth={filled ? 2.4 : 1.8}
+              strokeWidth={2.4}
               aria-hidden="true"
             />
           )}

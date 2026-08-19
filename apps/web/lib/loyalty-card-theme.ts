@@ -137,6 +137,21 @@ export function buildLoyaltyCardTheme(
   };
 }
 
+/**
+ * La referencia visual de la tarjeta usa una franja clara para separar los
+ * sellos del encabezado y del premio. Los negocios que todavía no eligieron
+ * un color específico reciben esa superficie neutra; si eligieron uno, se
+ * respeta tal cual.
+ */
+export function resolveLoyaltyStampAreaColor(
+  cardColor?: string | null,
+  requestedArea?: string | null,
+): string {
+  const requested = normalizeHex(requestedArea);
+  if (requested) return requested;
+  return buildLoyaltyCardTheme(cardColor).isDarkCard ? "#F8F3EF" : "#F2F4F8";
+}
+
 /** Íconos disponibles para el sello. La clave se guarda en `loyaltyStampIcon`. */
 export const STAMP_ICONS = [
   { key: "gift", label: "Regalo" },
