@@ -79,6 +79,8 @@ export interface LoyaltyAppearance {
   loyaltyShowBusinessName: boolean;
   /** Página de inscripción — encabezado propio de la landing de check-in. */
   checkinWelcomeMessage: string | null;
+  /** Página de inscripción — null conserva la paleta automática de marca. */
+  checkinBackgroundColor: string | null;
 }
 
 /**

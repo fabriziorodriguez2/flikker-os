@@ -75,6 +75,7 @@ export default function ProgramCardSection({
         businessName: businessName || "Tu negocio",
         logoUrl: appearance.logoUrl,
         primaryColor: appearance.primaryColor,
+        checkinBackgroundColor: null,
         googleBusinessProfileUrl: null,
         loyaltyCardColor: appearance.loyaltyCardColor,
         loyaltyCardTextColor: appearance.loyaltyCardTextColor,

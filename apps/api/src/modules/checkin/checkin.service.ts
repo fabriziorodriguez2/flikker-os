@@ -52,6 +52,7 @@ type BusinessForCheckin = Pick<
   | 'loyaltyStampIcon'
   | 'loyaltyShowBusinessName'
   | 'checkinWelcomeMessage'
+  | 'checkinBackgroundColor'
 >;
 
 @Injectable()
@@ -521,6 +522,7 @@ export class CheckinService {
         loyaltyStampIcon: true,
         loyaltyShowBusinessName: true,
         checkinWelcomeMessage: true,
+        checkinBackgroundColor: true,
       },
     });
     if (!business || !isCheckinV2(business)) {
@@ -697,6 +699,7 @@ export class CheckinService {
       businessName: business.name,
       logoUrl: business.logoUrl ?? null,
       primaryColor: business.primaryColor ?? null,
+      checkinBackgroundColor: business.checkinBackgroundColor ?? null,
       googleBusinessProfileUrl: business.googleBusinessProfileUrl ?? null,
       // Apariencia de la tarjeta de sellos. Null = usar la marca del
       // negocio, que es el comportamiento previo a Programa → Diseño.

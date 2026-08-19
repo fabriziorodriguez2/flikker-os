@@ -460,7 +460,12 @@ export function RegisterScreenContent({
       : "Registrar mi visita";
 
   return (
-    <Shell landing={landing} brandOverride={palette} fill={fill}>
+    <Shell
+      landing={landing}
+      brandOverride={palette}
+      backgroundColor={landing.business.checkinBackgroundColor}
+      fill={fill}
+    >
       <h1 className="text-center text-2xl font-bold leading-tight text-white">
         {title}
       </h1>
@@ -1217,12 +1222,14 @@ function RewardGoalCard({
 export function Shell({
   landing,
   brandOverride,
+  backgroundColor,
   fill = true,
   compact = false,
   children,
 }: {
   landing: CheckinLanding;
   brandOverride?: { primary: string; secondary: string };
+  backgroundColor?: string | null;
   fill?: boolean;
   compact?: boolean;
   children: React.ReactNode;
@@ -1236,9 +1243,13 @@ export function Shell({
       className={`relative flex w-full flex-col overflow-hidden ${
         fill ? "min-h-[100dvh]" : "h-full min-h-full"
       }`}
-      style={{
-        backgroundImage: `linear-gradient(145deg, ${brand} 0%, ${secondary} 100%)`,
-      }}
+      style={
+        backgroundColor
+          ? { backgroundColor, backgroundImage: "none" }
+          : {
+              backgroundImage: `linear-gradient(145deg, ${brand} 0%, ${secondary} 100%)`,
+            }
+      }
     >
       <div
         className={`relative flex flex-1 flex-col items-center justify-start ${

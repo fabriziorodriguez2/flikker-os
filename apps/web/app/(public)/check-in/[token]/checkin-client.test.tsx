@@ -9,6 +9,7 @@ const landing: CheckinLanding = {
     businessName: "Café Uno",
     logoUrl: null,
     primaryColor: "#5C6BC0",
+    checkinBackgroundColor: "#8A746B",
     googleBusinessProfileUrl: "https://g.page/cafe",
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } as any,
@@ -38,5 +39,10 @@ describe("CheckinClient initial render", () => {
       .map((m) => m[1])
       .filter((h) => h.includes("google") || h.includes("g.page"));
     expect(googleLinks).toHaveLength(0);
+  });
+
+  it("uses the configured registration background color", () => {
+    const html = render(false);
+    expect(html).toContain("background-color:#8A746B;background-image:none");
   });
 });

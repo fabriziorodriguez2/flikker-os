@@ -15,6 +15,8 @@ export interface CheckinLanding {
     businessName: string;
     logoUrl: string | null;
     primaryColor: string | null;
+    /** Fondo explícito del formulario. Null = paleta automática de marca. */
+    checkinBackgroundColor: string | null;
     googleBusinessProfileUrl: string | null;
     /** Apariencia de la tarjeta de sellos. Null = usar la marca del negocio. */
     loyaltyCardColor: string | null;

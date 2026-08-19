@@ -133,6 +133,14 @@ export class UpdateBrandProfileDto {
   checkinWelcomeMessage?: string;
 
   @IsOptional()
+  @IsString()
+  @MaxLength(7)
+  @Matches(/^#[0-9A-Fa-f]{6}$/, {
+    message: 'checkinBackgroundColor must be a hex color (e.g. #5C6BC0)',
+  })
+  checkinBackgroundColor?: string;
+
+  @IsOptional()
   @IsUrl()
   googleBusinessProfileUrl?: string;
 

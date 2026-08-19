@@ -457,6 +457,9 @@ model Business {
   /// esta pantalla) — nunca se confunde con `benefitText`, que además decide
   /// la copia del subtítulo/botón y el mensaje de WhatsApp post-registro.
   checkinWelcomeMessage        String?           @map("checkin_welcome_message")
+  /// Programa → Página de inscripción. Fondo elegido para el formulario
+  /// público. Null = mantener la paleta automática derivada de la marca.
+  checkinBackgroundColor       String?           @map("checkin_background_color")
   /// Regalo de bienvenida (Programa). Fuente de verdad EXPLÍCITA, separada
   /// de `Benefit.active`: `active` significa "beneficio visible en el
   /// check-in" y se re-asegura en cada visita, así que no puede representar

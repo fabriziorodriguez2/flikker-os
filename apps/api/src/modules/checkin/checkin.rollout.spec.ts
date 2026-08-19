@@ -18,6 +18,7 @@ function makeDeps(experienceVersion: ExperienceVersion) {
         name: 'Café Uno',
         logoUrl: null,
         primaryColor: null,
+        checkinBackgroundColor: '#8A746B',
         googleBusinessProfileUrl: null,
         phone: null,
         timezone: 'America/Montevideo',
@@ -219,6 +220,7 @@ describe('Check-in V2 public flow — CHECKIN_V2 business', () => {
     const landing = await service.resolveLanding('tok');
 
     expect(landing.business.businessName).toBe('Café Uno');
+    expect(landing.business.checkinBackgroundColor).toBe('#8A746B');
     expect(deps.sources.bumpScan).toHaveBeenCalledWith('src-1');
   });
 

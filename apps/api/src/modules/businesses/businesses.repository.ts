@@ -44,6 +44,7 @@ export class BusinessesRepository {
         loyaltyStampIcon: true,
         loyaltyShowBusinessName: true,
         checkinWelcomeMessage: true,
+        checkinBackgroundColor: true,
         googleBusinessProfileUrl: true,
         defaultReviewRedirectUrl: true,
       },

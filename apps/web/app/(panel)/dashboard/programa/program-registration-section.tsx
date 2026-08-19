@@ -21,9 +21,9 @@ const MAX_LEN = 160;
  * además no recibe `onSubmit`; conserva el diseño sin permitir escritura,
  * clics ni requests reales.
  *
- * Lo único editable es el encabezado (`checkinWelcomeMessage`): auditado
- * antes de construir esto — no hay más copy suelta en esa pantalla, el resto
- * ya se arma solo a partir de Tarjeta digital y del beneficio activo.
+ * Se editan el encabezado (`checkinWelcomeMessage`) y el fondo propio de esta
+ * pantalla (`checkinBackgroundColor`). El resto se arma solo a partir de
+ * Tarjeta digital y del beneficio activo.
  */
 export default function ProgramRegistrationSection({
   appearance,
@@ -38,6 +38,9 @@ export default function ProgramRegistrationSection({
 }) {
   const [message, setMessage] = useState(
     appearance.checkinWelcomeMessage ?? "",
+  );
+  const [backgroundColor, setBackgroundColor] = useState(
+    appearance.checkinBackgroundColor ?? "",
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,7 +58,10 @@ export default function ProgramRegistrationSection({
     setSaving(true);
     setError(null);
     try {
-      await onSave({ checkinWelcomeMessage: message.trim() });
+      await onSave({
+        checkinWelcomeMessage: message.trim(),
+        checkinBackgroundColor: backgroundColor || null,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No pudimos guardar.");
     } finally {
@@ -69,6 +75,7 @@ export default function ProgramRegistrationSection({
       businessName: businessName || "Tu negocio",
       logoUrl: appearance.logoUrl,
       primaryColor: appearance.primaryColor,
+      checkinBackgroundColor: backgroundColor || null,
       googleBusinessProfileUrl: null,
       loyaltyCardColor: appearance.loyaltyCardColor,
       loyaltyCardTextColor: appearance.loyaltyCardTextColor,
@@ -91,7 +98,7 @@ export default function ProgramRegistrationSection({
           description="Lo primero que ve un cliente nuevo al escanear tu QR, antes de dejar sus datos."
         />
 
-        <div className="mt-5">
+        <div className="mt-5 space-y-5">
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
               Encabezado
@@ -110,6 +117,63 @@ export default function ProgramRegistrationSection({
               tu recompensa o beneficio activo.
             </p>
           </label>
+
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+              Color de fondo
+            </span>
+            <div className="mt-2 flex min-h-12 items-center justify-between gap-3 rounded-[10px] border border-[#E8EAF0] bg-white px-3 py-2">
+              <label
+                className={`flex min-w-0 items-center gap-3 ${
+                  canMutate ? "cursor-pointer" : "cursor-default"
+                }`}
+              >
+                <span
+                  className="h-7 w-7 shrink-0 rounded-full border-2 border-white shadow-[0_0_0_1px_#D7DBE7]"
+                  style={{
+                    backgroundColor:
+                      backgroundColor || appearance.primaryColor || "#5C6BC0",
+                  }}
+                />
+                <span
+                  className="truncate text-sm font-medium text-[#1A202C]"
+                  style={{ fontFamily: "var(--font-montserrat), sans-serif" }}
+                >
+                  {backgroundColor.toUpperCase() || "Automático"}
+                </span>
+                <input
+                  type="color"
+                  value={
+                    /^#[0-9A-F]{6}$/i.test(
+                      backgroundColor || appearance.primaryColor || "",
+                    )
+                      ? backgroundColor || appearance.primaryColor || "#5C6BC0"
+                      : "#5C6BC0"
+                  }
+                  disabled={!canMutate}
+                  onChange={(event) =>
+                    setBackgroundColor(event.target.value.toUpperCase())
+                  }
+                  aria-label="Elegir color de fondo"
+                  className="sr-only"
+                />
+              </label>
+              {backgroundColor ? (
+                <button
+                  type="button"
+                  disabled={!canMutate}
+                  onClick={() => setBackgroundColor("")}
+                  className="shrink-0 rounded-[8px] px-3 py-1.5 text-xs font-semibold text-[#5C6BC0] transition-colors hover:bg-[#F0F2FF] disabled:opacity-50"
+                >
+                  Usar automático
+                </button>
+              ) : null}
+            </div>
+            <p className="mt-1 text-xs text-[#8891A4]">
+              Tocá el círculo para elegir un color. En automático se usa la
+              paleta de tu marca.
+            </p>
+          </div>
         </div>
 
         {error ? <p className="mt-4 text-sm text-[#C0392B]">{error}</p> : null}
@@ -120,10 +184,10 @@ export default function ProgramRegistrationSection({
               type="button"
               onClick={() => void save()}
               disabled={saving}
-              className="flk-glossy inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white shadow-[0_0_16px_rgba(92,107,192,0.2)] transition-colors hover:bg-[#4f5eb0] disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Guardar encabezado
+              Guardar cambios
             </button>
           </div>
         ) : null}
