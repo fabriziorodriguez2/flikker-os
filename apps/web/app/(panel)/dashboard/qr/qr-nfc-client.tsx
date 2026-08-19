@@ -6,7 +6,6 @@ import {
   Copy,
   Download,
   Loader2,
-  Nfc,
   Plus,
   QrCode,
   Trash2,
@@ -14,6 +13,7 @@ import {
 import QRCode from "qrcode";
 import PageHeader from "@/components/ui/page-header";
 import { useIsOwnerOrAdmin } from "../../role-context";
+import PhysicalSupportNotice from "./physical-support-notice";
 
 /**
  * QR y NFC — el acceso que usan los clientes del negocio.
@@ -32,8 +32,6 @@ import { useIsOwnerOrAdmin } from "../../role-context";
  * La palabra "VisitSource" no aparece en pantalla a propósito: el dueño
  * administra "puntos de acceso", no filas de una tabla.
  */
-
-const FLIKKER_WHATSAPP = "59891624988";
 
 interface AccessPoint {
   id: string;
@@ -224,13 +222,6 @@ export default function QrNfcClient() {
     }
   }
 
-  const whatsappHref = `https://wa.me/${FLIKKER_WHATSAPP}?text=${encodeURIComponent(
-    `Hola, quiero pedir un soporte QR + NFC para ${business?.name ?? "mi negocio"}.` +
-      // Viaja para que Flikker identifique el negocio sin pedírselo al dueño;
-      // no se muestra en pantalla porque no le dice nada a él.
-      (business?.id ? ` (ref: ${business.id})` : ""),
-  )}`;
-
   if (loading) {
     return (
       <div className="flex h-48 items-center justify-center">
@@ -276,6 +267,11 @@ export default function QrNfcClient() {
           {actionError}
         </div>
       ) : null}
+
+      <PhysicalSupportNotice
+        businessId={business?.id}
+        businessName={business?.name}
+      />
 
       {/* ── 1. Tu acceso principal ──────────────────────────────────────── */}
       {principal ? (
@@ -353,48 +349,7 @@ export default function QrNfcClient() {
         </section>
       )}
 
-      {/* ── 2. Soporte físico QR + NFC ──────────────────────────────────── */}
-      <section className="overflow-hidden rounded-[18px] border border-[#5C6BC0]/25 bg-[#F4F5FD]">
-        <div className="flex flex-col gap-7 p-7 sm:flex-row sm:items-center sm:p-9">
-          {/* Mock del soporte: sugiere el objeto sin fingir una foto. */}
-          <div
-            aria-hidden="true"
-            className="mx-auto flex h-40 w-32 shrink-0 flex-col items-center justify-center gap-2.5 rounded-[14px] bg-[#1A1040] shadow-[0_12px_28px_rgba(26,16,64,0.22)] sm:mx-0"
-          >
-            <div className="flex h-16 w-16 items-center justify-center rounded-[8px] bg-white">
-              <QrCode className="h-11 w-11 text-[#1A1040]" />
-            </div>
-            <Nfc className="h-5 w-5 text-white/60" />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5C6BC0]">
-              Soporte Flikker
-            </p>
-            <h2 className="mt-1.5 font-display text-xl font-semibold tracking-[-0.02em] text-[#202333]">
-              QR + NFC listo para tu local
-            </h2>
-            <p className="mt-2 max-w-lg text-sm leading-6 text-[#5F6780]">
-              Ponelo en el mostrador. Tus clientes pueden escanear el QR o
-              acercar el celular.
-            </p>
-            <p className="mt-1.5 text-sm font-semibold text-[#202333]">
-              Ambos abren exactamente el mismo programa.
-            </p>
-
-            <a
-              href={whatsappHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-6 inline-flex h-11 items-center rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4f5eb0]"
-            >
-              Pedir soporte físico
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* ── 3. Otros puntos de acceso ───────────────────────────────────── */}
+      {/* ── 2. Otros puntos de acceso, inmediatamente después de Tu QR ─ */}
       <section>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
