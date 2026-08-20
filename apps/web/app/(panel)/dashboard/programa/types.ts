@@ -71,10 +71,16 @@ export interface LoyaltyAppearance {
   logoUrl: string | null;
   primaryColor: string | null;
   loyaltyCardColor: string | null;
+  loyaltyCardTextColor: string | null;
+  loyaltyCardBackgroundImage: string | null;
+  loyaltyStampAreaColor: string | null;
   loyaltyStampColor: string | null;
   loyaltyStampIcon: string | null;
+  loyaltyShowBusinessName: boolean;
   /** Página de inscripción — encabezado propio de la landing de check-in. */
   checkinWelcomeMessage: string | null;
+  /** Página de inscripción — null conserva la paleta automática de marca. */
+  checkinBackgroundColor: string | null;
 }
 
 /**

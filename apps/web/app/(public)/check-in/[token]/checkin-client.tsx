@@ -77,9 +77,10 @@ async function postJson(url: string, body?: unknown): Promise<JsonResult> {
       headers: { "Content-Type": "application/json" },
       body: body ? JSON.stringify(body) : undefined,
     });
-    const data = (await res
-      .json()
-      .catch(() => null)) as Record<string, unknown> | null;
+    const data = (await res.json().catch(() => null)) as Record<
+      string,
+      unknown
+    > | null;
     return { ok: res.ok, status: res.status, data };
   } catch {
     return { ok: false, status: 0, data: null };
@@ -120,9 +121,7 @@ export default function CheckinClient({
       if (!active) return;
       if (result.ok && result.data) {
         setPersonal(result.data.personal as PersonalSpace);
-        setCheckinStatus(
-          (result.data.status as CheckinStatus) ?? "checked_in",
-        );
+        setCheckinStatus((result.data.status as CheckinStatus) ?? "checked_in");
         setMode("personal");
       } else {
         setMode("register");
@@ -252,6 +251,7 @@ export function RegisterFormFields({
   savingLabel,
   onSubmit,
   onRecoverInstead,
+  preview = false,
 }: {
   benefit: CheckinLanding["benefit"];
   palette: { accent: string; accentText: string };
@@ -263,6 +263,7 @@ export function RegisterFormFields({
     birthdate?: string;
   }) => Promise<{ error?: string } | void>;
   onRecoverInstead?: (phone: string) => void;
+  preview?: boolean;
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -296,7 +297,7 @@ export function RegisterFormFields({
   }
 
   return (
-    <>
+    <div className="contents" inert={preview ? true : undefined}>
       {benefit && (benefit.description || benefit.terms) && (
         <div className="mt-5 w-full max-w-sm rounded-2xl border border-[#e4e7ec] bg-white p-4 text-left shadow-sm">
           {benefit.description && (
@@ -337,7 +338,9 @@ export function RegisterFormFields({
             // de limpiarlo, perdiendo dígitos reales. `normalizeUruguayNationalPhone`
             // ya limpia y recorta el prefijo "598"/"0" ANTES de recortar a 9
             // — mismo helper que ya usa PhoneInput en onboarding.
-            onChange={(e) => setPhone(normalizeUruguayNationalPhone(e.target.value))}
+            onChange={(e) =>
+              setPhone(normalizeUruguayNationalPhone(e.target.value))
+            }
             placeholder="91624988"
             required
             className="w-full bg-transparent py-4 pl-3 pr-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:outline-none"
@@ -416,7 +419,77 @@ export function RegisterFormFields({
           Ya soy cliente
         </button>
       ) : null}
-    </>
+    </div>
+  );
+}
+
+/**
+ * La pantalla visual completa de inscripción, compartida entre el check-in
+ * real y Programa → Página de inscripción. `preview` solo vuelve inerte el
+ * árbol de controles; no cambia estilos, estructura ni copy.
+ */
+export function RegisterScreenContent({
+  landing,
+  palette,
+  fill = true,
+  preview = false,
+  onSubmit,
+  onRecoverInstead,
+}: {
+  landing: CheckinLanding;
+  palette: {
+    primary: string;
+    secondary: string;
+    accent: string;
+    accentText: string;
+  };
+  fill?: boolean;
+  preview?: boolean;
+  onSubmit?: (values: {
+    name: string;
+    phone: string;
+    birthdate?: string;
+  }) => Promise<{ error?: string } | void>;
+  onRecoverInstead?: (phone: string) => void;
+}) {
+  const isRaffle = landing.benefit?.type === "raffle";
+  const title =
+    landing.welcomeMessage ??
+    landing.benefitText ??
+    `Sumate a ${landing.business.businessName}`;
+  const subtitle = isRaffle
+    ? "Dejanos tu nombre y número para participar del sorteo."
+    : landing.benefitText
+      ? "Dejanos tu nombre y número y te lo enviamos por WhatsApp."
+      : "Dejanos tu nombre y número para registrar tu visita.";
+  const btnLabel = isRaffle
+    ? "Quiero participar"
+    : landing.benefitText
+      ? "Quiero mi beneficio"
+      : "Registrar mi visita";
+
+  return (
+    <Shell
+      landing={landing}
+      brandOverride={palette}
+      backgroundColor={landing.business.checkinBackgroundColor}
+      fill={fill}
+    >
+      <h1 className="text-center text-2xl font-bold leading-tight text-white">
+        {title}
+      </h1>
+      <p className="mt-3 text-center text-sm text-white/70">{subtitle}</p>
+
+      <RegisterFormFields
+        benefit={landing.benefit}
+        palette={palette}
+        submitLabel={btnLabel}
+        savingLabel="Registrando…"
+        onSubmit={onSubmit}
+        onRecoverInstead={onRecoverInstead}
+        preview={preview}
+      />
+    </Shell>
   );
 }
 
@@ -439,25 +512,6 @@ function RegisterScreen({
     landing.business.logoUrl,
     landing.business.primaryColor,
   );
-
-  const isRaffle = landing.benefit?.type === "raffle";
-  // `welcomeMessage` SOLO reemplaza el título — el subtítulo y el botón de
-  // acá abajo siguen decidiéndose con `benefitText`, a propósito, para no
-  // romper esa lógica ("¿hay un beneficio real detrás?").
-  const title =
-    landing.welcomeMessage ??
-    landing.benefitText ??
-    `Sumate a ${landing.business.businessName}`;
-  const subtitle = isRaffle
-    ? "Dejanos tu nombre y número para participar del sorteo."
-    : landing.benefitText
-      ? "Dejanos tu nombre y número y te lo enviamos por WhatsApp."
-      : "Dejanos tu nombre y número para registrar tu visita.";
-  const btnLabel = isRaffle
-    ? "Quiero participar"
-    : landing.benefitText
-      ? "Quiero mi beneficio"
-      : "Registrar mi visita";
 
   async function handleRegister(values: {
     name: string;
@@ -482,21 +536,12 @@ function RegisterScreen({
   }
 
   return (
-    <Shell landing={landing} brandOverride={palette}>
-      <h1 className="text-center text-2xl font-bold leading-tight text-white">
-        {title}
-      </h1>
-      <p className="mt-3 text-center text-sm text-white/70">{subtitle}</p>
-
-      <RegisterFormFields
-        benefit={landing.benefit}
-        palette={palette}
-        submitLabel={btnLabel}
-        savingLabel="Registrando…"
-        onSubmit={handleRegister}
-        onRecoverInstead={onRecoverInstead}
-      />
-    </Shell>
+    <RegisterScreenContent
+      landing={landing}
+      palette={palette}
+      onSubmit={handleRegister}
+      onRecoverInstead={onRecoverInstead}
+    />
   );
 }
 
@@ -588,7 +633,9 @@ function RecoverScreen({
                 type="tel"
                 inputMode="numeric"
                 value={phone}
-                onChange={(e) => setPhone(normalizeUruguayNationalPhone(e.target.value))}
+                onChange={(e) =>
+                  setPhone(normalizeUruguayNationalPhone(e.target.value))
+                }
                 placeholder="91624988"
                 className="w-full bg-transparent py-4 pl-3 pr-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:outline-none"
               />
@@ -598,25 +645,26 @@ function RecoverScreen({
               disabled={busy || phone.length < 8}
               onClick={() => void sendCode(phone)}
               className="w-full rounded-2xl py-4 text-base font-bold shadow-[0_10px_24px_rgba(12,16,30,0.2)] transition-opacity disabled:opacity-45"
-              style={{ backgroundColor: palette.accent, color: palette.accentText }}
+              style={{
+                backgroundColor: palette.accent,
+                color: palette.accentText,
+              }}
             >
               {busy ? "Enviando…" : "Enviar código"}
             </button>
           </>
         ) : (
           <>
-            <OtpInput
-              value={code}
-              onChange={setCode}
-              tone="dark"
-              autoFocus
-            />
+            <OtpInput value={code} onChange={setCode} tone="dark" autoFocus />
             <button
               type="button"
               disabled={busy || code.length !== 6}
               onClick={() => void verify()}
               className="w-full rounded-2xl py-4 text-base font-bold shadow-[0_10px_24px_rgba(12,16,30,0.2)] transition-opacity disabled:opacity-45"
-              style={{ backgroundColor: palette.accent, color: palette.accentText }}
+              style={{
+                backgroundColor: palette.accent,
+                color: palette.accentText,
+              }}
             >
               {busy ? "Verificando…" : "Confirmar"}
             </button>
@@ -908,32 +956,31 @@ function PersonalScreen({
     });
   }
 
-  const firstName = personal.customer.name.split(" ")[0] || personal.customer.name;
+  const firstName =
+    personal.customer.name.split(" ")[0] || personal.customer.name;
 
   return (
-    <Shell landing={landing} brandOverride={palette}>
+    <Shell landing={landing} brandOverride={palette} compact>
       <div className="flex w-full max-w-md flex-col items-center">
-        <div
-          className="checkin-success-pop mb-3 flex h-10 w-10 items-center justify-center rounded-full bg-white/14 text-white"
-        >
-          <CheckCircle2 className="h-6 w-6" />
+        <div className="checkin-success-pop mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/14 text-white">
+          <CheckCircle2 className="h-5 w-5" />
         </div>
-        <h1 className="checkin-enter text-center text-[28px] font-bold tracking-[-0.035em] text-white">
+        <h1 className="checkin-enter text-center text-2xl font-bold tracking-[-0.035em] text-white">
           ¡Hola, {firstName}! <span aria-hidden="true">👋</span>
         </h1>
-        <p className="checkin-enter mt-3 flex items-center gap-1.5 rounded-full bg-white/12 px-3.5 py-2 text-center text-[13px] font-semibold text-white/90">
+        <p className="checkin-enter mt-2 flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1.5 text-center text-xs font-semibold text-white/90">
           <Check className="h-3.5 w-3.5 stroke-[2.5]" aria-hidden="true" />
           {checkinStatus === "duplicate"
             ? "Tu visita de hoy ya estaba guardada"
             : "¡Tu visita quedó guardada!"}
         </p>
 
-        <div className="mt-6 grid w-full grid-cols-1 gap-4">
-          <div className="checkin-enter relative overflow-hidden rounded-[24px] bg-white px-5 py-4 shadow-[0_10px_24px_rgba(12,16,30,0.14)]">
+        <div className="mt-4 grid w-full grid-cols-1 gap-3">
+          <div className="checkin-enter relative overflow-hidden rounded-[20px] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(12,16,30,0.14)]">
             <div className="relative flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <span
-                  className="flex h-11 w-11 items-center justify-center rounded-[14px]"
+                  className="flex h-10 w-10 items-center justify-center rounded-[12px]"
                   style={{
                     backgroundColor: colorWithAlpha(
                       brand,
@@ -946,14 +993,16 @@ function PersonalScreen({
                   <Footprints className="h-5 w-5" aria-hidden="true" />
                 </span>
                 <div>
-                    <p className="text-sm font-bold text-[#24283A]">¡Seguís sumando!</p>
+                  <p className="text-sm font-bold text-[#24283A]">
+                    ¡Seguís sumando!
+                  </p>
                   <p className="mt-0.5 text-xs text-[#8A91A3]">
-                      Cada visita te acerca a algo lindo
+                    Cada visita te acerca a algo lindo
                   </p>
                 </div>
               </div>
               <div className="text-right">
-                <p className="text-[32px] font-bold leading-none text-[#171A2B]">
+                <p className="text-[28px] font-bold leading-none text-[#171A2B]">
                   {personal.visits.total}
                 </p>
                 <p className="mt-1 text-[11px] font-semibold text-[#8A91A3]">
@@ -964,6 +1013,7 @@ function PersonalScreen({
           </div>
 
           <RewardGoalCard
+            token={token}
             rewardGoal={personal.rewardGoal}
             brand={brand}
             landing={landing}
@@ -1001,7 +1051,7 @@ function PersonalScreen({
 
         <Link
           href="/mi-flikker"
-          className="checkin-enter-delay mt-5 inline-flex w-full items-center justify-center gap-2 rounded-[16px] bg-white py-3.5 text-sm font-semibold text-[#24283A] shadow-[0_8px_18px_rgba(12,16,30,0.12)] transition-colors hover:bg-white/90"
+          className="checkin-enter-delay mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[14px] bg-white py-3 text-sm font-semibold text-[#24283A] shadow-[0_8px_18px_rgba(12,16,30,0.12)] transition-colors hover:bg-white/90"
         >
           Mis lugares y premios
         </Link>
@@ -1010,7 +1060,7 @@ function PersonalScreen({
           type="button"
           onClick={() => void switchAccount()}
           disabled={loggingOut}
-          className="mt-4 rounded-full px-4 py-2 text-xs font-semibold text-white/65 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-60"
+          className="mt-2 rounded-full px-4 py-1.5 text-xs font-semibold text-white/65 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-60"
         >
           {loggingOut ? "Cerrando…" : "Cambiar de cuenta"}
         </button>
@@ -1107,10 +1157,12 @@ export function BenefitRewardCard({
  * nothing active — the last one still explains what scanning is for.
  */
 function RewardGoalCard({
+  token,
   rewardGoal,
   brand,
   landing,
 }: {
+  token: string;
   rewardGoal: RewardGoalView | null | undefined;
   brand: string;
   landing: CheckinLanding;
@@ -1158,12 +1210,17 @@ function RewardGoalCard({
           progress={progressVisits}
           target={targetAdditionalVisits}
           bonusStamps={bonusStamps ?? 0}
+          qrValue={`/check-in/${token}`}
           appearance={{
             cardColor: landing.business.loyaltyCardColor ?? brand,
+            textColor: landing.business.loyaltyCardTextColor,
+            backgroundImage: landing.business.loyaltyCardBackgroundImage,
+            stampAreaColor: landing.business.loyaltyStampAreaColor,
             stampColor: landing.business.loyaltyStampColor,
             stampIcon: landing.business.loyaltyStampIcon,
             logoUrl: landing.business.logoUrl,
             businessName: landing.business.businessName,
+            showBusinessName: landing.business.loyaltyShowBusinessName,
           }}
         />
       </div>
@@ -1190,12 +1247,16 @@ function RewardGoalCard({
 export function Shell({
   landing,
   brandOverride,
+  backgroundColor,
   fill = true,
+  compact = false,
   children,
 }: {
   landing: CheckinLanding;
   brandOverride?: { primary: string; secondary: string };
+  backgroundColor?: string | null;
   fill?: boolean;
+  compact?: boolean;
   children: React.ReactNode;
 }) {
   const brand = brandOverride?.primary ?? brandOf(landing);
@@ -1207,24 +1268,40 @@ export function Shell({
       className={`relative flex w-full flex-col overflow-hidden ${
         fill ? "min-h-[100dvh]" : "h-full min-h-full"
       }`}
-      style={{
-        backgroundImage: `linear-gradient(145deg, ${brand} 0%, ${secondary} 100%)`,
-      }}
+      style={
+        backgroundColor
+          ? { backgroundColor, backgroundImage: "none" }
+          : {
+              backgroundImage: `linear-gradient(145deg, ${brand} 0%, ${secondary} 100%)`,
+            }
+      }
     >
-      <div className="relative flex flex-1 flex-col items-center justify-start px-5 py-8 sm:px-6 sm:py-10">
+      <div
+        className={`relative flex flex-1 flex-col items-center justify-start ${
+          compact ? "px-4 py-4" : "px-5 py-8 sm:px-6 sm:py-10"
+        }`}
+      >
         {landing.business.logoUrl && (
-          <div className="relative mb-6">
+          <div className={compact ? "relative mb-3" : "relative mb-6"}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src={landing.business.logoUrl}
               alt={landing.business.businessName}
-              className="h-28 w-28 object-contain sm:h-32 sm:w-32"
+              className={
+                compact
+                  ? "h-16 w-16 object-contain"
+                  : "h-28 w-28 object-contain sm:h-32 sm:w-32"
+              }
             />
           </div>
         )}
         {children}
       </div>
-      <p className="relative pb-5 text-center text-xs text-white/45">
+      <p
+        className={`relative text-center text-xs text-white/45 ${
+          compact ? "pb-3" : "pb-5"
+        }`}
+      >
         <PoweredByFlikker />
       </p>
     </div>

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { ChevronRight, Loader2, MapPin, Sparkles } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
+import LoyaltyCard from "@/components/public/loyalty-card";
 import PhoneInput, { isValidNationalPhone } from "@/components/ui/phone-input";
 import OtpInput from "@/components/ui/otp-input";
 
@@ -13,20 +14,36 @@ interface MyFlikkerPlace {
   businessName: string;
   logoUrl: string | null;
   primaryColor: string | null;
+  loyaltyCardColor: string | null;
+  loyaltyCardTextColor: string | null;
+  loyaltyCardBackgroundImage: string | null;
+  loyaltyStampAreaColor: string | null;
+  loyaltyStampColor: string | null;
+  loyaltyStampIcon: string | null;
+  loyaltyShowBusinessName: boolean;
   visitsTotal: number;
   lastVisitAt: string | null;
   rewardGoal: {
     incentiveName: string;
     progressVisits: number;
+    visitProgress?: number;
+    bonusStamps?: number;
     targetAdditionalVisits: number;
     remainingVisits: number;
   } | null;
-  benefitAvailable: { name: string; code: string; expiresAt: string | null } | null;
+  benefitAvailable: {
+    name: string;
+    code: string;
+    expiresAt: string | null;
+  } | null;
 }
 
 function MiFlikkerTitle() {
   return (
-    <h1 className="flex items-center justify-center gap-2.5" aria-label="Mi Flikker">
+    <h1
+      className="flex items-center justify-center gap-2.5"
+      aria-label="Mi Flikker"
+    >
       <span className="font-display text-[24px] font-bold tracking-[-0.04em] text-[#171A2B]">
         MI
       </span>
@@ -51,7 +68,11 @@ async function postJson(url: string, body: unknown) {
   return { ok: res.ok, data: data as Record<string, unknown> };
 }
 
-export default function MiFlikkerClient({ hasSession }: { hasSession: boolean }) {
+export default function MiFlikkerClient({
+  hasSession,
+}: {
+  hasSession: boolean;
+}) {
   const [status, setStatus] = useState<"loading" | "verify" | "places">(
     hasSession ? "loading" : "verify",
   );
@@ -111,7 +132,9 @@ export default function MiFlikkerClient({ hasSession }: { hasSession: boolean })
       cards.forEach((card, index) => {
         const distance = Math.abs(activeIndex - index);
         const scale =
-          index === activeIndex ? 1.065 : Math.max(0.925, 0.975 - distance * 0.016);
+          index === activeIndex
+            ? 1.065
+            : Math.max(0.925, 0.975 - distance * 0.016);
         const offset = index < activeIndex ? -58 : index > activeIndex ? 58 : 0;
 
         card.style.setProperty("--mi-card-scale", scale.toFixed(4));
@@ -194,7 +217,41 @@ export default function MiFlikkerClient({ hasSession }: { hasSession: boolean })
 }
 
 function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
-  const palette = useLogoPalette(place.businessId, place.logoUrl, place.primaryColor);
+  const palette = useLogoPalette(
+    place.businessId,
+    place.logoUrl,
+    place.primaryColor,
+  );
+  if (place.rewardGoal) {
+    return (
+      <Link
+        href={`/mi-flikker/${place.businessId}`}
+        data-wallet-card
+        className="mi-wallet-card sticky block rounded-[20px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5C6BC0] focus-visible:ring-offset-2"
+        style={{ top: 88 + Math.min(index, 8) * 10, zIndex: index + 1 }}
+      >
+        <LoyaltyCard
+          rewardName={place.rewardGoal.incentiveName}
+          progress={place.rewardGoal.progressVisits}
+          target={place.rewardGoal.targetAdditionalVisits}
+          bonusStamps={place.rewardGoal.bonusStamps ?? 0}
+          qrValue={`/mi-flikker/${place.businessId}`}
+          appearance={{
+            cardColor: place.loyaltyCardColor ?? palette.primary,
+            textColor: place.loyaltyCardTextColor,
+            backgroundImage: place.loyaltyCardBackgroundImage,
+            stampAreaColor: place.loyaltyStampAreaColor,
+            stampColor: place.loyaltyStampColor,
+            stampIcon: place.loyaltyStampIcon,
+            logoUrl: place.logoUrl,
+            businessName: place.businessName,
+            showBusinessName: place.loyaltyShowBusinessName,
+          }}
+        />
+      </Link>
+    );
+  }
+
   return (
     <Link
       href={`/mi-flikker/${place.businessId}`}
@@ -247,27 +304,14 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
         {place.benefitAvailable ? (
           <p className="flex items-center gap-2 text-[14px] font-semibold">
             <Sparkles className="h-4 w-4 text-[#FFE08A]" aria-hidden="true" />
-            <span className="truncate">Tenés disponible: {place.benefitAvailable.name}</span>
+            <span className="truncate">
+              Tenés disponible: {place.benefitAvailable.name}
+            </span>
           </p>
-        ) : place.rewardGoal ? (
-          <div>
-            <div className="flex items-center justify-between gap-3 text-[13px] font-semibold">
-              <span className="truncate">Próximo premio: {place.rewardGoal.incentiveName}</span>
-              <span className="shrink-0 text-white/75">
-                {place.rewardGoal.progressVisits}/{place.rewardGoal.targetAdditionalVisits}
-              </span>
-            </div>
-            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/20">
-              <div
-                className="h-full rounded-full bg-white/85"
-                style={{
-                  width: `${Math.min(100, (place.rewardGoal.progressVisits / Math.max(1, place.rewardGoal.targetAdditionalVisits)) * 100)}%`,
-                }}
-              />
-            </div>
-          </div>
         ) : (
-          <p className="text-[13px] font-medium text-white/65">Todavía no hay un premio activo</p>
+          <p className="text-[13px] font-medium text-white/65">
+            Todavía no hay un premio activo
+          </p>
         )}
       </div>
     </Link>
@@ -299,7 +343,10 @@ function VerifyScreen({ onVerified }: { onVerified: () => void }) {
   async function confirmCode() {
     setSending(true);
     setError(null);
-    const { ok, data } = await postJson("/api/mi-flikker/verify/confirm", { phone, code });
+    const { ok, data } = await postJson("/api/mi-flikker/verify/confirm", {
+      phone,
+      code,
+    });
     setSending(false);
     if (ok) onVerified();
     else setError((data.message as string) ?? "Código inválido.");
@@ -334,11 +381,7 @@ function VerifyScreen({ onVerified }: { onVerified: () => void }) {
           </>
         ) : (
           <>
-            <OtpInput
-              value={code}
-              onChange={setCode}
-              autoFocus
-            />
+            <OtpInput value={code} onChange={setCode} autoFocus />
             <button
               type="button"
               disabled={sending || code.length !== 6}
@@ -357,7 +400,9 @@ function VerifyScreen({ onVerified }: { onVerified: () => void }) {
             </button>
           </>
         )}
-        {error ? <p className="text-center text-sm text-[#C0392B]">{error}</p> : null}
+        {error ? (
+          <p className="text-center text-sm text-[#C0392B]">{error}</p>
+        ) : null}
       </div>
     </Shell>
   );

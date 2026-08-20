@@ -10,7 +10,11 @@ import PhoneFrame from "@/components/ui/phone-frame";
 import ProgramStampsSection from "./program-stamps-section";
 import ProgramFeedbackBonusSection from "./program-feedback-bonus-section";
 import ProgramDesignTab from "./program-design-tab";
-import type { LoyaltyAppearance, LoyaltyProgramOverview, ProgramBenefit } from "./types";
+import type {
+  LoyaltyAppearance,
+  LoyaltyProgramOverview,
+  ProgramBenefit,
+} from "./types";
 
 /**
  * "Tarjeta digital" — todo lo que define la tarjeta de sellos en un solo
@@ -71,10 +75,15 @@ export default function ProgramCardSection({
         businessName: businessName || "Tu negocio",
         logoUrl: appearance.logoUrl,
         primaryColor: appearance.primaryColor,
+        checkinBackgroundColor: null,
         googleBusinessProfileUrl: null,
         loyaltyCardColor: appearance.loyaltyCardColor,
+        loyaltyCardTextColor: appearance.loyaltyCardTextColor,
+        loyaltyCardBackgroundImage: appearance.loyaltyCardBackgroundImage,
+        loyaltyStampAreaColor: appearance.loyaltyStampAreaColor,
         loyaltyStampColor: appearance.loyaltyStampColor,
         loyaltyStampIcon: appearance.loyaltyStampIcon,
+        loyaltyShowBusinessName: appearance.loyaltyShowBusinessName,
       },
       benefit: null,
       benefitText: null,
@@ -137,8 +146,8 @@ export default function ProgramCardSection({
             </Shell>
           </PhoneFrame>
           <p className="mt-3 text-xs text-[#8891A4]">
-            Así ve tu cliente su beneficio, sin tarjeta de sellos de por
-            medio — con datos de ejemplo.
+            Así ve tu cliente su beneficio, sin tarjeta de sellos de por medio —
+            con datos de ejemplo.
           </p>
         </aside>
       </div>
@@ -146,25 +155,7 @@ export default function ProgramCardSection({
   }
 
   return (
-    <div className="space-y-5">
-      <ProgramStampsSection
-        overview={overview}
-        benefits={benefits}
-        canMutate={canMutate}
-        onToggle={onToggle}
-        onSaveConfig={onSaveConfig}
-        onReload={onReload}
-      />
-
-      {overview.enabled ? (
-        <ProgramFeedbackBonusSection
-          overview={overview}
-          canMutate={canMutate}
-          onSaveConfig={onSaveConfig}
-          onReload={onReload}
-        />
-      ) : null}
-
+    <>
       {overview.enabled ? (
         <ProgramDesignTab
           appearance={appearance}
@@ -173,8 +164,32 @@ export default function ProgramCardSection({
           stampsRequired={overview.stampsRequired ?? 5}
           canMutate={canMutate}
           onSave={onSaveDesign}
+        >
+          <ProgramStampsSection
+            overview={overview}
+            benefits={benefits}
+            canMutate={canMutate}
+            onToggle={onToggle}
+            onSaveConfig={onSaveConfig}
+            onReload={onReload}
+          />
+          <ProgramFeedbackBonusSection
+            overview={overview}
+            canMutate={canMutate}
+            onSaveConfig={onSaveConfig}
+            onReload={onReload}
+          />
+        </ProgramDesignTab>
+      ) : (
+        <ProgramStampsSection
+          overview={overview}
+          benefits={benefits}
+          canMutate={canMutate}
+          onToggle={onToggle}
+          onSaveConfig={onSaveConfig}
+          onReload={onReload}
         />
-      ) : null}
-    </div>
+      )}
+    </>
   );
 }

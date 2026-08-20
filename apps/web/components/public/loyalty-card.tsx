@@ -1,14 +1,26 @@
 "use client";
 
-import { buildLoyaltyCardTheme } from "@/lib/loyalty-card-theme";
+import { useEffect, useState } from "react";
+import QRCode from "qrcode";
+import {
+  bestContrastOn,
+  buildLoyaltyCardTheme,
+  contrastRatio,
+  normalizeHex,
+  resolveLoyaltyStampAreaColor,
+} from "@/lib/loyalty-card-theme";
 import RewardGoalStamps from "./reward-goal-stamps";
 
 export interface LoyaltyCardAppearance {
   cardColor?: string | null;
+  textColor?: string | null;
+  backgroundImage?: string | null;
+  stampAreaColor?: string | null;
   stampColor?: string | null;
   stampIcon?: string | null;
   logoUrl?: string | null;
   businessName?: string | null;
+  showBusinessName?: boolean;
 }
 
 /**
@@ -23,86 +35,138 @@ export default function LoyaltyCard({
   rewardName,
   progress,
   target,
-  bonusStamps = 0,
+  qrValue,
   appearance,
 }: {
   rewardName: string;
   progress: number;
   target: number;
   bonusStamps?: number;
+  qrValue?: string;
   appearance: LoyaltyCardAppearance;
 }) {
+  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const theme = buildLoyaltyCardTheme(
     appearance.cardColor,
     appearance.stampColor,
   );
-  const remaining = Math.max(0, target - progress);
-  const pct = Math.min(100, Math.round((progress / Math.max(1, target)) * 100));
+  const requestedText = normalizeHex(appearance.textColor);
+  const textColor =
+    requestedText && contrastRatio(requestedText, theme.card) >= 4.5
+      ? requestedText
+      : theme.text;
+  const stampAreaColor = resolveLoyaltyStampAreaColor(
+    appearance.cardColor,
+    appearance.stampAreaColor,
+  );
+  const stampAreaText = bestContrastOn(stampAreaColor);
+  const qrContent = qrValue ?? "https://flikker.site";
+
+  useEffect(() => {
+    let cancelled = false;
+    const value = qrContent.startsWith("/")
+      ? `${window.location.origin}${qrContent}`
+      : qrContent;
+    void QRCode.toDataURL(value, {
+      width: 240,
+      margin: 1,
+      errorCorrectionLevel: "M",
+      color: { dark: "#111318", light: "#FFFFFF" },
+    }).then((dataUrl) => {
+      if (!cancelled) setQrDataUrl(dataUrl);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [qrContent]);
 
   return (
     <div
-      className="relative overflow-hidden rounded-[24px] p-5 shadow-[0_10px_24px_rgba(12,16,30,0.14)]"
-      style={{ backgroundColor: theme.card, color: theme.text }}
+      className="relative w-full overflow-hidden rounded-[20px] shadow-[0_14px_32px_rgba(4,8,22,0.22)]"
+      style={{ backgroundColor: theme.card, color: textColor }}
     >
-      <div className="flex items-center gap-3">
-        {appearance.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={appearance.logoUrl}
-            alt=""
-            className="h-10 w-10 shrink-0 rounded-[10px] object-contain"
-          />
-        ) : null}
-        <div className="min-w-0">
-          <p
-            className="text-[11px] font-semibold uppercase tracking-[0.12em]"
-            style={{ color: theme.textMuted }}
-          >
-            Tu tarjeta
+      {appearance.backgroundImage ? (
+        <div
+          className="absolute inset-0 bg-cover bg-center opacity-20"
+          style={{
+            backgroundImage: `url(${JSON.stringify(appearance.backgroundImage)})`,
+          }}
+          aria-hidden="true"
+        />
+      ) : null}
+
+      <header className="relative z-[1] flex min-h-[68px] items-center justify-between gap-3 px-4 py-3">
+        <div className="flex min-w-0 items-center gap-2.5">
+          {appearance.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={appearance.logoUrl}
+              alt=""
+              className="h-10 w-14 shrink-0 object-contain object-left"
+            />
+          ) : (
+            <span
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border text-xs font-black uppercase"
+              style={{ borderColor: `${textColor}66` }}
+              aria-hidden="true"
+            >
+              {(appearance.businessName ?? "F").slice(0, 1)}
+            </span>
+          )}
+          {appearance.showBusinessName !== false ? (
+            <p className="truncate text-sm font-extrabold leading-tight">
+              {appearance.businessName ?? "Tu negocio"}
+            </p>
+          ) : null}
+        </div>
+        <div className="shrink-0 text-right">
+          <p className="text-[9px] font-bold uppercase tracking-[0.16em] opacity-65">
+            Sellos
           </p>
-          <p className="truncate text-sm font-bold" style={{ color: theme.text }}>
-            {appearance.businessName ?? "Tu negocio"}
+          <p className="mt-0.5 text-xl font-black leading-none">
+            {Math.min(progress, target)}
+            <span className="text-[11px] font-bold opacity-65">/{target}</span>
           </p>
         </div>
-      </div>
+      </header>
 
-      <p className="mt-4 text-sm font-semibold" style={{ color: theme.textMuted }}>
-        {remaining === 0
-          ? "¡Completaste tu tarjeta!"
-          : remaining === 1
-            ? "Te falta 1 sello para tu"
-            : `Te faltan ${remaining} sellos para tu`}
-      </p>
-      <p
-        className="mt-0.5 text-[20px] font-bold leading-tight"
-        style={{ color: theme.text }}
+      <div
+        className="relative z-[1] px-4 py-3.5"
+        style={{ backgroundColor: stampAreaColor, color: stampAreaText }}
       >
-        {rewardName}
-      </p>
-
-      <div className="mt-4">
         <RewardGoalStamps
           progress={progress}
           target={target}
           cardColor={appearance.cardColor}
+          stampAreaColor={stampAreaColor}
           stampColor={appearance.stampColor}
           icon={appearance.stampIcon}
         />
       </div>
 
-      <div
-        className="mt-4 h-2 w-full overflow-hidden rounded-full"
-        style={{ backgroundColor: theme.track }}
-      >
-        <div
-          className="h-full rounded-full transition-all"
-          style={{ width: `${pct}%`, backgroundColor: theme.accent }}
-        />
+      <div className="relative z-[1] flex min-h-[112px] items-center justify-between gap-4 px-4 py-3.5">
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-bold uppercase tracking-[0.16em] opacity-65">
+            Tu premio
+          </p>
+          <p className="mt-1 text-[19px] font-extrabold leading-[1.08]">
+            {rewardName}
+          </p>
+        </div>
+
+        <div className="shrink-0 rounded-[12px] bg-white p-1.5 shadow-[0_8px_20px_rgba(4,8,22,0.16)]">
+          {qrDataUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={qrDataUrl}
+              alt="QR de acceso al programa"
+              className="h-20 w-20"
+            />
+          ) : (
+            <div className="h-20 w-20 animate-pulse rounded-[7px] bg-[#F0F1F5]" />
+          )}
+        </div>
       </div>
-      <p className="mt-2 text-[11px] font-semibold" style={{ color: theme.textMuted }}>
-        {progress} de {target} sellos
-        {bonusStamps ? ` (incluye ${bonusStamps} por tu feedback)` : ""}
-      </p>
     </div>
   );
 }

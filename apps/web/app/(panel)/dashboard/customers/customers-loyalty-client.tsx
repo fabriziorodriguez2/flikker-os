@@ -3,7 +3,17 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ChevronRight, Gift, Loader2, QrCode, Search, Tag } from "lucide-react";
+import {
+  ChevronRight,
+  Gift,
+  Loader2,
+  QrCode,
+  Search,
+  SearchX,
+  Tag,
+  UsersRound,
+} from "lucide-react";
+import EmptyState from "@/components/ui/empty-state";
 import PageHeader from "@/components/ui/page-header";
 import CustomerModal from "./customer-modal";
 import { RECURRENCE, relativeDay, type RecurrenceKey } from "./loyalty-ui";
@@ -214,7 +224,10 @@ function CustomersLoyaltyContent() {
         </div>
       ) : businessHasNoCustomers ? (
         <div className="rounded-[18px] border border-[#E8EAF0] bg-white px-6 py-14 text-center">
-          <p className="font-display text-lg font-semibold text-[#202333]">
+          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-[14px] bg-[#F3F4F8] text-[#7F879C]">
+            <UsersRound className="h-5 w-5" aria-hidden="true" />
+          </span>
+          <p className="mt-4 font-display text-lg font-semibold text-[#202333]">
             Todavía no tenés clientes
           </p>
           <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[#7F879C]">
@@ -229,9 +242,10 @@ function CustomersLoyaltyContent() {
           </Link>
         </div>
       ) : rows.length === 0 ? (
-        <p className="rounded-[16px] border border-dashed border-[#DDE1EC] bg-white px-5 py-10 text-center text-sm text-[#8891A4]">
-          Ningún cliente coincide con esta búsqueda.
-        </p>
+        <EmptyState
+          icon={SearchX}
+          description="Ningún cliente coincide con esta búsqueda."
+        />
       ) : (
         <ul className="divide-y divide-[#EFF1F7] overflow-hidden rounded-[16px] border border-[#E8EAF0] bg-white">
           {rows.map((row) => (
@@ -324,11 +338,11 @@ function Kpi({
   value: number | undefined;
 }) {
   return (
-    <div className="rounded-[14px] border border-[#E8EAF0] bg-white px-4 py-4">
+    <div className="rounded-[14px] border border-[#E8EAF0] bg-white px-4 py-4 font-sans">
       <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
         {label}
       </p>
-      <p className="mt-1.5 font-display text-2xl font-semibold tracking-[-0.02em] text-[#202333]">
+      <p className="mt-1.5 text-2xl font-semibold tracking-[-0.02em] text-[#202333]">
         {value ?? "—"}
       </p>
       <p className="mt-1 text-[11px] leading-4 text-[#B0B8C9]">{hint}</p>

@@ -4,6 +4,7 @@ import {
   buildLoyaltyCardTheme,
   contrastRatio,
   isStampIconKey,
+  resolveLoyaltyStampAreaColor,
 } from "./loyalty-card-theme";
 
 /** Mínimo WCAG para elementos gráficos no textuales — que es lo que es un sello. */
@@ -123,5 +124,16 @@ describe("isStampIconKey", () => {
     expect(isStampIconKey("cualquier-cosa")).toBe(false);
     expect(isStampIconKey(null)).toBe(false);
     expect(isStampIconKey(undefined)).toBe(false);
+  });
+});
+
+describe("resolveLoyaltyStampAreaColor", () => {
+  it("crea una franja clara neutra cuando no se configuró un color", () => {
+    expect(resolveLoyaltyStampAreaColor("#171A2B", null)).toBe("#F8F3EF");
+    expect(resolveLoyaltyStampAreaColor("#FFFFFF", null)).toBe("#F2F4F8");
+  });
+
+  it("respeta y normaliza el color elegido por el negocio", () => {
+    expect(resolveLoyaltyStampAreaColor("#171A2B", "#abc")).toBe("#AABBCC");
   });
 });

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { FileText, Loader2 } from "lucide-react";
+import FlikkerSelect from "@/components/ui/flikker-select";
 import ProgramSectionHeading from "./program-section-heading";
 import type { LoyaltyProgramOverview, ProgramBenefit } from "./types";
 
@@ -29,8 +30,7 @@ export default function ProgramTermsSection({
   canMutate: boolean;
   onSave: (benefitId: string, terms: string) => Promise<void>;
 }) {
-  const defaultBenefitId =
-    overview.reward?.benefitId ?? benefits[0]?.id ?? "";
+  const defaultBenefitId = overview.reward?.benefitId ?? benefits[0]?.id ?? "";
   const [benefitId, setBenefitId] = useState(defaultBenefitId);
   const [terms, setTerms] = useState(
     benefits.find((b) => b.id === defaultBenefitId)?.terms ?? "",
@@ -66,8 +66,8 @@ export default function ProgramTermsSection({
         </h2>
         <p className="mx-auto mt-2 max-w-sm text-sm text-[#8891A4]">
           Creá al menos un beneficio en{" "}
-          <span className="font-semibold text-[#5C6BC0]">Beneficios</span>{" "}
-          para poder escribirle sus bases legales.
+          <span className="font-semibold text-[#5C6BC0]">Beneficios</span> para
+          poder escribirle sus bases legales.
         </p>
       </section>
     );
@@ -82,26 +82,26 @@ export default function ProgramTermsSection({
       />
 
       <div className="mt-5">
-        <label className="block">
+        <div>
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
             Beneficio
           </span>
-          <select
+          <FlikkerSelect
             value={benefitId}
             disabled={!canMutate}
-            onChange={(e) => setBenefitId(e.target.value)}
-            className="mt-1 w-full rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none focus:border-[#5C6BC0]"
-          >
-            {benefits.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.title}
-                {overview.reward?.benefitId === b.id
-                  ? " · recompensa de la tarjeta"
-                  : ""}
-              </option>
-            ))}
-          </select>
-        </label>
+            onChange={setBenefitId}
+            ariaLabel="Beneficio"
+            className="mt-1"
+            options={benefits.map((benefit) => ({
+              value: benefit.id,
+              label: benefit.title,
+              description:
+                overview.reward?.benefitId === benefit.id
+                  ? "Recompensa de la tarjeta"
+                  : undefined,
+            }))}
+          />
+        </div>
       </div>
 
       <div className="mt-4">
@@ -118,7 +118,9 @@ export default function ProgramTermsSection({
             rows={5}
             className="mt-1 w-full resize-none rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
           />
-          <p className="mt-1 text-xs text-[#8891A4]">{terms.length}/{MAX_LEN}</p>
+          <p className="mt-1 text-xs text-[#8891A4]">
+            {terms.length}/{MAX_LEN}
+          </p>
         </label>
       </div>
 

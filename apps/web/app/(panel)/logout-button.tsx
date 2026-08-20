@@ -101,7 +101,7 @@ export default function LogoutButton({
             ? `flex h-11 items-center rounded-[13px] text-sm font-semibold text-[#5F5972] transition-all hover:bg-[#ECECF2] hover:text-[#D84A4A] ${
                 compact ? "justify-center px-2" : "gap-3 px-3"
               }`
-            : "inline-flex h-10 items-center gap-2 rounded-[13px] border border-[#5C6BC0]/20 bg-[#5C6BC0] px-3.5 text-sm font-semibold text-white shadow-[0_6px_16px_rgba(92,107,192,0.22),inset_0_1px_0_rgba(255,255,255,0.22)] transition-all hover:-translate-y-px hover:bg-[#5261B4] hover:shadow-[0_9px_20px_rgba(92,107,192,0.27)]"
+            : "flk-glossy inline-flex h-10 items-center gap-2 rounded-[13px] border border-[#5C6BC0]/20 bg-[#5C6BC0] px-3.5 text-sm font-semibold text-white hover:bg-[#5261B4]"
         }
       >
         <LogOut aria-hidden="true" className="h-4 w-4" />

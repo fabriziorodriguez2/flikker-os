@@ -127,6 +127,56 @@ textarea {
     opacity 160ms ease;
 }
 
+/* Stable select treatment shared by every dropdown in the app. */
+select {
+  -webkit-appearance: none;
+  appearance: none;
+  font-family: var(--font-montserrat), sans-serif;
+  color-scheme: light;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%237F879C' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px 16px;
+  padding-right: 42px !important;
+}
+
+select:hover:not(:disabled) {
+  border-color: rgba(92, 107, 192, 0.7);
+}
+
+select:focus,
+select:focus-visible {
+  border-color: #5c6bc0;
+  outline: none;
+  box-shadow:
+    0 0 0 3px rgba(92, 107, 192, 0.1),
+    0 0 10px rgba(92, 107, 192, 0.05);
+}
+
+select:disabled {
+  cursor: not-allowed;
+  background-color: var(--surface-muted);
+  opacity: 0.65;
+}
+
+select option {
+  background: #ffffff;
+  color: #1a202c;
+  font-family: var(--font-montserrat), sans-serif;
+  font-size: 0.875rem;
+}
+
+:root[data-theme="dark"] select {
+  color-scheme: dark;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23AEB5C7' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m7 10 5 5 5-5'/%3E%3C/svg%3E");
+}
+
+:root[data-theme="dark"] select option {
+  background: #151a2c;
+  color: #f5f6fb;
+}
+
 ::selection {
   background: rgba(145, 136, 245, 0.28);
 }
@@ -242,108 +292,66 @@ textarea {
   padding-bottom: 24px;
 }
 
-/* ── Glossy CTA refresh ───────────────────────────────────────────────────
-   Layered on TOP of whatever background color a button already has (brand
-   purple, white, green WhatsApp, dark hero panel...) — never replaces it.
-   That's deliberate: the app has no shared <Button>, just hardcoded
-   Tailwind classes per file, so a class that only adds sheen/shadow/motion
-   is the one change that can realistically apply everywhere without a full
-   button-system rewrite. Two variants: `.flk-glossy` for solid/filled CTAs
-   (primary color OR white-on-dark), `.flk-glossy-secondary` for bordered/
-   outline buttons on a light surface. Both stay subtle on purpose — a
-   premium sheen, not a plastic/recargado effect. */
+/* Flat CTAs with a restrained Flikker-purple glow. */
 .flk-glossy {
   position: relative;
   isolation: isolate;
-  background-image: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.24) 0%,
-    rgba(255, 255, 255, 0.05) 42%,
-    rgba(255, 255, 255, 0) 60%
-  );
+  background-image: none;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.32),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.07),
-    0 1px 2px rgba(17, 22, 59, 0.06),
-    0 10px 22px -8px rgba(17, 22, 59, 0.32);
-  transition:
-    box-shadow 200ms ease,
-    filter 160ms ease,
-    transform 120ms ease;
+    0 2px 7px rgba(92, 107, 192, 0.14),
+    0 0 10px rgba(92, 107, 192, 0.07);
+  transition: box-shadow 180ms ease;
 }
 
 .flk-glossy:hover {
-  filter: brightness(1.045);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.4),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.08),
-    0 2px 4px rgba(17, 22, 59, 0.08),
-    0 14px 28px -8px rgba(17, 22, 59, 0.38);
+    0 3px 9px rgba(92, 107, 192, 0.17),
+    0 0 14px rgba(92, 107, 192, 0.1);
 }
 
 .flk-glossy:active {
-  filter: brightness(0.98);
-  transform: translateY(1px);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.08),
-    0 1px 2px rgba(17, 22, 59, 0.08);
+    0 1px 4px rgba(92, 107, 192, 0.14),
+    0 0 7px rgba(92, 107, 192, 0.06);
 }
 
 .flk-glossy:disabled,
 .flk-glossy[aria-disabled="true"] {
-  filter: none;
-  transform: none;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    0 1px 2px rgba(17, 22, 59, 0.04);
+  box-shadow: 0 1px 4px rgba(92, 107, 192, 0.06);
 }
 
 .flk-glossy-secondary {
   position: relative;
   isolation: isolate;
-  background-image: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.9) 0%,
-    rgba(252, 252, 254, 0.55) 100%
-  );
+  background-image: none;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.85),
-    0 1px 2px rgba(17, 22, 59, 0.04),
-    0 6px 14px -6px rgba(17, 22, 59, 0.12);
+    0 2px 6px rgba(17, 22, 59, 0.04),
+    0 0 8px rgba(92, 107, 192, 0.045);
   transition:
-    box-shadow 200ms ease,
-    border-color 160ms ease,
-    transform 120ms ease;
+    box-shadow 180ms ease,
+    border-color 160ms ease;
 }
 
 .flk-glossy-secondary:hover {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.95),
-    0 2px 4px rgba(17, 22, 59, 0.06),
-    0 10px 20px -8px rgba(17, 22, 59, 0.16);
+    0 3px 8px rgba(17, 22, 59, 0.055),
+    0 0 11px rgba(92, 107, 192, 0.065);
 }
 
 .flk-glossy-secondary:active {
-  transform: translateY(1px);
+  box-shadow: 0 1px 4px rgba(92, 107, 192, 0.05);
 }
 
 .flk-glossy-secondary:disabled,
 .flk-glossy-secondary[aria-disabled="true"] {
   box-shadow: none;
-  transform: none;
 }
 
 :root[data-theme="dark"] .flk-glossy-secondary {
-  background-image: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.08) 0%,
-    rgba(255, 255, 255, 0.02) 100%
-  );
+  background-image: none;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.1),
-    0 1px 2px rgba(0, 0, 0, 0.2),
-    0 6px 14px -6px rgba(0, 0, 0, 0.3);
+    0 2px 6px rgba(0, 0, 0, 0.18),
+    0 0 9px rgba(122, 135, 224, 0.07);
 }
 
 .login-clean-input::selection {

@@ -46,10 +46,15 @@ type BusinessForCheckin = Pick<
   | 'checkinReviewPromptEveryDays'
   | 'experienceVersion'
   | 'loyaltyCardColor'
+  | 'loyaltyCardTextColor'
+  | 'loyaltyCardBackgroundImage'
+  | 'loyaltyStampAreaColor'
   | 'loyaltyStampColor'
   | 'loyaltyStampIcon'
+  | 'loyaltyShowBusinessName'
   | 'checkinWelcomeMessage'
   | 'welcomeBenefitId'
+  | 'checkinBackgroundColor'
 >;
 
 @Injectable()
@@ -65,7 +70,7 @@ export class CheckinService {
     private readonly messaging: PublicMessagingService,
     private readonly rewardGoals: RewardGoalOrchestratorService,
     private readonly rewardGoalFeedback: RewardGoalFeedbackService,
-  ) {}
+  ) { }
 
   // ── Landing (GET) ──────────────────────────────────────────────────────────
 
@@ -512,10 +517,15 @@ export class CheckinService {
         checkinReviewPromptEveryDays: true,
         experienceVersion: true,
         loyaltyCardColor: true,
+        loyaltyCardTextColor: true,
+        loyaltyCardBackgroundImage: true,
+        loyaltyStampAreaColor: true,
         loyaltyStampColor: true,
         loyaltyStampIcon: true,
+        loyaltyShowBusinessName: true,
         checkinWelcomeMessage: true,
         welcomeBenefitId: true,
+        checkinBackgroundColor: true,
       },
     });
     if (!business || !isCheckinV2(business)) {
@@ -596,10 +606,10 @@ export class CheckinService {
       this.benefits.resolveActiveBenefit(business.id, undefined, customerId),
       opts.justVisited
         ? this.rewardGoals.afterVisit(
-            business.id,
-            customerId,
-            business.timezone,
-          )
+          business.id,
+          customerId,
+          business.timezone,
+        )
         : this.rewardGoals.currentView(business.id, customerId),
     ]);
 
@@ -710,12 +720,17 @@ export class CheckinService {
       businessName: business.name,
       logoUrl: business.logoUrl ?? null,
       primaryColor: business.primaryColor ?? null,
+      checkinBackgroundColor: business.checkinBackgroundColor ?? null,
       googleBusinessProfileUrl: business.googleBusinessProfileUrl ?? null,
       // Apariencia de la tarjeta de sellos. Null = usar la marca del
       // negocio, que es el comportamiento previo a Programa → Diseño.
       loyaltyCardColor: business.loyaltyCardColor ?? null,
+      loyaltyCardTextColor: business.loyaltyCardTextColor ?? null,
+      loyaltyCardBackgroundImage: business.loyaltyCardBackgroundImage ?? null,
+      loyaltyStampAreaColor: business.loyaltyStampAreaColor ?? null,
       loyaltyStampColor: business.loyaltyStampColor ?? null,
       loyaltyStampIcon: business.loyaltyStampIcon ?? null,
+      loyaltyShowBusinessName: business.loyaltyShowBusinessName,
     };
   }
 }

@@ -77,6 +77,7 @@ export default function CheckinV2BusinessSettings() {
   const canManage = useIsOwnerOrAdmin();
   const [business, setBusiness] = useState<Business | null>(null);
   const [name, setName] = useState("");
+  const [editingName, setEditingName] = useState(false);
   const [vertical, setVertical] = useState(DEFAULT_BUSINESS_VERTICAL);
   const [country, setCountry] = useState("UY");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
@@ -93,6 +94,7 @@ export default function CheckinV2BusinessSettings() {
       const data = (await readJson(response)) as Business;
       setBusiness(data);
       setName(data.name);
+      setEditingName(false);
       setVertical(data.vertical ?? data.industry ?? DEFAULT_BUSINESS_VERTICAL);
       setCountry(data.country);
       setLogoUrl(data.logoUrl);
@@ -271,19 +273,40 @@ export default function CheckinV2BusinessSettings() {
           </div>
         </div>
 
-        <div>
-          <label htmlFor="business-name" className="text-sm font-semibold text-[#1A202C]">
-            Nombre del negocio
-          </label>
-          <input
-            id="business-name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            disabled={!canManage}
-            required
-            maxLength={120}
-            className={inputClass}
-          />
+        <div className="flex min-h-[58px] items-start justify-between gap-5 border-b border-[#EEF0F5] pb-5">
+          <div className="min-w-0 flex-1">
+            <label
+              htmlFor="business-name"
+              className="block text-sm font-semibold text-[#1A202C]"
+            >
+              Nombre del negocio
+            </label>
+            {editingName ? (
+              <input
+                id="business-name"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                required
+                maxLength={120}
+                autoFocus
+                className={`${inputClass} max-w-[520px]`}
+              />
+            ) : (
+              <p className="mt-2 truncate text-sm font-medium text-[#1A202C]">
+                {name}
+              </p>
+            )}
+          </div>
+
+          {canManage ? (
+            <button
+              type="button"
+              onClick={() => setEditingName((current) => !current)}
+              className="flk-glossy-secondary mt-0.5 inline-flex h-8 shrink-0 items-center justify-center rounded-[9px] border border-[#E1E4EC] bg-white px-3 text-xs font-semibold text-[#1A202C] hover:border-[#C9D0F4] hover:text-[#4F5EB0]"
+            >
+              {editingName ? "Listo" : "Editar"}
+            </button>
+          ) : null}
         </div>
 
         <div className="grid gap-5 sm:grid-cols-2">

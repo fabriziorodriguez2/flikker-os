@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, Stamp } from "lucide-react";
+import FlikkerSelect from "@/components/ui/flikker-select";
 import ProgramSectionHeading from "./program-section-heading";
 import type { LoyaltyProgramOverview, ProgramBenefit } from "./types";
 
@@ -217,31 +218,36 @@ function ConfigForm({
         title="Configurar sellos"
         description={
           <>
-            Elegí la única recompensa que se entrega al completar la tarjeta.
-            El resto de tu catálogo vive en{" "}
+            Elegí la única recompensa que se entrega al completar la tarjeta. El
+            resto de tu catálogo vive en{" "}
             <span className="font-semibold text-[#5C6BC0]">Beneficios</span>.
           </>
         }
       />
 
       <div className="mt-4 grid gap-4 sm:grid-cols-2">
-        <label className="block">
+        <div>
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
             Recompensa de la tarjeta
           </span>
-          <select
+          <FlikkerSelect
             value={rewardBenefitId}
-            onChange={(e) => setRewardBenefitId(e.target.value)}
-            className={inputClass}
-          >
-            <option value="">Crear una nueva…</option>
-            {redeemable.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.title}
-              </option>
-            ))}
-          </select>
-        </label>
+            onChange={setRewardBenefitId}
+            ariaLabel="Recompensa de la tarjeta"
+            className="mt-1"
+            options={[
+              {
+                value: "",
+                label: "Crear una nueva…",
+                description: "Definir una recompensa personalizada",
+              },
+              ...redeemable.map((benefit) => ({
+                value: benefit.id,
+                label: benefit.title,
+              })),
+            ]}
+          />
+        </div>
 
         <label className="block">
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
@@ -262,22 +268,18 @@ function ConfigForm({
 
       {!rewardBenefitId ? (
         <div className="mt-4 grid gap-4 sm:grid-cols-[160px_1fr]">
-          <label className="block">
+          <div>
             <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
               Tipo
             </span>
-            <select
+            <FlikkerSelect
               value={newRewardType}
-              onChange={(e) => setNewRewardType(e.target.value)}
-              className={inputClass}
-            >
-              {REWARD_TYPES.map((t) => (
-                <option key={t.value} value={t.value}>
-                  {t.label}
-                </option>
-              ))}
-            </select>
-          </label>
+              onChange={setNewRewardType}
+              ariaLabel="Tipo de recompensa"
+              className="mt-1"
+              options={REWARD_TYPES}
+            />
+          </div>
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
               ¿Qué se llevan?

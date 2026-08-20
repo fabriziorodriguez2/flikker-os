@@ -147,52 +147,52 @@ export default async function PanelLayout({
 
   return (
     <>
-    <div className="flikker-app-shell min-h-screen lg:flex">
-      <SessionExpiryHandler />
-      <Sidebar
-        memberships={memberships}
-        activeBusinessId={activeBusinessId}
-        userName={`${user.firstName} ${user.lastName}`}
-        businessDisplayName={businessDisplayName ?? null}
-        businessLogoUrl={businessLogoUrl}
-        isImpersonating={!!session.impersonation}
-        isCheckinV2={isCheckinV2}
-        role={currentRole}
-        isPlatformAdmin={!!user.isPlatformAdmin}
-      />
+      <div className="flikker-app-shell min-h-screen lg:flex lg:h-screen lg:overflow-hidden">
+        <SessionExpiryHandler />
+        <Sidebar
+          memberships={memberships}
+          activeBusinessId={activeBusinessId}
+          userName={`${user.firstName} ${user.lastName}`}
+          businessDisplayName={businessDisplayName ?? null}
+          businessLogoUrl={businessLogoUrl}
+          isImpersonating={!!session.impersonation}
+          isCheckinV2={isCheckinV2}
+          role={currentRole}
+          isPlatformAdmin={!!user.isPlatformAdmin}
+        />
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        {session.impersonation ? (
-          <ImpersonationBanner impersonation={session.impersonation} />
-        ) : null}
-        <div className="relative z-20 flex items-center gap-2 px-3 pt-3 lg:hidden">
-          <MobileMenuButton />
-          <div className="min-w-0 flex-1">
-            <MobileNav
-              isImpersonating={!!session.impersonation}
-              isCheckinV2={isCheckinV2}
-              role={currentRole}
-              isPlatformAdmin={!!user.isPlatformAdmin}
-            />
+        <div className="flex min-w-0 flex-1 flex-col lg:min-h-0">
+          {session.impersonation ? (
+            <ImpersonationBanner impersonation={session.impersonation} />
+          ) : null}
+          <div className="relative z-20 flex items-center gap-2 px-3 pt-3 lg:hidden">
+            <MobileMenuButton />
+            <div className="min-w-0 flex-1">
+              <MobileNav
+                isImpersonating={!!session.impersonation}
+                isCheckinV2={isCheckinV2}
+                role={currentRole}
+                isPlatformAdmin={!!user.isPlatformAdmin}
+              />
+            </div>
           </div>
-        </div>
 
-        <main className="flex-1 overflow-auto px-4 py-6 md:px-6 md:py-8">
-          <ElasticScrollBoundary>
-            <QueryProvider>
-              <RoleProvider role={currentRole}>
-                <ExperienceProvider
-                  experienceVersion={experienceVersion}
-                  retentionEngineV2Enabled={retentionEngineV2Enabled}
-                >
-                  {children}
-                </ExperienceProvider>
-              </RoleProvider>
-            </QueryProvider>
-          </ElasticScrollBoundary>
-        </main>
+          <main className="min-h-0 flex-1 overflow-auto px-4 py-6 md:px-6 md:py-8">
+            <ElasticScrollBoundary>
+              <QueryProvider>
+                <RoleProvider role={currentRole}>
+                  <ExperienceProvider
+                    experienceVersion={experienceVersion}
+                    retentionEngineV2Enabled={retentionEngineV2Enabled}
+                  >
+                    {children}
+                  </ExperienceProvider>
+                </RoleProvider>
+              </QueryProvider>
+            </ElasticScrollBoundary>
+          </main>
+        </div>
       </div>
-    </div>
     </>
   );
 }

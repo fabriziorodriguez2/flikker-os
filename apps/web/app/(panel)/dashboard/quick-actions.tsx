@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { BarChart3, Gift, Megaphone, QrCode, Upload } from "lucide-react";
+import { BarChart3, Gift, Megaphone, QrCode } from "lucide-react";
 
 // Solo acciones que llevan a una pantalla real del producto — nada de
 // atajos a features que no existen todavía.
@@ -20,11 +20,6 @@ const ACTIONS = [
     icon: QrCode,
   },
   {
-    href: "/dashboard/customers",
-    label: "Importar clientes",
-    icon: Upload,
-  },
-  {
     href: "/dashboard/insights",
     label: "Ver insights",
     icon: BarChart3,
@@ -43,7 +38,7 @@ export default function QuickActions({
   return (
     <div
       className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${
-        hideCampaign ? "lg:grid-cols-4" : "lg:grid-cols-5"
+        hideCampaign ? "lg:grid-cols-3" : "lg:grid-cols-4"
       }`}
     >
       {visibleActions.map((action) => (

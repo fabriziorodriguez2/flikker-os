@@ -2,10 +2,7 @@
 
 import { useState } from "react";
 import { Loader2, UserPlus } from "lucide-react";
-import {
-  RegisterFormFields,
-  Shell,
-} from "@/app/(public)/check-in/[token]/checkin-client";
+import { RegisterScreenContent } from "@/app/(public)/check-in/[token]/checkin-client";
 import type { CheckinLanding } from "@/app/(public)/check-in/[token]/page";
 import { useImagePalette } from "@/lib/use-logo-palette";
 import PhoneFrame from "@/components/ui/phone-frame";
@@ -18,19 +15,15 @@ const MAX_LEN = 160;
  * "Página de inscripción" — la landing pública (`/check-in/[token]`) que ve
  * el cliente al escanear el QR, antes de dejar sus datos.
  *
- * La preview reusa `Shell` y `RegisterFormFields` — los MISMOS componentes
- * que monta la landing real (fondo con gradiente de marca, logo, pie
- * "Powered by Flikker", inputs de nombre/teléfono/fecha) — en vez de una
- * maqueta desconectada. No reusa `RegisterScreen` completo: ese componente
- * decide A DÓNDE mandar el registro (el `token` real); `RegisterFormFields`
- * es solo la parte visual, y sin pasarle `onSubmit` el formulario no tiene
- * ningún request a donde ir — cero riesgo de POST real desde un dueño
- * autenticado editando. El título/subtítulo/botón acá son la MISMA
- * derivación que usa `RegisterScreen` (comentario ahí mismo).
+ * La preview monta `RegisterScreenContent`, exactamente la misma pantalla
+ * visual que usa el check-in real: fondo, logo, copy, campos, enlace y pie.
+ * En el panel se activa su modo `preview`, que vuelve inerte todo el árbol y
+ * además no recibe `onSubmit`; conserva el diseño sin permitir escritura,
+ * clics ni requests reales.
  *
- * Lo único editable es el encabezado (`checkinWelcomeMessage`): auditado
- * antes de construir esto — no hay más copy suelta en esa pantalla, el resto
- * ya se arma solo a partir de Tarjeta digital y del beneficio activo.
+ * Se editan el encabezado (`checkinWelcomeMessage`) y el fondo propio de esta
+ * pantalla (`checkinBackgroundColor`). El resto se arma solo a partir de
+ * Tarjeta digital y del beneficio activo.
  */
 export default function ProgramRegistrationSection({
   appearance,
@@ -43,7 +36,12 @@ export default function ProgramRegistrationSection({
   canMutate: boolean;
   onSave: (patch: Record<string, unknown>) => Promise<void>;
 }) {
-  const [message, setMessage] = useState(appearance.checkinWelcomeMessage ?? "");
+  const [message, setMessage] = useState(
+    appearance.checkinWelcomeMessage ?? "",
+  );
+  const [backgroundColor, setBackgroundColor] = useState(
+    appearance.checkinBackgroundColor ?? "",
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Misma extracción de paleta que usa la landing real (`RegisterScreen`),
@@ -60,7 +58,10 @@ export default function ProgramRegistrationSection({
     setSaving(true);
     setError(null);
     try {
-      await onSave({ checkinWelcomeMessage: message.trim() });
+      await onSave({
+        checkinWelcomeMessage: message.trim(),
+        checkinBackgroundColor: backgroundColor || null,
+      });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No pudimos guardar.");
     } finally {
@@ -74,18 +75,20 @@ export default function ProgramRegistrationSection({
       businessName: businessName || "Tu negocio",
       logoUrl: appearance.logoUrl,
       primaryColor: appearance.primaryColor,
+      checkinBackgroundColor: backgroundColor || null,
       googleBusinessProfileUrl: null,
       loyaltyCardColor: appearance.loyaltyCardColor,
+      loyaltyCardTextColor: appearance.loyaltyCardTextColor,
+      loyaltyCardBackgroundImage: appearance.loyaltyCardBackgroundImage,
+      loyaltyStampAreaColor: appearance.loyaltyStampAreaColor,
       loyaltyStampColor: appearance.loyaltyStampColor,
       loyaltyStampIcon: appearance.loyaltyStampIcon,
+      loyaltyShowBusinessName: appearance.loyaltyShowBusinessName,
     },
     benefit: null,
     benefitText: null,
     welcomeMessage: message.trim() || null,
   };
-  const title =
-    previewLanding.welcomeMessage ?? `Sumate a ${previewLanding.business.businessName}`;
-
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
       <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
@@ -95,7 +98,7 @@ export default function ProgramRegistrationSection({
           description="Lo primero que ve un cliente nuevo al escanear tu QR, antes de dejar sus datos."
         />
 
-        <div className="mt-5">
+        <div className="mt-5 space-y-5">
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
               Encabezado
@@ -114,6 +117,63 @@ export default function ProgramRegistrationSection({
               tu recompensa o beneficio activo.
             </p>
           </label>
+
+          <div>
+            <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+              Color de fondo
+            </span>
+            <div className="mt-2 flex min-h-12 items-center justify-between gap-3 rounded-[10px] border border-[#E8EAF0] bg-white px-3 py-2">
+              <label
+                className={`flex min-w-0 items-center gap-3 ${
+                  canMutate ? "cursor-pointer" : "cursor-default"
+                }`}
+              >
+                <span
+                  className="h-7 w-7 shrink-0 rounded-full border-2 border-white shadow-[0_0_0_1px_#D7DBE7]"
+                  style={{
+                    backgroundColor:
+                      backgroundColor || appearance.primaryColor || "#5C6BC0",
+                  }}
+                />
+                <span
+                  className="truncate text-sm font-medium text-[#1A202C]"
+                  style={{ fontFamily: "var(--font-montserrat), sans-serif" }}
+                >
+                  {backgroundColor.toUpperCase() || "Automático"}
+                </span>
+                <input
+                  type="color"
+                  value={
+                    /^#[0-9A-F]{6}$/i.test(
+                      backgroundColor || appearance.primaryColor || "",
+                    )
+                      ? backgroundColor || appearance.primaryColor || "#5C6BC0"
+                      : "#5C6BC0"
+                  }
+                  disabled={!canMutate}
+                  onChange={(event) =>
+                    setBackgroundColor(event.target.value.toUpperCase())
+                  }
+                  aria-label="Elegir color de fondo"
+                  className="sr-only"
+                />
+              </label>
+              {backgroundColor ? (
+                <button
+                  type="button"
+                  disabled={!canMutate}
+                  onClick={() => setBackgroundColor("")}
+                  className="shrink-0 rounded-[8px] px-3 py-1.5 text-xs font-semibold text-[#5C6BC0] transition-colors hover:bg-[#F0F2FF] disabled:opacity-50"
+                >
+                  Usar automático
+                </button>
+              ) : null}
+            </div>
+            <p className="mt-1 text-xs text-[#8891A4]">
+              Tocá el círculo para elegir un color. En automático se usa la
+              paleta de tu marca.
+            </p>
+          </div>
         </div>
 
         {error ? <p className="mt-4 text-sm text-[#C0392B]">{error}</p> : null}
@@ -124,10 +184,10 @@ export default function ProgramRegistrationSection({
               type="button"
               onClick={() => void save()}
               disabled={saving}
-              className="flk-glossy inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
+              className="inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white shadow-[0_0_16px_rgba(92,107,192,0.2)] transition-colors hover:bg-[#4f5eb0] disabled:opacity-50"
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Guardar encabezado
+              Guardar cambios
             </button>
           </div>
         ) : null}
@@ -138,23 +198,17 @@ export default function ProgramRegistrationSection({
           Vista previa
         </p>
         <PhoneFrame>
-          <Shell landing={previewLanding} brandOverride={palette} fill={false}>
-            <h1 className="text-center text-2xl font-bold leading-tight text-white">
-              {title}
-            </h1>
-            <p className="mt-3 text-center text-sm text-white/70">
-              Dejanos tu nombre y número para registrar tu visita.
-            </p>
-            <RegisterFormFields
-              benefit={previewLanding.benefit}
-              palette={palette}
-              submitLabel="Registrar mi visita"
-            />
-          </Shell>
+          <RegisterScreenContent
+            landing={previewLanding}
+            palette={palette}
+            fill={false}
+            preview
+            onRecoverInstead={() => undefined}
+          />
         </PhoneFrame>
         <p className="mt-3 text-xs text-[#8891A4]">
-          Es el mismo formulario que ve tu cliente — no manda ningún
-          registro real desde acá.
+          Es el mismo formulario que ve tu cliente — no manda ningún registro
+          real desde acá.
         </p>
       </aside>
     </div>

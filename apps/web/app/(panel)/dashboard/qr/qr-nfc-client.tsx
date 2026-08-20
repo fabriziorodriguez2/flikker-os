@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Check,
   Copy,
   Download,
   Loader2,
-  Nfc,
   Plus,
   QrCode,
   Trash2,
@@ -14,6 +13,7 @@ import {
 import QRCode from "qrcode";
 import PageHeader from "@/components/ui/page-header";
 import { useIsOwnerOrAdmin } from "../../role-context";
+import PhysicalSupportNotice from "./physical-support-notice";
 
 /**
  * QR y NFC — el acceso que usan los clientes del negocio.
@@ -32,8 +32,6 @@ import { useIsOwnerOrAdmin } from "../../role-context";
  * La palabra "VisitSource" no aparece en pantalla a propósito: el dueño
  * administra "puntos de acceso", no filas de una tabla.
  */
-
-const FLIKKER_WHATSAPP = "59891624988";
 
 interface AccessPoint {
   id: string;
@@ -68,6 +66,8 @@ export default function QrNfcClient() {
 
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newNameError, setNewNameError] = useState(false);
+  const newNameInputRef = useRef<HTMLInputElement>(null);
   const [repairing, setRepairing] = useState(false);
 
   const load = useCallback(async () => {
@@ -192,7 +192,12 @@ export default function QrNfcClient() {
 
   async function createPoint() {
     const name = newName.trim();
-    if (name.length < 2) return;
+    if (name.length < 2) {
+      setNewNameError(true);
+      newNameInputRef.current?.focus();
+      return;
+    }
+    setNewNameError(false);
     setCreating(true);
     setActionError(null);
     try {
@@ -223,13 +228,6 @@ export default function QrNfcClient() {
       setRepairing(false);
     }
   }
-
-  const whatsappHref = `https://wa.me/${FLIKKER_WHATSAPP}?text=${encodeURIComponent(
-    `Hola, quiero pedir un soporte QR + NFC para ${business?.name ?? "mi negocio"}.` +
-      // Viaja para que Flikker identifique el negocio sin pedírselo al dueño;
-      // no se muestra en pantalla porque no le dice nada a él.
-      (business?.id ? ` (ref: ${business.id})` : ""),
-  )}`;
 
   if (loading) {
     return (
@@ -276,6 +274,11 @@ export default function QrNfcClient() {
           {actionError}
         </div>
       ) : null}
+
+      <PhysicalSupportNotice
+        businessId={business?.id}
+        businessName={business?.name}
+      />
 
       {/* ── 1. Tu acceso principal ──────────────────────────────────────── */}
       {principal ? (
@@ -353,48 +356,7 @@ export default function QrNfcClient() {
         </section>
       )}
 
-      {/* ── 2. Soporte físico QR + NFC ──────────────────────────────────── */}
-      <section className="overflow-hidden rounded-[18px] border border-[#5C6BC0]/25 bg-[#F4F5FD]">
-        <div className="flex flex-col gap-7 p-7 sm:flex-row sm:items-center sm:p-9">
-          {/* Mock del soporte: sugiere el objeto sin fingir una foto. */}
-          <div
-            aria-hidden="true"
-            className="mx-auto flex h-40 w-32 shrink-0 flex-col items-center justify-center gap-2.5 rounded-[14px] bg-[#1A1040] shadow-[0_12px_28px_rgba(26,16,64,0.22)] sm:mx-0"
-          >
-            <div className="flex h-16 w-16 items-center justify-center rounded-[8px] bg-white">
-              <QrCode className="h-11 w-11 text-[#1A1040]" />
-            </div>
-            <Nfc className="h-5 w-5 text-white/60" />
-          </div>
-
-          <div className="min-w-0 flex-1">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#5C6BC0]">
-              Soporte Flikker
-            </p>
-            <h2 className="mt-1.5 font-display text-xl font-semibold tracking-[-0.02em] text-[#202333]">
-              QR + NFC listo para tu local
-            </h2>
-            <p className="mt-2 max-w-lg text-sm leading-6 text-[#5F6780]">
-              Ponelo en el mostrador. Tus clientes pueden escanear el QR o
-              acercar el celular.
-            </p>
-            <p className="mt-1.5 text-sm font-semibold text-[#202333]">
-              Ambos abren exactamente el mismo programa.
-            </p>
-
-            <a
-              href={whatsappHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-6 inline-flex h-11 items-center rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white transition-colors hover:bg-[#4f5eb0]"
-            >
-              Pedir soporte físico
-            </a>
-          </div>
-        </div>
-      </section>
-
-      {/* ── 3. Otros puntos de acceso ───────────────────────────────────── */}
+      {/* ── 2. Otros puntos de acceso, inmediatamente después de Tu QR ─ */}
       <section>
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
@@ -487,31 +449,63 @@ export default function QrNfcClient() {
         )}
 
         {canManage ? (
-          <div className="mt-4 flex flex-wrap items-center gap-2.5">
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void createPoint();
-              }}
-              placeholder="Terraza"
-              maxLength={60}
-              aria-label="Nombre del punto de acceso"
-              className="h-11 w-full max-w-[240px] rounded-[11px] border border-[#E8EAF0] bg-white px-4 text-sm text-[#202333] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
-            />
-            <button
-              type="button"
-              onClick={() => void createPoint()}
-              disabled={creating || newName.trim().length < 2}
-              className="inline-flex h-11 items-center gap-2 rounded-[11px] border border-[#E8EAF0] bg-white px-5 text-sm font-semibold text-[#5C6BC0] transition-colors hover:border-[#5C6BC0] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              {creating ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-              Agregar punto de acceso
-            </button>
+          <div className="mt-5 rounded-[16px] border border-[#C9D0F4] bg-[#F8F8FF] p-4 sm:p-5">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#E7EAFE] text-[#4F5EB0]">
+                <Plus className="h-5 w-5" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="text-sm font-bold text-[#171B35]">
+                  Agregar otro punto de acceso
+                </p>
+                <p className="mt-0.5 text-sm text-[#707993]">
+                  Creá un QR diferente para cada sector, mesa o caja.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:items-start">
+              <div className="w-full sm:max-w-[300px]">
+                <input
+                  ref={newNameInputRef}
+                  value={newName}
+                  onChange={(e) => {
+                    setNewName(e.target.value);
+                    if (newNameError) setNewNameError(false);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void createPoint();
+                  }}
+                  placeholder="Ej: Terraza, Caja o Mesa 1"
+                  maxLength={60}
+                  aria-label="Nombre del punto de acceso"
+                  aria-invalid={newNameError}
+                  className={`h-12 w-full rounded-[11px] border bg-white px-4 text-sm text-[#202333] outline-none placeholder:text-[#A8B0C2] focus:ring-4 focus:ring-[#5C6BC0]/10 ${
+                    newNameError
+                      ? "border-[#D84A4A]"
+                      : "border-[#C9CEE1] focus:border-[#5C6BC0]"
+                  }`}
+                />
+                {newNameError ? (
+                  <p className="mt-1.5 text-xs font-medium text-[#C23D3D]">
+                    Escribí un nombre para crear el acceso.
+                  </p>
+                ) : null}
+              </div>
+              <button
+                type="button"
+                onClick={() => void createPoint()}
+                disabled={creating}
+                className="flk-glossy inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-[11px] bg-[#5C6BC0] px-6 text-sm font-bold text-white hover:bg-[#4F5EB0] disabled:cursor-wait disabled:opacity-70"
+              >
+                {creating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                Crear acceso
+              </button>
+            </div>
           </div>
         ) : null}
       </section>

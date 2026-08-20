@@ -103,7 +103,7 @@ export default function ProgramSummaryTab({
             type="button"
             onClick={exportActivity}
             disabled={history.length === 0}
-            className="flk-glossy-secondary inline-flex h-9 items-center gap-2 rounded-[10px] border border-[#E8EAF0] bg-white px-3.5 text-sm font-semibold text-[#5C6478] shadow-[0_2px_6px_rgba(17,22,59,0.03)] hover:border-[#D9DEEA] hover:bg-[#F8F9FC] disabled:cursor-not-allowed disabled:text-[#B0B8C9] disabled:shadow-none"
+            className="flk-glossy-secondary inline-flex h-9 items-center gap-2 rounded-[10px] border border-[#E8EAF0] bg-white px-3.5 text-sm font-semibold text-[#5C6478] hover:border-[#D9DEEA] hover:bg-[#F8F9FC] disabled:cursor-not-allowed disabled:text-[#B0B8C9] disabled:shadow-none"
           >
             <Download className="h-4 w-4" aria-hidden="true" />
             Exportar

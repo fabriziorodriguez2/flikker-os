@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Loader2 } from "lucide-react";
+import { Clock3, Loader2 } from "lucide-react";
+import EmptyState from "@/components/ui/empty-state";
 import { MESSAGE_TYPE_LABEL, type MessageKind } from "@/lib/message-kind";
 import { relativeDay, shortDate } from "../customers/loyalty-ui";
 
@@ -88,9 +89,10 @@ export default function HistoryTab() {
 
   if (rows.length === 0) {
     return (
-      <p className="rounded-[16px] border border-dashed border-[#DDE1EC] bg-white px-5 py-12 text-center text-sm text-[#8891A4]">
-        Los mensajes enviados por Flikker van a aparecer acá.
-      </p>
+      <EmptyState
+        icon={Clock3}
+        description="Los mensajes enviados por Flikker van a aparecer acá."
+      />
     );
   }
 

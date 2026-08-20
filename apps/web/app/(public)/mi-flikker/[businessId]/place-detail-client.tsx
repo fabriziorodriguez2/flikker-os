@@ -3,9 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import QRCode from "qrcode";
-import { ArrowLeft, Footprints, Gift, Loader2 } from "lucide-react";
+import { ArrowLeft, Gift, Loader2 } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
-import RewardGoalStamps from "@/components/public/reward-goal-stamps";
+import LoyaltyCard from "@/components/public/loyalty-card";
 
 interface MyFlikkerPlace {
   businessId: string;
@@ -13,8 +13,12 @@ interface MyFlikkerPlace {
   logoUrl: string | null;
   /** Apariencia de la tarjeta. Null = usar la marca del negocio. */
   loyaltyCardColor?: string | null;
+  loyaltyCardTextColor?: string | null;
+  loyaltyCardBackgroundImage?: string | null;
+  loyaltyStampAreaColor?: string | null;
   loyaltyStampColor?: string | null;
   loyaltyStampIcon?: string | null;
+  loyaltyShowBusinessName?: boolean;
   primaryColor: string | null;
   visitsTotal: number;
   lastVisitAt: string | null;
@@ -47,11 +51,15 @@ interface MyFlikkerPlace {
  * current goal/progress, unlocked benefit. Never segment, assignment,
  * experiment or uplift; those never leave the business dashboard.
  */
-export default function PlaceDetailClient({ businessId }: { businessId: string }) {
+export default function PlaceDetailClient({
+  businessId,
+}: {
+  businessId: string;
+}) {
   const [place, setPlace] = useState<MyFlikkerPlace | null>(null);
-  const [status, setStatus] = useState<"loading" | "ok" | "error" | "unauthorized">(
-    "loading",
-  );
+  const [status, setStatus] = useState<
+    "loading" | "ok" | "error" | "unauthorized"
+  >("loading");
   const palette = useLogoPalette(
     place?.businessId ?? businessId,
     place?.logoUrl ?? null,
@@ -124,76 +132,26 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
         <ArrowLeft className="h-3.5 w-3.5" /> Mis lugares
       </Link>
 
-      <section
-        className="mi-coupon relative overflow-hidden rounded-[28px] p-6 text-white shadow-[0_10px_22px_rgba(20,24,40,0.14)]"
-        style={{ background: `linear-gradient(140deg, ${brand} 0%, ${palette.secondary} 115%)` }}
-      >
-        {place.logoUrl ? (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute -inset-full rotate-45 opacity-[0.045] mix-blend-screen"
-            style={{
-              backgroundImage: `url("/api/mi-flikker/places/${encodeURIComponent(place.businessId)}/logo")`,
-              backgroundPosition: "18px 14px",
-              backgroundRepeat: "repeat",
-              backgroundSize: "76px 76px",
-              filter: "grayscale(1) contrast(0.8)",
-            }}
-          />
-        ) : null}
-        <div className="relative flex items-center gap-4">
-          {place.logoUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={place.logoUrl}
-              alt=""
-              className="h-24 w-24 shrink-0 object-contain sm:h-28 sm:w-28"
-            />
-          ) : (
-            <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-[20px] bg-white/12">
-              <Gift className="h-7 w-7" aria-hidden="true" />
-            </span>
-          )}
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-white/70">Tu tarjeta en</p>
-            <h1 className="mt-0.5 text-[26px] font-bold leading-tight tracking-[-0.035em]">
-              {place.businessName}
-            </h1>
-          </div>
-        </div>
-
-        <div
-          className="relative mt-6 flex items-center gap-2.5 border-t border-white/15 pt-5"
-          aria-label={`${place.visitsTotal} ${place.visitsTotal === 1 ? "visita" : "visitas"}`}
-        >
-          <Footprints className="h-6 w-6 text-white/75" aria-hidden="true" />
-          <span className="text-[30px] font-bold leading-none">{place.visitsTotal}</span>
-        </div>
-
-        {place.rewardGoal ? (
-          <div className="relative mt-5 rounded-[22px] bg-black/16 p-4 backdrop-blur-sm">
-            {/* Los sellos van sobre el hero (degradado de marca + velo
-                oscuro), así que el fondo real contra el que se calcula el
-                contraste es ese, no el blanco de la página. */}
-            <RewardGoalStamps
-              progress={place.rewardGoal.progressVisits}
-              target={place.rewardGoal.targetAdditionalVisits}
-              cardColor={place.loyaltyCardColor ?? brand}
-              stampColor={place.loyaltyStampColor}
-              icon={place.loyaltyStampIcon}
-            />
-            <div className="mt-3 flex items-center justify-between gap-3 text-xs font-semibold text-white/75">
-              <span>
-                Faltan {place.rewardGoal.remainingVisits}{" "}
-                {place.rewardGoal.remainingVisits === 1 ? "visita" : "visitas"}
-              </span>
-              <span>
-                {place.rewardGoal.progressVisits}/{place.rewardGoal.targetAdditionalVisits} sellos
-              </span>
-            </div>
-          </div>
-        ) : null}
-      </section>
+      {place.rewardGoal ? (
+        <LoyaltyCard
+          rewardName={place.rewardGoal.incentiveName}
+          progress={place.rewardGoal.progressVisits}
+          target={place.rewardGoal.targetAdditionalVisits}
+          bonusStamps={place.rewardGoal.bonusStamps ?? 0}
+          qrValue={`/mi-flikker/${place.businessId}`}
+          appearance={{
+            cardColor: place.loyaltyCardColor ?? brand,
+            textColor: place.loyaltyCardTextColor,
+            backgroundImage: place.loyaltyCardBackgroundImage,
+            stampAreaColor: place.loyaltyStampAreaColor,
+            stampColor: place.loyaltyStampColor,
+            stampIcon: place.loyaltyStampIcon,
+            logoUrl: place.logoUrl,
+            businessName: place.businessName,
+            showBusinessName: place.loyaltyShowBusinessName,
+          }}
+        />
+      ) : null}
 
       {place.benefitAvailable ? (
         <GiftReveal benefit={place.benefitAvailable} brand={brand} />
@@ -349,7 +307,13 @@ function GiftReveal({
   );
 }
 
-function Shell({ children, brand = "#5C6BC0" }: { children: React.ReactNode; brand?: string }) {
+function Shell({
+  children,
+  brand = "#5C6BC0",
+}: {
+  children: React.ReactNode;
+  brand?: string;
+}) {
   return (
     <div
       className="flex min-h-screen flex-col items-center bg-[#F5F6FB] px-5 py-8"

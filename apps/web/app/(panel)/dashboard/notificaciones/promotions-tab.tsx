@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Check, Loader2, Send } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Megaphone, Send } from "lucide-react";
+import EmptyState from "@/components/ui/empty-state";
 import { useCanMutate } from "../../role-context";
 
 /**
@@ -203,11 +204,14 @@ export default function PromotionsTab() {
           ) : null}
         </div>
 
-        <p className="rounded-[16px] border border-dashed border-[#DDE1EC] bg-white px-5 py-10 text-center text-sm text-[#8891A4]">
-          {canSend
-            ? "Todavía no enviaste promociones. Las que envíes van a aparecer en el Historial."
-            : "Solo el dueño o un administrador pueden crear promociones."}
-        </p>
+        <EmptyState
+          icon={Megaphone}
+          description={
+            canSend
+              ? "Todavía no enviaste promociones. Las que envíes van a aparecer en el Historial."
+              : "Solo el dueño o un administrador pueden crear promociones."
+          }
+        />
       </div>
     );
   }
