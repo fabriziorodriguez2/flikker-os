@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
-import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
+import { isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
+import { getCurrentBusiness } from "@/lib/current-business";
 import BusinessLoadError from "@/components/ui/business-load-error";
 import ReviewsClient from "./reviews-client";
 import ReviewsLegacyPage from "./reviews-legacy-page";
@@ -30,10 +31,13 @@ export default async function ReviewsPage(props: {
   let loadFailed = false;
   if (context.businessId) {
     try {
-      const business = await apiFetch<{ experienceVersion?: string }>(
-        "/businesses/current",
+      // PERF: `getCurrentBusiness` está memoizado por request (`React.cache`)
+      // — comparte la misma llamada que ya hizo `(panel)/layout.tsx`, en vez
+      // de un `apiFetch` propio (confirmado con logging de requests: antes
+      // era una llamada real adicional a `/businesses/current`).
+      const business = await getCurrentBusiness(
         context.accessToken,
-        { businessId: context.businessId },
+        context.businessId,
       );
       experienceVersion = business.experienceVersion;
     } catch (error) {

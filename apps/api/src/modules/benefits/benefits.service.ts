@@ -3,7 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { Benefit, BenefitType } from '@prisma/client';
+import {
+  Benefit,
+  BenefitIssuanceSource,
+  BenefitType,
+  Prisma,
+} from '@prisma/client';
 import {
   BenefitsRepository,
   type BenefitData,
@@ -350,6 +355,7 @@ export class BenefitsService {
         businessId,
         benefit.id,
         customerId,
+        BenefitIssuanceSource.CHECKIN_ACTIVE,
       );
       if (!existing) return null;
     }
@@ -360,6 +366,22 @@ export class BenefitsService {
   /** A benefit that can be redeemed at the counter (has a code): not raffle/none. */
   isRedeemable(type: BenefitType): boolean {
     return type !== BenefitType.none && type !== BenefitType.raffle;
+  }
+
+  /**
+   * Guard usado por Promociones antes de adjuntar un Benefit a un envío
+   * manual: si Beneficios está apagado (Programa → Configuración), el
+   * cliente después no va a poder verlo/canjearlo vía `getOtherAvailableBenefits`
+   * (mismo toggle) — así que no se puede prometer nada acá. Mismo patrón que
+   * `assertBenefitsProActionAllowed` (que cubre el otro gate, el de plan).
+   */
+  async assertBenefitsCatalogEnabled(businessId: string): Promise<void> {
+    const settings = await this.retentionSettings.getOrCreate(businessId);
+    if (!settings.benefitsEnabled) {
+      throw new BadRequestException(
+        'Beneficios está apagado para este negocio. Activalo en Programa → Configuración antes de mandar una promoción con un beneficio.',
+      );
+    }
   }
 
   /**
@@ -388,10 +410,10 @@ export class BenefitsService {
    * cada visita, así que no puede representar "una sola vez, la primera vez".
    * La fuente de verdad es `Business.welcomeBenefitId`.
    *
-   * Idempotente por construcción: la unicidad de
-   * `BenefitParticipation(benefitId, customerId)` hace que un segundo intento
-   * (reintento, doble submit, refresh) devuelva el mismo código en vez de
-   * emitir otro. Nunca se llama desde `checkin()`, solo desde el registro.
+   * Idempotente por construcción: `ensureRedemptionCode` reusa la emisión
+   * `WELCOME` abierta si ya existe, así que un segundo intento (reintento,
+   * doble submit, refresh) devuelve el mismo código en vez de emitir otro.
+   * Nunca se llama desde `checkin()`, solo desde el registro.
    */
   async grantWelcomeGift(
     businessId: string,
@@ -428,6 +450,7 @@ export class BenefitsService {
       businessId,
       benefit.id,
       customerId,
+      BenefitIssuanceSource.WELCOME,
     );
     return {
       benefitId: benefit.id,
@@ -451,6 +474,7 @@ export class BenefitsService {
       businessId,
       benefit.id,
       customerId,
+      BenefitIssuanceSource.WELCOME,
     );
     // Sin participación = nunca se le otorgó (cliente anterior a que el
     // negocio configurara la bienvenida). Canjeado = ya lo usó.
@@ -464,27 +488,82 @@ export class BenefitsService {
     };
   }
 
-  /** Ensures the customer holds a redemption code for the benefit. */
+  /**
+   * Otros beneficios que este cliente ya tiene otorgados y sin canjear,
+   * más allá del `active` del check-in y del regalo de bienvenida —
+   * típicamente lo que le tocó por una promoción manual (Notificaciones →
+   * Promociones ya puede elegir cualquier Benefit del catálogo, no solo el
+   * `active`). Reusa `BenefitParticipation` tal cual: no es un mecanismo
+   * nuevo, es el mismo que ya usan el regalo de bienvenida y la recompensa
+   * de tarjeta, leído sin la restricción de "solo el activo".
+   *
+   * Mismo toggle que `resolveActiveBenefit`/`grantWelcomeGift`/
+   * `getWelcomeGiftState`: si Beneficios está apagado, no se muestra nada
+   * acá tampoco — sin este chequeo, una promoción podía seguir siendo
+   * visible/canjeable para el cliente aunque el negocio hubiera apagado el
+   * catálogo entero.
+   */
+  async getOtherAvailableBenefits(
+    businessId: string,
+    customerId: string,
+    excludeBenefitIds: (string | null | undefined)[],
+    now: Date = new Date(),
+  ) {
+    const settings = await this.retentionSettings.getOrCreate(businessId);
+    if (!settings.benefitsEnabled) return [];
+
+    const rows = await this.repository.findAvailableParticipations(
+      businessId,
+      customerId,
+      excludeBenefitIds.filter((id): id is string => Boolean(id)),
+      now,
+    );
+    return rows.map((row) => ({
+      id: row.id,
+      benefitId: row.benefitId,
+      type: row.benefit.type,
+      title: row.benefitTitleSnapshot ?? row.benefit.title,
+      description: row.benefit.description,
+      terms: row.benefit.terms,
+      code: row.redemptionCode as string,
+      expiresAt: row.expiresAt,
+    }));
+  }
+
+  /** Ensures the customer holds an open redemption code for this issuance source. */
   ensureRedemptionCode(
     businessId: string,
     benefitId: string,
     customerId: string,
+    source: BenefitIssuanceSource,
   ) {
     return this.repository.ensureRedemptionCode(
       businessId,
       benefitId,
       customerId,
+      source,
     );
   }
 
-  /** Reads the customer's redemption state for a benefit (code + redeemed). */
-  findRedemption(businessId: string, benefitId: string, customerId: string) {
-    return this.repository.findRedemption(businessId, benefitId, customerId);
+  /** Reads the customer's most recent redemption state for this issuance source. */
+  findRedemption(
+    businessId: string,
+    benefitId: string,
+    customerId: string,
+    source: BenefitIssuanceSource,
+  ) {
+    return this.repository.findRedemption(
+      businessId,
+      benefitId,
+      customerId,
+      source,
+    );
   }
 
   /**
-   * Records that a customer opts into a benefit (e.g. a raffle entry).
-   * Used by the public QR flow; kept here so tenancy stays server-side.
+   * Records that a customer opts into a raffle benefit. Used by the public
+   * QR flow; kept here so tenancy stays server-side. Raffle-only — see
+   * `BenefitsRepository#registerParticipation`.
    */
   registerParticipation(
     businessId: string,
@@ -496,6 +575,27 @@ export class BenefitsService {
       benefitId,
       customerId,
     );
+  }
+
+  /**
+   * Emite una participación NUEVA siempre — nunca reabre ni reusa una fila
+   * existente. Usado por Promociones: cada envío es su propia emisión
+   * auditable, con su propio código de canje.
+   *
+   * `tx` opcional — ver `BenefitsRepository#issueBenefit`: Promociones lo
+   * usa para que el lote completo de un envío sea atómico (todo o nada).
+   */
+  issueBenefit(
+    params: {
+      businessId: string;
+      benefitId: string;
+      customerId: string;
+      source: BenefitIssuanceSource;
+      campaignId?: string | null;
+    },
+    tx?: Prisma.TransactionClient,
+  ) {
+    return this.repository.issueBenefit(params, tx);
   }
 
   private resolveDates(

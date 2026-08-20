@@ -85,6 +85,14 @@ export interface LoyaltyAppearance {
  * para que el motor de Retention V2 los use solo, y esa decisión sigue
  * viviendo donde ya vivía (Beneficios, y Herramientas Flikker para Platform
  * Admin) — no se duplica acá.
+ *
+ * `benefitId`: auditado — el mismo endpoint también devuelve filas técnicas
+ * que `BenefitsService#setRetentionBridge` crea automáticamente la primera
+ * vez que el dueño marca "Recompensa de tarjeta" o "Autorizado para
+ * reactivar" en Beneficios (mismo nombre que el Benefit, `benefitId` seteado
+ * — ver `program-incentives-section.tsx`). Esas filas no son incentivos que
+ * el dueño haya creado a propósito; son el bridge técnico. Este campo existe
+ * para poder ocultarlas de esta pantalla sin tocar el backend ni el modelo.
  */
 export interface ProgramIncentive {
   id: string;
@@ -99,6 +107,7 @@ export interface ProgramIncentive {
   maxRedemptionsPerCustomer: number | null;
   maxTotalRedemptions: number | null;
   validDays: number[];
+  benefitId: string | null;
 }
 
 export const WEEKDAY_LABELS: { value: number; label: string }[] = [

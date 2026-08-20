@@ -51,38 +51,41 @@ export class RetentionExperimentMetricsService {
     businessId: string,
     experimentId: string,
   ): Promise<ExperimentResults> {
-    const experiment = await this.prisma.retentionExperiment.findFirst({
-      where: { businessId, id: experimentId },
-      select: {
-        id: true,
-        name: true,
-        attributionWindowDays: true,
-        variants: {
-          select: {
-            id: true,
-            name: true,
-            strategyType: true,
-            incentiveDefinition: {
-              select: {
-                estimatedCost: true,
-                percentageValue: true,
-                fixedValue: true,
+    // PERF: `experiment` y `settings` no dependen uno del otro — antes se
+    // pedían en secuencia. Mismo resultado, en paralelo.
+    const [experiment, settings] = await Promise.all([
+      this.prisma.retentionExperiment.findFirst({
+        where: { businessId, id: experimentId },
+        select: {
+          id: true,
+          name: true,
+          attributionWindowDays: true,
+          variants: {
+            select: {
+              id: true,
+              name: true,
+              strategyType: true,
+              incentiveDefinition: {
+                select: {
+                  estimatedCost: true,
+                  percentageValue: true,
+                  fixedValue: true,
+                },
               },
             },
           },
         },
-      },
-    });
+      }),
+      this.prisma.retentionSettings.findUnique({
+        where: { businessId },
+        select: {
+          minimumSampleSizeForRecommendations: true,
+          averageTicketAmount: true,
+          estimatedMarginPercent: true,
+        },
+      }),
+    ]);
     if (!experiment) throw new NotFoundException('Experiment not found');
-
-    const settings = await this.prisma.retentionSettings.findUnique({
-      where: { businessId },
-      select: {
-        minimumSampleSizeForRecommendations: true,
-        averageTicketAmount: true,
-        estimatedMarginPercent: true,
-      },
-    });
     const minimumSampleSize =
       settings?.minimumSampleSizeForRecommendations ?? 30;
     const averageTicketAmount =
@@ -91,16 +94,20 @@ export class RetentionExperimentMetricsService {
         : null;
     const estimatedMarginPercent = settings?.estimatedMarginPercent ?? null;
 
+    // PERF: cada variante es independiente — antes se pedía una por vez.
+    // Mismo resultado (mismos counts, mismo cálculo de stats), en paralelo.
+    const countsByVariant = await Promise.all(
+      experiment.variants.map((variant) => this.countsFor(variant.id)),
+    );
     const statsByVariant = new Map<string, VariantStats>();
     const variantMeta = new Map<string, (typeof experiment.variants)[number]>();
-    for (const variant of experiment.variants) {
+    experiment.variants.forEach((variant, i) => {
       variantMeta.set(variant.id, variant);
-      const counts = await this.countsFor(variant.id);
       statsByVariant.set(
         variant.id,
-        computeVariantStats(counts, minimumSampleSize),
+        computeVariantStats(countsByVariant[i], minimumSampleSize),
       );
-    }
+    });
 
     const controlVariant = experiment.variants.find(
       (v) => v.strategyType === RetentionStrategyType.CONTROL,

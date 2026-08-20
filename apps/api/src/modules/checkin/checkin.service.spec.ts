@@ -28,6 +28,7 @@ function makeDeps() {
     resolveActiveBenefit: jest.fn().mockResolvedValue(null),
     grantWelcomeGift: jest.fn().mockResolvedValue(null),
     getWelcomeGiftState: jest.fn().mockResolvedValue(null),
+    getOtherAvailableBenefits: jest.fn().mockResolvedValue([]),
     registerParticipation: jest.fn().mockResolvedValue(undefined),
   };
   const messaging = {

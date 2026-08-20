@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BenefitIssuanceSource } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BenefitsService } from '../benefits/benefits.service';
 import { CampaignsService } from '../campaigns/campaigns.service';
@@ -26,7 +27,9 @@ import type { SendPromotionDto } from './dto/send-promotion.dto';
  *    personas, la promoción le llega a esas 12);
  *  - el envío es `CampaignsService.sendManual`, que ya existe y ya funciona;
  *  - el beneficio sale del catálogo de Programa y se emite con
- *    `ensureRedemptionCode`, que ya es idempotente.
+ *    `issueBenefit` — cada envío es una emisión NUEVA e independiente
+ *    (nunca idempotente a propósito: reenviar la misma promoción es una
+ *    entrega nueva, auditable por separado, con su propio código).
  */
 
 /** Audiencias, en los términos en que el dueño las ve en Clientes. */
@@ -83,7 +86,15 @@ export class NotificationsPromotionsService {
     const rawMessage = dto.message.trim();
     let messageBody = rawMessage;
     let benefitTitle: string | null = null;
-    let checkinLink: string | null = null;
+    // Link POR destinatario — cada cliente ve SU propia emisión, no un link
+    // genérico compartido. `genericLink` es el único fallback que queda: un
+    // Benefit de sorteo/ninguno no tiene pantalla de emisión propia.
+    const linkByCustomerId = new Map<string, string>();
+    let genericLink: string | null = null;
+    // Se completa después de `campaigns.sendManual` (necesita el id de la
+    // campaña real) para poder marcar cada emisión con qué promoción la
+    // mandó.
+    const issuedParticipationIds: string[] = [];
 
     if (dto.benefitId) {
       // "Futuras promociones con Benefit también deben quedar bloqueadas" —
@@ -92,53 +103,83 @@ export class NotificationsPromotionsService {
       // autorizar reactivación; una promoción SIN beneficio (mensaje suelto)
       // nunca pasa por acá y sigue funcionando siempre.
       await this.plans.assertBenefitsProActionAllowed(businessId);
+      // Si Beneficios está apagado (Programa → Configuración), el cliente
+      // después no puede ver/canjear nada vía `getOtherAvailableBenefits`
+      // (mismo toggle) — bloquear el envío ahora, no dejar que la promesa
+      // llegue por WhatsApp/email y se rompa del otro lado.
+      await this.benefits.assertBenefitsCatalogEnabled(businessId);
 
       /**
-       * Solo se puede prometer un beneficio que el cliente pueda ABRIR.
-       *
-       * Investigando el flujo real: `/redeem/{token}` es del empleado (pide
-       * sesión de panel), y Mi Flikker solo muestra el beneficio de una
-       * tarjeta ya desbloqueada. La única superficie donde un cliente ve un
-       * beneficio con su código es el check-in, y ahí se muestra el beneficio
-       * ACTIVO del negocio (`resolveActiveBenefit`).
-       *
-       * Por eso la promoción solo acepta ese: mandar "tenés un 2x1" con un
-       * beneficio que el cliente no puede abrir en ningún lado es exactamente
-       * lo que no queremos. La alternativa era construir una segunda pantalla
-       * de canje, que es justo lo que no hay que hacer.
+       * Auditado (pedido explícito): antes esto exigía que `dto.benefitId`
+       * fuera el ÚNICO `active` del check-in — con 3 Benefits reales en el
+       * catálogo, solo 1 podía ofrecerse en una promoción. Ese guard asumía
+       * que la única forma de que el cliente "abra" un beneficio era vía el
+       * activo del check-in, pero `BenefitParticipation` nunca dependió de
+       * `active`: es la misma fila/mecanismo que ya usa el regalo de
+       * bienvenida (`grantWelcomeGift`, que explícitamente NO chequea
+       * `active`). `getOne` ya valida tenancy (404 si el Benefit no es de
+       * este negocio) — cualquier Benefit real del catálogo es válido acá,
+       * sin importar `active` ni `automationEligible` (eso es autorización
+       * de reactivación, otra cosa).
        */
-      const active = await this.benefits.resolveActiveBenefit(businessId);
-      if (!active || active.id !== dto.benefitId) {
-        throw new BadRequestException(
-          'Ese beneficio no está activo. Activalo en Programa para poder ofrecerlo.',
-        );
-      }
-      benefitTitle = active.title;
+      const benefit = await this.benefits.getOne(businessId, dto.benefitId);
+      benefitTitle = benefit.title;
 
-      // Un código por cliente, idempotente por el único (benefitId,
-      // customerId). Reenviar la misma promoción no emite un segundo código,
-      // y es el MISMO código que el check-in le mostraría igual.
-      if (this.benefits.isRedeemable(active.type)) {
+      if (this.benefits.isRedeemable(benefit.type)) {
+        /**
+         * Pedido explícito: cada envío es una emisión NUEVA e
+         * independiente, sin importar si el cliente ya recibió (y hasta
+         * canjeó) este mismo Benefit antes, por esta promoción o por otro
+         * origen — nunca se reabre ni se reusa una fila existente. Cada
+         * cliente recibe su propio código y su propio link a SU emisión
+         * (`/beneficio/{id}`, pantalla pública de solo lectura con el QR
+         * de canje — el canje real sigue pasando exclusivamente por
+         * `/redeem/{code}`, staff, sin cambios).
+         *
+         * Auditado (pedido explícito): todo el lote se emite dentro de UNA
+         * transacción — si falla a mitad de camino (ej. un recipiente
+         * 501-avo de 500), no queda un lote a medio crear. O se emiten las
+         * `recipients.length` participaciones, o ninguna; nunca un envío
+         * nunca-enviado dejando emisiones huérfanas sin campaña.
+         */
+        const issued = await this.prisma.$transaction((tx) =>
+          Promise.all(
+            recipients.map((recipient) =>
+              this.benefits.issueBenefit(
+                {
+                  businessId,
+                  benefitId: benefit.id,
+                  customerId: recipient.customerId,
+                  source: BenefitIssuanceSource.PROMOTION,
+                },
+                tx,
+              ),
+            ),
+          ),
+        );
+        for (let i = 0; i < recipients.length; i++) {
+          const participation = issued[i];
+          issuedParticipationIds.push(participation.id);
+          linkByCustomerId.set(
+            recipients[i].customerId,
+            this.issuanceLink(participation.id),
+          );
+        }
+        messageBody = `${messageBody}\n\n🎁 ${benefit.title}\n{link}`;
+      } else {
+        // Sorteo/ninguno: no hay código para canjear ni pantalla de emisión
+        // propia — mismo link genérico del negocio de siempre.
         for (const recipient of recipients) {
           await this.benefits.registerParticipation(
             businessId,
-            active.id,
-            recipient.customerId,
-          );
-          await this.benefits.ensureRedemptionCode(
-            businessId,
-            active.id,
+            benefit.id,
             recipient.customerId,
           );
         }
+        genericLink = await this.checkinLink(businessId);
+        messageBody = `${messageBody}\n\n🎁 ${benefit.title}`;
+        if (genericLink) messageBody = `${messageBody}\n${genericLink}`;
       }
-
-      // El link es el acceso de siempre del negocio: el cliente lo abre, lo
-      // reconocemos y ve su beneficio con el código. Nada de códigos técnicos
-      // largos pegados en el WhatsApp.
-      checkinLink = await this.checkinLink(businessId);
-      messageBody = `${messageBody}\n\n🎁 ${active.title}`;
-      if (checkinLink) messageBody = `${messageBody}\n${checkinLink}`;
     }
 
     const result = await this.campaigns.sendManual(businessId, userId, {
@@ -146,9 +187,30 @@ export class NotificationsPromotionsService {
         customerId: r.customerId,
         name: r.name,
         phoneE164: r.phoneE164,
+        link: linkByCustomerId.get(r.customerId),
       })),
       messageBody,
     });
+
+    if (issuedParticipationIds.length > 0) {
+      // La promoción YA se mandó en este punto — un fallo acá es solo
+      // metadata de trazabilidad perdida (`campaignId` queda null), nunca
+      // una emisión huérfana ni un beneficio que el cliente no pueda usar.
+      // No debe tirar: eso le devolvería un 500 al dueño sobre un envío
+      // que en los hechos sí funcionó.
+      await this.prisma.benefitParticipation
+        .updateMany({
+          where: { id: { in: issuedParticipationIds } },
+          data: { campaignId: result.campaignId },
+        })
+        .catch((error) => {
+          this.logger.warn(
+            `No se pudo asociar campaignId=${result.campaignId} a ${issuedParticipationIds.length} emisiones: ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
+    }
 
     // Email (Pro) — canal adicional para la MISMA promoción, para los
     // destinatarios que además tienen email. Nunca bloquea ni afecta el
@@ -159,7 +221,8 @@ export class NotificationsPromotionsService {
       recipients,
       rawMessage,
       benefitTitle,
-      checkinLink,
+      linkByCustomerId,
+      genericLink,
     }).catch((error) => {
       this.logger.warn(
         `Promotion email side-channel failed for campaign ${result.campaignId}: ${
@@ -177,7 +240,8 @@ export class NotificationsPromotionsService {
     recipients: { customerId: string; name: string; email: string | null }[];
     rawMessage: string;
     benefitTitle: string | null;
-    checkinLink: string | null;
+    linkByCustomerId: Map<string, string>;
+    genericLink: string | null;
   }): Promise<void> {
     const recipientsWithEmail = input.recipients.filter((r) => r.email);
     if (recipientsWithEmail.length === 0) return;
@@ -190,12 +254,14 @@ export class NotificationsPromotionsService {
     if (!business) return;
 
     for (const recipient of recipientsWithEmail) {
+      const link =
+        input.linkByCustomerId.get(recipient.customerId) ?? input.genericLink;
       const { subject, html } = promotionEmail({
         businessName: business.name,
         customerName: recipient.name,
         messageBody: input.rawMessage,
         benefitTitle: input.benefitTitle,
-        checkinLink: input.checkinLink,
+        checkinLink: link,
       });
       await this.lifecycleEmails.sendOnce({
         businessId: input.businessId,
@@ -211,10 +277,25 @@ export class NotificationsPromotionsService {
   }
 
   /**
+   * El link a la pantalla pública de UNA emisión concreta
+   * (`GET /public/benefit-issuances/:id` del lado del cliente) — solo
+   * lectura: muestra el Benefit y su QR de canje, nunca confirma nada. El
+   * canje real sigue pasando por `/redeem/{code}` (staff).
+   */
+  private issuanceLink(participationId: string): string {
+    const base = (process.env.WEB_BASE_URL ?? 'http://localhost:3001').replace(
+      /\/$/,
+      '',
+    );
+    return `${base}/beneficio/${participationId}`;
+  }
+
+  /**
    * El acceso del negocio, o `null` si por algún motivo no tiene uno.
    *
    * Es el MISMO destino que el QR del mostrador: un punto de acceso, un
-   * token, un destino. La promoción no genera un link propio ni un QR nuevo.
+   * token, un destino. Solo se usa como fallback para Benefits de
+   * sorteo/ninguno, que no tienen una pantalla de emisión propia.
    */
   private async checkinLink(businessId: string): Promise<string | null> {
     const source = await this.visitSources.ensureDefaultSource(businessId);

@@ -92,6 +92,7 @@ const mockGoogleReviewsProvider = {
 };
 const mockGoogleReviewDetectionQueue = {
   enqueueInitialScrape: jest.fn().mockResolvedValue(undefined),
+  enqueueBackfill: jest.fn().mockResolvedValue(undefined),
 };
 const mockWhatsAppBspService = {
   sendText: jest.fn().mockResolvedValue(undefined),
@@ -507,8 +508,10 @@ describe('BusinessesService', () => {
           googlePlaceReviewsUri: 'https://maps.google.com/?cid=p1',
         }),
       );
+      // Pedido explícito: al conectar, traer el histórico completo
+      // disponible (backfill), no solo la tanda diaria acotada.
       expect(
-        mockGoogleReviewDetectionQueue.enqueueInitialScrape,
+        mockGoogleReviewDetectionQueue.enqueueBackfill,
       ).toHaveBeenCalledWith(BUSINESS_ID);
     });
 

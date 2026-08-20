@@ -1,6 +1,10 @@
 import { randomUUID } from 'crypto';
 import { Test, TestingModule } from '@nestjs/testing';
-import { BenefitType, ExperienceVersion } from '@prisma/client';
+import {
+  BenefitIssuanceSource,
+  BenefitType,
+  ExperienceVersion,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { DashboardModule } from './dashboard.module';
 import { DashboardOverviewService } from './dashboard-overview.service';
@@ -167,6 +171,7 @@ describe('DashboardOverviewService (integration)', () => {
         businessId: business.id,
         benefitId: benefit.id,
         customerId: customer.id,
+        source: BenefitIssuanceSource.LEGACY,
         redeemedAt: now,
       },
     });

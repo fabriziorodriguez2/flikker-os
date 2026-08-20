@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { randomInt } from 'crypto';
-import { BenefitType, Prisma, RewardGoalStatus } from '@prisma/client';
+import {
+  BenefitIssuanceSource,
+  BenefitType,
+  Prisma,
+  RewardGoalStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 /// "Vivo" = todavía es una promesa pendiente de honrar. ACTIVE (tarjeta en
@@ -388,33 +393,56 @@ export class BenefitsRepository {
   }
 
   /**
-   * Idempotent per open cycle: a customer participates at most once per
-   * cycle. If their prior entry was already closed by a raffle draw, this
-   * re-opens it for the new cycle instead of leaving them stuck out of it.
+   * Sorteos: idempotente por ciclo abierto — un cliente participa como
+   * máximo una vez por ciclo. Si su entrada anterior ya fue cerrada por un
+   * sorteo, esto la reabre para el ciclo nuevo en vez de dejarlo afuera.
+   * Los sorteos nunca fijan `redemptionCode`/`redeemedAt` (no son
+   * "canjeables" — ver `isRedeemable`), así que reabrir la misma fila acá
+   * nunca pisa un canje de nadie.
+   *
+   * Solo se usa para `source: RAFFLE`. Ya no depende de
+   * `@@unique([benefitId, customerId])` (eliminado — un cliente puede
+   * tener múltiples emisiones del mismo Benefit de otros orígenes al mismo
+   * tiempo); el alcance "una fila por cliente" es una regla propia de este
+   * método, no del modelo.
    */
   async registerParticipation(
     businessId: string,
     benefitId: string,
     customerId: string,
   ) {
-    // Snapshot del título VIGENTE al momento de esta participación — nunca
-    // una referencia viva (ver el comentario del campo en schema.prisma).
-    // Se relee también al reabrir para un ciclo nuevo: es, en los hechos,
-    // una promesa nueva.
     const benefit = await this.prisma.benefit.findUnique({
       where: { id: benefitId },
       select: { title: true },
     });
 
-    return this.prisma.benefitParticipation.upsert({
-      where: { benefitId_customerId: { benefitId, customerId } },
-      create: {
-        businessId,
+    const existing = await this.prisma.benefitParticipation.findFirst({
+      where: {
         benefitId,
         customerId,
-        benefitTitleSnapshot: benefit?.title,
+        source: BenefitIssuanceSource.RAFFLE,
       },
-      update: {
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!existing) {
+      return this.prisma.benefitParticipation.create({
+        data: {
+          businessId,
+          benefitId,
+          customerId,
+          source: BenefitIssuanceSource.RAFFLE,
+          benefitTitleSnapshot: benefit?.title,
+        },
+      });
+    }
+
+    // Ciclo actual todavía abierto — reenviar no hace nada nuevo.
+    if (existing.raffleDrawId === null) return existing;
+
+    return this.prisma.benefitParticipation.update({
+      where: { id: existing.id },
+      data: {
         raffleDrawId: null,
         createdAt: new Date(),
         benefitTitleSnapshot: benefit?.title,
@@ -423,40 +451,45 @@ export class BenefitsRepository {
   }
 
   /**
-   * Ensures the (benefit, customer) participation has a redemption code, issuing
-   * one if missing. Idempotent: if a code already exists (even if redeemed) it is
-   * returned unchanged. Retries on the rare code collision.
+   * Emite una participación NUEVA siempre — nunca reabre ni reusa una fila
+   * existente, sin importar si el cliente ya tiene otras emisiones
+   * (abiertas o canjeadas) del mismo Benefit. Pedido explícito: cada
+   * entrega de Promociones es su propia emisión auditable, con su propio
+   * código de canje — reenviar la misma promoción NO es idempotente a
+   * propósito.
+   *
+   * `client` opcional (default `this.prisma`): el caller (Promociones) lo
+   * usa para emitir TODO el lote de un envío dentro de una sola
+   * `$transaction` — si el envío falla a mitad de camino, no queda un lote
+   * a medio crear (emisiones huérfanas, nunca enviadas). Ver auditoría en
+   * `notifications-promotions.service.ts#send`.
    */
-  async ensureRedemptionCode(
-    businessId: string,
-    benefitId: string,
-    customerId: string,
+  async issueBenefit(
+    params: {
+      businessId: string;
+      benefitId: string;
+      customerId: string;
+      source: BenefitIssuanceSource;
+      campaignId?: string | null;
+    },
+    client: Prisma.TransactionClient | PrismaService = this.prisma,
   ) {
-    const existing = await this.prisma.benefitParticipation.findUnique({
-      where: { benefitId_customerId: { benefitId, customerId } },
+    // Snapshot del título VIGENTE al momento de ESTA emisión — nunca una
+    // referencia viva (ver el comentario del campo en schema.prisma).
+    const benefit = await client.benefit.findUnique({
+      where: { id: params.benefitId },
+      select: { title: true },
     });
-    if (existing?.redemptionCode) return existing;
 
     for (let attempt = 0; attempt < 5; attempt++) {
       try {
-        if (existing) {
-          return await this.prisma.benefitParticipation.update({
-            where: { id: existing.id },
-            data: { redemptionCode: generateRedemptionCode() },
-          });
-        }
-        // Snapshot del título VIGENTE — es la primera vez que esta
-        // participación existe, así que este es exactamente el momento en
-        // que se le está haciendo la promesa al cliente.
-        const benefit = await this.prisma.benefit.findUnique({
-          where: { id: benefitId },
-          select: { title: true },
-        });
-        return await this.prisma.benefitParticipation.create({
+        return await client.benefitParticipation.create({
           data: {
-            businessId,
-            benefitId,
-            customerId,
+            businessId: params.businessId,
+            benefitId: params.benefitId,
+            customerId: params.customerId,
+            source: params.source,
+            campaignId: params.campaignId ?? null,
             redemptionCode: generateRedemptionCode(),
             benefitTitleSnapshot: benefit?.title,
           },
@@ -474,10 +507,93 @@ export class BenefitsRepository {
     throw new Error('Could not allocate a unique redemption code');
   }
 
-  findRedemption(businessId: string, benefitId: string, customerId: string) {
+  /**
+   * Asegura una emisión ABIERTA (sin canjear) de este `source` para
+   * (benefit, customer): si ya hay una vigente, la reusa — reenviar/releer
+   * no invalida un código que el cliente ya puede tener a mano. Si la
+   * última de ese origen ya se canjeó (o nunca hubo ninguna), emite una
+   * nueva. Usado por WELCOME y CHECKIN_ACTIVE — los dos orígenes donde "la
+   * misma promesa sigue vigente" tiene sentido reusar mientras esté
+   * abierta, pero cada ciclo de canje es su propia fila para siempre.
+   */
+  async ensureRedemptionCode(
+    businessId: string,
+    benefitId: string,
+    customerId: string,
+    source: BenefitIssuanceSource,
+  ) {
+    const existing = await this.prisma.benefitParticipation.findFirst({
+      where: { benefitId, customerId, source, redeemedAt: null },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (existing?.redemptionCode) return existing;
+    if (existing) {
+      return this.prisma.benefitParticipation.update({
+        where: { id: existing.id },
+        data: { redemptionCode: generateRedemptionCode() },
+      });
+    }
+    return this.issueBenefit({ businessId, benefitId, customerId, source });
+  }
+
+  /**
+   * El estado de canje MÁS RECIENTE de este origen para (benefit,
+   * customer). Con múltiples emisiones posibles por Benefit, "más
+   * reciente" es lo correcto: es la misma que `ensureRedemptionCode`
+   * reusaría si estuviera abierta, o la que se acaba de canjear si no.
+   */
+  findRedemption(
+    businessId: string,
+    benefitId: string,
+    customerId: string,
+    source: BenefitIssuanceSource,
+  ) {
     return this.prisma.benefitParticipation.findFirst({
-      where: { businessId, benefitId, customerId },
+      where: { businessId, benefitId, customerId, source },
       select: { redemptionCode: true, redeemedAt: true },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  /**
+   * Cualquier otra participación sin canjear que este cliente ya tenga —
+   * típicamente otorgada por una promoción manual (Programa → Promociones
+   * puede elegir cualquier Benefit del catálogo, no solo el `active` del
+   * check-in). `BenefitParticipation` nunca dependió de `active`: es la
+   * misma fila/mecanismo que ya usa el regalo de bienvenida y la recompensa
+   * de tarjeta, solo que acá se lee para CUALQUIER benefit del negocio.
+   * `excludeBenefitIds` evita listar dos veces algo que ya se muestra por
+   * otro camino (el activo del check-in, el regalo de bienvenida).
+   * También excluye participaciones vencidas (`expiresAt` en el pasado):
+   * sin esto, un beneficio con vencimiento propio (Retention V2) seguía
+   * apareciendo como "disponible" acá después de vencer.
+   */
+  findAvailableParticipations(
+    businessId: string,
+    customerId: string,
+    excludeBenefitIds: string[],
+    now: Date = new Date(),
+  ) {
+    return this.prisma.benefitParticipation.findMany({
+      where: {
+        businessId,
+        customerId,
+        redeemedAt: null,
+        redemptionCode: { not: null },
+        benefitId: { notIn: excludeBenefitIds },
+        OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
+      },
+      select: {
+        id: true,
+        benefitId: true,
+        redemptionCode: true,
+        expiresAt: true,
+        benefitTitleSnapshot: true,
+        benefit: {
+          select: { type: true, title: true, description: true, terms: true },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
     });
   }
 

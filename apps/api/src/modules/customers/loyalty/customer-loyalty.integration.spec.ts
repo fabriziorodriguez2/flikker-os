@@ -2,6 +2,7 @@ import { randomUUID } from 'crypto';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  BenefitIssuanceSource,
   BenefitType,
   BusinessStatus,
   CustomerSegment,
@@ -486,6 +487,7 @@ describe('Clientes — fidelización (integration)', () => {
           businessId,
           benefitId: benefit.id,
           customerId: customer.id,
+          source: BenefitIssuanceSource.LEGACY,
           benefitTitleSnapshot: 'Café de bienvenida',
           redemptionCode: 'ABCD1234',
           createdAt: daysAgo(14),
@@ -526,6 +528,7 @@ describe('Clientes — fidelización (integration)', () => {
           businessId,
           benefitId: benefit.id,
           customerId: customer.id,
+          source: BenefitIssuanceSource.LEGACY,
           benefitTitleSnapshot: 'Nombre original',
           createdAt: daysAgo(14),
         },
@@ -746,6 +749,7 @@ describe('Clientes — fidelización (integration)', () => {
           businessId,
           benefitId: benefit.id,
           customerId: customer.id,
+          source: BenefitIssuanceSource.LEGACY,
           benefitTitleSnapshot: '10% de descuento',
           createdAt: daysAgo(10),
           redeemedAt: null, // ofrecido, todavía sin canjear
@@ -791,6 +795,7 @@ describe('Clientes — fidelización (integration)', () => {
           businessId,
           benefitId: benefit.id,
           customerId: customer.id,
+          source: BenefitIssuanceSource.LEGACY,
           benefitTitleSnapshot: 'Postre de bienvenida',
           createdAt: daysAgo(15),
           redeemedAt: daysAgo(14),
@@ -824,6 +829,7 @@ describe('Clientes — fidelización (integration)', () => {
           businessId,
           benefitId: benefit.id,
           customerId: customer.id,
+          source: BenefitIssuanceSource.LEGACY,
           benefitTitleSnapshot: 'Postre gratis',
           createdAt: daysAgo(5),
         },
@@ -850,6 +856,7 @@ describe('Clientes — fidelización (integration)', () => {
           businessId,
           benefitId: benefit.id,
           customerId: customer.id,
+          source: BenefitIssuanceSource.LEGACY,
           benefitTitleSnapshot: 'Postre gratis',
           createdAt: daysAgo(5),
           redeemedAt: daysAgo(1),

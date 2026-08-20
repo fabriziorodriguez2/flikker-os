@@ -277,6 +277,8 @@ export class CampaignsRepository {
         customerId?: string;
         name: string;
         phoneE164: string;
+        /** Link personalizado de ESTE destinatario, para el placeholder `{link}`. */
+        link?: string | null;
       }>;
     },
   ) {
@@ -297,6 +299,7 @@ export class CampaignsRepository {
             customerId: r.customerId ?? null,
             phoneE164: r.phoneE164,
             name: r.name,
+            link: r.link ?? null,
             status: 'pending',
           })),
         });

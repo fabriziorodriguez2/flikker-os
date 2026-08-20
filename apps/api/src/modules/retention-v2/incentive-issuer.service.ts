@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomInt } from 'crypto';
-import { Prisma } from '@prisma/client';
+import { BenefitIssuanceSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RetentionBudgetService } from './retention-budget.service';
 import { estimateIncentiveCost } from './incentive-cost';
@@ -224,24 +224,32 @@ export class IncentiveIssuerService {
           return { status: 'skipped' as const, reason: budgetCheck.reasonCode };
         }
 
-        const participation = await tx.benefitParticipation.upsert({
-          where: {
-            benefitId_customerId: {
-              benefitId,
-              customerId: assignment.customerId,
-            },
-          },
-          create: {
+        /**
+         * Fix (pedido explícito, auditoría): esto era un `upsert` sobre
+         * `(benefitId, customerId)` — con el `@@unique` que existía sobre
+         * ese par, un cliente que ya había canjeado una reactivación
+         * anterior de este mismo Benefit (otro `RetentionAssignment`, meses
+         * atrás) hacía que la rama `update: {}` devolviera EN SILENCIO esa
+         * fila vieja, ya canjeada, en vez de una nueva — este assignment
+         * quedaba enlazado a un código que el cliente nunca podía volver a
+         * usar. El guard contra doble-emisión para ESTE assignment ya vive
+         * arriba (`if (assignment.benefitParticipationId) return
+         * already_issued`, antes de llegar acá), nunca dependió de este
+         * `upsert` — así que reemplazarlo por un `create()` simple no
+         * pierde ninguna protección real, y corrige el bug.
+         */
+        const participation = await tx.benefitParticipation.create({
+          data: {
             benefitId,
             businessId: assignment.businessId,
             customerId: assignment.customerId,
+            source: BenefitIssuanceSource.REACTIVATION,
             redemptionCode: generateRedemptionCode(),
             expiresAt,
             // Snapshot del nombre autorizado en el momento del otorgamiento
             // — no una referencia viva al catálogo actual.
             benefitTitleSnapshot: definition.name,
           },
-          update: {},
           select: { id: true, redemptionCode: true, expiresAt: true },
         });
 

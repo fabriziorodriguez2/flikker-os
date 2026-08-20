@@ -111,8 +111,14 @@ export class BusinessesService {
       googlePlaceConnectedAt: new Date(),
     });
 
+    // Pedido explícito: al conectar, traer el histórico DISPONIBLE completo
+    // (no solo las ~60 reseñas más nuevas de `enqueueInitialScrape`) — así
+    // "Reseñas totales en Google" puede mostrar el total real desde el
+    // primer momento, y queda conservado para analytics. Mismo mecanismo
+    // que ya usaba el backfill manual de Platform Admin, sin duplicar
+    // lógica de scraping.
     void this.googleReviewDetectionQueue
-      .enqueueInitialScrape(businessId)
+      .enqueueBackfill(businessId)
       .catch(() => undefined);
 
     return {
@@ -282,8 +288,10 @@ export class BusinessesService {
         googleReviewsLastSyncAt: null,
       });
 
+      // Mismo criterio que `connectGooglePlace`: al conectar/verificar, traer
+      // el histórico disponible completo, no solo la tanda diaria acotada.
       void this.googleReviewDetectionQueue
-        .enqueueInitialScrape(businessId)
+        .enqueueBackfill(businessId)
         .catch(() => undefined);
 
       return {

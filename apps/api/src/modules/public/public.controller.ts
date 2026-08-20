@@ -29,6 +29,11 @@ class CaptureContactDto {
 export class PublicController {
   constructor(private readonly publicService: PublicService) {}
 
+  @Get('benefit-issuances/:id')
+  getBenefitIssuance(@Param('id') id: string) {
+    return this.publicService.getBenefitIssuance(id);
+  }
+
   @Get('qr/:businessId')
   getQrInfo(
     @Param('businessId') businessId: string,

@@ -314,7 +314,9 @@ export class DashboardOverviewService {
         period,
       );
       const reviewsSeries = bucketByDay(
-        reviews.map((r) => r.postedAt),
+        // El `where` de arriba ya filtra por rango de `postedAt`, así que
+        // en la práctica nunca es null acá — el filtro es solo para el tipo.
+        reviews.map((r) => r.postedAt).filter((d): d is Date => d !== null),
         period,
       );
       const newCustomersSeries = bucketByDay(
@@ -367,7 +369,9 @@ export class DashboardOverviewService {
       period,
     );
     const reviewsSeries = bucketByDay(
-      reviews.map((r) => r.postedAt),
+      // El `where` de arriba ya filtra por rango de `postedAt`, así que
+      // en la práctica nunca es null acá — el filtro es solo para el tipo.
+      reviews.map((r) => r.postedAt).filter((d): d is Date => d !== null),
       period,
     );
     const newCustomersSeries = bucketByDay(
@@ -422,8 +426,11 @@ export class DashboardOverviewService {
       recoveries,
     ] = await Promise.all([
       this.prisma.googleReview.findMany({
-        where: { businessId },
-        orderBy: { postedAt: 'desc' },
+        // Reseñas sin fecha real determinada quedan afuera de este feed: no
+        // hay "cuándo pasó" que mostrar, y `nulls: 'last'` evita que además
+        // desplacen a las que sí tienen fecha del `take` límite.
+        where: { businessId, postedAt: { not: null } },
+        orderBy: { postedAt: { sort: 'desc', nulls: 'last' } },
         take,
         select: { id: true, postedAt: true, reviewerName: true, stars: true },
       }),
@@ -539,13 +546,17 @@ export class DashboardOverviewService {
       occurredAt: Date;
     };
     const items: Item[] = [
-      ...reviews.map((r) => ({
-        id: `review-${r.id}`,
-        type: 'review',
-        title: `Nueva reseña de ${r.reviewerName ?? 'un cliente'}`,
-        subtitle: '★'.repeat(r.stars) + '☆'.repeat(5 - r.stars),
-        occurredAt: r.postedAt,
-      })),
+      // El `where` de arriba ya excluye `postedAt: null` — el filtro es
+      // solo para que el tipo de `occurredAt` sea `Date`, no `Date | null`.
+      ...reviews
+        .filter((r): r is typeof r & { postedAt: Date } => r.postedAt !== null)
+        .map((r) => ({
+          id: `review-${r.id}`,
+          type: 'review',
+          title: `Nueva reseña de ${r.reviewerName ?? 'un cliente'}`,
+          subtitle: '★'.repeat(r.stars) + '☆'.repeat(5 - r.stars),
+          occurredAt: r.postedAt,
+        })),
       ...benefitRedemptions.map((p) => ({
         id: `redemption-${p.id}`,
         type: 'benefit_redeemed',

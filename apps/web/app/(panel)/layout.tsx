@@ -1,5 +1,9 @@
-import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
+import { isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
+import {
+  getCurrentBusiness,
+  type CurrentBusiness,
+} from "@/lib/current-business";
 import { redirect } from "next/navigation";
 import Sidebar from "./sidebar";
 import MobileNav from "./mobile-nav";
@@ -15,16 +19,6 @@ import QueryProvider from "@/components/providers/query-provider";
 import MobileMenuButton from "./mobile-menu-button";
 import ElasticScrollBoundary from "@/components/ui/elastic-scroll-boundary";
 import BusinessLoadError from "@/components/ui/business-load-error";
-
-interface CurrentBusiness {
-  name: string;
-  logoUrl: string | null;
-  /** Per-business rollout flags. Absent on older API builds → treated as LEGACY. */
-  experienceVersion?: ExperienceVersion;
-  retentionEngineV2Enabled?: boolean;
-  /** Nulo = el dueño todavía no terminó `/comenzar`. Ver el guard más abajo. */
-  onboardingCompletedAt?: string | null;
-}
 
 export default async function PanelLayout({
   children,
@@ -72,10 +66,9 @@ export default async function PanelLayout({
 
   try {
     if (effectiveApiContext.businessId) {
-      currentBusiness = await apiFetch<CurrentBusiness>(
-        "/businesses/current",
+      currentBusiness = await getCurrentBusiness(
         effectiveApiContext.accessToken,
-        { businessId: effectiveApiContext.businessId },
+        effectiveApiContext.businessId,
       );
     }
   } catch (error) {

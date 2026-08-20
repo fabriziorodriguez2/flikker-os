@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  BenefitIssuanceSource,
   BenefitType,
   BusinessStatus,
   CustomerSegment,
@@ -169,6 +170,7 @@ describe('Notificaciones — fachada sobre Retention V2 (integration)', () => {
         benefitId: benefit.benefitId!,
         businessId,
         customerId: customer.id,
+        source: BenefitIssuanceSource.REACTIVATION,
         redemptionCode: `TEST${Math.random().toString(36).slice(2, 8)}`,
       },
     });

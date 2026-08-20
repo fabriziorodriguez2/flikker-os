@@ -295,7 +295,8 @@ export class CampaignsService {
           try {
             const text = dto.messageBody
               .replace(/{nombre}/g, contact.name)
-              .replace(/{negocio}/g, businessName);
+              .replace(/{negocio}/g, businessName)
+              .replace(/{link}/g, contact.link ?? '');
             await this.whatsApp.sendText({ phone: contact.phoneE164, text });
             await this.campaignsRepository.updateManualCampaignContact(
               contact.id,

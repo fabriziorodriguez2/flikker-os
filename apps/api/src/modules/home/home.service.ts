@@ -67,7 +67,14 @@ export class HomeService {
       hasAnyCustomer,
     ] = await Promise.all([
       this.loyalty.list(businessId, { limit: 1 }, now),
-      this.notifications.overview(businessId).catch(() => null),
+      // PERF: Home nunca lee `automations.results` (solo status/
+      // benefitsAutomation/benefits, ver el `return` de más abajo) —
+      // `includeResults: false` evita calcular por completo la parte más
+      // cara de `overview()` (un round-trip por experimento + por
+      // variante), no solo paralelizarla.
+      this.notifications
+        .overview(businessId, now, { includeResults: false })
+        .catch(() => null),
       this.reviews.forBusiness(businessId, 30, now),
       this.programState(businessId),
       this.recentActivity(businessId),

@@ -50,6 +50,15 @@ interface PersonalSpace {
   // never crash the whole personal space if it's ever missing.
   rewardGoal?: RewardGoalView | null;
   reviewPrompt: { show: boolean; googleUrl: string | null };
+  /**
+   * Otros beneficios otorgados a este cliente y sin canjear — típicamente
+   * por una promoción manual (Notificaciones → Promociones ya puede elegir
+   * cualquier Benefit del catálogo, no solo el `active` de acá arriba).
+   * Independiente de cuál sea `benefit`: un cliente puede tener este Y el
+   * activo, o solo este. Optional defensivamente, mismo criterio que
+   * `rewardGoal`.
+   */
+  otherBenefits?: PersonalBenefit[];
 }
 
 type Mode = "booting" | "register" | "recover" | "personal";
@@ -967,6 +976,15 @@ function PersonalScreen({
               onReveal={onBenefitReveal}
             />
           )}
+
+          {(personal.otherBenefits ?? []).map((benefit, i) => (
+            <BenefitRewardCard
+              key={`${benefit.title}-${i}`}
+              benefit={benefit}
+              brand={brand}
+              onReveal={onBenefitReveal}
+            />
+          ))}
         </div>
 
         {showReview && (
@@ -1028,8 +1046,15 @@ export function BenefitRewardCard({
           <BenefitIcon type={benefit.type} />
         </span>
         <div className="min-w-0 pt-0.5">
-          <p className="text-xs font-semibold text-white/75">
-            Un regalo para vos
+          {/* "Beneficio disponible", no "Un regalo para vos": esta card
+              vive SIEMPRE separada de la tarjeta de sellos (ver
+              PersonalScreen, es otro <div> del grid) — pero el rótulo
+              tiene que dejarlo inequívoco incluso si algún negocio elige
+              colores donde ambas cards se parecen. Nunca es "el premio de
+              la tarjeta de sellos": es cualquier otro beneficio disponible
+              (bienvenida, reactivación, promo). */}
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-white/75">
+            Beneficio disponible
           </p>
           <p className="mt-1 text-lg font-bold leading-tight text-white">
             {benefit.title}

@@ -68,6 +68,50 @@ export class PublicService {
     };
   }
 
+  /**
+   * Pantalla del cliente para UNA emisión concreta de Benefit (el link que
+   * manda Promociones, `/beneficio/{id}`) — de solo lectura, nunca confirma
+   * un canje. Resuelve por el `id` de la participación
+   * (`BenefitParticipation.id` es un UUID v4 — no secuencial, no
+   * enumerable, ~122 bits de aleatoriedad — funciona como bearer link
+   * igual que `/redeem/{code}` o el token de `VisitSource`; no requiere
+   * `businessId` en la URL).
+   *
+   * `redemptionCode` sí viaja en este JSON — lo necesita el cliente
+   * (`beneficio-client.tsx`) para armar el QR en el browser, igual que ya
+   * hace `checkin-client.tsx` con el beneficio del check-in. No es una
+   * exposición nueva: quien tiene el link ya puede llegar al código
+   * decodificando el QR de todos modos: la barrera real es el `id`
+   * imposible de adivinar, no si el código aparece como texto o como
+   * píxeles. El `select` de abajo, a propósito, nunca trae nada de
+   * `customer` (nombre/teléfono/email) — cero PII en esta pantalla pública.
+   */
+  async getBenefitIssuance(participationId: string) {
+    const participation = await this.prisma.benefitParticipation.findUnique({
+      where: { id: participationId },
+      select: {
+        redemptionCode: true,
+        redeemedAt: true,
+        benefitTitleSnapshot: true,
+        benefit: { select: { title: true, description: true, terms: true } },
+        business: { select: { name: true } },
+      },
+    });
+    if (!participation) {
+      throw new NotFoundException('Emisión no encontrada');
+    }
+
+    return {
+      businessName: participation.business.name,
+      benefitTitle:
+        participation.benefitTitleSnapshot ?? participation.benefit.title,
+      description: participation.benefit.description,
+      terms: participation.benefit.terms,
+      redemptionCode: participation.redemptionCode,
+      redeemed: participation.redeemedAt !== null,
+    };
+  }
+
   async captureContact(
     businessId: string,
     name: string,

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
-import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
+import { isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
+import { getCurrentBusiness } from "@/lib/current-business";
 import BusinessLoadError from "@/components/ui/business-load-error";
 import HomeClient from "./home-client";
 import DashboardLegacyPage from "./dashboard-legacy-page";
@@ -13,13 +14,17 @@ import DashboardLegacyPage from "./dashboard-legacy-page";
  * conserva el panel de siempre, que está armado sobre métricas y conceptos
  * (agenda, clínicas, campañas) que esos negocios sí usan.
  *
- * Esta página resuelve `experienceVersion` con su PROPIO fetch, independiente
- * del que ya hace `(panel)/layout.tsx` un nivel arriba — así que necesita la
- * misma protección: un fetch fallido (ej. un 500 real de la API) NUNCA debe
- * traducirse en silencio a "entonces es LEGACY". Eso fue exactamente la causa
- * de un bug real — `/businesses/current` fallando por una migración pendiente
- * hacía caer este panel al `DashboardLegacyPage` (con sus gráficos de
- * Recharts) para un negocio CHECKIN_V2 real.
+ * Resuelve `experienceVersion` llamando a `getCurrentBusiness` (mismo helper
+ * que usa `(panel)/layout.tsx` un nivel arriba, memoizado por request con
+ * `React.cache` — PERF: antes esto era un `apiFetch` propio e independiente,
+ * confirmado con logging de requests como una segunda llamada real a
+ * `/businesses/current` en cada navegación a Inicio). Comparte la misma
+ * protección de siempre: si esa llamada falla (ej. un 500 real de la API),
+ * la excepción compartida NUNCA debe traducirse en silencio a "entonces es
+ * LEGACY". Eso fue exactamente la causa de un bug real — `/businesses/
+ * current` fallando por una migración pendiente hacía caer este panel al
+ * `DashboardLegacyPage` (con sus gráficos de Recharts) para un negocio
+ * CHECKIN_V2 real.
  */
 export default async function DashboardPage(props: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -33,10 +38,9 @@ export default async function DashboardPage(props: {
 
   if (context.businessId) {
     try {
-      const business = await apiFetch<{ experienceVersion?: string }>(
-        "/businesses/current",
+      const business = await getCurrentBusiness(
         context.accessToken,
-        { businessId: context.businessId },
+        context.businessId,
       );
       experienceVersion = business.experienceVersion;
     } catch (error) {

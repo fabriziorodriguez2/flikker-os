@@ -1,4 +1,4 @@
-import { BenefitType } from '@prisma/client';
+import { BenefitIssuanceSource, BenefitType } from '@prisma/client';
 import { BenefitsService } from './benefits.service';
 
 const NOW = new Date('2026-09-05T12:00:00.000Z');
@@ -76,6 +76,7 @@ describe('Regalo de bienvenida — se entrega una sola vez', () => {
       'biz-1',
       'ben-1',
       'c-1',
+      BenefitIssuanceSource.WELCOME,
     );
     expect(result).toEqual({ benefitId: 'ben-1', code: 'ABCD1234' });
   });

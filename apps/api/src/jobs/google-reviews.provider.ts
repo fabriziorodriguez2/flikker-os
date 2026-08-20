@@ -6,7 +6,9 @@ export interface DetectedGoogleReview {
   reviewerName: string | null;
   stars: number;
   text: string | null;
-  postedAt: Date;
+  /** Null cuando ni `iso_date` ni el texto relativo ("hace 2 semanas") se
+   * pudieron interpretar — nunca se inventa "ahora" como sustituto. */
+  postedAt: Date | null;
 }
 
 // Scrape.do /plugin/google/maps/reviews does not return reviewer photos.
@@ -215,12 +217,17 @@ function isRetryableFetchError(error: unknown) {
   return error instanceof Error && error.name === 'AbortError';
 }
 
-function parseGoogleReviewDate(value: string | null) {
-  const now = new Date();
-  if (!value) return now;
+/**
+ * "hace 2 semanas" / "2 weeks ago" → fecha absoluta. Devuelve `null` — nunca
+ * "ahora" — cuando no hay texto o cuando ninguna de las unidades conocidas
+ * matchea: una reseña vieja real nunca debe terminar con `postedAt` de hoy
+ * solo porque el texto vino en un formato inesperado.
+ */
+function parseGoogleReviewDate(value: string | null): Date | null {
+  if (!value) return null;
   const normalized = value.toLowerCase();
   const amount = Number(normalized.match(/\d+/)?.[0] ?? 1);
-  const postedAt = new Date(now);
+  const postedAt = new Date();
 
   if (/(minute|minuto)/i.test(normalized)) {
     postedAt.setUTCMinutes(postedAt.getUTCMinutes() - amount);
@@ -234,6 +241,8 @@ function parseGoogleReviewDate(value: string | null) {
     postedAt.setUTCMonth(postedAt.getUTCMonth() - amount);
   } else if (/(year|año|ano)/i.test(normalized)) {
     postedAt.setUTCFullYear(postedAt.getUTCFullYear() - amount);
+  } else {
+    return null;
   }
 
   return postedAt;
@@ -243,7 +252,7 @@ function hashReviewId(input: {
   reviewerName: string | null;
   stars: number;
   text: string | null;
-  postedAt: Date;
+  postedAt: Date | null;
 }) {
   return createHash('sha256')
     .update(
@@ -251,7 +260,7 @@ function hashReviewId(input: {
         input.reviewerName ?? '',
         input.stars.toString(),
         input.text ?? '',
-        input.postedAt.toISOString().slice(0, 10),
+        input.postedAt?.toISOString().slice(0, 10) ?? 'unknown-date',
       ].join('|'),
     )
     .digest('hex')

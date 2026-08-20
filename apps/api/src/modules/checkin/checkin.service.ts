@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import {
   Benefit,
+  BenefitIssuanceSource,
   BenefitType,
   Business,
   CustomerEventType,
@@ -48,6 +49,7 @@ type BusinessForCheckin = Pick<
   | 'loyaltyStampColor'
   | 'loyaltyStampIcon'
   | 'checkinWelcomeMessage'
+  | 'welcomeBenefitId'
 >;
 
 @Injectable()
@@ -513,6 +515,7 @@ export class CheckinService {
         loyaltyStampColor: true,
         loyaltyStampIcon: true,
         checkinWelcomeMessage: true,
+        welcomeBenefitId: true,
       },
     });
     if (!business || !isCheckinV2(business)) {
@@ -609,12 +612,14 @@ export class CheckinService {
           business.id,
           benefit.id,
           customerId,
+          BenefitIssuanceSource.CHECKIN_ACTIVE,
         );
       }
       const state = await this.benefits.findRedemption(
         business.id,
         benefit.id,
         customerId,
+        BenefitIssuanceSource.CHECKIN_ACTIVE,
       );
       if (state?.redemptionCode) {
         redemption = {
@@ -640,6 +645,15 @@ export class CheckinService {
       customerId,
     );
 
+    // Otros beneficios ya otorgados (típicamente por una promoción manual)
+    // que no son ni el activo del check-in ni el regalo de bienvenida —
+    // deben verse igual, sin importar cuál sea hoy el `active`.
+    const otherBenefits = await this.benefits.getOtherAvailableBenefits(
+      business.id,
+      customerId,
+      [benefit?.id, business.welcomeBenefitId],
+    );
+
     return {
       customer: { name: customer.name },
       visits: {
@@ -648,6 +662,13 @@ export class CheckinService {
       },
       benefit: publicBenefit ? { ...publicBenefit, redemption } : null,
       welcomeGift,
+      otherBenefits: otherBenefits.map((b) => ({
+        type: b.type,
+        title: b.title,
+        description: b.description,
+        terms: b.terms,
+        redemption: { code: b.code, redeemed: false },
+      })),
       rewardGoal,
       reviewPrompt: {
         show: showReview,

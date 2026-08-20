@@ -1,7 +1,12 @@
 import { randomUUID } from 'crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BadRequestException } from '@nestjs/common';
-import { BenefitType, CustomerSegment, RewardGoalStatus } from '@prisma/client';
+import {
+  BenefitIssuanceSource,
+  BenefitType,
+  CustomerSegment,
+  RewardGoalStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BenefitsRepository } from './benefits.repository';
 import { BenefitsService } from './benefits.service';
@@ -191,8 +196,15 @@ describe('BenefitsService — bloqueo de edición por promesa viva (integration)
     );
 
     // El beneficio también fue otorgado directamente (fuera de la tarjeta) —
-    // exactamente el caso que `benefitTitleSnapshot` protege.
-    await service.registerParticipation(businessId, benefit.id, customer.id);
+    // exactamente el caso que `benefitTitleSnapshot` protege. `issueBenefit`,
+    // no `registerParticipation` (que ya quedó acotado a sorteos): esto es
+    // un gift, no un raffle.
+    await service.issueBenefit({
+      businessId,
+      benefitId: benefit.id,
+      customerId: customer.id,
+      source: BenefitIssuanceSource.PROMOTION,
+    });
 
     // El catálogo puede seguir evolucionando: nadie está esperando esto ya.
     const updated = await service.update(businessId, benefit.id, {

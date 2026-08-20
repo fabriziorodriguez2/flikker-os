@@ -17,6 +17,11 @@ class ManualRecipientDto {
 
   @IsString()
   phoneE164: string;
+
+  /** Link personalizado de este destinatario, sustituido en el `{link}` del mensaje. */
+  @IsOptional()
+  @IsString()
+  link?: string;
 }
 
 export class SendManualCampaignDto {

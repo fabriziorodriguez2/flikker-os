@@ -669,10 +669,12 @@ export class MetricsService {
     });
 
     const deltas = reviews
-      .filter((r) => r.attributedMessage?.sentAt != null)
+      // Sin `postedAt` real no hay delta que calcular — nunca se sustituye
+      // por `detectedAt` ni por ninguna otra fecha inventada.
+      .filter((r) => r.postedAt !== null && r.attributedMessage?.sentAt != null)
       .map(
         (r) =>
-          (r.postedAt.getTime() - r.attributedMessage!.sentAt!.getTime()) /
+          (r.postedAt!.getTime() - r.attributedMessage!.sentAt!.getTime()) /
           3_600_000,
       )
       .filter((h) => h >= 0)

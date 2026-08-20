@@ -129,7 +129,17 @@ describe('MyFlikkerService — cross-business aggregation is real (integration)'
         engine,
         unlock,
       );
-      service = new MyFlikkerService(prisma, orchestrator);
+      // Este test es sobre aislamiento cross-business de visitas/reward
+      // goals — no sobre beneficios de promoción, así que un stub alcanza
+      // en vez de construir el árbol completo de `BenefitsService`.
+      const benefitsStub = {
+        getOtherAvailableBenefits: () => Promise.resolve([]),
+      };
+      service = new MyFlikkerService(
+        prisma,
+        orchestrator,
+        benefitsStub as never,
+      );
 
       available = true;
     } catch {

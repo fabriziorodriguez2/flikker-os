@@ -42,6 +42,12 @@ async function readJson(res: Response) {
  * Retention V2 use la fila sola, y esa decisión sigue reservada a donde ya
  * vivía (Beneficios, y Herramientas Flikker para Platform Admin) — no se
  * duplica ni se expone acá.
+ *
+ * A propósito también filtra las filas con `benefitId` seteado (ver
+ * `load()`): son el bridge técnico que Beneficios crea solo, no incentivos
+ * que el dueño haya armado acá — mostrarlas duplicaba nombres entre las dos
+ * pantallas y confundía su "Activo/Pausado" (propio del bridge) con la
+ * autorización de reactivación (otro campo, editable desde Beneficios).
  */
 export default function ProgramIncentivesSection({
   canMutate,
@@ -64,8 +70,18 @@ export default function ProgramIncentivesSection({
   const load = useCallback(async () => {
     try {
       const res = await fetch("/api/proxy/retention-v2/incentives");
-      const data = await readJson(res);
-      setIncentives(data as ProgramIncentive[]);
+      const data = (await readJson(res)) as ProgramIncentive[];
+      // Auditado: el mismo endpoint devuelve tanto los incentivos que el
+      // dueño crea acá (`benefitId: null`) como las filas técnicas que
+      // `setRetentionBridge` auto-crea al marcar "Recompensa de tarjeta" o
+      // "Autorizado para reactivar" en Beneficios (`benefitId` seteado,
+      // mismo nombre que el Benefit). Sin este filtro, Incentivos mostraba
+      // dos veces casi lo mismo — y su "Activo/Pausado" (`active`) es un
+      // campo propio del bridge, sin relación con esa autorización, así que
+      // aparecía como "Activo" aunque el dueño la hubiera desmarcado.
+      // Filtro solo de esta pantalla — no toca el backend ni el modelo, y
+      // Herramientas Flikker (Platform Admin) sigue viendo todas las filas.
+      setIncentives(data.filter((incentive) => incentive.benefitId === null));
     } catch (e) {
       setLoadError(
         e instanceof Error ? e.message : "No pudimos cargar los incentivos.",

@@ -241,6 +241,22 @@ function ProgramaClientContent() {
     await readJson(res);
   }
 
+  /**
+   * "Activo en el check-in" — el slot único que el cliente ve al escanear
+   * (`Benefit.active`, reusa `POST /benefits/:id/activate`/`deactivate`, ya
+   * existentes y usados por la pantalla legacy de Beneficios). Gap real:
+   * Programa nunca exponía esta capacidad, así que ningún Benefit creado
+   * desde acá podía volverse elegible para promociones ni visible al
+   * cliente — no es un endpoint nuevo, solo faltaba el control en esta UI.
+   */
+  async function setBenefitActive(benefitId: string, active: boolean) {
+    const res = await fetch(
+      `/api/proxy/benefits/${benefitId}/${active ? "activate" : "deactivate"}`,
+      { method: "POST" },
+    );
+    await readJson(res);
+  }
+
   async function createBenefit(payload: {
     type: string;
     title: string;
@@ -429,6 +445,7 @@ function ProgramaClientContent() {
           onCreateBenefit={createBenefit}
           onDeleteBenefit={deleteBenefit}
           onSetBenefitUse={setBenefitUse}
+          onSetBenefitActive={setBenefitActive}
           onToggleBenefits={toggleBenefitsCatalog}
           onSaveBenefitTerms={saveBenefitTerms}
           onReload={load}

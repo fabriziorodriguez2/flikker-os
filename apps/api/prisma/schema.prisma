@@ -1954,7 +1954,14 @@ model GoogleReview {
   reviewerName        String?  @map("reviewer_name")
   stars               Int
   text                String?
-  postedAt            DateTime @map("posted_at")
+  /// Fecha REAL de publicación en Google — nunca `detectedAt` (cuándo la
+  /// encontramos nosotros). Nullable a propósito: cuando Scrape.do no trae
+  /// texto de fecha relativa parseable, `GoogleReviewsProvider` ya NO
+  /// inventa "ahora" — guarda `null` en vez de fingir una fecha. La reseña
+  /// se conserva igual (cuenta para "Reseñas totales en Google"), pero
+  /// nunca para "Reseñas con Flikker" (`postedAt >= Business.createdAt`)
+  /// hasta que se pueda determinar su fecha real.
+  postedAt            DateTime? @map("posted_at")
   detectedAt          DateTime @default(now()) @map("detected_at")
   attributedMessageId String?  @map("attributed_message_id")
   createdAt           DateTime @default(now())
@@ -2321,6 +2328,7 @@ model ManualCampaign {
 
   business Business                @relation(fields: [businessId], references: [id])
   contacts ManualCampaignContact[]
+  benefitParticipations BenefitParticipation[]
 
   @@index([businessId])
 }
@@ -2332,6 +2340,11 @@ model ManualCampaignContact {
   customerId       String?   @map("customer_id")
   phoneE164        String    @map("phone_e164")
   name             String
+  /// Link personalizado por destinatario (p. ej. la pantalla de una emisión
+  /// de Benefit propia) para el placeholder `{link}` en `messageBody` —
+  /// mismo mecanismo que `{nombre}`/`{negocio}`, pero por-contacto en vez de
+  /// por-campaña porque cada cliente apunta a SU propia emisión.
+  link             String?
   status           String    @default("pending")
   sentAt           DateTime? @map("sent_at")
   failReason       String?   @map("fail_reason")
@@ -2446,11 +2459,40 @@ model Benefit {
 // BenefitParticipation (a customer opting into a benefit — e.g. a raffle entry)
 // ---------------------------------------------------------------------------
 
+/// Quién/qué originó una emisión de `BenefitParticipation`. Pedido explícito:
+/// cada emisión tiene que poder distinguir su origen — nunca inferirlo del
+/// tipo de Benefit ni de qué relación inversa tenga colgada.
+enum BenefitIssuanceSource {
+  PROMOTION
+  WELCOME
+  REACTIVATION
+  REWARD_GOAL
+  RAFFLE
+  /// El beneficio `active` que el check-in ofrece por default, fuera de
+  /// cualquier promoción/bienvenida/reactivación explícita.
+  CHECKIN_ACTIVE
+  /// Filas de antes de que existiera esta columna — backfill best-effort,
+  /// nunca se escribe desde código nuevo.
+  LEGACY
+}
+
 model BenefitParticipation {
   id               String    @id @default(uuid())
   benefitId        String    @map("benefit_id")
   businessId       String    @map("business_id")
   customerId       String    @map("customer_id")
+  /// Origen de ESTA emisión concreta — ver `BenefitIssuanceSource`. No
+  /// determina por sí solo el comportamiento de reuso: eso lo decide cada
+  /// adaptador (Promociones siempre crea fila nueva; bienvenida/check-in
+  /// reabren su propia fila abierta; sorteos reabren por ciclo).
+  source           BenefitIssuanceSource @map("source")
+  /// Solo se completa cuando `source = PROMOTION` — la campaña manual
+  /// (`ManualCampaign`, Notificaciones → Promociones) que disparó esta
+  /// emisión concreta, para trazabilidad ("qué promoción le mandó esto").
+  /// `REACTIVATION`/`REWARD_GOAL` ya tienen su propia trazabilidad vía las
+  /// relaciones inversas `retentionAssignment`/`rewardGoal` — no se duplica
+  /// acá.
+  campaignId       String?   @map("manual_campaign_id")
   // Set when this entry is "closed" by a monthly raffle draw. Null means the
   // entry belongs to the currently open (not-yet-drawn) cycle. This is how the
   // participant list resets month to month without deleting any data.
@@ -2483,15 +2525,22 @@ model BenefitParticipation {
   benefit             Benefit              @relation(fields: [benefitId], references: [id], onDelete: Cascade)
   business            Business             @relation(fields: [businessId], references: [id])
   customer            Customer             @relation(fields: [customerId], references: [id])
+  campaign            ManualCampaign?      @relation(fields: [campaignId], references: [id], onDelete: SetNull)
   raffleDraw          RaffleDraw?          @relation(fields: [raffleDrawId], references: [id], onDelete: SetNull)
   retentionAssignment RetentionAssignment?
   rewardGoal          CustomerRewardGoal?
 
-  @@unique([benefitId, customerId])
+  // NO @@unique([benefitId, customerId]) — un cliente puede recibir el MISMO
+  // Benefit múltiples veces (pedido explícito: cada entrega es una emisión
+  // propia, auditable para siempre, código de canje propio). El índice
+  // sigue existiendo para las mismas queries de siempre, solo que ya no es
+  // único.
+  @@index([benefitId, customerId])
   @@index([businessId])
   @@index([benefitId])
   @@index([customerId])
   @@index([raffleDrawId])
+  @@index([campaignId])
   @@map("benefit_participations")
 }
 

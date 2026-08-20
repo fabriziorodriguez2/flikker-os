@@ -51,7 +51,15 @@ describe('Reseñas — overview (integration)', () => {
     }
   });
 
-  async function makeBusiness(googleUrl: string | null = null) {
+  async function makeBusiness(
+    googleUrl: string | null = null,
+    // Bien en el pasado respecto de cualquier `daysAgo(N)` chico que usen
+    // los tests que no les importa esta fecha — `createdAt` real (wall
+    // clock al crear la fila) rompería la mayoría de los tests si no se
+    // fija explícitamente, porque `NOW` de este archivo es una fecha fija
+    // del pasado (2026-08-12) y el runner corre después de eso.
+    createdAt: Date = daysAgo(365),
+  ) {
     const business = await prisma.business.create({
       data: {
         id: randomUUID(),
@@ -63,6 +71,7 @@ describe('Reseñas — overview (integration)', () => {
         timezone: 'America/Montevideo',
         experienceVersion: ExperienceVersion.CHECKIN_V2,
         googleBusinessProfileUrl: googleUrl,
+        createdAt,
       },
     });
     businesses.push(business.id);
@@ -240,33 +249,66 @@ describe('Reseñas — overview (integration)', () => {
     });
   });
 
-  describe('"desde que conectaste"', () => {
-    it('sin `googlePlaceConnectedAt`, `sinceConnected` es null — no se inventa un número', async () => {
-      const businessId = await makeBusiness('https://g.page/x');
-      await addReview(businessId, 5, { postedAt: daysAgo(2) });
-
-      const data = await overview(businessId);
-
-      expect(data.google.connectedAt).toBeNull();
-      expect(data.summary.sinceConnected).toBeNull();
-    });
-
-    it('con `googlePlaceConnectedAt`, cuenta solo lo posterior a esa fecha', async () => {
-      const businessId = await makeBusiness('https://g.page/x');
-      await prisma.business.update({
-        where: { id: businessId },
-        data: { googlePlaceConnectedAt: daysAgo(10) },
-      });
-      await addReview(businessId, 5, { postedAt: daysAgo(20) }); // antes de conectar
+  describe('"Reseñas con Flikker" — corte por Business.createdAt, nunca por conexión ni por detección', () => {
+    it('cuenta solo lo publicado desde que se creó la cuenta en Flikker, aunque el total histórico sea mayor', async () => {
+      const businessId = await makeBusiness('https://g.page/x', daysAgo(10));
+      await addReview(businessId, 5, { postedAt: daysAgo(20) }); // antes de existir en Flikker
       await addReview(businessId, 4, { postedAt: daysAgo(5) }); // después
       await addReview(businessId, 3, { postedAt: daysAgo(1) }); // después
 
       const data = await overview(businessId);
 
-      expect(data.google.connectedAt).toEqual(daysAgo(10));
-      expect(data.summary.sinceConnected).toBe(2);
-      // El total histórico no cambia — sigue contando todo.
+      expect(data.summary.sinceFlikker).toBe(2);
+      // "Reseñas totales en Google" sigue siendo el historial completo.
       expect(data.summary.total).toBe(3);
+    });
+
+    it('nunca usa `googlePlaceConnectedAt` como corte — solo `Business.createdAt`', async () => {
+      const businessId = await makeBusiness('https://g.page/x', daysAgo(10));
+      // Conectado (o reconectado) hace 2 días — mucho después de que la
+      // reseña de daysAgo(5) exista, pero eso no debe importar acá.
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { googlePlaceConnectedAt: daysAgo(2) },
+      });
+      await addReview(businessId, 4, { postedAt: daysAgo(5) });
+
+      const data = await overview(businessId);
+
+      // daysAgo(5) es posterior a Business.createdAt (daysAgo(10)), así que
+      // cuenta — aunque sea anterior a googlePlaceConnectedAt (daysAgo(2)).
+      expect(data.summary.sinceFlikker).toBe(1);
+    });
+
+    it('siempre es un número — Business.createdAt existe para todo negocio, nunca hay `null`', async () => {
+      const businessId = await makeBusiness('https://g.page/x');
+
+      const data = await overview(businessId);
+
+      expect(data.summary.sinceFlikker).toBe(0);
+      expect(data.summary.sinceFlikker).not.toBeNull();
+    });
+
+    it('una reseña sin fecha de publicación determinada no cuenta acá, aunque sí cuente para el total histórico', async () => {
+      const businessId = await makeBusiness('https://g.page/x', daysAgo(10));
+      await addReview(businessId, 4, { postedAt: daysAgo(5) });
+      // `$executeRaw`, no `prisma.googleReview.create`: este entorno de test
+      // (Jest + `@prisma/adapter-pg`) rechaza `postedAt: null` en el cliente
+      // ORM con un "Null constraint violation" que no reproduce ni contra
+      // Postgres directo ni con el mismo `create()` fuera de Jest — columna
+      // y constraints confirmados nullable a mano. Efecto idéntico (una fila
+      // real con `posted_at` NULL) sin depender de ese camino.
+      await prisma.$executeRaw`
+        INSERT INTO "GoogleReview"
+          (id, "businessId", google_review_id, reviewer_name, stars, text, posted_at, detected_at, "createdAt", "updatedAt")
+        VALUES
+          (gen_random_uuid(), ${businessId}, ${randomUUID()}, 'Cliente sin fecha', 5, NULL, NULL, now(), now(), now())
+      `;
+
+      const data = await overview(businessId);
+
+      expect(data.summary.total).toBe(2);
+      expect(data.summary.sinceFlikker).toBe(1);
     });
   });
 

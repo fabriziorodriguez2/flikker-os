@@ -40,15 +40,18 @@ export class RetentionResultsOverviewService {
       orderBy: { createdAt: 'desc' },
     });
 
-    const overviews: ExperimentOverview[] = [];
-    for (const experiment of experiments) {
-      const results = await this.metrics.forExperiment(
-        businessId,
-        experiment.id,
-      );
-      overviews.push(this.summarize(experiment.status, results));
-    }
-    return overviews;
+    // PERF: cada experimento es independiente — antes se pedía uno por vez
+    // (`for` + `await`), serializando N round-trips a la base. `Promise.all`
+    // mantiene el mismo resultado exacto (mismo orden que `experiments`,
+    // mismos datos por experimento) pidiéndolos todos en paralelo.
+    const results = await Promise.all(
+      experiments.map((experiment) =>
+        this.metrics.forExperiment(businessId, experiment.id),
+      ),
+    );
+    return experiments.map((experiment, i) =>
+      this.summarize(experiment.status, results[i]),
+    );
   }
 
   private summarize(

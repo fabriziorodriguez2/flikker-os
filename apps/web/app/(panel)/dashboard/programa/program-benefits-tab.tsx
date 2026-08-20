@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Gift, Loader2, Plus, Trash2 } from "lucide-react";
+import { Gift, Loader2, Plus, QrCode, Trash2 } from "lucide-react";
 import ProgramSectionHeading from "./program-section-heading";
 import {
   BENEFIT_TYPE_LABELS,
@@ -20,9 +20,15 @@ const inputClass =
  *   Regalo de bienvenida   → Business.welcomeBenefitId
  *   Reactivar clientes     → RetentionIncentiveDefinition.automationEligible
  *
- * `Benefit.active` NO participa de ninguno de los tres: significa "beneficio
- * visible en el check-in" y se re-asegura en cada visita, así que no puede
- * representar "se entrega una vez, en la primera visita".
+ * `Benefit.active` es un CUARTO control, pero no es "un uso más": es un slot
+ * único por negocio (a lo sumo un Benefit activo a la vez, forzado por el
+ * backend en `setActive`) — "el que tus clientes ven al escanear el QR y
+ * pueden ofrecerse en una promoción manual". Auditado: esta pantalla nunca
+ * exponía un control para esto (solo existía en `/dashboard/benefits`,
+ * legacy), así que un Benefit creado acá nunca podía volverse elegible para
+ * Promociones ni visible al cliente — no hacía falta un endpoint nuevo, el
+ * gap era pura UI. Por eso vive separado de "Se usa para", con su propio
+ * texto explicando el slot único.
  */
 export default function ProgramBenefitsTab({
   benefits,
@@ -33,6 +39,7 @@ export default function ProgramBenefitsTab({
   onCreate,
   onDelete,
   onSetUse,
+  onSetActive,
   onToggleBenefits,
   onReload,
 }: {
@@ -65,6 +72,7 @@ export default function ProgramBenefitsTab({
     use: "rewardCard" | "welcomeGift" | "reactivation",
     value: boolean,
   ) => Promise<void>;
+  onSetActive: (benefitId: string, active: boolean) => Promise<void>;
   onToggleBenefits: (enabled: boolean) => Promise<void>;
   onReload: () => Promise<void>;
 }) {
@@ -256,9 +264,17 @@ export default function ProgramBenefitsTab({
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
-                      <span className="rounded-full bg-[#EEF0FB] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#5C6BC0]">
-                        {BENEFIT_TYPE_LABELS[benefit.type] ?? benefit.type}
-                      </span>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-[#EEF0FB] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#5C6BC0]">
+                          {BENEFIT_TYPE_LABELS[benefit.type] ?? benefit.type}
+                        </span>
+                        {benefit.active ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-[#EAF6EE] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#1D9E75]">
+                            <QrCode className="h-3 w-3" aria-hidden="true" />
+                            Activo en el check-in
+                          </span>
+                        ) : null}
+                      </div>
                       <p className="mt-2 text-base font-bold text-[#1A202C]">
                         {benefit.title}
                       </p>
@@ -344,6 +360,35 @@ export default function ProgramBenefitsTab({
                         </span>
                       </span>
                     </label>
+                  </div>
+
+                  <div className="mt-3 flex items-start justify-between gap-3 border-t border-[#F0F2FA] pt-3">
+                    <p className="text-xs leading-5 text-[#8891A4]">
+                      <span className="font-semibold text-[#5C6478]">
+                        Activo en el check-in:
+                      </span>{" "}
+                      es el único beneficio que tus clientes ven al escanear
+                      el QR sin haber recibido nada todavía. Solo uno puede
+                      estar activo a la vez — pero cualquier beneficio del
+                      catálogo, activo o no, se puede ofrecer en una
+                      promoción manual o entregar por otras vías.
+                    </p>
+                    {canMutate ? (
+                      <button
+                        type="button"
+                        disabled={busy}
+                        onClick={() =>
+                          void run(benefit.id, () =>
+                            onSetActive(benefit.id, !benefit.active),
+                          )
+                        }
+                        className={`shrink-0 whitespace-nowrap text-sm font-semibold hover:underline disabled:cursor-default disabled:no-underline ${
+                          benefit.active ? "text-[#8891A4]" : "text-[#5C6BC0]"
+                        }`}
+                      >
+                        {benefit.active ? "Desactivar" : "Activar acá"}
+                      </button>
+                    ) : null}
                   </div>
                 </li>
               );

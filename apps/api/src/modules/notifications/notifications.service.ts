@@ -65,8 +65,22 @@ export class NotificationsService {
     private readonly plans: PlansService,
   ) {}
 
-  /** Todo lo que necesita la pestaña Automáticas, en una sola llamada. */
-  async overview(businessId: string, now: Date = new Date()) {
+  /**
+   * Todo lo que necesita la pestaña Automáticas, en una sola llamada.
+   *
+   * `includeResults` (default `true`, comportamiento sin cambios para todo
+   * caller existente): `results.forBusiness()` es la parte más cara de este
+   * método — un query por experimento (y, dentro, uno por variante) — y
+   * `home.service.ts` la descarta por completo (solo lee `status`/
+   * `benefitsAutomation`/`benefits`, nunca `results`). PERF: pasar `false`
+   * ahí evita ese trabajo entero en vez de solo paralelizarlo.
+   */
+  async overview(
+    businessId: string,
+    now: Date = new Date(),
+    options: { includeResults?: boolean } = {},
+  ) {
+    const includeResults = options.includeResults ?? true;
     const [
       settings,
       incentives,
@@ -89,7 +103,9 @@ export class NotificationsService {
         },
         orderBy: { createdAt: 'desc' },
       }),
-      this.results.forBusiness(businessId).catch(() => []),
+      includeResults
+        ? this.results.forBusiness(businessId).catch(() => [])
+        : Promise.resolve([]),
       // §16/§17 — un GET nunca crea infraestructura (eso es
       // RetentionV2BootstrapService, llamado desde los triggers
       // explícitos: onboarding, este mismo toggle, y Programa. Acá solo

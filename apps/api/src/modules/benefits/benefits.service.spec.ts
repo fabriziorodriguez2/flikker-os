@@ -3,7 +3,7 @@ import {
   ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { BenefitType } from '@prisma/client';
+import { BenefitIssuanceSource, BenefitType } from '@prisma/client';
 import { BenefitsService } from './benefits.service';
 import type { BenefitsRepository } from './benefits.repository';
 import type { ProgramAuditService } from '../program-audit/program-audit.service';
@@ -29,6 +29,7 @@ function makeRepo() {
     setRetentionBridge: jest.fn(),
     countLiveGoalsForDefinition: jest.fn().mockResolvedValue(0),
     findRedemption: jest.fn(),
+    findAvailableParticipations: jest.fn().mockResolvedValue([]),
   };
 }
 
@@ -965,6 +966,85 @@ describe('BenefitsService — "no cambiar una promesa que ya tiene un cliente"',
 
       expect(result).toMatchObject({ id: 'ben-1' });
     });
+
+    /**
+     * Edge case auditado (pedido explícito): con Beneficios apagado, una
+     * promoción manual no puede seguir siendo visible/canjeable para el
+     * cliente vía `getOtherAvailableBenefits` — mismo toggle que ya frena
+     * `resolveActiveBenefit`/`grantWelcomeGift`/`getWelcomeGiftState`.
+     */
+    it('getOtherAvailableBenefits no muestra nada con benefitsEnabled: false', async () => {
+      const repo = makeRepo();
+      const retentionSettings = {
+        ...makeRetentionSettings(),
+        getOrCreate: jest.fn().mockResolvedValue({ benefitsEnabled: false }),
+      };
+      const service = makeService(repo, undefined, retentionSettings);
+
+      const result = await service.getOtherAvailableBenefits(
+        'biz-1',
+        'cus-1',
+        [],
+      );
+
+      expect(result).toEqual([]);
+      expect(repo.findAvailableParticipations).not.toHaveBeenCalled();
+    });
+
+    it('getOtherAvailableBenefits sigue funcionando igual con benefitsEnabled: true (default)', async () => {
+      const repo = makeRepo();
+      repo.findAvailableParticipations.mockResolvedValue([
+        {
+          benefitId: 'ben-2',
+          redemptionCode: 'CODE-2',
+          expiresAt: null,
+          benefitTitleSnapshot: null,
+          benefit: {
+            type: BenefitType.gift,
+            title: '2x1',
+            description: null,
+            terms: null,
+          },
+        },
+      ]);
+      const service = makeService(repo);
+
+      const result = await service.getOtherAvailableBenefits('biz-1', 'cus-1', [
+        'ben-1',
+        null,
+        undefined,
+      ]);
+
+      expect(repo.findAvailableParticipations).toHaveBeenCalledWith(
+        'biz-1',
+        'cus-1',
+        ['ben-1'],
+        expect.any(Date),
+      );
+      expect(result).toMatchObject([{ benefitId: 'ben-2', title: '2x1' }]);
+    });
+
+    it('assertBenefitsCatalogEnabled tira BadRequestException con benefitsEnabled: false', async () => {
+      const repo = makeRepo();
+      const retentionSettings = {
+        ...makeRetentionSettings(),
+        getOrCreate: jest.fn().mockResolvedValue({ benefitsEnabled: false }),
+      };
+      const service = makeService(repo, undefined, retentionSettings);
+
+      await expect(
+        service.assertBenefitsCatalogEnabled('biz-1'),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('assertBenefitsCatalogEnabled no tira nada con benefitsEnabled: true (default)', async () => {
+      const repo = makeRepo();
+      const service = makeService(repo);
+
+      await expect(
+        service.assertBenefitsCatalogEnabled('biz-1'),
+      ).resolves.toBeUndefined();
+    });
   });
 
   describe('trial de Beneficios vencido (sin Pro) — resolveActiveBenefit', () => {
@@ -1035,6 +1115,7 @@ describe('BenefitsService — "no cambiar una promesa que ya tiene un cliente"',
         'biz-1',
         'ben-1',
         'cust-1',
+        BenefitIssuanceSource.CHECKIN_ACTIVE,
       );
     });
 

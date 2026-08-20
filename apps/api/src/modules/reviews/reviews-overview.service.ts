@@ -40,6 +40,7 @@ export class ReviewsOverviewService {
     const business = await this.prisma.business.findUnique({
       where: { id: businessId },
       select: {
+        createdAt: true,
         googleBusinessProfileUrl: true,
         googlePlaceId: true,
         experienceVersion: true,
@@ -56,7 +57,7 @@ export class ReviewsOverviewService {
     const [
       total,
       inPeriod,
-      sinceConnected,
+      sinceFlikker,
       rating,
       distribution,
       lastSynced,
@@ -70,21 +71,29 @@ export class ReviewsOverviewService {
       googleClicks,
       attributed,
     ] = await Promise.all([
+      // "Reseñas totales en Google" — el historial completo disponible,
+      // sin importar cuándo se publicó ni si se pudo determinar la fecha.
       this.prisma.googleReview.count({ where: { businessId } }),
       this.prisma.googleReview.count({
         where: { businessId, postedAt: { gte: since } },
       }),
-      // `null` (no un conteo) para negocios conectados antes de que este
-      // campo existiera — mejor "no sabemos" que un número que no significa
-      // "desde que conectaste" de verdad.
-      business?.googlePlaceConnectedAt
+      /**
+       * "Reseñas con Flikker" — pedido explícito: el corte es
+       * `Business.createdAt` (cuándo se creó la cuenta en Flikker), NUNCA
+       * `googlePlaceConnectedAt` (eso solo dice cuándo se conectó ESTE
+       * Place, que puede reconectarse/cambiar) y NUNCA `detectedAt` (cuándo
+       * la encontramos nosotros — una reseña vieja importada hoy no la
+       * "consiguió" Flikker hoy). `Business.createdAt` siempre existe, así
+       * que ya no hace falta el `null` de "no sabemos" que tenía antes.
+       * `postedAt: { gte }` ya excluye de forma natural las reseñas sin
+       * fecha determinada (`postedAt: null`) — nunca cuentan acá hasta que
+       * se pueda saber su fecha real.
+       */
+      business
         ? this.prisma.googleReview.count({
-            where: {
-              businessId,
-              postedAt: { gte: business.googlePlaceConnectedAt },
-            },
+            where: { businessId, postedAt: { gte: business.createdAt } },
           })
-        : Promise.resolve(null),
+        : Promise.resolve(0),
       this.prisma.googleReview.aggregate({
         where: { businessId },
         _avg: { stars: true },
@@ -104,7 +113,9 @@ export class ReviewsOverviewService {
       }),
       this.prisma.googleReview.findMany({
         where: { businessId },
-        orderBy: { postedAt: 'desc' },
+        // `nulls: 'last'` — una reseña sin fecha determinada no debe
+        // desplazar a las que sí la tienen fuera del `take: 50`.
+        orderBy: { postedAt: { sort: 'desc', nulls: 'last' } },
         take: 50,
         select: {
           id: true,
@@ -116,7 +127,10 @@ export class ReviewsOverviewService {
         },
       }),
       // Serie diaria para el gráfico — mismo `postedAt` que ya usa
-      // `inPeriod`, solo bucketizado por día en vez de sumado.
+      // `inPeriod`, solo bucketizado por día en vez de sumado. El `where`
+      // ya excluye `postedAt: null` de forma natural (mismo criterio que
+      // `inPeriod`/`sinceFlikker`: sin fecha real, no entra en ningún corte
+      // temporal).
       this.prisma.googleReview.findMany({
         where: { businessId, postedAt: { gte: period.from } },
         select: { postedAt: true },
@@ -192,7 +206,9 @@ export class ReviewsOverviewService {
     }
 
     const dailyCounts = bucketByDay(
-      chartRows.map((r) => r.postedAt),
+      // El `where` de la query ya excluye `postedAt: null` — el filtro es
+      // solo para que el tipo sea `Date`, no `Date | null`.
+      chartRows.map((r) => r.postedAt).filter((d): d is Date => d !== null),
       period,
     );
 
@@ -224,14 +240,17 @@ export class ReviewsOverviewService {
         // pantalla se lee como si el negocio estuviera pésimo.
         rating:
           total > 0 ? Math.round((rating._avg.stars ?? 0) * 10) / 10 : null,
+        /** "Reseñas totales en Google" — historial completo disponible. */
         total,
         inPeriod,
         /**
-         * "Reseñas desde que usás Flikker" — `null` (no 0) para un negocio
-         * conectado antes de que `googlePlaceConnectedAt` existiera: no hay
-         * ancla real, así que no se inventa un número.
+         * "Reseñas con Flikker" — reseñas publicadas desde que se creó la
+         * cuenta en Flikker (`Business.createdAt`), por `postedAt` real.
+         * Siempre un número (nunca `null`): `Business.createdAt` existe
+         * para todo negocio, a diferencia de la vieja ancla
+         * `googlePlaceConnectedAt`.
          */
-        sinceConnected,
+        sinceFlikker,
         feedbackInPeriod,
         ratingDistribution,
       },

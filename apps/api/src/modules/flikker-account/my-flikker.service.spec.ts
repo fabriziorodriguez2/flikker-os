@@ -5,7 +5,12 @@ function customerRow(overrides: Record<string, unknown> = {}) {
   return {
     id: 'cust-a',
     businessId: 'biz-a',
-    business: { name: 'Café A', logoUrl: null, primaryColor: '#5C6BC0' },
+    business: {
+      name: 'Café A',
+      logoUrl: null,
+      primaryColor: '#5C6BC0',
+      welcomeBenefitId: null,
+    },
     ...overrides,
   };
 }
@@ -18,6 +23,7 @@ function makeDeps(
     lastVisit?: unknown;
     rewardView?: unknown;
     unlockedGoal?: unknown;
+    otherBenefits?: unknown[];
   } = {},
 ) {
   const prisma = {
@@ -50,11 +56,20 @@ function makeDeps(
         options.rewardView ?? { goal: null, unlockedNow: false, benefit: null },
       ),
   };
-  return { prisma, rewardGoals };
+  const benefits = {
+    getOtherAvailableBenefits: jest
+      .fn()
+      .mockResolvedValue(options.otherBenefits ?? []),
+  };
+  return { prisma, rewardGoals, benefits };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
-  return new MyFlikkerService(deps.prisma as never, deps.rewardGoals as never);
+  return new MyFlikkerService(
+    deps.prisma as never,
+    deps.rewardGoals as never,
+    deps.benefits as never,
+  );
 }
 
 describe('MyFlikkerService.listPlaces — cross-business, but only this account’s own', () => {
@@ -185,6 +200,10 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
       'lastVisitAt',
       'rewardGoal',
       'benefitAvailable',
+      // Otros beneficios otorgados (ej. por una promoción manual), sin
+      // canjear — cara-al-cliente por definición, mismo criterio que
+      // `benefitAvailable` arriba.
+      'otherBenefits',
     ]);
   });
 
@@ -221,5 +240,64 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
     const place = await service.placeDetail('account-1', 'biz-a');
 
     expect(place.benefitAvailable).toBeNull();
+  });
+
+  it('surfaces a promotion-granted benefit as otherBenefits, independent of the reward-goal one', async () => {
+    const deps = makeDeps({
+      otherBenefits: [
+        {
+          benefitId: 'benefit-promo',
+          type: 'discount',
+          title: '10% off',
+          description: null,
+          terms: null,
+          code: 'PROMO123',
+          expiresAt: null,
+        },
+      ],
+    });
+    const service = makeService(deps);
+
+    const place = await service.placeDetail('account-1', 'biz-a');
+
+    expect(place.otherBenefits).toEqual([
+      {
+        title: '10% off',
+        description: null,
+        terms: null,
+        code: 'PROMO123',
+        expiresAt: null,
+      },
+    ]);
+  });
+
+  it('excludes the reward-goal benefit and the welcome gift when asking for other benefits', async () => {
+    const deps = makeDeps({
+      customer: customerRow({
+        business: {
+          name: 'Café A',
+          logoUrl: null,
+          primaryColor: null,
+          welcomeBenefitId: 'benefit-welcome',
+        },
+      }),
+      unlockedGoal: {
+        incentiveDefinition: { name: 'Café gratis' },
+        benefitParticipation: {
+          benefitId: 'benefit-reward-goal',
+          redemptionCode: 'ABCD1234',
+          expiresAt: null,
+        },
+      },
+    });
+    const service = makeService(deps);
+
+    await service.placeDetail('account-1', 'biz-a');
+
+    expect(deps.benefits.getOtherAvailableBenefits).toHaveBeenCalledWith(
+      'biz-a',
+      'cust-a',
+      ['benefit-reward-goal', 'benefit-welcome'],
+    );
   });
 });

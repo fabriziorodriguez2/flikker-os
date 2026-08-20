@@ -236,6 +236,9 @@ export class GoogleReviewDetectionWorker
   ) {
     const reviewerName = review.reviewerName?.trim();
     if (!reviewerName) return null;
+    // Sin fecha real no hay ventana de atribución que tenga sentido —
+    // nunca se inventa una a partir de `detectedAt`.
+    if (!review.postedAt) return null;
 
     const from = new Date(review.postedAt);
     from.setUTCDate(from.getUTCDate() - ATTRIBUTION_WINDOW_DAYS);

@@ -37,10 +37,15 @@ interface Overview {
   };
   summary: {
     rating: number | null;
+    /** "Reseñas totales en Google" — historial completo disponible. */
     total: number;
     inPeriod: number;
-    /** "Desde que usás Flikker" — `null` si no hay ancla real (`connectedAt`). */
-    sinceConnected: number | null;
+    /**
+     * "Reseñas con Flikker" — publicadas desde que se creó la cuenta
+     * (`Business.createdAt`), por fecha real de publicación. Siempre un
+     * número: nunca depende de si Google está conectado desde hace poco.
+     */
+    sinceFlikker: number;
     feedbackInPeriod: number;
     ratingDistribution: Record<string, number>;
   };
@@ -255,15 +260,11 @@ export default function ReviewsClient({
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Kpi
               label="Reseñas con Flikker"
-              value={
-                summary.sinceConnected !== null
-                  ? String(summary.sinceConnected)
-                  : String(summary.total)
-              }
+              value={String(summary.sinceFlikker)}
               hint={
-                summary.sinceConnected !== null
-                  ? "Desde que conectaste tu perfil"
-                  : "Historial disponible en Google"
+                summary.total !== summary.sinceFlikker
+                  ? `Desde que te uniste · ${summary.total} en total en Google`
+                  : "Desde que te uniste a Flikker"
               }
             />
             <Kpi

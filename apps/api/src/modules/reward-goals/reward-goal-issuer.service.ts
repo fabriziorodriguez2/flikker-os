@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { BenefitIssuanceSource } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { generateRedemptionCode } from '../../common/utils/redemption-code.util';
 
@@ -92,6 +93,7 @@ export class RewardGoalIssuerService {
         benefitId: benefit.id,
         businessId: goal.businessId,
         customerId: goal.customerId,
+        source: BenefitIssuanceSource.REWARD_GOAL,
         redemptionCode: generateRedemptionCode(),
         expiresAt,
         // Este carrier es privado (nunca aparece en el catálogo del dueño,

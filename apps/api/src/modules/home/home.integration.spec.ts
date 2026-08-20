@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { Test, TestingModule } from '@nestjs/testing';
 import {
+  BenefitIssuanceSource,
   BenefitType,
   BusinessStatus,
   CustomerSegment,
@@ -595,6 +596,7 @@ describe('Inicio — portada (integration)', () => {
           benefitId,
           businessId,
           customerId,
+          source: BenefitIssuanceSource.LEGACY,
           redemptionCode: `TEST${randomUUID().slice(0, 8)}`,
           redeemedAt: daysAgo(4),
         },
@@ -649,6 +651,7 @@ describe('Inicio — portada (integration)', () => {
           benefitId: benefit.id,
           businessId,
           customerId: customer.id,
+          source: BenefitIssuanceSource.LEGACY,
           redemptionCode: `TEST${randomUUID().slice(0, 8)}`,
           redeemedAt: daysAgo(4),
         },

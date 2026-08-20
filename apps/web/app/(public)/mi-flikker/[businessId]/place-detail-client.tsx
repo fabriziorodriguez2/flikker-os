@@ -27,6 +27,19 @@ interface MyFlikkerPlace {
     remainingVisits: number;
   } | null;
   benefitAvailable: { name: string; code: string; expiresAt: string | null } | null;
+  /**
+   * Otros beneficios otorgados y sin canjear — típicamente por una
+   * promoción manual (Notificaciones → Promociones ya puede elegir
+   * cualquier Benefit del catálogo). Independiente de `benefitAvailable`
+   * (esa es solo la recompensa de una tarjeta ya desbloqueada).
+   */
+  otherBenefits: {
+    title: string;
+    description: string | null;
+    terms: string | null;
+    code: string;
+    expiresAt: string | null;
+  }[];
 }
 
 /**
@@ -184,25 +197,53 @@ export default function PlaceDetailClient({ businessId }: { businessId: string }
 
       {place.benefitAvailable ? (
         <GiftReveal benefit={place.benefitAvailable} brand={brand} />
-      ) : place.rewardGoal ? (
-        <p className="mt-4 text-center text-sm font-semibold text-[#697084]">
-          Tu próximo regalo: {place.rewardGoal.incentiveName}
-        </p>
-      ) : (
-        <section className="mt-5 rounded-[28px] bg-white/80 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
-          <span className="flex h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: `color-mix(in srgb, ${brand} 12%, white)`, color: brand }}>
-            <Gift className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <h2 className="mt-4 text-xl font-bold text-[#202333]">Próximo premio en camino</h2>
-          <p className="mt-2 text-sm leading-6 text-[#7B8295]">
-            Todavía no hay una recompensa activa. Escaneá el QR en tu próxima visita para descubrir novedades.
+      ) : null}
+
+      {/* Otros beneficios (ej. por promoción manual) — independientes de
+          `benefitAvailable`, que es solo la recompensa de la tarjeta.
+          Pueden coexistir con ella o aparecer solos. */}
+      {place.otherBenefits.map((benefit, i) => (
+        <GiftReveal
+          key={`${benefit.title}-${i}`}
+          benefit={{
+            name: benefit.title,
+            code: benefit.code,
+            expiresAt: benefit.expiresAt,
+          }}
+          brand={brand}
+        />
+      ))}
+
+      {!place.benefitAvailable && place.otherBenefits.length === 0 ? (
+        place.rewardGoal ? (
+          <p className="mt-4 text-center text-sm font-semibold text-[#697084]">
+            Tu próximo regalo: {place.rewardGoal.incentiveName}
           </p>
-        </section>
-      )}
+        ) : (
+          <section className="mt-5 rounded-[28px] bg-white/80 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
+            <span className="flex h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: `color-mix(in srgb, ${brand} 12%, white)`, color: brand }}>
+              <Gift className="h-5 w-5" aria-hidden="true" />
+            </span>
+            <h2 className="mt-4 text-xl font-bold text-[#202333]">Próximo premio en camino</h2>
+            <p className="mt-2 text-sm leading-6 text-[#7B8295]">
+              Todavía no hay una recompensa activa. Escaneá el QR en tu próxima visita para descubrir novedades.
+            </p>
+          </section>
+        )
+      ) : null}
     </Shell>
   );
 }
 
+/**
+ * Un beneficio disponible (bienvenida, reactivación, promo, o la recompensa
+ * de una tarjeta de sellos que ya se completó) — nunca la tarjeta de sellos
+ * en curso. Vive SIEMPRE dentro de esta misma card blanca/opaca, en los dos
+ * estados (antes y después de revelar), para que jamás se lea como si
+ * formara parte visualmente de la tarjeta de sellos incompleta que está
+ * arriba: esa tarjeta (`RewardGoalStamps`, en el hero de más arriba) nunca
+ * tiene QR, y este bloque nunca comparte fondo/color con ella.
+ */
 function GiftReveal({
   benefit,
   brand,
@@ -231,75 +272,79 @@ function GiftReveal({
     };
   }, [benefit.code, revealed]);
 
-  if (!revealed) {
-    return (
-      <div className="mt-7 flex justify-center">
-        <button
-          type="button"
-          onClick={() => setRevealed(true)}
-          className="group flex h-24 w-24 items-center justify-center rounded-[28px] text-white shadow-[0_16px_34px_rgba(31,35,58,0.2)] transition-transform hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white focus-visible:ring-offset-2 active:scale-95"
-          style={{
-            background: `linear-gradient(145deg, ${brand}, color-mix(in srgb, ${brand} 70%, black))`,
-          }}
-          aria-label="Abrir regalo y mostrar el código de canje"
-        >
-          <Gift
-            className="h-11 w-11 transition-transform group-hover:rotate-6"
-            strokeWidth={1.8}
-            aria-hidden="true"
-          />
-        </button>
-      </div>
-    );
-  }
-
   return (
     <section className="mt-5 overflow-hidden rounded-[28px] bg-white/90 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
-      <div className="text-center">
-        <span
-          className="mx-auto flex h-12 w-12 items-center justify-center rounded-[16px] text-white"
-          style={{ backgroundColor: brand }}
-        >
-          <Gift className="h-6 w-6" aria-hidden="true" />
-        </span>
-        <p className="mt-3 text-xs font-bold uppercase tracking-[0.12em] text-[#8A91A3]">
-          Tu regalo
-        </p>
-        <h2 className="mt-1 text-[24px] font-bold leading-tight tracking-[-0.03em] text-[#171A2B]">
-          {benefit.name}
-        </h2>
-      </div>
+      <p className="text-center text-xs font-bold uppercase tracking-[0.12em] text-[#8A91A3]">
+        Beneficio disponible
+      </p>
 
-      <div className="mt-5 flex min-h-[220px] items-center justify-center">
-        {qrDataUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={qrDataUrl}
-            alt={`QR para canjear ${benefit.name}`}
-            className="h-[220px] w-[220px] rounded-[18px] bg-white p-2"
-          />
-        ) : (
-          <Loader2
-            className="h-7 w-7 animate-spin text-[#8A91A3]"
-            aria-label="Generando QR"
-          />
-        )}
-      </div>
+      {!revealed ? (
+        <div className="mt-4 flex flex-col items-center text-center">
+          <span
+            className="flex h-12 w-12 items-center justify-center rounded-[16px] text-white"
+            style={{ backgroundColor: brand }}
+          >
+            <Gift className="h-6 w-6" aria-hidden="true" />
+          </span>
+          <h2 className="mt-3 text-[22px] font-bold leading-tight tracking-[-0.03em] text-[#171A2B]">
+            {benefit.name}
+          </h2>
+          <button
+            type="button"
+            onClick={() => setRevealed(true)}
+            className="group mt-5 flex h-20 w-20 items-center justify-center rounded-[24px] text-white shadow-[0_16px_34px_rgba(31,35,58,0.2)] transition-transform hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white focus-visible:ring-offset-2 active:scale-95"
+            style={{
+              background: `linear-gradient(145deg, ${brand}, color-mix(in srgb, ${brand} 70%, black))`,
+            }}
+            aria-label={`Mostrar el código de canje de ${benefit.name}`}
+          >
+            <Gift
+              className="h-9 w-9 transition-transform group-hover:rotate-6"
+              strokeWidth={1.8}
+              aria-hidden="true"
+            />
+          </button>
+          <p className="mt-3 text-xs text-[#8A91A3]">Tocá para ver tu código</p>
+        </div>
+      ) : (
+        <div className="mt-4 text-center">
+          <h2 className="text-[24px] font-bold leading-tight tracking-[-0.03em] text-[#171A2B]">
+            {benefit.name}
+          </h2>
 
-      <p className="mt-4 text-center text-xs font-semibold uppercase tracking-[0.12em] text-[#8A91A3]">
-        Código de canje
-      </p>
-      <p className="mt-2 rounded-[16px] border border-dashed border-[#D8DBE7] bg-[#F7F7FB] px-4 py-4 text-center font-mono text-[26px] font-bold tracking-[0.18em] text-[#24283A]">
-        {benefit.code}
-      </p>
-      {benefit.expiresAt ? (
-        <p className="mt-2 text-center text-xs text-[#8A91A3]">
-          Válido hasta {new Date(benefit.expiresAt).toLocaleDateString("es-UY")}
-        </p>
-      ) : null}
-      <p className="mt-4 text-center text-sm font-medium text-[#697084]">
-        Mostrá el QR o el código al personal para disfrutar tu regalo.
-      </p>
+          <div className="mt-5 flex min-h-[220px] items-center justify-center">
+            {qrDataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={qrDataUrl}
+                alt={`QR para canjear ${benefit.name}`}
+                className="h-[220px] w-[220px] rounded-[18px] bg-white p-2"
+              />
+            ) : (
+              <Loader2
+                className="h-7 w-7 animate-spin text-[#8A91A3]"
+                aria-label="Generando QR"
+              />
+            )}
+          </div>
+
+          <p className="mt-4 text-center text-xs font-semibold uppercase tracking-[0.12em] text-[#8A91A3]">
+            Código de canje
+          </p>
+          <p className="mt-2 rounded-[16px] border border-dashed border-[#D8DBE7] bg-[#F7F7FB] px-4 py-4 text-center font-mono text-[26px] font-bold tracking-[0.18em] text-[#24283A]">
+            {benefit.code}
+          </p>
+          {benefit.expiresAt ? (
+            <p className="mt-2 text-center text-xs text-[#8A91A3]">
+              Válido hasta{" "}
+              {new Date(benefit.expiresAt).toLocaleDateString("es-UY")}
+            </p>
+          ) : null}
+          <p className="mt-4 text-center text-sm font-medium text-[#697084]">
+            Mostrá el QR o el código al personal para disfrutar tu regalo.
+          </p>
+        </div>
+      )}
     </section>
   );
 }

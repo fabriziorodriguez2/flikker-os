@@ -64,20 +64,25 @@ export default function PromotionsTab() {
   const [error, setError] = useState<string | null>(null);
 
   /**
-   * Solo se puede ofrecer el beneficio ACTIVO del negocio.
+   * Cualquier Benefit real del catálogo de Programa es válido acá — pedido
+   * explícito, auditado antes de tocar backend: `Benefit.active` es un slot
+   * único ("el que el cliente ve al escanear el QR ahora mismo"), no un
+   * filtro de "beneficios habilitados para promoción". Restringir la lista
+   * a ese único slot dejaba, con 3 Benefits reales, solo 1 elegible.
    *
-   * No es una limitación arbitraria: es el único que el cliente puede abrir.
-   * El check-in le muestra su beneficio con el código, y ahí se muestra el
-   * activo. Ofrecer cualquier otro sería prometer algo que el cliente no tiene
-   * dónde ver — que es exactamente lo que hay que evitar.
+   * `BenefitParticipation` (el mecanismo que ya emite el código de canje)
+   * nunca dependió de `active` — es la misma fila que ya usa el regalo de
+   * bienvenida. El backend (`NotificationsPromotionsService`) ya no exige
+   * que el Benefit sea el activo, y el cliente lo ve en su espacio personal
+   * / Mi Flikker vía "otros beneficios disponibles", sin importar cuál sea
+   * hoy el activo del check-in. Tampoco depende de `automationEligible`
+   * ("autorizado para reactivar") — son conceptos distintos.
    */
   useEffect(() => {
     if (!creating) return;
     void fetch("/api/proxy/benefits")
       .then((res) => (res.ok ? res.json() : []))
-      .then((rows: (Benefit & { active?: boolean })[]) =>
-        setBenefits(rows.filter((b) => b.active)),
-      )
+      .then((rows: Benefit[]) => setBenefits(rows))
       .catch(() => setBenefits([]));
   }, [creating]);
 
@@ -346,8 +351,8 @@ export default function PromotionsTab() {
         </select>
         <p className="mt-2 text-xs leading-5 text-[#8891A4]">
           {benefits.length === 0
-            ? "No tenés ningún beneficio activo. Activá uno en Programa para poder ofrecerlo."
-            : "Solo podés ofrecer tu beneficio activo, que es el que tus clientes ven al escanear. El mensaje va a incluir el link para que lo abran."}{" "}
+            ? "Todavía no creaste ningún beneficio. Creá uno en Programa para poder ofrecerlo acá."
+            : "El mensaje va a incluir el link de siempre para que tus clientes lo abran. Van a ver este beneficio disponible en su espacio personal, sin importar cuál sea el que se muestra al escanear el QR."}{" "}
           <Link
             href="/dashboard/programa?tab=configuracion&section=beneficios"
             className="font-semibold text-[#5C6BC0] hover:underline"

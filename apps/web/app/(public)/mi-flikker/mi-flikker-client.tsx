@@ -183,7 +183,7 @@ export default function MiFlikkerClient({ hasSession }: { hasSession: boolean })
           para empezar.
         </p>
       ) : (
-        <div ref={walletRef} className="mi-wallet mt-7 w-full pb-16">
+        <div ref={walletRef} className="mi-wallet mt-12 w-full pb-16">
           {places.map((place, index) => (
             <PlaceCard key={place.businessId} place={place} index={index} />
           ))}
@@ -201,7 +201,7 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
       data-wallet-card
       className="mi-coupon mi-wallet-card sticky block min-h-[176px] overflow-hidden rounded-[26px] p-6 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
       style={{
-        top: 88 + Math.min(index, 8) * 10,
+        top: 112 + Math.min(index, 8) * 10,
         zIndex: index + 1,
         background: `linear-gradient(135deg, ${palette.primary} 0%, ${palette.secondary} 115%)`,
       }}

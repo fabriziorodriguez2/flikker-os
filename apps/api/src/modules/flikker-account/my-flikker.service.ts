@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { RewardGoalStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RewardGoalOrchestratorService } from '../reward-goals/reward-goal-orchestrator.service';
+import { BenefitsService } from '../benefits/benefits.service';
 
 export interface MyFlikkerPlace {
   businessId: string;
@@ -26,6 +27,20 @@ export interface MyFlikkerPlace {
     code: string;
     expiresAt: string | null;
   } | null;
+  /**
+   * Otros beneficios otorgados a este cliente y sin canjear — típicamente
+   * por una promoción manual (Notificaciones → Promociones ya puede elegir
+   * cualquier Benefit del catálogo, no solo el `active` del check-in).
+   * Independiente de `benefitAvailable` (que solo cubre la recompensa de
+   * una tarjeta ya desbloqueada) para no duplicar esa fila.
+   */
+  otherBenefits: {
+    title: string;
+    description: string | null;
+    terms: string | null;
+    code: string;
+    expiresAt: string | null;
+  }[];
 }
 
 /**
@@ -40,6 +55,7 @@ export class MyFlikkerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly rewardGoals: RewardGoalOrchestratorService,
+    private readonly benefits: BenefitsService,
   ) {}
 
   /**
@@ -61,6 +77,7 @@ export class MyFlikkerService {
             loyaltyCardColor: true,
             loyaltyStampColor: true,
             loyaltyStampIcon: true,
+            welcomeBenefitId: true,
           },
         },
       },
@@ -92,6 +109,7 @@ export class MyFlikkerService {
             loyaltyCardColor: true,
             loyaltyStampColor: true,
             loyaltyStampIcon: true,
+            welcomeBenefitId: true,
           },
         },
       },
@@ -118,6 +136,7 @@ export class MyFlikkerService {
       loyaltyCardColor: string | null;
       loyaltyStampColor: string | null;
       loyaltyStampIcon: string | null;
+      welcomeBenefitId: string | null;
     },
   ): Promise<MyFlikkerPlace> {
     const [visitsTotal, lastVisit, rewardView, unclaimedBenefit] =
@@ -134,7 +153,11 @@ export class MyFlikkerService {
           select: {
             incentiveDefinition: { select: { name: true } },
             benefitParticipation: {
-              select: { redemptionCode: true, expiresAt: true },
+              select: {
+                benefitId: true,
+                redemptionCode: true,
+                expiresAt: true,
+              },
             },
           },
         }),
@@ -151,6 +174,18 @@ export class MyFlikkerService {
         }
       : null;
 
+    // Cualquier otro beneficio otorgado (típicamente por promoción manual),
+    // sin contar el de la recompensa de tarjeta ya cubierta arriba ni el
+    // regalo de bienvenida.
+    const otherBenefits = await this.benefits.getOtherAvailableBenefits(
+      businessId,
+      customerId,
+      [
+        unclaimedBenefit?.benefitParticipation?.benefitId,
+        business.welcomeBenefitId,
+      ],
+    );
+
     return {
       businessId,
       businessName: business.name,
@@ -163,6 +198,13 @@ export class MyFlikkerService {
       lastVisitAt: lastVisit?.occurredAt.toISOString() ?? null,
       rewardGoal: rewardView.goal,
       benefitAvailable,
+      otherBenefits: otherBenefits.map((b) => ({
+        title: b.title,
+        description: b.description,
+        terms: b.terms,
+        code: b.code,
+        expiresAt: b.expiresAt?.toISOString() ?? null,
+      })),
     };
   }
 }

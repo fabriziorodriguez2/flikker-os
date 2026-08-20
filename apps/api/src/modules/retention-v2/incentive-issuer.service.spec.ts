@@ -60,7 +60,7 @@ function makePrisma(
       findMany: jest
         .fn()
         .mockResolvedValue(options.participationsThisMonth ?? []),
-      upsert: jest.fn().mockResolvedValue({
+      create: jest.fn().mockResolvedValue({
         id: 'part-1',
         redemptionCode: 'ABCD1234',
         expiresAt: new Date('2026-09-08T12:00:00.000Z'),
@@ -254,7 +254,7 @@ describe('IncentiveIssuerService — authorization is re-checked at issue time',
       status: 'skipped',
       reason: 'NOT_AUTHORIZED',
     });
-    expect(prisma.tx.benefitParticipation.upsert).not.toHaveBeenCalled();
+    expect(prisma.tx.benefitParticipation.create).not.toHaveBeenCalled();
   });
 
   it('un assignment YA emitido antes del vencimiento nunca se toca — sigue "already_issued"', async () => {
@@ -384,7 +384,7 @@ describe('IncentiveIssuerService — monthly budget caps (Fase C.5)', () => {
     const findManyCallOrder =
       prisma.tx.benefitParticipation.findMany.mock.invocationCallOrder[0];
     const upsertCallOrder =
-      prisma.tx.benefitParticipation.upsert.mock.invocationCallOrder[0];
+      prisma.tx.benefitParticipation.create.mock.invocationCallOrder[0];
     expect(lockCallOrder).toBeLessThan(findManyCallOrder);
     expect(findManyCallOrder).toBeLessThan(upsertCallOrder);
   });
@@ -407,7 +407,7 @@ describe('IncentiveIssuerService — monthly budget caps (Fase C.5)', () => {
       status: 'skipped',
       reason: 'MONTHLY_INCENTIVE_LIMIT',
     });
-    expect(prisma.tx.benefitParticipation.upsert).not.toHaveBeenCalled();
+    expect(prisma.tx.benefitParticipation.create).not.toHaveBeenCalled();
   });
 
   it('refuses when a business with no RetentionSettings row at all requests an incentive', async () => {
