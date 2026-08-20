@@ -406,7 +406,12 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest home.integration notifications.integration reactivation-funnel --runInBand)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest insights reactivation-funnel --runInBand)",
       "Bash(node --input-type=module -e ' *)",
-      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest chatbot --runInBand)"
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest chatbot --runInBand)",
+      "Bash(DATABASE_URL=postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public npx ts-node -e ' *)",
+      "Bash(echo \"EXIT_CODE=$?\")",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx ts-node _tmp-check-ai-flags.ts)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx ts-node _tmp-find-business.ts)",
+      "Bash(rm \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\\\\apps\\\\api\\\\_tmp-find-business.ts\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",
