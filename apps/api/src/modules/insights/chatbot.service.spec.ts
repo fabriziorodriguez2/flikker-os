@@ -42,6 +42,97 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
   );
 }
 
+describe('ChatbotService — prioridad 1: FAQ/KB determinística antes que la IA', () => {
+  it('"¿Cómo mando una promoción?" responde desde la KB sin tocar gate ni provider — el bug reportado', async () => {
+    const deps = makeDeps();
+    const service = makeService(deps);
+
+    const reply = await service.handleMessage(
+      'biz-1',
+      '¿Cómo mando una promoción?',
+      NOW,
+    );
+
+    expect(reply.source).toBe('help_kb');
+    expect(reply.text).toBe(findHelpFaqEntry('send-promotion')!.answer);
+    expect(reply.cta).toEqual({
+      label: 'Ir a Promociones',
+      href: '/dashboard/notificaciones?tab=promociones',
+    });
+    expect(deps.gate.check).not.toHaveBeenCalled();
+    expect(deps.provider.generateStructured).not.toHaveBeenCalled();
+    expect(deps.usage.record).not.toHaveBeenCalled();
+  });
+
+  it('responde igual aunque el gate de IA esté denegado — nunca depende del proveedor', async () => {
+    const deps = makeDeps();
+    deps.gate.check.mockResolvedValue({
+      allowed: false,
+      reasonCode: 'PLATFORM_DISABLED',
+    });
+    const service = makeService(deps);
+
+    const reply = await service.handleMessage(
+      'biz-1',
+      'como mando una promocion', // sin tildes ni mayúsculas, a propósito
+      NOW,
+    );
+
+    expect(reply.source).toBe('help_kb');
+    expect(reply.text).toBe(findHelpFaqEntry('send-promotion')!.answer);
+  });
+
+  it('cubre las 12 preguntas pedidas sin llamar a la IA', async () => {
+    const deps = makeDeps();
+    const service = makeService(deps);
+    const questions: [string, string][] = [
+      ['¿Cómo mando una promoción?', 'send-promotion'],
+      ['¿Cómo creo un beneficio?', 'create-benefit'],
+      ['¿Cómo configuro la tarjeta de sellos?', 'activate-stamps'],
+      ['¿Cómo cambio la cantidad de sellos?', 'change-stamps-count'],
+      ['¿Cómo conecto Google?', 'connect-google'],
+      ['¿Cómo funcionan las reseñas?', 'reviews-how-it-works'],
+      ['¿Cómo funciona Te extrañamos?', 'we-miss-you'],
+      [
+        '¿Cómo autorizo un beneficio para reactivación?',
+        'authorize-benefit-reactivation',
+      ],
+      ['¿Cómo cambio el horario de mensajes?', 'message-schedule'],
+      ['¿Cómo veo mis clientes?', 'view-customers'],
+      ['¿Cómo paso a Pro?', 'upgrade-to-pro'],
+      ['¿Cómo canjea un cliente un premio?', 'redeem-reward'],
+    ];
+
+    for (const [question, id] of questions) {
+      const reply = await service.handleMessage('biz-1', question, NOW);
+      expect(reply.source).toBe('help_kb');
+      expect(reply.text).toBe(findHelpFaqEntry(id)!.answer);
+    }
+    expect(deps.provider.generateStructured).not.toHaveBeenCalled();
+  });
+
+  it('sin match determinístico, sigue el camino normal de IA', async () => {
+    const deps = makeDeps();
+    deps.provider.generateStructured.mockResolvedValue({
+      data: { intent: 'other', helpFaqId: null, dataTool: null },
+      model: 'gpt-4o-mini',
+      inputTokens: 40,
+      outputTokens: 10,
+      latencyMs: 100,
+    });
+    const service = makeService(deps);
+
+    const reply = await service.handleMessage(
+      'biz-1',
+      'contame un chiste',
+      NOW,
+    );
+
+    expect(deps.gate.check).toHaveBeenCalledTimes(1);
+    expect(reply.source).toBe('deflection');
+  });
+});
+
 describe('ChatbotService', () => {
   it('gate rechazado: deflection fija, nunca llama al provider', async () => {
     const deps = makeDeps();
@@ -51,7 +142,13 @@ describe('ChatbotService', () => {
     });
     const service = makeService(deps);
 
-    const reply = await service.handleMessage('biz-1', '¿Cómo creo un beneficio?', NOW);
+    // Texto que no matchea ninguna FAQ determinística — si matcheara, nunca
+    // llegaría al gate, que es justo lo que este test quiere probar.
+    const reply = await service.handleMessage(
+      'biz-1',
+      'una pregunta cualquiera',
+      NOW,
+    );
 
     expect(reply.source).toBe('deflection');
     expect(deps.provider.generateStructured).not.toHaveBeenCalled();
@@ -85,9 +182,12 @@ describe('ChatbotService', () => {
     });
     const service = makeService(deps);
 
+    // Paráfrasis que NO matchea el KB determinístico a propósito — así este
+    // test sigue ejercitando de verdad el camino de clasificación por IA
+    // (el mock decide el helpFaqId, no el texto).
     const reply = await service.handleMessage(
       'biz-1',
-      '¿Cómo creo un beneficio?',
+      'tengo una duda sobre el catálogo de recompensas',
       NOW,
     );
 
@@ -224,7 +324,11 @@ describe('ChatbotService', () => {
     });
     const service = makeService(deps);
 
-    const reply = await service.handleMessage('biz-1', 'contame un chiste', NOW);
+    const reply = await service.handleMessage(
+      'biz-1',
+      'contame un chiste',
+      NOW,
+    );
 
     expect(reply.source).toBe('deflection');
     expect(deps.provider.generateStructured).toHaveBeenCalledTimes(1);

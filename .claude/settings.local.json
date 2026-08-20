@@ -404,7 +404,9 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest reactivation-funnel experiment-metrics notifications.integration notifications.service --runInBand)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest reactivation-funnel notifications.integration --runInBand)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest home.integration notifications.integration reactivation-funnel --runInBand)",
-      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest insights reactivation-funnel --runInBand)"
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest insights reactivation-funnel --runInBand)",
+      "Bash(node --input-type=module -e ' *)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest chatbot --runInBand)"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

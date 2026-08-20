@@ -1,16 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Send, Sparkles, X } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Send, Sparkles, X } from "lucide-react";
 
 interface SuggestedQuestion {
   id: string;
   question: string;
 }
 
+interface ChatCta {
+  label: string;
+  href: string;
+}
+
 interface ChatMessage {
   role: "user" | "assistant";
   text: string;
+  cta?: ChatCta | null;
 }
 
 const FALLBACK_TEXT = "No pude responder ahora. Probá de nuevo en un momento.";
@@ -60,10 +67,15 @@ export default function FlikkerChatbotPanel({
       });
       const data = (await res.json().catch(() => null)) as {
         text?: string;
+        cta?: ChatCta | null;
       } | null;
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: data?.text ?? FALLBACK_TEXT },
+        {
+          role: "assistant",
+          text: data?.text ?? FALLBACK_TEXT,
+          cta: data?.cta ?? null,
+        },
       ]);
     } catch {
       setMessages((prev) => [
@@ -125,7 +137,7 @@ export default function FlikkerChatbotPanel({
         {messages.map((m, i) => (
           <div
             key={i}
-            className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}
+            className={`flex flex-col ${m.role === "user" ? "items-end" : "items-start"}`}
           >
             <div
               className={`max-w-[85%] rounded-[14px] px-3.5 py-2.5 text-sm leading-relaxed ${
@@ -136,6 +148,15 @@ export default function FlikkerChatbotPanel({
             >
               {m.text}
             </div>
+            {m.cta && (
+              <Link
+                href={m.cta.href}
+                className="mt-1.5 inline-flex items-center gap-1 rounded-full border border-[#5C6BC0]/30 bg-white px-3 py-1.5 text-xs font-semibold text-[#5C6BC0] hover:bg-[#EEF0FB]"
+              >
+                {m.cta.label}
+                <ArrowRight className="h-3 w-3" aria-hidden="true" />
+              </Link>
+            )}
           </div>
         ))}
 

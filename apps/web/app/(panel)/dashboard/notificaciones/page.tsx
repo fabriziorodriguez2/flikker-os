@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Bell, Clock3, Info, Megaphone } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
 import { useIsCheckinV2 } from "../../experience-context";
@@ -34,9 +35,21 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]["key"];
 
+const TAB_KEYS = TABS.map((t) => t.key);
+
+function isTabKey(value: string | null): value is TabKey {
+  return value !== null && (TAB_KEYS as string[]).includes(value);
+}
+
 export default function NotificacionesPage() {
   const isCheckinV2 = useIsCheckinV2();
-  const [tab, setTab] = useState<TabKey>("automaticas");
+  // El CTA del chatbot ("Ir a Promociones") llega con `?tab=promociones` —
+  // así aterriza en la pestaña real, no solo en la página.
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab");
+  const [tab, setTab] = useState<TabKey>(
+    isTabKey(initialTab) ? initialTab : "automaticas",
+  );
 
   if (!isCheckinV2) {
     return (

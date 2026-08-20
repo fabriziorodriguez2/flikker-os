@@ -18,6 +18,8 @@ import {
   HELP_FAQ_ENTRIES,
   HELP_FAQ_IDS,
   findHelpFaqEntry,
+  matchHelpFaqEntryByText,
+  type HelpFaqCta,
 } from './chatbot-help-kb';
 
 const DATA_TOOLS = [
@@ -39,6 +41,7 @@ export type ChatbotReplySource =
 export interface ChatbotReply {
   text: string;
   source: ChatbotReplySource;
+  cta?: HelpFaqCta | null;
 }
 
 const DEFLECTION_TEXT =
@@ -130,11 +133,26 @@ export class ChatbotService {
     message: string,
     now: Date = new Date(),
   ): Promise<ChatbotReply> {
+    // Prioridad 1 — FAQ/KB determinística: nunca toca `gate`/`usage`/
+    // `provider`, así que responde igual aunque la IA esté caída, sin
+    // configurar, o sin cupo. Solo si esto no matchea seguimos a la IA.
+    const kbMatch = matchHelpFaqEntryByText(message);
+    if (kbMatch) {
+      return {
+        text: kbMatch.answer,
+        source: 'help_kb',
+        cta: kbMatch.cta ?? null,
+      };
+    }
+
     const gateDecision = await this.gate.check(
       businessId,
       AI_USE_CASES.CHATBOT_MESSAGE,
     );
     if (!gateDecision.allowed) {
+      this.logger.warn(
+        `Chatbot gate denied for business ${businessId}: ${gateDecision.reasonCode}`,
+      );
       return { text: DEFLECTION_TEXT, source: 'deflection' };
     }
     const withinCap = await this.usage.hasCapacityForUseCase(
@@ -144,6 +162,7 @@ export class ChatbotService {
       now,
     );
     if (!withinCap) {
+      this.logger.warn(`Chatbot daily cap reached for business ${businessId}`);
       return { text: DEFLECTION_TEXT, source: 'deflection' };
     }
 
@@ -181,7 +200,7 @@ export class ChatbotService {
       ) {
         const entry = findHelpFaqEntry(classify.helpFaqId);
         reply = entry
-          ? { text: entry.answer, source: 'help_kb' }
+          ? { text: entry.answer, source: 'help_kb', cta: entry.cta ?? null }
           : { text: OTHER_INTENT_TEXT, source: 'deflection' };
       } else if (
         classify.intent === 'data' &&
