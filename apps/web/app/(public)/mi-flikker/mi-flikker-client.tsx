@@ -235,7 +235,6 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
           progress={place.rewardGoal.progressVisits}
           target={place.rewardGoal.targetAdditionalVisits}
           bonusStamps={place.rewardGoal.bonusStamps ?? 0}
-          qrValue={`/mi-flikker/${place.businessId}`}
           appearance={{
             cardColor: place.loyaltyCardColor ?? palette.primary,
             textColor: place.loyaltyCardTextColor,
@@ -248,6 +247,17 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
             showBusinessName: place.loyaltyShowBusinessName,
           }}
         />
+        {/* Un Benefit independiente (bienvenida/promo/reactivación) puede
+            coexistir con una tarjeta ACTIVE — se muestra acá, separado de la
+            tarjeta, nunca como parte de ella. */}
+        {place.benefitAvailable ? (
+          <p className="mt-2 flex items-center gap-1.5 px-1 text-[13px] font-semibold text-[#4A56A6]">
+            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
+            <span className="truncate">
+              Tenés disponible: {place.benefitAvailable.name}
+            </span>
+          </p>
+        ) : null}
       </Link>
     );
   }

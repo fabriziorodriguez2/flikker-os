@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { RewardGoalStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -6,6 +6,7 @@ import {
   RetentionDecisionLogService,
 } from '../retention-v2/retention-decision-log.service';
 import { RewardGoalIssuerService } from './reward-goal-issuer.service';
+import { RewardGoalUnlockNotificationService } from './reward-goal-unlock-notification.service';
 
 export type UnlockResult =
   | { status: 'no_active_goal' }
@@ -44,10 +45,13 @@ export type UnlockResult =
  */
 @Injectable()
 export class RewardGoalUnlockService {
+  private readonly logger = new Logger(RewardGoalUnlockService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly decisions: RetentionDecisionLogService,
     private readonly issuer: RewardGoalIssuerService,
+    private readonly unlockNotification: RewardGoalUnlockNotificationService,
   ) {}
 
   async evaluateUnlock(
@@ -113,6 +117,29 @@ export class RewardGoalUnlockService {
       // never crash the check-in flow over it.
       return { status: 'already_processed' };
     }
+
+    // Fire-and-forget: el aviso de "completaste tu tarjeta" nunca debe
+    // bloquear ni arriesgar la respuesta del check-in. Vive DENTRO de este
+    // bloque (solo alcanzable una vez por goal, gracias al `updateMany`
+    // guardado arriba) — nunca se llama desde una lectura (`currentView`,
+    // `buildPersonalSpace`) ni desde el canje, así que abrir Mi Flikker o
+    // redimir el premio nunca vuelve a dispararlo.
+    void this.unlockNotification
+      .notify({
+        businessId,
+        customerId,
+        goalId: goal.id,
+        rewardName: goal.incentiveDefinition.name,
+        participationId: issued.participationId,
+        now,
+      })
+      .catch((error) => {
+        this.logger.warn(
+          `reward_goal_unlocked notification failed for goal ${goal.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
 
     return {
       status: 'unlocked',

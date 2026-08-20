@@ -32,7 +32,11 @@ function makePrisma(
       findFirst: jest
         .fn()
         .mockImplementation((args: { where: { status?: unknown } }) => {
-          if (args.where.status === RewardGoalStatus.ACTIVE) {
+          // `hasActiveGoal` queries `status: { in: PROMISED_STATUSES }`;
+          // `isCooldownActive` queries `status: { not: ACTIVE } }` — the
+          // shape of `status` is what tells the two apart here.
+          const status = args.where.status as { in?: unknown[] } | undefined;
+          if (status && typeof status === 'object' && 'in' in status) {
             return Promise.resolve(options.activeGoal ?? null);
           }
           return Promise.resolve(options.lastClosedGoal ?? null);
@@ -235,6 +239,47 @@ describe('RewardGoalEngineService — gating', () => {
   });
 });
 
+describe('RewardGoalEngineService — no new cycle while UNLOCKED is unredeemed', () => {
+  it('blocks a new goal while the previous one is UNLOCKED and unredeemed', async () => {
+    // `hasActiveGoal`'s query is `status: { in: [ACTIVE, UNLOCKED] } }` —
+    // it can't distinguish which of the two it found, and doesn't need to:
+    // either way there's a live, unredeemed promise for this customer.
+    const prisma = makePrisma({ activeGoal: { id: 'unlocked-goal' } });
+    const decisions = makeDecisions();
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      decisions as never,
+      makePlans() as never,
+    );
+
+    const result = await service.evaluate(context());
+
+    expect(result).toEqual({
+      action: 'NO_GOAL',
+      reasonCode: 'ALREADY_HAS_ACTIVE_GOAL',
+    });
+    expect(prisma.customerRewardGoal.create).not.toHaveBeenCalled();
+  });
+
+  it('allows a new goal once the previous one is REDEEMED (not just UNLOCKED)', async () => {
+    const prisma = makePrisma({
+      activeGoal: null, // no ACTIVE/UNLOCKED row left
+      lastClosedGoal: { updatedAt: new Date('2026-08-01T12:00:00.000Z') }, // long past cooldown
+    });
+    const decisions = makeDecisions();
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      decisions as never,
+      makePlans() as never,
+    );
+
+    const result = await service.evaluate(context());
+
+    expect(result.action).toBe('CREATE_GOAL');
+    expect(prisma.customerRewardGoal.create).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('RewardGoalEngineService — capacity protection (Fase E §10)', () => {
   it('excludes an incentive already at its promised-goals cap', async () => {
     const prisma = makePrisma({
@@ -343,13 +388,6 @@ describe('RewardGoalEngineService — dry run (Fase E §32)', () => {
 
   it('never logs a NO_GOAL decision in dry run — only what it would create', async () => {
     const prisma = makePrisma({ activeGoal: null });
-    prisma.customerRewardGoal.findFirst.mockImplementation(
-      (args: { where: { status?: unknown } }) => {
-        if (args.where.status === RewardGoalStatus.ACTIVE)
-          return Promise.resolve(null);
-        return Promise.resolve(null);
-      },
-    );
     const decisions = makeDecisions();
     const service = new RewardGoalEngineService(
       prisma as never,
@@ -407,10 +445,19 @@ describe('RewardGoalEngineService — concurrency', () => {
     // The pre-check sees no ACTIVE goal yet (so the engine proceeds to
     // create); the post-race recovery lookup, called only from inside the
     // catch block, then finds the winner another worker just created.
+    // Two different queries both mean "is there a live goal right now?":
+    // the pre-check (`hasActiveGoal`, `status: { in: [...] }`) and the
+    // post-race recovery lookup inside `createGoal`'s catch block (still a
+    // plain `status: ACTIVE`, unchanged by this fix — a goal can only ever
+    // race to create while ACTIVE, never while already UNLOCKED).
     let activeGoalCalls = 0;
     prisma.customerRewardGoal.findFirst.mockImplementation(
       (args: { where: { status?: unknown } }) => {
-        if (args.where.status === RewardGoalStatus.ACTIVE) {
+        const status = args.where.status;
+        const isLiveGoalQuery =
+          status === RewardGoalStatus.ACTIVE ||
+          (typeof status === 'object' && status !== null && 'in' in status);
+        if (isLiveGoalQuery) {
           activeGoalCalls += 1;
           return Promise.resolve(
             activeGoalCalls === 1 ? null : { id: 'winner-goal' },

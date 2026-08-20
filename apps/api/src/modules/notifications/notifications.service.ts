@@ -3,6 +3,8 @@ import { Prisma, RetentionObjective } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { RetentionResultsOverviewService } from '../retention-v2/retention-results-overview.service';
+import { ReactivationFunnelService } from '../retention-v2/reactivation-funnel.service';
+import { ReactivationFunnelSummaryService } from '../retention-v2/reactivation-funnel-summary.service';
 import { RetentionExperimentService } from '../retention-v2/retention-experiment.service';
 import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
 import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
@@ -56,6 +58,8 @@ export class NotificationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly results: RetentionResultsOverviewService,
+    private readonly reactivationFunnel: ReactivationFunnelService,
+    private readonly reactivationFunnelSummary: ReactivationFunnelSummaryService,
     private readonly experiments: RetentionExperimentService,
     private readonly bootstrap: RetentionV2BootstrapService,
     private readonly retentionSettings: RetentionSettingsService,
@@ -85,6 +89,7 @@ export class NotificationsService {
       settings,
       incentives,
       resultsOverview,
+      reactivationFunnel,
       running,
       whatsappAvailable,
       proAccess,
@@ -106,6 +111,12 @@ export class NotificationsService {
       includeResults
         ? this.results.forBusiness(businessId).catch(() => [])
         : Promise.resolve([]),
+      // Métrica principal de Reactivación (§ pedido explícito): mismo gate
+      // de perf que `results` arriba — `home.service.ts` tampoco necesita
+      // esto.
+      includeResults
+        ? this.reactivationFunnel.forBusiness(businessId).catch(() => null)
+        : Promise.resolve(null),
       // §16/§17 — un GET nunca crea infraestructura (eso es
       // RetentionV2BootstrapService, llamado desde los triggers
       // explícitos: onboarding, este mismo toggle, y Programa. Acá solo
@@ -270,7 +281,24 @@ export class NotificationsService {
       })),
       benefitsAutomation,
       results: this.simpleResults(resultsOverview),
+      // "X contactados → Y volvieron → Z% de recuperación" real, solo
+      // Retención/Reactivación (nunca "cerca del premio") — ver
+      // ReactivationFunnelService. `null` cuando no se pidió (`includeResults:
+      // false`) o si el cálculo falló, nunca para fingir un cero real.
+      reactivationFunnel,
     };
+  }
+
+  /** "Resumen de reactivación" — cacheado, no llama a IA en cada carga. */
+  async reactivationFunnelSummaryView(businessId: string) {
+    return this.reactivationFunnelSummary.getSummary(businessId);
+  }
+
+  /** Botón "Actualizar análisis" del resumen de reactivación. */
+  async refreshReactivationFunnelSummary(businessId: string) {
+    return this.reactivationFunnelSummary.getSummary(businessId, {
+      forceRefresh: true,
+    });
   }
 
   /**

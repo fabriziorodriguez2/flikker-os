@@ -602,6 +602,56 @@ model Business {
   optimizationRuns              RetentionOptimizationRun[]
   emailLogs                     EmailLog[]
   automationContacts            CustomerAutomationContact[]
+  insightSummary                BusinessInsightSummary?
+  reactivationFunnelSummary      ReactivationFunnelSummary?
+}
+
+// ---------------------------------------------------------------------------
+// BusinessInsightSummary (Insights → "Resumen de Flikker" — cache del
+// resumen generado por IA, una fila por negocio. El resumen se recalcula
+// como máximo una vez por TTL (ver `business-insight-summary.service.ts`) o
+// cuando el dueño aprieta "Actualizar análisis" — nunca en cada carga de la
+// pantalla, para no llamar al LLM de más.
+// ---------------------------------------------------------------------------
+
+model BusinessInsightSummary {
+  id         String @id @default(uuid())
+  businessId String @unique @map("business_id")
+
+  summaryText String @map("summary_text")
+  /// string[], máximo 3 — cada una ya pasó la validación de "todo número
+  /// mencionado existe en las métricas que se le pasaron a la IA" antes de
+  /// guardarse acá (ver `business-insight-summary.service.ts`).
+  recommendations Json
+
+  model         String
+  promptVersion String   @map("prompt_version")
+  generatedAt   DateTime @map("generated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("business_insight_summaries")
+}
+
+/// Cache del resumen IA de "X contactados → Y volvieron → Z% de
+/// recuperación" (Retención/Reactivación) — mismo patrón que
+/// `BusinessInsightSummary`, tabla propia porque es una métrica distinta con
+/// su propio payload (ver `reactivation-funnel-summary.service.ts`). Nunca
+/// tiene recomendaciones: la IA solo resume los números que el backend ya
+/// calculó.
+model ReactivationFunnelSummary {
+  id         String @id @default(uuid())
+  businessId String @unique @map("business_id")
+
+  summaryText String @map("summary_text")
+
+  model         String
+  promptVersion String   @map("prompt_version")
+  generatedAt   DateTime @map("generated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("reactivation_funnel_summaries")
 }
 
 // ---------------------------------------------------------------------------
@@ -1202,6 +1252,13 @@ model CustomerRewardGoal {
   @@index([incentiveDefinitionId, status])
   @@map("customer_reward_goals")
 }
+
+// customer_reward_goals_one_active_per_customer — hand-authored partial
+// unique index (businessId, customerId) WHERE status IN ('ACTIVE',
+// 'UNLOCKED'), see migrations. Prisma has no "unique where" attribute, so
+// it never appears above; it's the DB-level backstop for the same guard
+// `RewardGoalEngineService.hasActiveGoal` applies in application code — a
+// customer never has two live (ACTIVE or UNLOCKED-unredeemed) goals at once.
 
 // ---------------------------------------------------------------------------
 // CheckinFeedback — "¿Cómo fue tu experiencia?" shown right after a check-in.

@@ -123,7 +123,17 @@ describe('MyFlikkerService — cross-business aggregation is real (integration)'
       const plans = new PlansService(new PlansRepository(prisma));
       const engine = new RewardGoalEngineService(prisma, decisions, plans);
       const issuer = new RewardGoalIssuerService(prisma);
-      const unlock = new RewardGoalUnlockService(prisma, decisions, issuer);
+      // Este test es sobre agregación cross-business de `currentView`, no
+      // sobre el desbloqueo en sí — nunca llega a evaluateUnlock — así que
+      // un stub alcanza en vez de construir el árbol completo de
+      // notificaciones (LifecycleEmailsService/AutomationCooldownService).
+      const unlockNotificationStub = { notify: () => Promise.resolve() };
+      const unlock = new RewardGoalUnlockService(
+        prisma,
+        decisions,
+        issuer,
+        unlockNotificationStub as never,
+      );
       const orchestrator = new RewardGoalOrchestratorService(
         prisma,
         engine,

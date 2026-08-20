@@ -71,6 +71,33 @@ export class AiUsageService {
   }
 
   /**
+   * Igual que `hasCapacity`, pero con un tope propio de UN use case en vez
+   * del pool genérico del negocio — para funciones (como el chatbot) cuyo
+   * volumen razonable es de otro orden de magnitud que el resto de los usos
+   * de IA, y que no deben poder agotarle el presupuesto genérico a nadie
+   * más ni verse agotadas por él. Reusa el mismo índice
+   * `[businessId, useCase, createdAt]` que ya existe — sin schema nuevo.
+   */
+  async hasCapacityForUseCase(
+    businessId: string,
+    useCase: AiUseCase,
+    maxPerDay: number,
+    now: Date = new Date(),
+  ): Promise<boolean> {
+    const dayStart = new Date(now.getTime() - MS_PER_DAY);
+    const dailyCount = await this.prisma.aiUsageEvent.count({
+      where: { businessId, useCase, createdAt: { gte: dayStart } },
+    });
+    if (dailyCount >= maxPerDay) {
+      this.logger.warn(
+        `AI daily cap reached for business ${businessId}, use case ${useCase} (${dailyCount}/${maxPerDay})`,
+      );
+      return false;
+    }
+    return true;
+  }
+
+  /**
    * Fase F §36/§40 — platform-wide observability, no PII: generations
    * today/this month, success rate, fallback rate, average latency, broken
    * down by use case. This is the only "usage dashboard" this phase ships —

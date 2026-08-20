@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import QRCode from "qrcode";
 import {
   BadgePercent,
   Check,
@@ -21,6 +20,7 @@ import OtpInput from "@/components/ui/otp-input";
 import { useImagePalette } from "@/lib/use-logo-palette";
 import LoyaltyCard from "@/components/public/loyalty-card";
 import CheckinFeedbackCard from "@/components/public/checkin-feedback-card";
+import RedemptionReveal from "@/components/public/redemption-reveal";
 import type { CheckinLanding, PublicBenefit } from "./page";
 
 // ── Types shared with the API responses ──────────────────────────────────────
@@ -736,34 +736,12 @@ function SlideToReveal({
   const [breaking, setBreaking] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Canje por URL — el QR ya no codifica el código en texto plano: codifica
-  // una URL (`/redeem/{code}`) que el empleado abre con la cámara NATIVA de
-  // su teléfono (no una cámara dentro de Flikker). Esa pantalla ya sabe
-  // resolver el negocio y el permiso a partir del propio código — nada
-  // nuevo del lado del servidor, es el mismo `redemptionCode` de siempre.
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
 
   useEffect(() => {
     return () => {
       if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
     };
   }, []);
-
-  useEffect(() => {
-    if (!revealed) return;
-    let cancelled = false;
-    const redeemUrl = `${window.location.origin}/redeem/${code}`;
-    void QRCode.toDataURL(redeemUrl, {
-      errorCorrectionLevel: "M",
-      margin: 2,
-      width: 220,
-    }).then((url) => {
-      if (!cancelled) setQrDataUrl(url);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [revealed, code]);
 
   function maxDrag() {
     return Math.max(0, (trackRef.current?.clientWidth ?? 0) - 60);
@@ -799,30 +777,8 @@ function SlideToReveal({
 
   if (revealed) {
     return (
-      <div className="checkin-code-reveal relative overflow-hidden rounded-[22px] border border-white/38 bg-white/16 px-4 py-4 text-center backdrop-blur-sm">
-        <div className="checkin-unlock-icon mx-auto mb-2 flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#343B68] shadow-[0_6px_16px_rgba(21,25,46,0.18)]">
-          <Check className="h-4 w-4 stroke-[3]" aria-hidden="true" />
-        </div>
-        <div className="text-sm font-bold text-white">
-          ¡Premio desbloqueado!
-        </div>
-        <p className="mt-1 text-[11px] text-white/65">
-          Mostrá este QR en el local
-        </p>
-        {qrDataUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={qrDataUrl}
-            alt="QR para canjear tu recompensa"
-            className="mx-auto mt-3 h-[140px] w-[140px] rounded-[12px] bg-white p-2"
-          />
-        ) : null}
-        <p className="mt-2 font-mono text-[15px] font-bold tracking-[0.15em] text-white/80">
-          {code}
-        </p>
-        <p className="mt-0.5 text-[10px] text-white/55">
-          O decile este código al personal
-        </p>
+      <div className="text-white">
+        <RedemptionReveal code={code} redeemPath={`/redeem/${code}`} />
       </div>
     );
   }
@@ -1013,7 +969,6 @@ function PersonalScreen({
           </div>
 
           <RewardGoalCard
-            token={token}
             rewardGoal={personal.rewardGoal}
             brand={brand}
             landing={landing}
@@ -1135,9 +1090,6 @@ export function BenefitRewardCard({
               brand={brand}
               onReveal={onReveal ?? (() => undefined)}
             />
-            <p className="mt-2 text-center text-[10px] text-white/60">
-              Mostralo al personal cuando quieras disfrutarlo
-            </p>
           </div>
         ))}
 
@@ -1157,12 +1109,10 @@ export function BenefitRewardCard({
  * nothing active — the last one still explains what scanning is for.
  */
 function RewardGoalCard({
-  token,
   rewardGoal,
   brand,
   landing,
 }: {
-  token: string;
   rewardGoal: RewardGoalView | null | undefined;
   brand: string;
   landing: CheckinLanding;
@@ -1210,7 +1160,6 @@ function RewardGoalCard({
           progress={progressVisits}
           target={targetAdditionalVisits}
           bonusStamps={bonusStamps ?? 0}
-          qrValue={`/check-in/${token}`}
           appearance={{
             cardColor: landing.business.loyaltyCardColor ?? brand,
             textColor: landing.business.loyaltyCardTextColor,

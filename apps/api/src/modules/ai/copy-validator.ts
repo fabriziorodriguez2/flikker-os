@@ -50,10 +50,12 @@ export type CopyRejectionReason =
   | 'INTERNAL_SEGMENT_LANGUAGE'
   | 'MISSING_REQUIRED_CTA';
 
-const URL_PATTERN = /https?:\/\/\S+|www\.\S+/i;
+// Exportados (no solo de uso interno acá): `chatbot-answer-validator.ts`
+// reusa estos mismos dos checks en vez de duplicarlos.
+export const URL_PATTERN = /https?:\/\/\S+|www\.\S+/i;
 // 8+ digits, optionally grouped with spaces/dots/dashes — long enough that no
 // legitimate amount or visit count in this copy ever looks like it.
-const PHONE_LIKE_PATTERN = /\d[\d\s.-]{6,}\d/;
+export const PHONE_LIKE_PATTERN = /\d[\d\s.-]{6,}\d/;
 const PERCENTAGE_PATTERN = /(\d{1,3})\s?%/g;
 const AMOUNT_PATTERN = /\$\s?([\d.,]+)|(\d[\d.,]*)\s?(?:pesos|uyu|usd)\b/gi;
 const EXPIRY_DAYS_PATTERN = /(\d{1,3})\s?d[ií]as?/i;

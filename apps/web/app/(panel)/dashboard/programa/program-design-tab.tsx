@@ -555,7 +555,6 @@ export default function ProgramDesignTab({
                   rewardName={rewardName}
                   progress={Math.min(2, stampsRequired)}
                   target={stampsRequired}
-                  qrValue="https://flikker.site"
                   appearance={{
                     cardColor,
                     textColor: textColor || null,

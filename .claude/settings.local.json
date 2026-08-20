@@ -393,7 +393,18 @@
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/benefits/benefits.repository.spec.ts --runInBand)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/notifications/notifications-promotions.spec.ts --runInBand)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/benefits src/modules/notifications src/modules/checkin src/modules/reward-goals src/modules/retention-v2 src/modules/campaigns src/modules/flikker-account src/modules/public src/modules/customers src/modules/home src/modules/dashboard --runInBand)",
-      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/benefits/benefit-issuance.integration.spec.ts --runInBand)"
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/benefits/benefit-issuance.integration.spec.ts --runInBand)",
+      "Bash(awk -F: '$1>418')",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/customers/loyalty/customer-loyalty.integration.spec.ts --runInBand)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest --config ./test/jest-e2e.json test/app.e2e-spec.ts)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" JWT_SECRET=\"test-secret-for-di-check\" npx jest --config ./test/jest-e2e.json test/app.e2e-spec.ts)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest reward-goal-engine.service.spec.ts --runInBand)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest reward-goal --runInBand)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest lifecycle-emails automation-cooldown my-flikker checkin.rollout checkin.service --runInBand)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest reactivation-funnel experiment-metrics notifications.integration notifications.service --runInBand)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest reactivation-funnel notifications.integration --runInBand)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest home.integration notifications.integration reactivation-funnel --runInBand)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest insights reactivation-funnel --runInBand)"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

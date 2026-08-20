@@ -9,7 +9,8 @@ import { PrismaService } from '../prisma/prisma.service';
  * — nunca antes de promociones, que las decide el dueño, no el motor.
  *
  * Prioridad — determinística, no por horario de cron:
- *   Cumpleaños (1) > Sellos por vencer (2) > Casi llegás (3) > Te extrañamos (4)
+ *   Cumpleaños (1) > Tarjeta completada (2) > Sellos por vencer (3) >
+ *   Casi llegás (4) > Te extrañamos (5)
  *
  * Un solo `claim()` atómico NO alcanza para esto: si Retención corre antes
  * que Cumpleaños por un accidente de scheduling, "el primero que escribe
@@ -47,29 +48,43 @@ import { PrismaService } from '../prisma/prisma.service';
  */
 export type AutomationKind =
   | 'birthday'
+  | 'reward_goal_unlocked'
   | 'stamps_expiry'
   | 'progress_reminder'
   | 'reactivation';
 
 export const AUTOMATION_PRIORITY: Record<AutomationKind, number> = {
   birthday: 1,
-  stamps_expiry: 2,
-  progress_reminder: 3,
-  reactivation: 4,
+  reward_goal_unlocked: 2,
+  stamps_expiry: 3,
+  progress_reminder: 4,
+  reactivation: 5,
 };
 
 /**
  * Cuánto debe esperar cada `kind` entre reservar y poder confirmar — el
  * margen que le da a una automatización de mayor prioridad para todavía
- * robarle el turno. Cero para las dos de mayor prioridad porque nada puede
+ * robarle el turno. Cero para las tres de mayor prioridad porque nada puede
  * superarlas salvo entre sí, y ese orden ya está garantizado por código
  * (`LifecycleEmailsWorker` llama a Cumpleaños antes que a Sellos por
  * vencer, siempre, en el mismo proceso). Progreso/reactivación sí necesitan
  * un margen real: Retention V2 corre en una cola separada (BullMQ) que
  * puede adelantarse por un reintento, un worker que arrancó tarde, etc.
+ *
+ * `reward_goal_unlocked` también usa `claimImmediate` (grace cero) — se
+ * dispara en el momento del check-in, no desde un worker secuenciado, así
+ * que en el caso extremo de coincidir con Cumpleaños en el mismo instante
+ * para el mismo cliente, gana el que reserva primero (no necesariamente el
+ * de mayor prioridad). Eso nunca duplica un envío — el cooldown de 24h
+ * sigue garantizando como mucho uno — solo puede, en ese empate rarísimo,
+ * ceder el turno del día equivocado. Construir el protocolo real de
+ * reserva-y-confirmar-más-tarde (como Retention V2) para este caso
+ * requeriría una cola nueva solo para esto — desproporcionado para un
+ * envío disparado una vez por check-in.
  */
 const GRACE_MS: Record<AutomationKind, number> = {
   birthday: 0,
+  reward_goal_unlocked: 0,
   stamps_expiry: 0,
   progress_reminder: 10 * 60_000,
   reactivation: 10 * 60_000,

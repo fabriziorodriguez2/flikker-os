@@ -63,6 +63,20 @@ export function stampsExpiryWhatsAppText(input: {
   return `¡Hola ${input.customerName}! Ganaste ${input.rewardName} con tu tarjeta y todavía no lo canjeaste — vence en ${input.daysRemaining} ${dayWord}.\n\nMostrá este código para canjearlo: ${input.redemptionCode}`;
 }
 
+/**
+ * Free — la tarjeta de sellos se acaba de completar (ACTIVE → UNLOCKED).
+ * Apunta a la emisión real del Benefit desbloqueado (`/beneficio/{id}`,
+ * mismo link bearer que usa Notificaciones → Promociones), nunca a un link
+ * genérico del negocio — el cliente tiene que llegar directo a SU QR.
+ */
+export function rewardGoalUnlockedWhatsAppText(input: {
+  customerName: string;
+  rewardName: string;
+  benefitLink: string;
+}): string {
+  return `🎉 ¡Completaste tu tarjeta, ${input.customerName}! Ya tenés disponible ${input.rewardName}.\n\nCuando vengas, mostrale tu QR al personal para canjearlo: ${input.benefitLink}`;
+}
+
 /** Pro — mismo saludo que `birthdayEmail`, en texto plano para WhatsApp. */
 export function birthdayWhatsAppText(input: {
   businessName: string;

@@ -19,6 +19,7 @@ import QueryProvider from "@/components/providers/query-provider";
 import MobileMenuButton from "./mobile-menu-button";
 import ElasticScrollBoundary from "@/components/ui/elastic-scroll-boundary";
 import BusinessLoadError from "@/components/ui/business-load-error";
+import FlikkerChatbotLauncher from "@/components/panel/flikker-chatbot-launcher";
 
 export default async function PanelLayout({
   children,
@@ -193,6 +194,11 @@ export default async function PanelLayout({
           </main>
         </div>
       </div>
+      {/* Flotante en todo Check-in V2, montado una sola vez acá — nunca en
+          LEGACY. Hermano del shell, no hijo de `<main>`: así no lo tapa el
+          `overflow-auto`/scroll del contenido ni queda atrapado por el
+          `overflow-hidden` del shell en desktop. */}
+      {isCheckinV2 && <FlikkerChatbotLauncher />}
     </>
   );
 }

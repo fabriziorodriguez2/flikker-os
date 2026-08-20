@@ -1,5 +1,8 @@
 import { redirect } from "next/navigation";
-import { redirectIfAbsorbed } from "@/components/panel/absorbed-route";
+import {
+  isCheckinV2Business,
+  redirectIfAbsorbed,
+} from "@/components/panel/absorbed-route";
 import { ArrowRight, QrCode, Star, UserRoundCheck } from "lucide-react";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getEffectiveApiContext, getSession } from "@/lib/auth";
@@ -9,6 +12,7 @@ import ActivityEvolutionChart from "../activity-evolution-chart";
 import ActivityFilters, { type ActivityGranularity } from "../activity-filters";
 import { ACTIVITY_SERIES } from "../activity-series";
 import NegativeFeedbackList from "../negative-feedback-list";
+import InsightsV2Page from "./insights-v2-page";
 
 interface KpiMetric {
   current: number;
@@ -387,8 +391,18 @@ function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
 }
 
 export default async function InsightsPage({ searchParams }: InsightsPageProps) {
-  // Insights se repartió: la actividad quedó en Inicio y la reputación en
-  // Reseñas. El endpoint de métricas sigue existiendo intacto.
+  // Reversión deliberada (pedido explícito): para un negocio Check-in V2
+  // real, Insights vuelve a ser su propia pantalla — ya no se absorbe hacia
+  // Inicio/Reseñas. LEGACY e impersonation siguen exactamente como antes
+  // (ver `isCheckinV2Business`, que ya excluye ambos casos).
+  const previewSession = await getSession();
+  if (await isCheckinV2Business(previewSession)) {
+    return <InsightsV2Page />;
+  }
+
+  // A partir de acá, código LEGACY sin cambios: la actividad quedó en
+  // Inicio y la reputación en Reseñas. El endpoint de métricas sigue
+  // existiendo intacto.
   await redirectIfAbsorbed("/dashboard");
 
   const session = await getSession();

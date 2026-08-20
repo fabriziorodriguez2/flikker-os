@@ -257,12 +257,12 @@ function normalCdf(z: number): number {
   return 1 - pdf * poly;
 }
 
-function average(values: number[]): number | null {
+export function average(values: number[]): number | null {
   if (values.length === 0) return null;
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-function median(values: number[]): number | null {
+export function median(values: number[]): number | null {
   if (values.length === 0) return null;
   const sorted = [...values].sort((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);

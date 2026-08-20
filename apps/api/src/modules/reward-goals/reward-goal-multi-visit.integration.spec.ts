@@ -6,6 +6,7 @@ import { RetentionDecisionLogService } from '../retention-v2/retention-decision-
 import { RewardGoalEngineService } from './reward-goal-engine.service';
 import { RewardGoalIssuerService } from './reward-goal-issuer.service';
 import { RewardGoalUnlockService } from './reward-goal-unlock.service';
+import { RewardGoalUnlockNotificationService } from './reward-goal-unlock-notification.service';
 import { RewardGoalOrchestratorService } from './reward-goal-orchestrator.service';
 import {
   createTestBusiness,
@@ -13,6 +14,11 @@ import {
 } from '../reviews/reviews.test-helpers';
 import { PlansService } from '../plans/plans.service';
 import { PlansRepository } from '../plans/plans.repository';
+import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
+import { AutomationCooldownService } from '../../jobs/automation-cooldown.service';
+import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
+import { EmailService } from '../../jobs/email.service';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 
 /**
  * Pre-piloto #6 — "¿por qué me ofrece Capuccino en cada visita?"
@@ -44,9 +50,15 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
         RewardGoalEngineService,
         RewardGoalIssuerService,
         RewardGoalUnlockService,
+        RewardGoalUnlockNotificationService,
         RewardGoalOrchestratorService,
         PlansService,
         PlansRepository,
+        RetentionSettingsService,
+        AutomationCooldownService,
+        LifecycleEmailsService,
+        EmailService,
+        WhatsAppBspService,
       ],
     }).compile();
 
@@ -158,6 +170,38 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
     return result;
   }
 
+  /**
+   * Cierra a REDEEMED la goal UNLOCKED de este cliente — mismo efecto final
+   * que `RedemptionService.redeem`/`closeRewardGoalIfRedeemed`, sin montar
+   * el flujo HTTP+sesión de staff completo (fuera de foco para este test,
+   * que es sobre el motor de ciclos, no sobre canje). Necesario desde que
+   * `hasActiveGoal` empezó a bloquear un ciclo nuevo mientras el anterior
+   * sigue UNLOCKED sin canjear — antes de eso, este test nunca redimía y
+   * el motor igual dejaba pasar el ciclo siguiente, que era justamente el
+   * bug real que esa regla vino a cerrar.
+   */
+  async function redeemGoal(businessId: string, customerId: string, at: Date) {
+    const goal = await prisma.customerRewardGoal.findFirst({
+      where: { businessId, customerId, status: RewardGoalStatus.UNLOCKED },
+      select: { id: true, benefitParticipationId: true },
+    });
+    if (!goal) return;
+    if (goal.benefitParticipationId) {
+      await prisma.benefitParticipation.update({
+        where: { id: goal.benefitParticipationId },
+        data: { redeemedAt: at },
+      });
+    }
+    await prisma.customerRewardGoal.updateMany({
+      where: { id: goal.id, status: RewardGoalStatus.UNLOCKED },
+      data: {
+        status: RewardGoalStatus.REDEEMED,
+        redeemedAt: at,
+        updatedAt: at,
+      },
+    });
+  }
+
   async function dumpGoal(businessId: string, customerId: string) {
     return prisma.customerRewardGoal.findFirst({
       where: { businessId, customerId },
@@ -212,6 +256,12 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
         where: { businessId: business.id, customerId: customer.id },
       });
       expect(goalsAfterV2).toBe(1); // todavía solo una goal — nada nuevo se creó al desbloquear.
+
+      // El cliente canjea el premio — recién ahí el ciclo queda CERRADO.
+      // Sin esto, la regla nueva (§ "no iniciar un nuevo ciclo mientras el
+      // anterior siga UNLOCKED sin canjear") bloquearía la Visita 4 de más
+      // abajo para siempre, no solo durante el cooldown.
+      await redeemGoal(business.id, customer.id, day(1));
 
       // Visita 3 — al día siguiente (dentro del cooldown de 3 días): NO
       // premia otra vez, NO crea una goal nueva. Esto es exactamente lo que
@@ -274,6 +324,13 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
       for (let i = 0; i < 6; i++) {
         const v = await visitOn(business.id, customer.id, day(i));
         results.push(v.unlockedNow);
+        // Canjea apenas desbloquea — con cooldown=0, nada más lo frena
+        // salvo la regla nueva de "no un ciclo nuevo mientras el anterior
+        // siga UNLOCKED sin canjear"; sin este canje, el patrón se
+        // trunca en un solo ciclo para siempre.
+        if (v.unlockedNow) {
+          await redeemGoal(business.id, customer.id, day(i));
+        }
       }
       // Patrón exacto con esta config: crea, desbloquea, crea, desbloquea...
       // — nunca "cada visita" literal (eso violaría "never create and

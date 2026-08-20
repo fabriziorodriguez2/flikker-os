@@ -8,6 +8,8 @@ import {
   Loader2,
   Lock,
   Mail,
+  RefreshCw,
+  Sparkles,
   TimerReset,
   UserRoundSearch,
 } from "lucide-react";
@@ -53,6 +55,21 @@ type AutomationState =
 
 type Channel = "whatsapp" | "email";
 
+type EvidenceState = "INSUFFICIENT_DATA" | "PRELIMINARY" | "ENOUGH_DATA";
+
+interface FunnelStats {
+  contacted: number;
+  returned: number;
+  recoveryRate: number;
+  averageDaysToReturn: number | null;
+  evidenceState: EvidenceState;
+}
+
+interface ReactivationFunnel {
+  overall: FunnelStats;
+  byArm: { reminderOnly: FunnelStats; withBenefit: FunnelStats } | null;
+}
+
 interface Overview {
   automations: {
     key: "sellos_por_vencer" | "cerca_del_premio" | "cumpleanos" | "te_extranamos";
@@ -75,6 +92,13 @@ interface Overview {
   // respuesta (Inicio los reusa), pero esta pantalla ya no los muestra: qué
   // se ofrece es de Programa, no de Notificaciones. Se ignoran a propósito,
   // no se borraron del backend.
+  /** La métrica principal real de "Te extrañamos" — null si no hay datos. */
+  reactivationFunnel: ReactivationFunnel | null;
+}
+
+interface FunnelSummary {
+  summaryText: string;
+  generatedAt: string;
 }
 
 interface Settings {
@@ -282,6 +306,10 @@ export default function AutomationsTab() {
         onToggle={(value) => void patch({ teExtranamos: value })}
       />
 
+      {data.reactivationFunnel ? (
+        <ReactivationFunnelCard funnel={data.reactivationFunnel} />
+      ) : null}
+
       {/* ── Horario de envío ─────────────────────────────────────────── */}
       {settings ? (
         <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-5 sm:p-6">
@@ -425,6 +453,170 @@ function AutomationCard({
         )}
       </div>
     </section>
+  );
+}
+
+function pct(value: number): string {
+  return `${(value * 100).toLocaleString("es-UY", { maximumFractionDigits: 1 })}%`;
+}
+
+const EVIDENCE_LABEL: Record<EvidenceState, string> = {
+  INSUFFICIENT_DATA: "Todavía no hay suficientes datos",
+  PRELIMINARY: "Dato preliminar",
+  ENOUGH_DATA: "Dato confirmado",
+};
+
+/**
+ * "X contactados → Y volvieron → Z% de recuperación" — la métrica principal
+ * real de "Te extrañamos". Los números siempre vienen del backend
+ * (`ReactivationFunnelService`, atribución real de Retention V2 + Visits);
+ * esta card nunca calcula nada, solo los muestra. El resumen de IA vive
+ * separado (`ReactivationSummaryBlock`) y nunca bloquea estos números si
+ * falla o todavía está cargando.
+ */
+function ReactivationFunnelCard({ funnel }: { funnel: ReactivationFunnel }) {
+  const { overall } = funnel;
+
+  if (overall.contacted === 0) {
+    return (
+      <section className="rounded-[14px] border border-[#E8EAF0] bg-white px-4 py-3.5 shadow-[0_1px_4px_rgba(17,22,59,0.035)] sm:px-5">
+        <p className="text-sm font-semibold text-[#202333]">
+          Resultados de &ldquo;Te extrañamos&rdquo;
+        </p>
+        <p className="mt-1 text-xs leading-5 text-[#8891A4]">
+          Todavía no contactamos a ningún cliente — en cuanto se envíe el
+          primer recordatorio, vas a ver acá cuántos volvieron.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-[14px] border border-[#E8EAF0] bg-white px-4 py-3.5 shadow-[0_1px_4px_rgba(17,22,59,0.035)] sm:px-5">
+      <p className="text-sm font-semibold text-[#202333]">
+        Resultados de &ldquo;Te extrañamos&rdquo;
+      </p>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-[#202333]">
+        <span className="text-lg font-bold">{overall.contacted}</span>
+        <span className="text-[#8891A4]">contactados</span>
+        <span aria-hidden="true" className="text-[#B0B8C9]">
+          →
+        </span>
+        <span className="text-lg font-bold">{overall.returned}</span>
+        <span className="text-[#8891A4]">volvieron</span>
+        <span aria-hidden="true" className="text-[#B0B8C9]">
+          →
+        </span>
+        <span className="text-lg font-bold text-[#147A5B]">
+          {pct(overall.recoveryRate)}
+        </span>
+        <span className="text-[#8891A4]">de recuperación</span>
+      </div>
+
+      {overall.averageDaysToReturn !== null ? (
+        <p className="mt-1.5 text-xs text-[#8891A4]">
+          En promedio, vuelven a los{" "}
+          {Math.round(overall.averageDaysToReturn)} días.
+        </p>
+      ) : null}
+
+      {funnel.byArm ? (
+        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          <ArmStat label="Solo recordatorio" stats={funnel.byArm.reminderOnly} />
+          <ArmStat label="Con beneficio" stats={funnel.byArm.withBenefit} />
+        </div>
+      ) : (
+        <p className="mt-3 text-xs text-[#8891A4]">
+          {EVIDENCE_LABEL.INSUFFICIENT_DATA} para comparar recordatorio-solo
+          vs. con beneficio.
+        </p>
+      )}
+
+      <ReactivationSummaryBlock />
+    </section>
+  );
+}
+
+function ArmStat({ label, stats }: { label: string; stats: FunnelStats }) {
+  return (
+    <div className="rounded-[10px] bg-[#F5F6FA] px-3 py-2.5">
+      <p className="text-xs font-semibold text-[#202333]">{label}</p>
+      <p className="mt-0.5 text-sm text-[#5F6780]">
+        {stats.contacted} contactados · {pct(stats.recoveryRate)} volvió
+      </p>
+    </div>
+  );
+}
+
+/**
+ * Párrafo de IA que solo resume los números de arriba — nunca los calcula
+ * (`validateChatbotDataAnswer` en el backend garantiza que no mencione un
+ * número que no esté en el payload). Se pide aparte (endpoint propio,
+ * cacheado 24h) para que nunca demore ni bloquee la card de números reales.
+ */
+function ReactivationSummaryBlock() {
+  const [summary, setSummary] = useState<FunnelSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/proxy/notifications/reactivation-funnel/summary");
+      if (res.ok) setSummary((await res.json()) as FunnelSummary | null);
+    } catch {
+      // Silencioso a propósito: el resumen es un adorno, nunca bloquea los
+      // números reales de arriba, que ya se mostraron igual.
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  async function refresh() {
+    setRefreshing(true);
+    try {
+      const res = await fetch(
+        "/api/proxy/notifications/reactivation-funnel/summary/refresh",
+        { method: "POST" },
+      );
+      if (res.ok) setSummary((await res.json()) as FunnelSummary | null);
+    } catch {
+      // Igual que arriba.
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
+  if (loading) {
+    return (
+      <div className="mt-3 h-4 w-2/3 animate-pulse rounded bg-[#F0F1F5]" />
+    );
+  }
+
+  if (!summary) return null;
+
+  return (
+    <div className="mt-3 flex items-start gap-2 rounded-[10px] bg-[#F5F3FF] px-3 py-2.5">
+      <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[#6D4AFF]" aria-hidden="true" />
+      <p className="flex-1 text-xs leading-5 text-[#4A3F7A]">{summary.summaryText}</p>
+      <button
+        type="button"
+        onClick={() => void refresh()}
+        disabled={refreshing}
+        aria-label="Actualizar resumen"
+        className="shrink-0 rounded-full p-1 text-[#6D4AFF] hover:bg-white/60 disabled:opacity-50"
+      >
+        <RefreshCw
+          className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`}
+          aria-hidden="true"
+        />
+      </button>
+    </div>
   );
 }
 

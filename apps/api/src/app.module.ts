@@ -11,6 +11,7 @@ import { CampaignsModule } from './modules/campaigns/campaigns.module';
 import { QrCodesModule } from './modules/qr-codes/qr-codes.module';
 import { RedirectsModule } from './modules/redirects/redirects.module';
 import { ReviewsModule } from './modules/reviews/reviews.module';
+import { InsightsModule } from './modules/insights/insights.module';
 import { ResponsesModule } from './modules/responses/responses.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { WidgetsModule } from './modules/widgets/widgets.module';
@@ -54,6 +55,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     QrCodesModule,
     RedirectsModule,
     ReviewsModule,
+    InsightsModule,
     ResponsesModule,
     MetricsModule,
     WidgetsModule,

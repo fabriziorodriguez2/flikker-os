@@ -20,6 +20,8 @@ import { RetentionOutcomeService } from './retention-outcome.service';
 import { RetentionExperimentMetricsService } from './retention-experiment-metrics.service';
 import { RetentionResultsOverviewService } from './retention-results-overview.service';
 import { RetentionResultsController } from './retention-results.controller';
+import { ReactivationFunnelService } from './reactivation-funnel.service';
+import { ReactivationFunnelSummaryService } from './reactivation-funnel-summary.service';
 import { AiModule } from '../ai/ai.module';
 import { AiRecommendationExplanationService } from '../ai/recommendation-explanation.service';
 import { RetentionOptimizationService } from './retention-optimization.service';
@@ -76,6 +78,8 @@ import { AutomationCooldownService } from '../../jobs/automation-cooldown.servic
     RetentionOutcomeService,
     RetentionExperimentMetricsService,
     RetentionResultsOverviewService,
+    ReactivationFunnelService,
+    ReactivationFunnelSummaryService,
     AiRecommendationExplanationService,
     RetentionOptimizationService,
   ],
@@ -96,6 +100,9 @@ import { AutomationCooldownService } from '../../jobs/automation-cooldown.servic
     // mismo resumen por experimento que ya usa /retention-v2/results/overview,
     // en vez de recalcular winner/uplift por su cuenta.
     RetentionResultsOverviewService,
+    // Notificaciones → "X contactados → Y volvieron → Z% de recuperación".
+    ReactivationFunnelService,
+    ReactivationFunnelSummaryService,
   ],
 })
 export class RetentionV2Module {}

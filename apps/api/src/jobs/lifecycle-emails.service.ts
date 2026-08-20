@@ -14,7 +14,8 @@ export type LifecycleEmailKind =
   | 'progress_reminder'
   | 'reactivation'
   | 'birthday'
-  | 'promotion';
+  | 'promotion'
+  | 'reward_goal_unlocked';
 
 export type LifecycleMessageChannel = 'email' | 'whatsapp';
 

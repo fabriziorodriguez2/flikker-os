@@ -17,7 +17,14 @@ export const AI_USE_CASES = {
   REWARD_UNLOCKED_MESSAGE: 'REWARD_UNLOCKED_MESSAGE',
   INSIGHT_EXPLANATION: 'INSIGHT_EXPLANATION',
   RECOMMENDATION_EXPLANATION: 'RECOMMENDATION_EXPLANATION',
+  // Insights → "Resumen de Flikker" (business-insight-summary.service.ts) es
+  // exactamente el "Weekly Report" que este use case ya reservaba sin
+  // ninguna capa determinística todavía detrás — ahora la tiene.
   WEEKLY_REPORT_SUMMARY: 'WEEKLY_REPORT_SUMMARY',
+  // Un turno completo del asistente flotante (clasificar + responder, hasta
+  // 2 llamadas al provider) cuenta como UN uso — así "límite de mensajes
+  // por día" es literal, no "límite de llamadas al modelo por día".
+  CHATBOT_MESSAGE: 'CHATBOT_MESSAGE',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASES)[keyof typeof AI_USE_CASES];

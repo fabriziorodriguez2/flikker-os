@@ -46,7 +46,8 @@ function makeDeps(
       expiresAt: new Date('2026-09-15T00:00:00.000Z'),
     }),
   };
-  return { prisma, decisions, issuer };
+  const unlockNotification = { notify: jest.fn().mockResolvedValue(undefined) };
+  return { prisma, decisions, issuer, unlockNotification };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
@@ -54,6 +55,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.prisma as never,
     deps.decisions as never,
     deps.issuer as never,
+    deps.unlockNotification as never,
   );
 }
 
@@ -155,6 +157,62 @@ describe('RewardGoalUnlockService — unlocking', () => {
     expect(deps.decisions.record).toHaveBeenCalledWith(
       expect.objectContaining({ decisionCode: 'REWARD_GOAL_UNLOCKED' }),
     );
+  });
+});
+
+describe('RewardGoalUnlockService — reward-unlocked notification', () => {
+  it('notifies exactly once, with the real goal/participation, after a successful unlock', async () => {
+    const deps = makeDeps({ visitCount: 2 });
+    const service = makeService(deps);
+
+    await service.evaluateUnlock('biz-1', 'cust-1', NOW);
+
+    expect(deps.unlockNotification.notify).toHaveBeenCalledTimes(1);
+    expect(deps.unlockNotification.notify).toHaveBeenCalledWith({
+      businessId: 'biz-1',
+      customerId: 'cust-1',
+      goalId: 'goal-1',
+      rewardName: 'Upgrade gratis',
+      participationId: 'part-1',
+      now: NOW,
+    });
+  });
+
+  it('never notifies while still in progress', async () => {
+    const deps = makeDeps({ visitCount: 1 }); // target is 2
+    const service = makeService(deps);
+
+    await service.evaluateUnlock('biz-1', 'cust-1', NOW);
+
+    expect(deps.unlockNotification.notify).not.toHaveBeenCalled();
+  });
+
+  it('never notifies when the transition loses the race (already_processed)', async () => {
+    const deps = makeDeps({ visitCount: 2, transitionedCount: 0 });
+    const service = makeService(deps);
+
+    await service.evaluateUnlock('biz-1', 'cust-1', NOW);
+
+    expect(deps.unlockNotification.notify).not.toHaveBeenCalled();
+  });
+
+  it('never notifies when there is no active goal at all', async () => {
+    const deps = makeDeps({ goal: null });
+    const service = makeService(deps);
+
+    await service.evaluateUnlock('biz-1', 'cust-1', NOW);
+
+    expect(deps.unlockNotification.notify).not.toHaveBeenCalled();
+  });
+
+  it('a rejected notification never surfaces as an error from evaluateUnlock', async () => {
+    const deps = makeDeps({ visitCount: 2 });
+    deps.unlockNotification.notify.mockRejectedValue(new Error('boom'));
+    const service = makeService(deps);
+
+    const result = await service.evaluateUnlock('biz-1', 'cust-1', NOW);
+
+    expect(result).toMatchObject({ status: 'unlocked' });
   });
 });
 

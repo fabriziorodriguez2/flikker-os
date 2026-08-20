@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, X } from "lucide-react";
+import { Bell, Sparkles, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { SessionMembership } from "@/lib/auth";
 import BusinessLogo from "@/components/business/business-logo";
@@ -178,19 +178,24 @@ const MANAGERS = ["OWNER", "ADMIN"];
  * Navegación de un negocio en Check-in V2 — el producto tal como lo entiende
  * el dueño, agrupado por lo que quiere hacer y no por cómo está construido.
  *
- * Lo que NO está acá desapareció de la vista, no del código: Insights,
- * Beneficios, Campañas, Retención, Check-ins y Widget siguen existiendo como
- * rutas y responden con un redirect version-aware (ver
+ * Lo que NO está acá desapareció de la vista, no del código: Beneficios,
+ * Campañas, Retención, Check-ins y Widget siguen existiendo como rutas y
+ * responden con un redirect version-aware (ver
  * `components/panel/absorbed-route.tsx`). Un link viejo guardado en el
  * navegador sigue llevando a algún lado útil en vez de dar 404, y Platform
  * Admin conserva acceso durante impersonation.
  *
  * Cada superficie absorbida y dónde vive ahora:
- *   Insights      → Inicio (actividad) + Reseñas (reputación)
  *   Beneficios    → Programa
  *   Campañas      → Notificaciones · Promociones
  *   Retención V2  → Notificaciones
  *   Check-ins     → Clientes (actividad) + QR y NFC (puntos de acceso)
+ *
+ * Insights es la ÚNICA excepción — pedido explícito de reversión de la
+ * absorción anterior (antes vivía repartido entre Inicio y Reseñas). La
+ * ruta `/dashboard/insights` ya no redirige para un negocio Check-in V2
+ * real (`isCheckinV2Business`, en `absorbed-route.tsx`) — sigue
+ * redirigiendo solo para LEGACY e impersonation, sin cambios ahí.
  */
 const CHECKIN_V2_NAV: NavSection[] = [
   {
@@ -201,6 +206,11 @@ const CHECKIN_V2_NAV: NavSection[] = [
         label: "Inicio",
         icon: <HomeIcon />,
         onboardingKey: "panel",
+      },
+      {
+        href: "/dashboard/insights",
+        label: "Insights",
+        icon: <Sparkles className="h-[18px] w-[18px]" strokeWidth={1.8} />,
       },
     ],
   },

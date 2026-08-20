@@ -1160,4 +1160,65 @@ describe('Clientes — fidelización (integration)', () => {
     expect(list.data[0].rewardAvailable).toBeNull();
     expect(list.kpis.conRecompensa).toBe(0);
   });
+
+  // ── getSegmentCounts (Insights → getCustomerRetentionStats) ────────────
+
+  describe('getSegmentCounts', () => {
+    it('suma exactamente al total de clientes del negocio', async () => {
+      const businessId = await makeBusiness();
+      const a = await makeCustomer(businessId, 'Recién llegada', daysAgo(1));
+      await addVisit(businessId, a.id, daysAgo(1));
+      const b = await makeCustomer(businessId, 'Frecuente', daysAgo(60));
+      for (const d of [50, 40, 30, 20, 10, 2]) {
+        await addVisit(businessId, b.id, daysAgo(d));
+      }
+      const c = await makeCustomer(businessId, 'Inactiva', daysAgo(200));
+      await addVisit(businessId, c.id, daysAgo(150));
+
+      const counts = await loyalty.getSegmentCounts(businessId, NOW);
+
+      const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+      expect(total).toBe(3);
+    });
+
+    it('coincide con la clasificación por fila que ya usa list()', async () => {
+      const businessId = await makeBusiness();
+      const customer = await makeCustomer(businessId, 'Ana', daysAgo(90));
+      await addVisit(businessId, customer.id, daysAgo(80));
+      await addVisit(businessId, customer.id, daysAgo(70));
+      await addVisit(businessId, customer.id, daysAgo(60));
+
+      const [counts, list] = await Promise.all([
+        loyalty.getSegmentCounts(businessId, NOW),
+        loyalty.list(businessId, {}, NOW),
+      ]);
+
+      // No hay visitas en los últimos ~60 días: la misma lógica de
+      // `segmentCustomer` que usa `list()` (vía `recurrence`) debería
+      // marcarla como inactiva o en riesgo, nunca "nueva" ni "frecuente".
+      const row = list.data.find((r) => r.id === customer.id);
+      expect(
+        row?.recurrence === 'ausente' || row?.recurrence === 'demorado',
+      ).toBe(true);
+      expect(
+        counts[CustomerSegment.INACTIVE] + counts[CustomerSegment.AT_RISK],
+      ).toBeGreaterThanOrEqual(1);
+    });
+
+    it('un negocio nunca ve los segmentos de otro', async () => {
+      const businessA = await makeBusiness();
+      const businessB = await makeBusiness();
+      await makeCustomer(businessA, 'Cliente A', daysAgo(1));
+      await makeCustomer(businessB, 'Cliente B1', daysAgo(1));
+      await makeCustomer(businessB, 'Cliente B2', daysAgo(1));
+
+      const countsA = await loyalty.getSegmentCounts(businessA, NOW);
+      const countsB = await loyalty.getSegmentCounts(businessB, NOW);
+
+      const totalA = Object.values(countsA).reduce((sum, n) => sum + n, 0);
+      const totalB = Object.values(countsB).reduce((sum, n) => sum + n, 0);
+      expect(totalA).toBe(1);
+      expect(totalB).toBe(2);
+    });
+  });
 });

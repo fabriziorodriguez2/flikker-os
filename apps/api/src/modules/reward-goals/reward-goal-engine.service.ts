@@ -173,13 +173,19 @@ export class RewardGoalEngineService {
     }
   }
 
+  /**
+   * `PROMISED_STATUSES` (ACTIVE + UNLOCKED), no solo ACTIVE: un goal
+   * UNLOCKED todavía tiene un premio real esperando canje — permitir un
+   * ciclo nuevo mientras ese premio sigue sin canjearse dejaría dos
+   * promesas abiertas para el mismo cliente al mismo tiempo.
+   */
   private hasActiveGoal(
     businessId: string,
     customerId: string,
   ): Promise<boolean> {
     return this.prisma.customerRewardGoal
       .findFirst({
-        where: { businessId, customerId, status: RewardGoalStatus.ACTIVE },
+        where: { businessId, customerId, status: { in: PROMISED_STATUSES } },
         select: { id: true },
       })
       .then((row) => row !== null);

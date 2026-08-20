@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { getSession, type Session } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -21,31 +21,50 @@ import { apiFetch } from "@/lib/api";
  *     como están. Separar la UI de producto de las herramientas internas es
  *     justamente el punto: el dueño no las ve, nosotros no las perdemos.
  */
-export async function redirectIfAbsorbed(destination: string): Promise<void> {
-  const session = await getSession();
-  if (!session) redirect("/login");
-
-  // El operador de plataforma conserva acceso completo mientras impersona.
-  if (session.impersonation) return;
+/**
+ * Extraído de `redirectIfAbsorbed` (pedido explícito, Insights): la MISMA
+ * regla — incluida la excepción de impersonation — pero como pregunta en
+ * vez de como redirect, para que una pantalla como `/dashboard/insights`
+ * pueda decidir "¿le muestro la versión Check-in V2 o la LEGACY?" sin tener
+ * que redirigir a otro lado primero. Nunca cambia el comportamiento de las
+ * rutas que ya usan `redirectIfAbsorbed` (Retention V2, Check-ins
+ * técnicos): siguen redirigiendo exactamente igual que antes.
+ */
+export async function isCheckinV2Business(
+  session: Session | null,
+): Promise<boolean> {
+  if (!session) return false;
+  // El operador de plataforma conserva la vista LEGACY/interna mientras
+  // impersona — mismo criterio que `redirectIfAbsorbed`.
+  if (session.impersonation) return false;
 
   const businessId = session.activeBusinessId;
-  if (!businessId) return;
+  if (!businessId) return false;
 
-  let isCheckinV2 = false;
   try {
     const business = await apiFetch<{ experienceVersion?: string }>(
       "/businesses/current",
       session.accessToken,
       { businessId },
     );
-    isCheckinV2 = business.experienceVersion === "CHECKIN_V2";
+    return business.experienceVersion === "CHECKIN_V2";
   } catch {
-    // Sin información confiable no se redirige: es preferible mostrar la
-    // pantalla vieja que mandar a alguien a un lugar que quizá no le sirve.
+    // Sin información confiable, se trata como LEGACY: es preferible
+    // mostrar la pantalla vieja que mandar a alguien a un lugar que quizá
+    // no le sirve (mismo criterio que `redirectIfAbsorbed`).
+    return false;
   }
+}
 
-  // FUERA del try a propósito: `redirect()` funciona lanzando una excepción
-  // especial que Next intercepta. Adentro, el `catch` se la comería y el
-  // redirect no ocurriría nunca.
-  if (isCheckinV2) redirect(destination);
+export async function redirectIfAbsorbed(destination: string): Promise<void> {
+  const session = await getSession();
+  if (!session) redirect("/login");
+
+  const shouldRedirect = await isCheckinV2Business(session);
+
+  // FUERA del try/if interno a propósito: `redirect()` funciona lanzando
+  // una excepción especial que Next intercepta — un `catch` alrededor se
+  // la comería y el redirect no ocurriría nunca. `isCheckinV2Business` ya
+  // no tiene ningún `try` propio expuesto acá, así que esto es seguro.
+  if (shouldRedirect) redirect(destination);
 }

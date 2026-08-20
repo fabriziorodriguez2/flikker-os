@@ -14,6 +14,8 @@ import { CustomerLoyaltyRepository } from '../customers/loyalty/customer-loyalty
 import { CustomerLoyaltyService } from '../customers/loyalty/customer-loyalty.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { RetentionResultsOverviewService } from '../retention-v2/retention-results-overview.service';
+import { ReactivationFunnelService } from '../retention-v2/reactivation-funnel.service';
+import { ReactivationFunnelSummaryService } from '../retention-v2/reactivation-funnel-summary.service';
 import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
 import { RetentionExperimentService } from '../retention-v2/retention-experiment.service';
 import { RetentionExperimentsAdminService } from '../retention-v2/retention-experiments-admin.service';
@@ -72,6 +74,25 @@ describe('Inicio — portada (integration)', () => {
         {
           provide: RetentionResultsOverviewService,
           useValue: { forBusiness: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: ReactivationFunnelService,
+          useValue: {
+            forBusiness: jest.fn().mockResolvedValue({
+              overall: {
+                contacted: 0,
+                returned: 0,
+                recoveryRate: 0,
+                averageDaysToReturn: null,
+                evidenceState: 'INSUFFICIENT_DATA',
+              },
+              byArm: null,
+            }),
+          },
+        },
+        {
+          provide: ReactivationFunnelSummaryService,
+          useValue: { getSummary: jest.fn().mockResolvedValue(null) },
         },
       ],
     }).compile();
@@ -1088,7 +1109,8 @@ describe('Inicio — portada (integration)', () => {
       await addProgram(businessId, 'Café gratis');
 
       const { setupAlert } = await home.overview(businessId);
-      const text = `${setupAlert?.title} ${setupAlert?.description}`.toLowerCase();
+      const text =
+        `${setupAlert?.title} ${setupAlert?.description}`.toLowerCase();
       expect(text).not.toContain('wallet');
     });
   });

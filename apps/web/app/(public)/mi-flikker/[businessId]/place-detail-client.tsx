@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import QRCode from "qrcode";
 import { ArrowLeft, Gift, Loader2 } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
 import LoyaltyCard from "@/components/public/loyalty-card";
+import RedemptionReveal from "@/components/public/redemption-reveal";
 
 interface MyFlikkerPlace {
   businessId: string;
@@ -138,7 +138,6 @@ export default function PlaceDetailClient({
           progress={place.rewardGoal.progressVisits}
           target={place.rewardGoal.targetAdditionalVisits}
           bonusStamps={place.rewardGoal.bonusStamps ?? 0}
-          qrValue={`/mi-flikker/${place.businessId}`}
           appearance={{
             cardColor: place.loyaltyCardColor ?? brand,
             textColor: place.loyaltyCardTextColor,
@@ -210,25 +209,6 @@ function GiftReveal({
   brand: string;
 }) {
   const [revealed, setRevealed] = useState(false);
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!revealed) return;
-
-    let cancelled = false;
-    const redeemUrl = `${window.location.origin}/redeem/${benefit.code}`;
-    void QRCode.toDataURL(redeemUrl, {
-      errorCorrectionLevel: "M",
-      margin: 2,
-      width: 220,
-    }).then((url) => {
-      if (!cancelled) setQrDataUrl(url);
-    });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [benefit.code, revealed]);
 
   return (
     <section className="mt-5 overflow-hidden rounded-[28px] bg-white/90 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
@@ -265,42 +245,24 @@ function GiftReveal({
           <p className="mt-3 text-xs text-[#8A91A3]">Tocá para ver tu código</p>
         </div>
       ) : (
-        <div className="mt-4 text-center">
-          <h2 className="text-[24px] font-bold leading-tight tracking-[-0.03em] text-[#171A2B]">
+        <div className="mt-4 text-center text-[#171A2B]">
+          <h2 className="text-[24px] font-bold leading-tight tracking-[-0.03em]">
             {benefit.name}
           </h2>
 
-          <div className="mt-5 flex min-h-[220px] items-center justify-center">
-            {qrDataUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={qrDataUrl}
-                alt={`QR para canjear ${benefit.name}`}
-                className="h-[220px] w-[220px] rounded-[18px] bg-white p-2"
-              />
-            ) : (
-              <Loader2
-                className="h-7 w-7 animate-spin text-[#8A91A3]"
-                aria-label="Generando QR"
-              />
-            )}
+          <div className="mt-5">
+            <RedemptionReveal
+              code={benefit.code}
+              redeemPath={`/redeem/${benefit.code}`}
+            />
           </div>
 
-          <p className="mt-4 text-center text-xs font-semibold uppercase tracking-[0.12em] text-[#8A91A3]">
-            Código de canje
-          </p>
-          <p className="mt-2 rounded-[16px] border border-dashed border-[#D8DBE7] bg-[#F7F7FB] px-4 py-4 text-center font-mono text-[26px] font-bold tracking-[0.18em] text-[#24283A]">
-            {benefit.code}
-          </p>
           {benefit.expiresAt ? (
             <p className="mt-2 text-center text-xs text-[#8A91A3]">
               Válido hasta{" "}
               {new Date(benefit.expiresAt).toLocaleDateString("es-UY")}
             </p>
           ) : null}
-          <p className="mt-4 text-center text-sm font-medium text-[#697084]">
-            Mostrá el QR o el código al personal para disfrutar tu regalo.
-          </p>
         </div>
       )}
     </section>

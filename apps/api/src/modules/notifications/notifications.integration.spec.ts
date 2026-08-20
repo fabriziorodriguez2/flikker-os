@@ -12,6 +12,8 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RetentionResultsOverviewService } from '../retention-v2/retention-results-overview.service';
+import { ReactivationFunnelService } from '../retention-v2/reactivation-funnel.service';
+import { ReactivationFunnelSummaryService } from '../retention-v2/reactivation-funnel-summary.service';
 import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
 import { RetentionExperimentService } from '../retention-v2/retention-experiment.service';
 import { RetentionExperimentsAdminService } from '../retention-v2/retention-experiments-admin.service';
@@ -56,6 +58,25 @@ describe('Notificaciones — fachada sobre Retention V2 (integration)', () => {
           // Los resultados vienen del motor; acá solo se prueba la traducción.
           provide: RetentionResultsOverviewService,
           useValue: { forBusiness: jest.fn().mockResolvedValue([]) },
+        },
+        {
+          provide: ReactivationFunnelService,
+          useValue: {
+            forBusiness: jest.fn().mockResolvedValue({
+              overall: {
+                contacted: 0,
+                returned: 0,
+                recoveryRate: 0,
+                averageDaysToReturn: null,
+                evidenceState: 'INSUFFICIENT_DATA',
+              },
+              byArm: null,
+            }),
+          },
+        },
+        {
+          provide: ReactivationFunnelSummaryService,
+          useValue: { getSummary: jest.fn().mockResolvedValue(null) },
         },
       ],
     }).compile();

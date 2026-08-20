@@ -60,13 +60,13 @@ export default function LoyaltyCard({
     appearance.stampAreaColor,
   );
   const stampAreaText = bestContrastOn(stampAreaColor);
-  const qrContent = qrValue ?? "https://flikker.site";
 
   useEffect(() => {
+    if (!qrValue) return;
     let cancelled = false;
-    const value = qrContent.startsWith("/")
-      ? `${window.location.origin}${qrContent}`
-      : qrContent;
+    const value = qrValue.startsWith("/")
+      ? `${window.location.origin}${qrValue}`
+      : qrValue;
     void QRCode.toDataURL(value, {
       width: 240,
       margin: 1,
@@ -78,7 +78,7 @@ export default function LoyaltyCard({
     return () => {
       cancelled = true;
     };
-  }, [qrContent]);
+  }, [qrValue]);
 
   return (
     <div
@@ -154,18 +154,20 @@ export default function LoyaltyCard({
           </p>
         </div>
 
-        <div className="shrink-0 rounded-[12px] bg-white p-1.5 shadow-[0_8px_20px_rgba(4,8,22,0.16)]">
-          {qrDataUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={qrDataUrl}
-              alt="QR de acceso al programa"
-              className="h-20 w-20"
-            />
-          ) : (
-            <div className="h-20 w-20 animate-pulse rounded-[7px] bg-[#F0F1F5]" />
-          )}
-        </div>
+        {qrValue ? (
+          <div className="shrink-0 rounded-[12px] bg-white p-1.5 shadow-[0_8px_20px_rgba(4,8,22,0.16)]">
+            {qrDataUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={qrDataUrl}
+                alt="QR de acceso al programa"
+                className="h-20 w-20"
+              />
+            ) : (
+              <div className="h-20 w-20 animate-pulse rounded-[7px] bg-[#F0F1F5]" />
+            )}
+          </div>
+        ) : null}
       </div>
     </div>
   );

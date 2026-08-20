@@ -6,11 +6,17 @@ import { RetentionDecisionLogService } from '../retention-v2/retention-decision-
 import { RewardGoalEngineService } from './reward-goal-engine.service';
 import { RewardGoalIssuerService } from './reward-goal-issuer.service';
 import { RewardGoalUnlockService } from './reward-goal-unlock.service';
+import { RewardGoalUnlockNotificationService } from './reward-goal-unlock-notification.service';
 import { RewardGoalOrchestratorService } from './reward-goal-orchestrator.service';
 import { CustomerLoyaltyRepository } from '../customers/loyalty/customer-loyalty.repository';
 import { CustomerOverviewService } from '../customers/loyalty/customer-overview.service';
 import { PlansService } from '../plans/plans.service';
 import { PlansRepository } from '../plans/plans.repository';
+import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
+import { AutomationCooldownService } from '../../jobs/automation-cooldown.service';
+import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
+import { EmailService } from '../../jobs/email.service';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import {
   createTestBusiness,
   makeTestSuffix,
@@ -58,11 +64,17 @@ describe('Reward Goals — sellos OFF con un ciclo vivo (integration)', () => {
         RewardGoalEngineService,
         RewardGoalIssuerService,
         RewardGoalUnlockService,
+        RewardGoalUnlockNotificationService,
         RewardGoalOrchestratorService,
         CustomerLoyaltyRepository,
         CustomerOverviewService,
         PlansService,
         PlansRepository,
+        RetentionSettingsService,
+        AutomationCooldownService,
+        LifecycleEmailsService,
+        EmailService,
+        WhatsAppBspService,
       ],
     }).compile();
 

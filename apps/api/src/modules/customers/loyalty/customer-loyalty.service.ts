@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { MembershipRole } from '@prisma/client';
+import { CustomerSegment, MembershipRole } from '@prisma/client';
 import { computeVisitFrequency } from '../../retention-v2/visit-frequency';
 import { segmentCustomer } from '../../retention-v2/segmentation';
 import { computeGoalProgress } from '../../reward-goals/reward-goal-progress';
@@ -204,6 +204,45 @@ export class CustomerLoyaltyService {
       limit,
       kpis,
     };
+  }
+
+  /**
+   * Insights (`getCustomerRetentionStats`) — cuántos clientes hay en cada
+   * segmento, a nivel negocio. Reusa exactamente la misma clasificación por
+   * cliente que ya usa `list()` (`computeVisitFrequency` + `segmentCustomer`)
+   * — nunca una definición paralela de "quién dejó de venir".
+   */
+  async getSegmentCounts(
+    businessId: string,
+    now: Date = new Date(),
+  ): Promise<Record<CustomerSegment, number>> {
+    const [customers, visitsByCustomer, lastSends] = await Promise.all([
+      this.repository.findCustomers(businessId),
+      this.repository.findVisitDates(businessId, now),
+      this.repository.findLastInterventionAt(businessId),
+    ]);
+
+    const counts: Record<CustomerSegment, number> = {
+      [CustomerSegment.NEW]: 0,
+      [CustomerSegment.REPEAT]: 0,
+      [CustomerSegment.FREQUENT]: 0,
+      [CustomerSegment.AT_RISK]: 0,
+      [CustomerSegment.INACTIVE]: 0,
+      [CustomerSegment.RECOVERED]: 0,
+    };
+
+    for (const customer of customers) {
+      const visitDates = visitsByCustomer.get(customer.id) ?? [];
+      const frequency = computeVisitFrequency(visitDates, now);
+      const { segment } = segmentCustomer({
+        frequency,
+        lastInterventionAt: lastSends.get(customer.id) ?? null,
+        now,
+      });
+      counts[segment] += 1;
+    }
+
+    return counts;
   }
 }
 

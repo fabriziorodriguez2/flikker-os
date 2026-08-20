@@ -4,6 +4,7 @@ const DEFAULT_MODEL = 'gpt-4o-mini';
 const DEFAULT_TIMEOUT_MS = 6_000;
 const DEFAULT_MAX_DAILY_GENERATIONS = 50;
 const DEFAULT_MAX_MONTHLY_GENERATIONS = 1_000;
+const DEFAULT_MAX_DAILY_CHATBOT_MESSAGES = 40;
 
 /**
  * Fase F §3/§4 — reads every AI-related env var once, with safe defaults, and
@@ -24,6 +25,13 @@ export class AiConfigService {
   readonly maxDailyGenerationsPerBusiness: number;
   readonly maxMonthlyGenerationsPerBusiness: number;
   readonly timeoutMs: number;
+  /**
+   * Tope propio del asistente flotante — el pool genérico de arriba es
+   * compartido por TODOS los usos de IA de un negocio (copy de retención,
+   * resumen de Insights, chat); sin un tope propio, un día charlatán con el
+   * chatbot podría agotar el presupuesto de todo lo demás, o viceversa.
+   */
+  readonly maxDailyChatbotMessagesPerBusiness: number;
 
   constructor() {
     this.apiKey = process.env.OPENAI_API_KEY?.trim() || null;
@@ -41,6 +49,10 @@ export class AiConfigService {
     this.timeoutMs = parsePositiveInt(
       process.env.AI_TIMEOUT_MS,
       DEFAULT_TIMEOUT_MS,
+    );
+    this.maxDailyChatbotMessagesPerBusiness = parsePositiveInt(
+      process.env.AI_MAX_DAILY_CHATBOT_MESSAGES,
+      DEFAULT_MAX_DAILY_CHATBOT_MESSAGES,
     );
 
     if (this.globallyEnabled && !this.apiKey) {

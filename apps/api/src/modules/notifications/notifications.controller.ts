@@ -55,6 +55,22 @@ export class NotificationsController {
     return this.notifications.history(req.currentBusinessId!);
   }
 
+  /** Resumen IA de "X contactados → Y volvieron → Z%" — cacheado. */
+  @Get('reactivation-funnel/summary')
+  reactivationFunnelSummary(@Req() req: AuthenticatedRequest) {
+    return this.notifications.reactivationFunnelSummaryView(
+      req.currentBusinessId!,
+    );
+  }
+
+  /** Botón "Actualizar análisis" de ese resumen. */
+  @Post('reactivation-funnel/summary/refresh')
+  refreshReactivationFunnelSummary(@Req() req: AuthenticatedRequest) {
+    return this.notifications.refreshReactivationFunnelSummary(
+      req.currentBusinessId!,
+    );
+  }
+
   @Get('settings')
   settings(@Req() req: AuthenticatedRequest) {
     return this.notifications.settings(req.currentBusinessId!);
