@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { RefreshCw, Sparkles } from "lucide-react";
+import HighlightedText from "./highlighted-text";
 
 export interface InsightsSummaryView {
   summaryText: string;
@@ -76,7 +77,7 @@ export default function SummaryCard({
       {summary ? (
         <>
           <p className="mt-4 text-sm leading-relaxed text-[#4A5568]">
-            {summary.summaryText}
+            <HighlightedText text={summary.summaryText} />
           </p>
           {summary.recommendations.length > 0 && (
             <ul className="mt-4 space-y-2">
@@ -86,7 +87,7 @@ export default function SummaryCard({
                   className="flex items-start gap-2 text-sm text-[#1A202C]"
                 >
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#5C6BC0]" />
-                  {recommendation}
+                  <span><HighlightedText text={recommendation} /></span>
                 </li>
               ))}
             </ul>

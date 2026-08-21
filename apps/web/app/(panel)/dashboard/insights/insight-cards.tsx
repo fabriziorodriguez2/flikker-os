@@ -1,3 +1,5 @@
+import HighlightedText from "./highlighted-text";
+
 export interface InsightStatement {
   id: string;
   statement: string;
@@ -43,7 +45,7 @@ export default function InsightCards({
               Todavía no hay suficiente información
             </span>
           )}
-          {insight.statement}
+          <HighlightedText text={insight.statement} />
         </div>
       ))}
     </div>
