@@ -16,6 +16,8 @@ export interface MyFlikkerPlace {
   loyaltyStampColor: string | null;
   loyaltyStampIcon: string | null;
   loyaltyShowBusinessName: boolean;
+  loyaltyStampBackgroundPattern: string | null;
+  loyaltyStampBackgroundOpacity: number | null;
   visitsTotal: number;
   lastVisitAt: string | null;
   rewardGoal: {
@@ -60,7 +62,7 @@ export class MyFlikkerService {
     private readonly prisma: PrismaService,
     private readonly rewardGoals: RewardGoalOrchestratorService,
     private readonly benefits: BenefitsService,
-  ) { }
+  ) {}
 
   /**
    * Every business where this account has a real, tenant-scoped Customer —
@@ -86,6 +88,8 @@ export class MyFlikkerService {
             loyaltyStampIcon: true,
             welcomeBenefitId: true,
             loyaltyShowBusinessName: true,
+            loyaltyStampBackgroundPattern: true,
+            loyaltyStampBackgroundOpacity: true,
           },
         },
       },
@@ -122,6 +126,8 @@ export class MyFlikkerService {
             loyaltyStampIcon: true,
             welcomeBenefitId: true,
             loyaltyShowBusinessName: true,
+            loyaltyStampBackgroundPattern: true,
+            loyaltyStampBackgroundOpacity: true,
           },
         },
       },
@@ -153,6 +159,8 @@ export class MyFlikkerService {
       loyaltyStampIcon: string | null;
       welcomeBenefitId: string | null;
       loyaltyShowBusinessName: boolean;
+      loyaltyStampBackgroundPattern: string | null;
+      loyaltyStampBackgroundOpacity: number | null;
     },
   ): Promise<MyFlikkerPlace> {
     const [visitsTotal, lastVisit, rewardView, unclaimedBenefit] =
@@ -182,12 +190,12 @@ export class MyFlikkerService {
     const benefitAvailable = unclaimedBenefit?.benefitParticipation
       ?.redemptionCode
       ? {
-        name: unclaimedBenefit.incentiveDefinition.name,
-        code: unclaimedBenefit.benefitParticipation.redemptionCode,
-        expiresAt:
-          unclaimedBenefit.benefitParticipation.expiresAt?.toISOString() ??
-          null,
-      }
+          name: unclaimedBenefit.incentiveDefinition.name,
+          code: unclaimedBenefit.benefitParticipation.redemptionCode,
+          expiresAt:
+            unclaimedBenefit.benefitParticipation.expiresAt?.toISOString() ??
+            null,
+        }
       : null;
 
     // Cualquier otro beneficio otorgado (típicamente por promoción manual),
@@ -214,6 +222,8 @@ export class MyFlikkerService {
       loyaltyStampColor: business.loyaltyStampColor,
       loyaltyStampIcon: business.loyaltyStampIcon,
       loyaltyShowBusinessName: business.loyaltyShowBusinessName,
+      loyaltyStampBackgroundPattern: business.loyaltyStampBackgroundPattern,
+      loyaltyStampBackgroundOpacity: business.loyaltyStampBackgroundOpacity,
       visitsTotal,
       lastVisitAt: lastVisit?.occurredAt.toISOString() ?? null,
       rewardGoal: rewardView.goal,

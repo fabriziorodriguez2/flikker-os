@@ -52,6 +52,8 @@ type BusinessForCheckin = Pick<
   | 'loyaltyStampColor'
   | 'loyaltyStampIcon'
   | 'loyaltyShowBusinessName'
+  | 'loyaltyStampBackgroundPattern'
+  | 'loyaltyStampBackgroundOpacity'
   | 'checkinWelcomeMessage'
   | 'welcomeBenefitId'
   | 'checkinBackgroundColor'
@@ -70,7 +72,7 @@ export class CheckinService {
     private readonly messaging: PublicMessagingService,
     private readonly rewardGoals: RewardGoalOrchestratorService,
     private readonly rewardGoalFeedback: RewardGoalFeedbackService,
-  ) { }
+  ) {}
 
   // ── Landing (GET) ──────────────────────────────────────────────────────────
 
@@ -523,6 +525,8 @@ export class CheckinService {
         loyaltyStampColor: true,
         loyaltyStampIcon: true,
         loyaltyShowBusinessName: true,
+        loyaltyStampBackgroundPattern: true,
+        loyaltyStampBackgroundOpacity: true,
         checkinWelcomeMessage: true,
         welcomeBenefitId: true,
         checkinBackgroundColor: true,
@@ -606,10 +610,10 @@ export class CheckinService {
       this.benefits.resolveActiveBenefit(business.id, undefined, customerId),
       opts.justVisited
         ? this.rewardGoals.afterVisit(
-          business.id,
-          customerId,
-          business.timezone,
-        )
+            business.id,
+            customerId,
+            business.timezone,
+          )
         : this.rewardGoals.currentView(business.id, customerId),
     ]);
 
@@ -731,6 +735,10 @@ export class CheckinService {
       loyaltyStampColor: business.loyaltyStampColor ?? null,
       loyaltyStampIcon: business.loyaltyStampIcon ?? null,
       loyaltyShowBusinessName: business.loyaltyShowBusinessName,
+      loyaltyStampBackgroundPattern:
+        business.loyaltyStampBackgroundPattern ?? null,
+      loyaltyStampBackgroundOpacity:
+        business.loyaltyStampBackgroundOpacity ?? null,
     };
   }
 }

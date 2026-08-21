@@ -77,6 +77,10 @@ export interface LoyaltyAppearance {
   loyaltyStampColor: string | null;
   loyaltyStampIcon: string | null;
   loyaltyShowBusinessName: boolean;
+  /** Fondo decorativo detrás de los sellos — una de 8 keys fijas, o null. */
+  loyaltyStampBackgroundPattern: string | null;
+  /** 0-100. Null = Automático. */
+  loyaltyStampBackgroundOpacity: number | null;
   /** Página de inscripción — encabezado propio de la landing de check-in. */
   checkinWelcomeMessage: string | null;
   /** Página de inscripción — null conserva la paleta automática de marca. */

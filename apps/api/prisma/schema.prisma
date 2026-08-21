@@ -451,6 +451,17 @@ model Business {
   loyaltyStampColor            String?           @map("loyalty_stamp_color")
   loyaltyStampIcon             String?           @map("loyalty_stamp_icon")
   loyaltyShowBusinessName      Boolean           @default(true) @map("loyalty_show_business_name")
+  /// Patrón decorativo detrás de los sellos — una de 8 keys fijas
+  /// (`waves`/`bubbles`/`arcs`/`curved-lines`/`organic`/`geometric`/
+  /// `confetti`, o `none`); null = sin patrón, igual que `none`. Sin
+  /// validación de enum a nivel de base (mismo criterio que el resto de los
+  /// campos `loyalty*` de acá arriba) — la valida el DTO.
+  loyaltyStampBackgroundPattern String?          @map("loyalty_stamp_background_pattern")
+  /// 0-100. Null = "Automático" (Flikker elige la intensidad según si la
+  /// tarjeta es clara u oscura). Nunca se aplica crudo: el render siempre lo
+  /// re-mapea a un techo de opacidad seguro para que el patrón nunca
+  /// dificulte leer el sello.
+  loyaltyStampBackgroundOpacity Int?             @map("loyalty_stamp_background_opacity")
   /// Programa → Página de inscripción. Encabezado propio, editable, para la
   /// landing pública de check-in (`/check-in/[token]`). Null = seguir usando
   /// el título del beneficio activo como encabezado (comportamiento previo a

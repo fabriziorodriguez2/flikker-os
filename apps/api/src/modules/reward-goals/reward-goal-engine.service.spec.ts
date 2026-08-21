@@ -181,9 +181,12 @@ describe('RewardGoalEngineService — gating', () => {
     expect(decisions.record).not.toHaveBeenCalled();
   });
 
-  it('respects the cooldown after a recently closed goal', async () => {
+  it('respects the cooldown after a recently EXPIRED goal (never completed)', async () => {
     const prisma = makePrisma({
-      lastClosedGoal: { updatedAt: new Date('2026-08-31T12:00:00.000Z') }, // 1 day ago, cooldown 3
+      lastClosedGoal: {
+        status: 'EXPIRED',
+        updatedAt: new Date('2026-08-31T12:00:00.000Z'), // 1 day ago, cooldown 3
+      },
     });
     const decisions = makeDecisions();
     const service = new RewardGoalEngineService(
@@ -203,9 +206,34 @@ describe('RewardGoalEngineService — gating', () => {
     );
   });
 
-  it('creates a goal once the cooldown has elapsed', async () => {
+  it('creates a goal once the cooldown has elapsed (last closed was CANCELLED)', async () => {
     const prisma = makePrisma({
-      lastClosedGoal: { updatedAt: new Date('2026-08-20T12:00:00.000Z') }, // 12 days ago
+      lastClosedGoal: {
+        status: 'CANCELLED',
+        updatedAt: new Date('2026-08-20T12:00:00.000Z'), // 12 days ago
+      },
+    });
+    const decisions = makeDecisions();
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      decisions as never,
+      makePlans() as never,
+    );
+
+    const result = await service.evaluate(context());
+
+    expect(result.action).toBe('CREATE_GOAL');
+  });
+
+  it('a REDEEMED goal never triggers cooldown, even less than a day later — auditoría de caso real (Fase E §33 revisado)', async () => {
+    const prisma = makePrisma({
+      lastClosedGoal: {
+        status: 'REDEEMED',
+        // 22 horas antes de NOW — mucho menos que el cooldown de 3 días, y
+        // sin embargo NUNCA debe bloquear: el ciclo anterior ya se completó
+        // y canjeó de verdad, la próxima Visit válida arranca uno nuevo.
+        updatedAt: new Date('2026-08-31T14:00:00.000Z'),
+      },
     });
     const decisions = makeDecisions();
     const service = new RewardGoalEngineService(

@@ -200,6 +200,8 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
       'loyaltyStampColor',
       'loyaltyStampIcon',
       'loyaltyShowBusinessName',
+      'loyaltyStampBackgroundPattern',
+      'loyaltyStampBackgroundOpacity',
       'visitsTotal',
       'lastVisitAt',
       'rewardGoal',

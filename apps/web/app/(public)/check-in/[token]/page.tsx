@@ -26,6 +26,8 @@ export interface CheckinLanding {
     loyaltyStampColor: string | null;
     loyaltyStampIcon: string | null;
     loyaltyShowBusinessName: boolean;
+    loyaltyStampBackgroundPattern: string | null;
+    loyaltyStampBackgroundOpacity: number | null;
   };
   benefit: PublicBenefit | null;
   benefitText: string | null;

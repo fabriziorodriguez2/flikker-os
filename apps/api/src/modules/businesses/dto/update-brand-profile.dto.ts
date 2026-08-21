@@ -1,11 +1,27 @@
 import {
   IsBoolean,
+  IsIn,
+  IsInt,
   IsString,
   IsOptional,
   IsUrl,
+  Max,
   MaxLength,
   Matches,
+  Min,
 } from 'class-validator';
+
+/** Mismas 8 keys que `STAMP_BACKGROUND_PATTERNS` en apps/web/lib/loyalty-stamp-patterns.ts. */
+const LOYALTY_STAMP_BACKGROUND_PATTERNS = [
+  'none',
+  'waves',
+  'bubbles',
+  'arcs',
+  'curved-lines',
+  'organic',
+  'geometric',
+  'confetti',
+] as const;
 
 export class UpdateBrandProfileDto {
   @IsOptional()
@@ -121,6 +137,18 @@ export class UpdateBrandProfileDto {
   @IsOptional()
   @IsBoolean()
   loyaltyShowBusinessName?: boolean;
+
+  /** Programa → Diseño de sellos. Fondo decorativo detrás de los sellos. */
+  @IsOptional()
+  @IsIn(LOYALTY_STAMP_BACKGROUND_PATTERNS)
+  loyaltyStampBackgroundPattern?: string;
+
+  /** 0-100. Ausente/null = Automático. */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(100)
+  loyaltyStampBackgroundOpacity?: number;
 
   /**
    * Programa → Página de inscripción. Encabezado propio de la landing

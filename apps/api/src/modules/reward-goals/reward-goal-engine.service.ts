@@ -192,11 +192,15 @@ export class RewardGoalEngineService {
   }
 
   /**
-   * Cooldown since the customer's most recently CLOSED goal (unlocked,
-   * redeemed, expired, or cancelled) — the guard against immediately
-   * re-creating a new goal right after finishing one (Fase E §33).
-   * `updatedAt` is used as the closing timestamp: every terminal transition
-   * is itself a write, so it always moves forward with the closure.
+   * Cooldown since the customer's most recently CLOSED goal — pero SOLO
+   * cuando ese cierre fue EXPIRED/CANCELLED (el cliente no llegó a
+   * completarlo). Un ciclo REDEEMED ya se completó y canjeó de verdad: el
+   * siguiente ciclo arranca con la próxima Visit válida, sin cooldown
+   * adicional (pedido explícito — auditoría de caso real, Fase E §33
+   * revisado). UNLOCKED nunca llega hasta acá: `hasActiveGoal` ya lo
+   * bloquea antes. `updatedAt` sigue siendo el timestamp de cierre para
+   * EXPIRED/CANCELLED — cada transición terminal es en sí misma una
+   * escritura, así que siempre avanza con el cierre real.
    */
   private async isCooldownActive(
     businessId: string,
@@ -211,9 +215,10 @@ export class RewardGoalEngineService {
         status: { not: RewardGoalStatus.ACTIVE },
       },
       orderBy: { updatedAt: 'desc' },
-      select: { updatedAt: true },
+      select: { updatedAt: true, status: true },
     });
     if (!lastClosed) return false;
+    if (lastClosed.status === RewardGoalStatus.REDEEMED) return false;
 
     const elapsedDays =
       (now.getTime() - lastClosed.updatedAt.getTime()) / 86_400_000;

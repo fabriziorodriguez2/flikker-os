@@ -43,6 +43,8 @@ export class BusinessesRepository {
         loyaltyStampColor: true,
         loyaltyStampIcon: true,
         loyaltyShowBusinessName: true,
+        loyaltyStampBackgroundPattern: true,
+        loyaltyStampBackgroundOpacity: true,
         checkinWelcomeMessage: true,
         checkinBackgroundColor: true,
         googleBusinessProfileUrl: true,

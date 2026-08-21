@@ -1170,6 +1170,8 @@ function RewardGoalCard({
             logoUrl: landing.business.logoUrl,
             businessName: landing.business.businessName,
             showBusinessName: landing.business.loyaltyShowBusinessName,
+            stampBackgroundPattern: landing.business.loyaltyStampBackgroundPattern,
+            stampBackgroundOpacity: landing.business.loyaltyStampBackgroundOpacity,
           }}
         />
       </div>

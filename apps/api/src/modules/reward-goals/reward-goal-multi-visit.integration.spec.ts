@@ -258,55 +258,76 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
       expect(goalsAfterV2).toBe(1); // todavía solo una goal — nada nuevo se creó al desbloquear.
 
       // El cliente canjea el premio — recién ahí el ciclo queda CERRADO.
-      // Sin esto, la regla nueva (§ "no iniciar un nuevo ciclo mientras el
-      // anterior siga UNLOCKED sin canjear") bloquearía la Visita 4 de más
-      // abajo para siempre, no solo durante el cooldown.
       await redeemGoal(business.id, customer.id, day(1));
 
-      // Visita 3 — al día siguiente (dentro del cooldown de 3 días): NO
-      // premia otra vez, NO crea una goal nueva. Esto es exactamente lo que
-      // el pedido dice que NO debe pasar ("visita 4 → otra recompensa").
+      // Visita 3 — al día siguiente: el ciclo anterior YA está REDEEMED
+      // (no UNLOCKED sin canjear), así que el cooldown de 3 días NO aplica
+      // — auditoría de caso real: "si está REDEEMED, la próxima Visit
+      // válida debe crear inmediatamente un nuevo goal ACTIVE, sin esperar
+      // ningún cooldown adicional". visitCount=3 en este punto → REPEAT
+      // (entre NEW y FREQUENT), objetivo=2.
       const v3 = await visitOn(business.id, customer.id, day(2));
-      expect(v3).toEqual({ goal: null, unlockedNow: false, benefit: null });
+      expect(v3.unlockedNow).toBe(false);
+      expect(v3.goal).toMatchObject({
+        progressVisits: 0,
+        targetAdditionalVisits: 2,
+      });
+      goal = await dumpGoal(business.id, customer.id);
+      expect(goal).toMatchObject({
+        status: RewardGoalStatus.ACTIVE,
+        startingVisitCount: 3,
+        targetAdditionalVisits: 2,
+        segmentAtCreation: 'REPEAT',
+      });
       const goalsAfterV3 = await prisma.customerRewardGoal.count({
         where: { businessId: business.id, customerId: customer.id },
       });
-      expect(goalsAfterV3).toBe(1); // sigue siendo una sola — cooldown activo.
+      expect(goalsAfterV3).toBe(2); // el ciclo anterior (REDEEMED) + este nuevo.
 
-      // Visita 4 — 13 días después (bien pasado el cooldown): el motor
-      // recién ahí crea una NUEVA goal — y con visitCount=4 el segmento ya
-      // es FREQUENT, así que el objetivo escala a 3, no se queda en 1.
-      const v4 = await visitOn(business.id, customer.id, day(15));
+      // Visita 4 — progreso hacia el objetivo REPEAT (todavía no desbloquea).
+      const v4 = await visitOn(business.id, customer.id, day(3));
       expect(v4.unlockedNow).toBe(false);
-      expect(v4.goal).toMatchObject({
+      expect(v4.goal?.progressVisits).toBe(1);
+
+      // Visita 5 — completa el objetivo REPEAT (2/2) y desbloquea. Se canjea
+      // de nuevo, para probar el tercer ciclo.
+      const v5 = await visitOn(business.id, customer.id, day(4));
+      expect(v5.unlockedNow).toBe(true);
+      await redeemGoal(business.id, customer.id, day(4));
+
+      // Visita 6 — de nuevo sin esperar cooldown (REDEEMED). visitCount=6 en
+      // este punto → FREQUENT, así que el objetivo escala a 3.
+      const v6 = await visitOn(business.id, customer.id, day(5));
+      expect(v6.unlockedNow).toBe(false);
+      expect(v6.goal).toMatchObject({
         progressVisits: 0,
         targetAdditionalVisits: 3,
       });
       goal = await dumpGoal(business.id, customer.id);
       expect(goal).toMatchObject({
         status: RewardGoalStatus.ACTIVE,
-        startingVisitCount: 4,
+        startingVisitCount: 6,
         targetAdditionalVisits: 3,
         segmentAtCreation: 'FREQUENT',
       });
 
-      // Visitas 5 y 6 — progreso hacia el nuevo objetivo (3 visitas), sin
+      // Visitas 7 y 8 — progreso hacia el objetivo FREQUENT (3 visitas), sin
       // desbloquear nada todavía.
-      const v5 = await visitOn(business.id, customer.id, day(16));
-      expect(v5.unlockedNow).toBe(false);
-      expect(v5.goal?.progressVisits).toBe(1);
-      const v6 = await visitOn(business.id, customer.id, day(17));
-      expect(v6.unlockedNow).toBe(false);
-      expect(v6.goal?.progressVisits).toBe(2);
+      const v7 = await visitOn(business.id, customer.id, day(6));
+      expect(v7.unlockedNow).toBe(false);
+      expect(v7.goal?.progressVisits).toBe(1);
+      const v8 = await visitOn(business.id, customer.id, day(7));
+      expect(v8.unlockedNow).toBe(false);
+      expect(v8.goal?.progressVisits).toBe(2);
 
-      // Visita 7 — completa las 3 visitas requeridas: recién ahí, la
-      // SEGUNDA recompensa real (no en cada visita, sino tras 3 más).
-      const v7 = await visitOn(business.id, customer.id, day(18));
-      expect(v7.unlockedNow).toBe(true);
+      // Visita 9 — completa las 3 visitas requeridas: la TERCERA recompensa
+      // real (nunca en cada visita — cada ciclo pide sus propias visitas).
+      const v9 = await visitOn(business.id, customer.id, day(8));
+      expect(v9.unlockedNow).toBe(true);
       const totalGoals = await prisma.customerRewardGoal.count({
         where: { businessId: business.id, customerId: customer.id },
       });
-      expect(totalGoals).toBe(2); // exactamente 2 recompensas en 7 visitas, no 6 o 7.
+      expect(totalGoals).toBe(3); // 3 ciclos completos (NEW→REPEAT→FREQUENT), cada uno con su propia recompensa.
     } finally {
       await cleanup(business.id);
     }

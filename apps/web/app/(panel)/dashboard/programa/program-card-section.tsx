@@ -84,6 +84,8 @@ export default function ProgramCardSection({
         loyaltyStampColor: appearance.loyaltyStampColor,
         loyaltyStampIcon: appearance.loyaltyStampIcon,
         loyaltyShowBusinessName: appearance.loyaltyShowBusinessName,
+        loyaltyStampBackgroundPattern: appearance.loyaltyStampBackgroundPattern,
+        loyaltyStampBackgroundOpacity: appearance.loyaltyStampBackgroundOpacity,
       },
       benefit: null,
       benefitText: null,

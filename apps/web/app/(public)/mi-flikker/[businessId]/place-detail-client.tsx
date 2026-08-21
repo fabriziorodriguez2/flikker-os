@@ -19,6 +19,8 @@ interface MyFlikkerPlace {
   loyaltyStampColor?: string | null;
   loyaltyStampIcon?: string | null;
   loyaltyShowBusinessName?: boolean;
+  loyaltyStampBackgroundPattern?: string | null;
+  loyaltyStampBackgroundOpacity?: number | null;
   primaryColor: string | null;
   visitsTotal: number;
   lastVisitAt: string | null;
@@ -148,6 +150,8 @@ export default function PlaceDetailClient({
             logoUrl: place.logoUrl,
             businessName: place.businessName,
             showBusinessName: place.loyaltyShowBusinessName,
+            stampBackgroundPattern: place.loyaltyStampBackgroundPattern,
+            stampBackgroundOpacity: place.loyaltyStampBackgroundOpacity,
           }}
         />
       ) : null}

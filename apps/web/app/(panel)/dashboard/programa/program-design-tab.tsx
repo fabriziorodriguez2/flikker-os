@@ -39,6 +39,15 @@ import {
   resolveLoyaltyStampAreaColor,
   type StampIconKey,
 } from "@/lib/loyalty-card-theme";
+import {
+  STAMP_BACKGROUND_PATTERNS,
+  automaticPatternIntensity,
+  buildStampPatternDataUri,
+  effectivePatternOpacity,
+  isStampPatternKey,
+  tileSizeFor,
+  type StampPatternKey,
+} from "@/lib/loyalty-stamp-patterns";
 import ProgramSectionHeading from "./program-section-heading";
 import type { LoyaltyAppearance } from "./types";
 
@@ -169,6 +178,15 @@ export default function ProgramDesignTab({
     appearance.loyaltyStampColor ?? "",
   );
   const [icon, setIcon] = useState(appearance.loyaltyStampIcon ?? "gift");
+  const [pattern, setPattern] = useState<StampPatternKey>(
+    isStampPatternKey(appearance.loyaltyStampBackgroundPattern)
+      ? appearance.loyaltyStampBackgroundPattern
+      : "none",
+  );
+  /** `null` = Automático — mismo criterio que los `ColorControl` de arriba. */
+  const [patternIntensity, setPatternIntensity] = useState<number | null>(
+    appearance.loyaltyStampBackgroundOpacity ?? null,
+  );
   const [backgroundImage, setBackgroundImage] = useState(
     appearance.loyaltyCardBackgroundImage ?? "",
   );
@@ -187,6 +205,8 @@ export default function ProgramDesignTab({
     cardColor,
     stampAreaColor,
   );
+  const resolvedPatternIntensity =
+    patternIntensity ?? automaticPatternIntensity(theme.isDarkCard);
   const requestedStampIgnored =
     Boolean(stampColor) && contrastRatio(stampColor, stampBackground) < 3;
   const requestedTextIgnored =
@@ -228,6 +248,8 @@ export default function ProgramDesignTab({
         loyaltyStampColor: stampColor || null,
         loyaltyStampIcon: icon,
         loyaltyShowBusinessName: showBusinessName,
+        loyaltyStampBackgroundPattern: pattern,
+        loyaltyStampBackgroundOpacity: patternIntensity,
         logoUrl: logoUrl || null,
       });
       setMessage("Diseño guardado.");
@@ -465,6 +487,88 @@ export default function ProgramDesignTab({
                   />
                 </label>
               ) : null}
+
+              <p className="mt-5 text-sm font-semibold text-[#202333]">
+                Fondo del área de sellos
+              </p>
+              <p className="mt-0.5 text-xs text-[#8891A4]">
+                Un patrón sutil detrás de los sellos. Siempre va detrás — nunca
+                encima — para que el sello se siga leyendo bien.
+              </p>
+              <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                {STAMP_BACKGROUND_PATTERNS.map((option) => {
+                  const previewUri =
+                    option.key === "none"
+                      ? null
+                      : buildStampPatternDataUri(
+                          option.key,
+                          theme.accent,
+                          effectivePatternOpacity(resolvedPatternIntensity),
+                        );
+                  const selected = pattern === option.key;
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      disabled={!canMutate}
+                      onClick={() => setPattern(option.key)}
+                      className={`flex flex-col items-center gap-1.5 rounded-[11px] border p-2 ${selected ? "border-[#5C6BC0] bg-[#EEF0FB]" : "border-[#E8EAF0] bg-white hover:border-[#BFC5EA]"}`}
+                    >
+                      <span
+                        className="h-12 w-full rounded-[8px]"
+                        style={{
+                          backgroundColor: stampBackground,
+                          backgroundImage: previewUri
+                            ? `url("${previewUri}")`
+                            : undefined,
+                          backgroundRepeat: "repeat",
+                          backgroundSize: previewUri
+                            ? `${tileSizeFor(option.key)}px ${tileSizeFor(option.key)}px`
+                            : undefined,
+                        }}
+                        aria-hidden="true"
+                      />
+                      <span
+                        className={`text-[11px] font-semibold leading-tight ${selected ? "text-[#5C6BC0]" : "text-[#5F6780]"}`}
+                      >
+                        {option.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {pattern !== "none" ? (
+                <div className="mt-3 space-y-2">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-xs font-semibold text-[#5F6780]">
+                      Intensidad
+                    </span>
+                    {patternIntensity !== null ? (
+                      <button
+                        type="button"
+                        disabled={!canMutate}
+                        onClick={() => setPatternIntensity(null)}
+                        className="text-xs font-semibold text-[#5C6BC0] hover:underline disabled:cursor-not-allowed"
+                      >
+                        Usar automático
+                      </button>
+                    ) : (
+                      <span className="text-xs text-[#9AA2B5]">
+                        Automático
+                      </span>
+                    )}
+                  </div>
+                  <CropSlider
+                    label=""
+                    value={resolvedPatternIntensity}
+                    min={0}
+                    max={100}
+                    step={5}
+                    onChange={(value) => setPatternIntensity(value)}
+                  />
+                </div>
+              ) : null}
             </DesignSection>
 
             <DesignSection
@@ -565,6 +669,8 @@ export default function ProgramDesignTab({
                     logoUrl: logoUrl || null,
                     businessName,
                     showBusinessName,
+                    stampBackgroundPattern: pattern,
+                    stampBackgroundOpacity: patternIntensity,
                   }}
                 />
               </div>

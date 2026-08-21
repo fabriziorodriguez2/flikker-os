@@ -21,6 +21,8 @@ interface MyFlikkerPlace {
   loyaltyStampColor: string | null;
   loyaltyStampIcon: string | null;
   loyaltyShowBusinessName: boolean;
+  loyaltyStampBackgroundPattern: string | null;
+  loyaltyStampBackgroundOpacity: number | null;
   visitsTotal: number;
   lastVisitAt: string | null;
   rewardGoal: {
@@ -245,6 +247,8 @@ function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
             logoUrl: place.logoUrl,
             businessName: place.businessName,
             showBusinessName: place.loyaltyShowBusinessName,
+            stampBackgroundPattern: place.loyaltyStampBackgroundPattern,
+            stampBackgroundOpacity: place.loyaltyStampBackgroundOpacity,
           }}
         />
         {/* Un Benefit independiente (bienvenida/promo/reactivación) puede

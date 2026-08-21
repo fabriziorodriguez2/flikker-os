@@ -9,6 +9,13 @@ import {
   normalizeHex,
   resolveLoyaltyStampAreaColor,
 } from "@/lib/loyalty-card-theme";
+import {
+  automaticPatternIntensity,
+  buildStampPatternDataUri,
+  effectivePatternOpacity,
+  isStampPatternKey,
+  tileSizeFor,
+} from "@/lib/loyalty-stamp-patterns";
 import RewardGoalStamps from "./reward-goal-stamps";
 
 export interface LoyaltyCardAppearance {
@@ -21,6 +28,10 @@ export interface LoyaltyCardAppearance {
   logoUrl?: string | null;
   businessName?: string | null;
   showBusinessName?: boolean;
+  /** Patrón decorativo detrás de los sellos — `null`/ausente = sin patrón. */
+  stampBackgroundPattern?: string | null;
+  /** 0-100. `null`/ausente = Automático (Flikker elige la intensidad). */
+  stampBackgroundOpacity?: number | null;
 }
 
 /**
@@ -60,6 +71,19 @@ export default function LoyaltyCard({
     appearance.stampAreaColor,
   );
   const stampAreaText = bestContrastOn(stampAreaColor);
+
+  const patternKey = isStampPatternKey(appearance.stampBackgroundPattern)
+    ? appearance.stampBackgroundPattern
+    : "none";
+  const patternIntensity =
+    appearance.stampBackgroundOpacity ??
+    automaticPatternIntensity(theme.isDarkCard);
+  const patternDataUri = buildStampPatternDataUri(
+    patternKey,
+    theme.accent,
+    effectivePatternOpacity(patternIntensity),
+  );
+  const patternTileSize = tileSizeFor(patternKey);
 
   useEffect(() => {
     if (!qrValue) return;
@@ -131,17 +155,30 @@ export default function LoyaltyCard({
       </header>
 
       <div
-        className="relative z-[1] px-4 py-3.5"
+        className="relative z-[1] overflow-hidden px-4 py-3.5"
         style={{ backgroundColor: stampAreaColor, color: stampAreaText }}
       >
-        <RewardGoalStamps
-          progress={progress}
-          target={target}
-          cardColor={appearance.cardColor}
-          stampAreaColor={stampAreaColor}
-          stampColor={appearance.stampColor}
-          icon={appearance.stampIcon}
-        />
+        {patternDataUri ? (
+          <div
+            className="absolute inset-0"
+            aria-hidden="true"
+            style={{
+              backgroundImage: `url("${patternDataUri}")`,
+              backgroundRepeat: "repeat",
+              backgroundSize: `${patternTileSize}px ${patternTileSize}px`,
+            }}
+          />
+        ) : null}
+        <div className="relative z-[1]">
+          <RewardGoalStamps
+            progress={progress}
+            target={target}
+            cardColor={appearance.cardColor}
+            stampAreaColor={stampAreaColor}
+            stampColor={appearance.stampColor}
+            icon={appearance.stampIcon}
+          />
+        </div>
       </div>
 
       <div className="relative z-[1] flex min-h-[112px] items-center justify-between gap-4 px-4 py-3.5">
