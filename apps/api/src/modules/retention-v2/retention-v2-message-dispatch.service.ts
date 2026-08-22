@@ -4,6 +4,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 import { retentionMessageEmail } from '../../jobs/email-templates';
+import { buildMiFlikkerLink } from '../public/public-messaging.service';
 import { RetentionSettingsService } from './retention-settings.service';
 import { PlansService } from '../plans/plans.service';
 import { AutomationCooldownService } from '../../jobs/automation-cooldown.service';
@@ -254,9 +255,15 @@ export class RetentionV2MessageDispatchService {
     }
 
     try {
+      // El link de "Mi Flikker" se agrega ACÁ, al momento de mandar — nunca
+      // en `message.body` (eso pasó por el validador de grounding de la
+      // IA; agregarlo después de esa validación evita cualquier
+      // interacción con esa capa, y el reclamo atómico de más arriba ya
+      // garantiza que esto se ejecuta una sola vez por Message).
+      const text = `${message.body}\n\nVas todos tus premios y lugares en Mi Flikker: ${buildMiFlikkerLink()}`;
       const result = await this.whatsApp.sendText({
         phone: message.customer.phoneE164,
-        text: message.body,
+        text,
       });
 
       await this.prisma.$transaction([

@@ -11,6 +11,7 @@ import { VisitSourcesService } from '../visit-sources/visit-sources.service';
 import { PlansService } from '../plans/plans.service';
 import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 import { promotionEmail } from '../../jobs/email-templates';
+import { buildMiFlikkerLink } from '../public/public-messaging.service';
 import type { SendPromotionDto } from './dto/send-promotion.dto';
 
 /**
@@ -181,6 +182,12 @@ export class NotificationsPromotionsService {
         if (genericLink) messageBody = `${messageBody}\n${genericLink}`;
       }
     }
+
+    // "Mi Flikker" — el mismo link estable en cualquier promoción, para que
+    // el cliente encuentre sus lugares/premios sin depender de guardar este
+    // mensaje puntual. Al final, después del link de emisión propio (si
+    // hay uno) — nunca lo reemplaza.
+    messageBody = `${messageBody}\n\nVas todos tus premios y lugares en Mi Flikker: ${buildMiFlikkerLink()}`;
 
     const result = await this.campaigns.sendManual(businessId, userId, {
       recipients: recipients.map((r) => ({

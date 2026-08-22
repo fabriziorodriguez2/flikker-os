@@ -717,6 +717,46 @@ export class BenefitsRepository {
     });
   }
 
+  /**
+   * Semántica única de "Benefit canjeado" — pedido explícito tras el bug de
+   * Inicio: una `BenefitParticipation` con `redeemedAt` seteado, sin
+   * importar el origen (tarjeta de sellos, promoción, bienvenida,
+   * reactivación, sorteo). Todo lugar que necesite este número (Inicio,
+   * Insights, el funnel de Retención) pregunta ACÁ — nunca vuelve a leer
+   * `CustomerRewardGoal.redeemedAt` por su cuenta. Ese campo sigue siendo la
+   * promesa de ESA tarjeta puntual (se sincroniza con este en el mismo
+   * instante — ver `RedemptionService.closeRewardGoalIfRedeemed`), pero la
+   * fuente de verdad de "¿se canjeó un Benefit?" es siempre esta tabla.
+   */
+  countRedeemed(
+    businessId: string,
+    options: { from?: Date } = {},
+  ): Promise<number> {
+    return this.prisma.benefitParticipation.count({
+      where: {
+        businessId,
+        redeemedAt: options.from ? { gte: options.from } : { not: null },
+      },
+    });
+  }
+
+  /** Canjes más recientes de cualquier origen — misma fuente que `countRedeemed`. */
+  findRecentRedemptions(businessId: string, limit: number) {
+    return this.prisma.benefitParticipation.findMany({
+      where: { businessId, redeemedAt: { not: null } },
+      orderBy: { redeemedAt: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        redeemedAt: true,
+        source: true,
+        benefitTitleSnapshot: true,
+        benefit: { select: { title: true } },
+        customer: { select: { id: true, name: true } },
+      },
+    });
+  }
+
   private deactivateAll(
     tx: Prisma.TransactionClient,
     businessId: string,

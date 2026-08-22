@@ -24,6 +24,7 @@ import { CustomerEventsRepository } from './customer-events.repository';
 import { isCheckinV2 } from '../../common/experience/experience.util';
 import { RewardGoalOrchestratorService } from '../reward-goals/reward-goal-orchestrator.service';
 import { RewardGoalFeedbackService } from '../reward-goals/reward-goal-feedback.service';
+import { FlikkerAccountService } from '../flikker-account/flikker-account.service';
 
 // Client-emittable timeline events (whitelist — never trust an arbitrary type).
 const CLIENT_EVENTS: Record<string, CustomerEventType> = {
@@ -72,6 +73,7 @@ export class CheckinService {
     private readonly messaging: PublicMessagingService,
     private readonly rewardGoals: RewardGoalOrchestratorService,
     private readonly rewardGoalFeedback: RewardGoalFeedbackService,
+    private readonly flikkerAccount: FlikkerAccountService,
   ) {}
 
   // ── Landing (GET) ──────────────────────────────────────────────────────────
@@ -194,6 +196,11 @@ export class CheckinService {
       customer.name,
     );
     void this.messaging.enqueueReviewRequest(business.id, customer.id, null);
+    // "Mi Flikker" — mensaje único, para siempre, sin importar cuántos
+    // negocios distintos registren después a este mismo teléfono
+    // (`sendWelcomeLinkOnce` reclama atómicamente por FlikkerAccount, no
+    // por este registro puntual).
+    void this.flikkerAccount.sendWelcomeLinkOnce(phoneE164);
 
     const session = await this.sessions.issue(
       business.id,

@@ -19,6 +19,21 @@ const nextConfig: NextConfig = {
   output: "standalone",
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   experimental: { trustHostHeader: true } as any,
+  // Entrada estable de "Mi Flikker" (https://flikker.site/mi) — acceso
+  // permanente al cliente sin depender de volver a escanear el QR de
+  // ningún negocio. Alias corto de /mi-flikker, no una ruta nueva: toda la
+  // lógica de sesión/OTP vive ahí. `permanent: false` (307) a propósito —
+  // todavía puede cambiar de destino sin quedar cacheado para siempre en
+  // el navegador.
+  async redirects() {
+    return [
+      {
+        source: "/mi",
+        destination: "/mi-flikker",
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;

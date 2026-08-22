@@ -239,8 +239,15 @@ describe('Promociones — beneficio', () => {
     expect(deps.campaigns.sendManual).toHaveBeenCalledWith(
       'biz-1',
       'user-1',
-      expect.objectContaining({ messageBody: 'Este viernes 2x1.' }),
+      expect.objectContaining({
+        messageBody: expect.stringContaining('Este viernes 2x1.') as string,
+      }),
     );
+    // "Mi Flikker" se agrega a CUALQUIER promoción, con o sin beneficio.
+    const body = (
+      deps.campaigns.sendManual.mock.calls[0][2] as { messageBody: string }
+    ).messageBody;
+    expect(body).toContain('Mi Flikker');
   });
 
   it('con el trial de Beneficios vencido, una promoción CON beneficio se bloquea', async () => {

@@ -3,6 +3,9 @@ import { PrismaModule } from '../prisma/prisma.module';
 import { RetentionV2Module } from '../modules/retention-v2/retention-v2.module';
 import { RewardGoalsModule } from '../modules/reward-goals/reward-goals.module';
 import { PlansModule } from '../modules/plans/plans.module';
+import { AiModule } from '../modules/ai/ai.module';
+import { InsightsRepository } from '../modules/insights/insights.repository';
+import { OwnerLifecycleAiSummaryService } from '../modules/insights/owner-lifecycle-ai-summary.service';
 import { OwnerNotificationsQueue } from './owner-notifications.queue';
 import { GoogleReviewDetectionQueue } from './google-review-detection.queue';
 import { GoogleReviewsProvider } from './google-reviews.provider';
@@ -38,9 +41,26 @@ import { LifecycleEmailsWorker } from './workers/lifecycle-emails.worker';
 import { StampsExpiryEmailService } from './stamps-expiry-email.service';
 import { BirthdayEmailService } from './birthday-email.service';
 import { AutomationCooldownService } from './automation-cooldown.service';
+import { OwnerLifecycleEmailLogService } from './owner-lifecycle-email-log.service';
+import { OwnerLifecycleEmailsService } from './owner-lifecycle-emails.service';
+import { OwnerLifecycleEmailsQueue } from './owner-lifecycle-emails.queue';
+import { OwnerLifecycleEmailsWorker } from './workers/owner-lifecycle-emails.worker';
 
 @Module({
-  imports: [PrismaModule, RetentionV2Module, RewardGoalsModule, PlansModule],
+  imports: [
+    PrismaModule,
+    RetentionV2Module,
+    RewardGoalsModule,
+    PlansModule,
+    // Deliberadamente NO `InsightsModule` — ese módulo importa
+    // `ReviewsModule`, que (vía `CampaignsModule`) importa este mismo
+    // `JobsModule`, cerrando un ciclo real de módulos. `InsightsRepository`
+    // y `OwnerLifecycleAiSummaryService` solo necesitan `PrismaModule`
+    // (ya importado) y `AiModule` (sin ciclo — solo depende de
+    // `PrismaModule`), así que se registran directo como providers propios
+    // en vez de importar el módulo completo.
+    AiModule,
+  ],
   providers: [
     ReviewRequestQueue,
     RepeatsQueue,
@@ -77,6 +97,12 @@ import { AutomationCooldownService } from './automation-cooldown.service';
     StampsExpiryEmailService,
     BirthdayEmailService,
     AutomationCooldownService,
+    OwnerLifecycleEmailLogService,
+    OwnerLifecycleEmailsService,
+    OwnerLifecycleEmailsQueue,
+    OwnerLifecycleEmailsWorker,
+    InsightsRepository,
+    OwnerLifecycleAiSummaryService,
   ],
   exports: [
     ReviewRequestQueue,

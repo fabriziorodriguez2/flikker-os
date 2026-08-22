@@ -6,7 +6,7 @@ import {
 } from '@nestjs/common';
 import { Job, Worker } from 'bullmq';
 import IORedis from 'ioredis';
-import { MembershipRole } from '@prisma/client';
+import { ExperienceVersion, MembershipRole } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { createRedisConnection, REDIS_CONFIGURED } from '../redis-connection';
 import {
@@ -199,8 +199,12 @@ export class OwnerNotificationsWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   async enqueueDueWeeklySummaries(now = new Date()) {
+    // CHECKIN_V2 tiene su propio resumen semanal
+    // (`OwnerLifecycleEmailsService`, con funnel de reactivación + IA) —
+    // este sigue siendo exclusivo de LEGACY para que ningún negocio reciba
+    // los dos emails semanales el mismo día.
     const businesses = await this.prisma.business.findMany({
-      where: { isActive: true },
+      where: { isActive: true, experienceVersion: ExperienceVersion.LEGACY },
       select: { id: true, timezone: true },
     });
 

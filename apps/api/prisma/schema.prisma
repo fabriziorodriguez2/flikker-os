@@ -615,6 +615,7 @@ model Business {
   automationContacts            CustomerAutomationContact[]
   insightSummary                BusinessInsightSummary?
   reactivationFunnelSummary      ReactivationFunnelSummary?
+  ownerLifecycleEmailLogs        OwnerLifecycleEmailLog[]
 }
 
 // ---------------------------------------------------------------------------
@@ -1384,6 +1385,37 @@ model EmailLog {
   @@map("email_logs")
 }
 
+/// Idempotencia de los emails automáticos al DUEÑO/manager de un negocio
+/// CHECKIN_V2 (primera semana, resumen semanal/mensual, primer mes, trial por
+/// terminar, hitos) — mismo mecanismo que `EmailLog` (fila creada ANTES de
+/// enviar, el `@@unique` es la garantía real contra duplicados), pero
+/// deliberadamente NO es la misma tabla: `EmailLog.customerId` es NOT NULL y
+/// estos envíos no tienen ningún Customer asociado (el destinatario es la
+/// lista de OWNER/ADMIN del negocio). `dedupeKey`, según `kind`:
+///   first_week          → constante fija (una vez en la vida)
+///   weekly_summary_v2    → el lunes local en ISO ("2026-08-17")
+///   monthly_summary      → el mes que se resume en "yyyy-MM"
+///   first_month          → constante fija (una vez en la vida)
+///   trial_ending_5d/_2d  → constante fija (una vez por reminder)
+///   milestone            → la milestoneKey (ej. "customers_50")
+model OwnerLifecycleEmailLog {
+  id           String    @id @default(uuid())
+  businessId   String    @map("business_id")
+  kind         String
+  dedupeKey    String    @map("dedupe_key")
+  /// 'sent' | 'failed' | 'skipped_no_recipient' | 'skipped_unavailable'
+  status       String
+  errorMessage String?   @map("error_message")
+  sentAt       DateTime? @map("sent_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, kind, dedupeKey])
+  @@index([businessId, createdAt])
+  @@map("owner_lifecycle_email_logs")
+}
+
 /// Cooldown central: como máximo 1 mensaje automático por cliente cada 24h,
 /// sin importar cuál automatización lo manda. `customerId` es la clave —
 /// una fila por cliente, se pisa en cada contacto exitoso. Prioridad al
@@ -1804,6 +1836,14 @@ model FlikkerAccount {
   phoneE164 String   @unique @map("phone_e164")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+  /// Cuándo se mandó, por WhatsApp, el mensaje único de bienvenida con el
+  /// link a "Mi Flikker" — null significa que todavía nunca se mandó. Se
+  /// dispara en el PRIMER registro del cliente en CUALQUIER negocio (no por
+  /// negocio) y se reclama con un `updateMany` atómico guardado por
+  /// `null` — ver `FlikkerAccountService.sendWelcomeLinkOnce`. Vive acá y no
+  /// en `Customer` porque el mensaje es sobre la cuenta global, no sobre una
+  /// relación puntual con un negocio.
+  welcomeLinkSentAt DateTime? @map("welcome_link_sent_at")
 
   customers Customer[]
   sessions  FlikkerAccountSession[]

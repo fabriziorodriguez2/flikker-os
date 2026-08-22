@@ -13,6 +13,20 @@ import { ReviewRequestQueue } from '../../jobs/review-request.queue';
 export const QR_REVIEW_DELAY_MS = 60 * 60 * 1000; // 1 hora
 
 /**
+ * El link estable de "Mi Flikker" (acceso permanente, sin depender de
+ * volver a escanear el QR de ningún negocio) — un solo lugar que lo arma,
+ * para que el mensaje de bienvenida y cualquier otra comunicación
+ * (premios, promociones, reactivación) linkeen siempre al mismo sitio.
+ */
+export function buildMiFlikkerLink(): string {
+  const baseUrl =
+    process.env.APP_PUBLIC_URL ??
+    process.env.WEB_BASE_URL ??
+    'https://app.flikker.com';
+  return `${baseUrl.replace(/\/$/, '')}/mi`;
+}
+
+/**
  * Outbound-messaging side effects of a first visit (welcome, owner ping, review
  * request). Extracted so the legacy /qr flow and the /check-in flow don't
  * duplicate this logic. Every method is best-effort and never throws.
@@ -103,6 +117,30 @@ export class PublicMessagingService {
     } catch (error) {
       this.logger.warn(
         `WhatsApp verification code send failed for ${phoneE164}: ${errMsg(error)}`,
+      );
+    }
+  }
+
+  /**
+   * "Mi Flikker" — mensaje único de bienvenida con el link de acceso
+   * permanente (ver `FlikkerAccountService.sendWelcomeLinkOnce`, que
+   * garantiza que esto se llama como máximo una vez por cuenta/teléfono).
+   * Best-effort — nunca tira, igual que el resto de esta clase.
+   */
+  async sendMiFlikkerWelcome(phoneE164: string): Promise<void> {
+    try {
+      const link = buildMiFlikkerLink();
+      const text = [
+        '✨ Ya tenés tu perfil en *Mi Flikker*.',
+        '',
+        'Desde acá vas a poder ver todos los negocios donde tenés tarjeta o beneficios, sin necesidad de escanear ningún QR de nuevo:',
+        '',
+        `👉 ${link}`,
+      ].join('\n');
+      await this.whatsApp.sendText({ phone: phoneE164, text });
+    } catch (error) {
+      this.logger.warn(
+        `Mi Flikker welcome message failed for ${phoneE164}: ${errMsg(error)}`,
       );
     }
   }

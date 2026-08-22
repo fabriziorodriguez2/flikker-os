@@ -86,13 +86,14 @@ export default function RewardGoalStamps({
       {stamps.map((filled, i) => (
         <span
           key={i}
-          className="flex aspect-square min-w-0 items-center justify-center rounded-full border-[1.5px] transition-colors duration-300"
+          data-stamp-state={filled ? "completed" : "empty"}
+          className={`flex aspect-square min-w-0 items-center justify-center transition-colors duration-300 ${
+            filled ? "border-0" : "rounded-full border-[1.5px]"
+          }`}
           style={
             filled
               ? {
-                  borderColor: theme.accent,
-                  backgroundColor: theme.accent,
-                  color: theme.onAccent,
+                  color: theme.accent,
                 }
               : {
                   borderColor: theme.emptyBorder,
@@ -106,12 +107,25 @@ export default function RewardGoalStamps({
               {String(i + 1).padStart(2, "0")}
             </span>
           ) : customIcon ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={icon} alt="" className="h-[52%] w-[52%] object-contain" />
+            <span
+              className="h-[70%] w-[70%]"
+              aria-hidden="true"
+              style={{
+                backgroundColor: theme.accent,
+                WebkitMaskImage: `url(${JSON.stringify(icon)})`,
+                maskImage: `url(${JSON.stringify(icon)})`,
+                WebkitMaskPosition: "center",
+                maskPosition: "center",
+                WebkitMaskRepeat: "no-repeat",
+                maskRepeat: "no-repeat",
+                WebkitMaskSize: "contain",
+                maskSize: "contain",
+              }}
+            />
           ) : (
             <Icon
-              className="h-[48%] w-[48%]"
-              strokeWidth={2.4}
+              className="h-[70%] w-[70%]"
+              strokeWidth={2.6}
               aria-hidden="true"
             />
           )}

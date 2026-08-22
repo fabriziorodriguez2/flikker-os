@@ -6,6 +6,8 @@
  * cualquier cliente de correo sin necesitar un servicio de assets.
  */
 
+import { buildMiFlikkerLink } from '../modules/public/public-messaging.service';
+
 function wrapper(businessName: string, bodyHtml: string): string {
   return `<!DOCTYPE html>
 <html>
@@ -74,7 +76,7 @@ export function rewardGoalUnlockedWhatsAppText(input: {
   rewardName: string;
   benefitLink: string;
 }): string {
-  return `🎉 ¡Completaste tu tarjeta, ${input.customerName}! Ya tenés disponible ${input.rewardName}.\n\nCuando vengas, mostrale tu QR al personal para canjearlo: ${input.benefitLink}`;
+  return `🎉 ¡Completaste tu tarjeta, ${input.customerName}! Ya tenés disponible ${input.rewardName}.\n\nCuando vengas, mostrale tu QR al personal para canjearlo: ${input.benefitLink}\n\nVas todos tus premios y lugares en Mi Flikker: ${buildMiFlikkerLink()}`;
 }
 
 /** Pro — mismo saludo que `birthdayEmail`, en texto plano para WhatsApp. */
@@ -106,7 +108,8 @@ export function retentionMessageEmail(input: {
     html: wrapper(
       input.businessName,
       `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;">Hola ${escapeHtml(input.customerName)},</p>
-      <p style="margin:0;font-size:15px;line-height:1.6;white-space:pre-line;">${escapeHtml(input.messageBody)}</p>`,
+      <p style="margin:0 0 16px;font-size:15px;line-height:1.6;white-space:pre-line;">${escapeHtml(input.messageBody)}</p>
+      <p style="margin:0;font-size:13px;color:#5F6780;">Vas todos tus premios y lugares en <a href="${escapeHtml(buildMiFlikkerLink())}" style="color:#5C6BC0;font-weight:600;">Mi Flikker</a>.</p>`,
     ),
   };
 }
@@ -147,9 +150,10 @@ export function promotionEmail(input: {
       }
       ${
         input.checkinLink
-          ? `<p style="margin:0;"><a href="${escapeHtml(input.checkinLink)}" style="color:#5C6BC0;font-weight:600;">Ver mi beneficio</a></p>`
+          ? `<p style="margin:0 0 16px;"><a href="${escapeHtml(input.checkinLink)}" style="color:#5C6BC0;font-weight:600;">Ver mi beneficio</a></p>`
           : ''
-      }`,
+      }
+      <p style="margin:0;font-size:13px;color:#5F6780;">Vas todos tus premios y lugares en <a href="${escapeHtml(buildMiFlikkerLink())}" style="color:#5C6BC0;font-weight:600;">Mi Flikker</a>.</p>`,
     ),
   };
 }

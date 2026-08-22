@@ -86,6 +86,9 @@ function makeDeps(experienceVersion: ExperienceVersion) {
       rewardGoal: { goal: null, unlockedNow: false, benefit: null },
     }),
   };
+  const flikkerAccount = {
+    sendWelcomeLinkOnce: jest.fn().mockResolvedValue(undefined),
+  };
   return {
     prisma,
     sources,
@@ -97,6 +100,7 @@ function makeDeps(experienceVersion: ExperienceVersion) {
     messaging,
     rewardGoals,
     rewardGoalFeedback,
+    flikkerAccount,
   };
 }
 
@@ -112,6 +116,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.messaging as never,
     deps.rewardGoals as never,
     deps.rewardGoalFeedback as never,
+    deps.flikkerAccount as never,
   );
 }
 

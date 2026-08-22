@@ -15,6 +15,7 @@ import { RetentionV2SendService } from './retention-v2-send.service';
 import { RetentionV2MessageDispatchService } from './retention-v2-message-dispatch.service';
 import { RetentionV2BootstrapService } from './retention-v2-bootstrap.service';
 import { pickVariant, type AllocatableVariant } from './allocation';
+import { buildMiFlikkerLink } from '../public/public-messaging.service';
 
 // Wednesday, 14:00 in America/Montevideo (UTC-3 year-round, no DST) — well
 // inside the default sending window (10:00-20:00, Mon-Sat) regardless of
@@ -251,7 +252,9 @@ describe('Retention V2 self-service — onboarding to WhatsApp (e2e)', () => {
       expect(whatsApp.sendText).toHaveBeenCalledTimes(1);
       expect(whatsApp.sendText).toHaveBeenCalledWith({
         phone: expect.stringMatching(/^\+/) as unknown as string,
-        text: queuedMessage.body,
+        // "Mi Flikker" se agrega al final de cualquier WhatsApp de
+        // Retención al momento de mandar — ver `RetentionV2MessageDispatchService`.
+        text: `${queuedMessage.body}\n\nVas todos tus premios y lugares en Mi Flikker: ${buildMiFlikkerLink()}`,
       });
 
       const sentMessage = await prisma.message.findUniqueOrThrow({

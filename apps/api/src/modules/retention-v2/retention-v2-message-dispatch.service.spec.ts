@@ -1,7 +1,10 @@
 import { MessageStatus, RetentionObjective } from '@prisma/client';
 import { RetentionV2MessageDispatchService } from './retention-v2-message-dispatch.service';
+import { buildMiFlikkerLink } from '../public/public-messaging.service';
 
 const NOW = new Date('2026-09-02T15:00:00.000Z');
+/** Se agrega al final de CUALQUIER WhatsApp que este servicio manda — ver el `sendText` real. */
+const miFlikkerSuffix = `\n\nVas todos tus premios y lugares en Mi Flikker: ${buildMiFlikkerLink()}`;
 
 const DEFAULT_SETTINGS = {
   automaticCampaignsEnabled: true,
@@ -108,7 +111,7 @@ describe('RetentionV2MessageDispatchService — normal send', () => {
     expect(result).toEqual({ status: 'sent', whatsappMessageId: 'wa-1' });
     expect(deps.whatsApp.sendText).toHaveBeenCalledWith({
       phone: '+59891111111',
-      text: 'Hace tiempo que no venís. Te esperamos de vuelta.',
+      text: `Hace tiempo que no venís. Te esperamos de vuelta.${miFlikkerSuffix}`,
     });
     expect(loggedCodes(deps)).toContain('MESSAGE_SENT');
   });
@@ -154,11 +157,11 @@ describe('RetentionV2MessageDispatchService — normal send', () => {
 
     expect(reminderDeps.whatsApp.sendText).toHaveBeenCalledWith({
       phone: '+59891111111',
-      text: 'Te extrañamos 💜',
+      text: `Te extrañamos 💜${miFlikkerSuffix}`,
     });
     expect(benefitDeps.whatsApp.sendText).toHaveBeenCalledWith({
       phone: '+59891111111',
-      text: 'Te extrañamos — tenés 10% en tu próxima visita 💜',
+      text: `Te extrañamos — tenés 10% en tu próxima visita 💜${miFlikkerSuffix}`,
     });
   });
 });

@@ -1,6 +1,12 @@
 import { FlikkerAccountService } from './flikker-account.service';
 
-function makeDeps(options: { account?: unknown; raced?: boolean } = {}) {
+function makeDeps(
+  options: {
+    account?: unknown;
+    raced?: boolean;
+    welcomeLinkClaimCount?: number;
+  } = {},
+) {
   const prisma = {
     flikkerAccount: {
       findUnique: jest
@@ -9,6 +15,9 @@ function makeDeps(options: { account?: unknown; raced?: boolean } = {}) {
           options.account === undefined ? null : options.account,
         ),
       create: jest.fn().mockResolvedValue({ id: 'account-new' }),
+      updateMany: jest
+        .fn()
+        .mockResolvedValue({ count: options.welcomeLinkClaimCount ?? 1 }),
     },
     customer: {
       updateMany: jest.fn().mockResolvedValue({ count: 2 }),
@@ -28,6 +37,7 @@ function makeDeps(options: { account?: unknown; raced?: boolean } = {}) {
   };
   const messaging = {
     sendVerificationCode: jest.fn().mockResolvedValue(undefined),
+    sendMiFlikkerWelcome: jest.fn().mockResolvedValue(undefined),
   };
   return { prisma, verifications, sessions, messaging };
 }
@@ -156,6 +166,47 @@ describe('FlikkerAccountService.verifyAndIssueSession — the core safety rule',
     const result = await service.verifyAndIssueSession('099123456', '123456');
 
     expect(result.flikkerAccountId).toBe('account-raced');
+  });
+});
+
+describe('FlikkerAccountService.sendWelcomeLinkOnce — una sola vez por cuenta/teléfono', () => {
+  it('resuelve/crea la cuenta, reclama el slot y manda el WhatsApp cuando gana la carrera', async () => {
+    const deps = makeDeps({ account: { id: 'account-existing' } });
+    const service = makeService(deps);
+
+    await service.sendWelcomeLinkOnce('+59899123456');
+
+    expect(deps.prisma.flikkerAccount.updateMany).toHaveBeenCalledWith({
+      where: { id: 'account-existing', welcomeLinkSentAt: null },
+      data: { welcomeLinkSentAt: expect.any(Date) },
+    });
+    expect(deps.messaging.sendMiFlikkerWelcome).toHaveBeenCalledWith(
+      '+59899123456',
+    );
+  });
+
+  it('no manda nada si ya se mandó antes (reclamo perdido, count: 0)', async () => {
+    const deps = makeDeps({
+      account: { id: 'account-existing' },
+      welcomeLinkClaimCount: 0,
+    });
+    const service = makeService(deps);
+
+    await service.sendWelcomeLinkOnce('+59899123456');
+
+    expect(deps.messaging.sendMiFlikkerWelcome).not.toHaveBeenCalled();
+  });
+
+  it('nunca tira hacia el caller, ni siquiera si la base falla', async () => {
+    const deps = makeDeps({ account: { id: 'account-existing' } });
+    deps.prisma.flikkerAccount.updateMany.mockRejectedValue(
+      new Error('db down'),
+    );
+    const service = makeService(deps);
+
+    await expect(
+      service.sendWelcomeLinkOnce('+59899123456'),
+    ).resolves.toBeUndefined();
   });
 });
 

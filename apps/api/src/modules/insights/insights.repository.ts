@@ -263,4 +263,86 @@ export class InsightsRepository {
 
     return stats;
   }
+
+  /** Clientes dados de alta dentro de `[from, to)` — para los emails de ciclo de vida al dueño. */
+  async countNewCustomersInRange(
+    businessId: string,
+    from: Date,
+    to: Date,
+  ): Promise<number> {
+    return this.prisma.customer.count({
+      where: { businessId, createdAt: { gte: from, lt: to } },
+    });
+  }
+
+  /**
+   * Clientes que "volvieron" dentro de `[from, to)`: tuvieron una visita en
+   * la ventana Y ya tenían al menos una visita ANTERIOR a `from` — un
+   * cliente cuya primera visita cae dentro de la ventana es nuevo, no un
+   * retorno.
+   */
+  async countReturningCustomersInRange(
+    businessId: string,
+    from: Date,
+    to: Date,
+  ): Promise<number> {
+    const visitsInRange = await this.prisma.visit.findMany({
+      where: { businessId, occurredAt: { gte: from, lt: to } },
+      select: { customerId: true },
+      distinct: ['customerId'],
+    });
+    if (visitsInRange.length === 0) return 0;
+
+    const priorVisitors = await this.prisma.visit.findMany({
+      where: {
+        businessId,
+        customerId: { in: visitsInRange.map((v) => v.customerId) },
+        occurredAt: { lt: from },
+      },
+      select: { customerId: true },
+      distinct: ['customerId'],
+    });
+    return priorVisitors.length;
+  }
+
+  /** Reseñas de Google publicadas dentro de `[from, to)`. */
+  async countReviewsInRange(
+    businessId: string,
+    from: Date,
+    to: Date,
+  ): Promise<number> {
+    return this.prisma.googleReview.count({
+      where: { businessId, postedAt: { gte: from, lt: to } },
+    });
+  }
+
+  /** Beneficios canjeados dentro de `[from, to)`. */
+  async countBenefitsRedeemedInRange(
+    businessId: string,
+    from: Date,
+    to: Date,
+  ): Promise<number> {
+    return this.prisma.benefitParticipation.count({
+      where: { businessId, redeemedAt: { gte: from, lt: to } },
+    });
+  }
+
+  /**
+   * "Reseñas con Flikker" — mismo corte que `ReviewsOverviewService`
+   * (`Business.createdAt`, nunca `googlePlaceConnectedAt`/`detectedAt`, ver
+   * el comentario de esa clase). Duplicado acá en vez de importar
+   * `ReviewsModule` para no crear un ciclo (`ReviewsModule` →
+   * `CampaignsModule` → `JobsModule`, que es quien consume este método vía
+   * `OwnerLifecycleEmailsService`).
+   */
+  async countReviewsSinceFlikker(businessId: string): Promise<number> {
+    const business = await this.prisma.business.findUnique({
+      where: { id: businessId },
+      select: { createdAt: true },
+    });
+    if (!business) return 0;
+    return this.prisma.googleReview.count({
+      where: { businessId, postedAt: { gte: business.createdAt } },
+    });
+  }
 }

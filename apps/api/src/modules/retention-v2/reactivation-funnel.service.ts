@@ -92,6 +92,31 @@ export class ReactivationFunnelService {
       minimumSampleSize,
     );
   }
+
+  /**
+   * Cuántos clientes "volvieron" (mismo criterio de atribución que
+   * `forBusiness` — `RetentionOutcome.returned`) dentro de `[from, to)`,
+   * medido por la fecha real de retorno (`returnedAt`), no por cuándo se los
+   * contactó. Mismo `where` de elegibilidad que `forBusiness` — nunca una
+   * regla de negocio distinta, solo una ventana de tiempo distinta para los
+   * emails de ciclo de vida al dueño.
+   */
+  async countRecoveredInRange(
+    businessId: string,
+    from: Date,
+    to: Date,
+  ): Promise<number> {
+    return this.prisma.retentionAssignment.count({
+      where: {
+        businessId,
+        status: { in: EXPOSED_STATUSES },
+        experiment: { objective: { in: RECOVERY_OBJECTIVES } },
+        variant: { strategyType: { not: RetentionStrategyType.CONTROL } },
+        message: { status: { in: CONFIRMED_SENT_MESSAGE_STATUSES } },
+        outcome: { returned: true, returnedAt: { gte: from, lt: to } },
+      },
+    });
+  }
 }
 
 function emptyCounts(): FunnelCounts {

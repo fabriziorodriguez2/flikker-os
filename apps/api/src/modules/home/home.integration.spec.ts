@@ -27,6 +27,7 @@ import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { HomeService } from './home.service';
 import { PlansService } from '../plans/plans.service';
 import { PlansRepository } from '../plans/plans.repository';
+import { BenefitsRepository } from '../benefits/benefits.repository';
 
 /**
  * Inicio contra DB real.
@@ -71,6 +72,7 @@ describe('Inicio — portada (integration)', () => {
         HomeService,
         PlansService,
         PlansRepository,
+        BenefitsRepository,
         {
           provide: RetentionResultsOverviewService,
           useValue: { forBusiness: jest.fn().mockResolvedValue([]) },
@@ -227,6 +229,57 @@ describe('Inicio — portada (integration)', () => {
         segmentAtCreation: CustomerSegment.NEW,
       },
     });
+
+  /**
+   * Fase de Programa nuevo — un canje real SIEMPRE deja una
+   * `BenefitParticipation.redeemedAt`, tarjeta o no (ver
+   * `RedemptionService.closeRewardGoalIfRedeemed`, que sincroniza el
+   * `redeemedAt` de la tarjeta con el de la participación en el mismo
+   * momento). Por eso el fixture arma ambas filas juntas — un
+   * `CustomerRewardGoal.redeemedAt` sin su `BenefitParticipation` hermana no
+   * representa ningún canje real que el producto pueda producir. Compartido
+   * entre "programa" y "actividad reciente": las dos secciones necesitan el
+   * mismo canje real de tarjeta.
+   */
+  async function makeCardRedemption(
+    businessId: string,
+    definitionId: string,
+    benefitId: string,
+    customerId: string,
+    redeemedAt: Date = daysAgo(4),
+  ) {
+    // `REWARD_GOAL` — el mismo `source` real que escribe
+    // `RewardGoalIssuerService.issueForGoal` al desbloquear una tarjeta;
+    // es lo que distingue "canje" de "beneficio_canjeado" en Actividad.
+    const participation = await prisma.benefitParticipation.create({
+      data: {
+        benefitId,
+        businessId,
+        customerId,
+        source: BenefitIssuanceSource.REWARD_GOAL,
+        redemptionCode: `TEST${randomUUID().slice(0, 8)}`,
+        redeemedAt,
+      },
+    });
+    await prisma.customerRewardGoal.create({
+      data: {
+        id: randomUUID(),
+        businessId,
+        customerId,
+        incentiveDefinitionId: definitionId,
+        benefitParticipationId: participation.id,
+        status: RewardGoalStatus.REDEEMED,
+        startingVisitCount: 0,
+        targetAdditionalVisits: 5,
+        activatedAt: daysAgo(20),
+        unlockedAt: new Date(redeemedAt.getTime() - 86_400_000),
+        redeemedAt,
+        reasonCode: 'TEST',
+        segmentAtCreation: CustomerSegment.NEW,
+      },
+    });
+    return participation;
+  }
 
   // ── La regla central ────────────────────────────────────────────────────
 
@@ -596,52 +649,6 @@ describe('Inicio — portada (integration)', () => {
       });
     });
 
-    /**
-     * Fase de Programa nuevo — un canje real SIEMPRE deja una
-     * `BenefitParticipation.redeemedAt`, tarjeta o no (ver
-     * `RedemptionService.closeRewardGoalIfRedeemed`, que sincroniza el
-     * `redeemedAt` de la tarjeta con el de la participación en el mismo
-     * momento). Por eso el fixture arma ambas filas juntas — un
-     * `CustomerRewardGoal.redeemedAt` sin su `BenefitParticipation`
-     * hermana no representa ningún canje real que el producto pueda
-     * producir.
-     */
-    async function makeCardRedemption(
-      businessId: string,
-      definitionId: string,
-      benefitId: string,
-      customerId: string,
-    ) {
-      const participation = await prisma.benefitParticipation.create({
-        data: {
-          benefitId,
-          businessId,
-          customerId,
-          source: BenefitIssuanceSource.LEGACY,
-          redemptionCode: `TEST${randomUUID().slice(0, 8)}`,
-          redeemedAt: daysAgo(4),
-        },
-      });
-      await prisma.customerRewardGoal.create({
-        data: {
-          id: randomUUID(),
-          businessId,
-          customerId,
-          incentiveDefinitionId: definitionId,
-          benefitParticipationId: participation.id,
-          status: RewardGoalStatus.REDEEMED,
-          startingVisitCount: 0,
-          targetAdditionalVisits: 5,
-          activatedAt: daysAgo(20),
-          unlockedAt: daysAgo(5),
-          redeemedAt: daysAgo(4),
-          reasonCode: 'TEST',
-          segmentAtCreation: CustomerSegment.NEW,
-        },
-      });
-      return participation;
-    }
-
     it('cuenta los beneficios canjeados del período — de una tarjeta', async () => {
       const businessId = await makeBusiness();
       const definition = await addProgram(businessId, 'Café gratis');
@@ -711,11 +718,15 @@ describe('Inicio — portada (integration)', () => {
       const definition = await addProgram(businessId, 'Café gratis');
       const customer = await makeCustomer(businessId, 'Martina');
       await addVisit(businessId, customer.id, daysAgo(10));
-      await addGoal(
+      // Canje real de tarjeta: la MISMA fuente (`BenefitParticipation.
+      // redeemedAt`) que el KPI de "Beneficios canjeados" — nunca un
+      // `CustomerRewardGoal.redeemedAt` suelto, que el producto no puede
+      // producir por sí solo.
+      await makeCardRedemption(
         businessId,
-        customer.id,
         definition.id,
-        RewardGoalStatus.REDEEMED,
+        definition.benefitId!,
+        customer.id,
       );
 
       const { activity } = await home.overview(businessId);
@@ -733,6 +744,97 @@ describe('Inicio — portada (integration)', () => {
     it('sin actividad devuelve lista vacía', async () => {
       const businessId = await makeBusiness();
       expect((await home.overview(businessId)).activity).toEqual([]);
+    });
+
+    /**
+     * El bug real reportado: Inicio mostraba "0" en el KPI mientras
+     * Actividad reciente mostraba un canje genuino de "café gratis". Con la
+     * causa real (ventana de 30 días del KPI vs. actividad sin ventana,
+     * AMBAS ya leyendo `BenefitParticipation.redeemedAt` — nunca dos modelos
+     * distintos), este test reproduce exactamente ese caso: un canje de
+     * hace 40 días, único evento del negocio.
+     */
+    it('un canje de hace más de 30 días sigue apareciendo en Actividad aunque el KPI (ventana de 30 días) no lo cuente', async () => {
+      const businessId = await makeBusiness();
+      const definition = await addProgram(businessId, 'Café gratis');
+      const customer = await makeCustomer(businessId, 'Martina');
+      await makeCardRedemption(
+        businessId,
+        definition.id,
+        definition.benefitId!,
+        customer.id,
+        daysAgo(40),
+      );
+
+      const inicio = await home.overview(businessId);
+
+      expect(inicio.kpis.benefitsRedeemed).toBe(0);
+      expect(inicio.activity.map((e) => e.kind)).toContain('canje');
+      expect(inicio.activity.find((e) => e.kind === 'canje')?.rewardName).toBe(
+        'Café gratis',
+      );
+    });
+
+    /**
+     * La otra mitad del bug: antes, "canje" en Actividad leía
+     * `CustomerRewardGoal.redeemedAt` (un modelo DISTINTO al que usa el
+     * KPI). Ahora las dos leen `BenefitParticipation.redeemedAt` — mismo
+     * read-model, ver `BenefitsRepository.countRedeemed`/
+     * `findRecentRedemptions`. Un canje reciente tiene que contar en el KPI
+     * Y aparecer en Actividad al mismo tiempo, siempre.
+     */
+    it('un canje reciente cuenta en el KPI Y aparece en Actividad al mismo tiempo — mismo read-model', async () => {
+      const businessId = await makeBusiness();
+      const definition = await addProgram(businessId, 'Café gratis');
+      const customer = await makeCustomer(businessId, 'Martina');
+      await makeCardRedemption(
+        businessId,
+        definition.id,
+        definition.benefitId!,
+        customer.id,
+        daysAgo(1),
+      );
+
+      const inicio = await home.overview(businessId);
+
+      expect(inicio.kpis.benefitsRedeemed).toBe(1);
+      expect(inicio.activity.map((e) => e.kind)).toContain('canje');
+    });
+
+    /**
+     * Un beneficio canjeado SIN tarjeta (promoción/bienvenida/reactivación)
+     * también sale de `BenefitParticipation.redeemedAt` — mismo read-model,
+     * distinta etiqueta (`beneficio_canjeado`) solo porque `source` no es
+     * `REWARD_GOAL`.
+     */
+    it('un beneficio canjeado sin tarjeta aparece como "beneficio_canjeado", mismo read-model', async () => {
+      const businessId = await makeBusiness();
+      const benefit = await prisma.benefit.create({
+        data: {
+          businessId,
+          title: '10% descuento',
+          type: BenefitType.discount,
+          active: false,
+        },
+      });
+      const customer = await makeCustomer(businessId, 'Ana');
+      await prisma.benefitParticipation.create({
+        data: {
+          benefitId: benefit.id,
+          businessId,
+          customerId: customer.id,
+          source: BenefitIssuanceSource.PROMOTION,
+          redemptionCode: `TEST${randomUUID().slice(0, 8)}`,
+          redeemedAt: daysAgo(2),
+        },
+      });
+
+      const inicio = await home.overview(businessId);
+
+      expect(inicio.kpis.benefitsRedeemed).toBe(1);
+      expect(inicio.activity.map((e) => e.kind)).toContain(
+        'beneficio_canjeado',
+      );
     });
   });
 

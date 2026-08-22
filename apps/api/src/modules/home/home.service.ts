@@ -1,9 +1,14 @@
 import { Injectable } from '@nestjs/common';
-import { CustomerEventType, RewardGoalStatus } from '@prisma/client';
+import {
+  BenefitIssuanceSource,
+  CustomerEventType,
+  RewardGoalStatus,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CustomerLoyaltyService } from '../customers/loyalty/customer-loyalty.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReviewsOverviewService } from '../reviews/reviews-overview.service';
+import { BenefitsRepository } from '../benefits/benefits.repository';
 
 /**
  * Inicio — la portada del producto.
@@ -53,6 +58,7 @@ export class HomeService {
     private readonly loyalty: CustomerLoyaltyService,
     private readonly notifications: NotificationsService,
     private readonly reviews: ReviewsOverviewService,
+    private readonly benefits: BenefitsRepository,
   ) {}
 
   async overview(businessId: string, now: Date = new Date()) {
@@ -78,20 +84,12 @@ export class HomeService {
       this.reviews.forBusiness(businessId, 30, now),
       this.programState(businessId),
       this.recentActivity(businessId),
-      // Fase de Programa nuevo — un beneficio canjeado ya NO implica una
-      // tarjeta: retención automática, promociones manuales y tarjetas de
-      // sellos comparten el mismo camino de canje (`BenefitParticipation.
-      // redeemedAt` — ver `RedemptionService.closeRewardGoalIfRedeemed`,
-      // que sincroniza el redeemedAt de la tarjeta con el de acá en el
-      // mismo momento). Contar solo `CustomerRewardGoal` dejaba afuera todo
-      // lo que no viene de una tarjeta; contar los dos hubiera duplicado
-      // cada canje de tarjeta. Esta única cuenta cubre los tres orígenes
-      // sin duplicar ninguno.
-      this.prisma.benefitParticipation.count({
-        where: {
-          businessId,
-          redeemedAt: { gte: new Date(now.getTime() - 30 * MS_PER_DAY) },
-        },
+      // Semántica única de "Benefit canjeado" (ver `BenefitsRepository.
+      // countRedeemed`) — la misma que usan Insights y el funnel de
+      // Retención, para que Inicio nunca muestre un número distinto del
+      // resto del producto para el mismo negocio.
+      this.benefits.countRedeemed(businessId, {
+        from: new Date(now.getTime() - 30 * MS_PER_DAY),
       }),
       // Caso de borde real (§2 "Primeros pasos" / QR): en el flujo normal
       // esto nunca pasa (el onboarding crea la fuente principal en el paso
@@ -211,8 +209,7 @@ export class HomeService {
       tasks.push({
         id: 'personalizar-tarjeta',
         title: 'Personalizá tu tarjeta',
-        description:
-          'Elegí los colores y el sello que van a ver tus clientes.',
+        description: 'Elegí los colores y el sello que van a ver tus clientes.',
         href: '/dashboard/programa?tab=configuracion&section=diseno',
       });
     }
@@ -257,7 +254,8 @@ export class HomeService {
       tasks.push({
         id: 'primer-cliente',
         title: 'Conseguí tu primer cliente',
-        description: 'Compartí tu QR o probalo vos mismo para ver cómo funciona.',
+        description:
+          'Compartí tu QR o probalo vos mismo para ver cómo funciona.',
         href: '/dashboard/qr',
       });
     }
@@ -364,7 +362,7 @@ export class HomeService {
    * lo que `unlocked`/`redeemed` ya cuentan como "desbloqueo"/"canje".
    */
   private async recentActivity(businessId: string, limit = 8) {
-    const [visits, feedback, unlocked, redeemed, benefitReceived, benefitRedeemed] =
+    const [visits, feedback, unlocked, redeemed, benefitReceived] =
       await Promise.all([
         this.prisma.visit.findMany({
           where: { businessId },
@@ -397,17 +395,14 @@ export class HomeService {
             incentiveDefinition: { select: { name: true } },
           },
         }),
-        this.prisma.customerRewardGoal.findMany({
-          where: { businessId, redeemedAt: { not: null } },
-          orderBy: { redeemedAt: 'desc' },
-          take: limit,
-          select: {
-            id: true,
-            redeemedAt: true,
-            customer: { select: { id: true, name: true } },
-            incentiveDefinition: { select: { name: true } },
-          },
-        }),
+        // Semántica única de "Benefit canjeado" — misma fuente que el KPI
+        // de más arriba (`BenefitsRepository.countRedeemed`). Antes esto
+        // eran DOS queries separadas (`CustomerRewardGoal.redeemedAt` para
+        // tarjetas + `BenefitParticipation` para el resto), lo que dejaba
+        // la actividad leyendo un modelo distinto del que usa el KPI —
+        // exactamente el bug reportado (KPI en 0, actividad mostrando un
+        // canje real). Ahora es una sola consulta, para cualquier origen.
+        this.benefits.findRecentRedemptions(businessId, limit),
         // Beneficio recibido SIN tarjeta de por medio — reactivación
         // automática o promoción manual. `rewardGoal: null` es lo que evita
         // mostrar dos eventos ("desbloqueo" y "recibió un beneficio") para
@@ -419,18 +414,6 @@ export class HomeService {
           select: {
             id: true,
             createdAt: true,
-            benefitTitleSnapshot: true,
-            benefit: { select: { title: true } },
-            customer: { select: { id: true, name: true } },
-          },
-        }),
-        this.prisma.benefitParticipation.findMany({
-          where: { businessId, rewardGoal: null, redeemedAt: { not: null } },
-          orderBy: { redeemedAt: 'desc' },
-          take: limit,
-          select: {
-            id: true,
-            redeemedAt: true,
             benefitTitleSnapshot: true,
             benefit: { select: { title: true } },
             customer: { select: { id: true, name: true } },
@@ -460,24 +443,25 @@ export class HomeService {
         customer: g.customer,
         rewardName: g.incentiveDefinition.name,
       })),
-      ...redeemed.map((g) => ({
-        id: `redeem-${g.id}`,
-        at: g.redeemedAt!,
-        kind: 'canje' as const,
-        customer: g.customer,
-        rewardName: g.incentiveDefinition.name,
+      // Un solo mapeo para cualquier canje, sin importar el origen —
+      // `source === REWARD_GOAL` es lo único que decide si se etiqueta
+      // "canje" (tarjeta) o "beneficio_canjeado" (promoción/bienvenida/
+      // reactivación/sorteo); el evento y el número que representa son el
+      // mismo en los dos casos.
+      ...redeemed.map((p) => ({
+        id: `redeem-${p.id}`,
+        at: p.redeemedAt!,
+        kind:
+          p.source === BenefitIssuanceSource.REWARD_GOAL
+            ? ('canje' as const)
+            : ('beneficio_canjeado' as const),
+        customer: p.customer,
+        rewardName: p.benefitTitleSnapshot ?? p.benefit.title,
       })),
       ...benefitReceived.map((p) => ({
         id: `benefit-received-${p.id}`,
         at: p.createdAt,
         kind: 'beneficio_recibido' as const,
-        customer: p.customer,
-        rewardName: p.benefitTitleSnapshot ?? p.benefit.title,
-      })),
-      ...benefitRedeemed.map((p) => ({
-        id: `benefit-redeemed-${p.id}`,
-        at: p.redeemedAt!,
-        kind: 'beneficio_canjeado' as const,
         customer: p.customer,
         rewardName: p.benefitTitleSnapshot ?? p.benefit.title,
       })),

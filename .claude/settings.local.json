@@ -414,7 +414,20 @@
       "Bash(rm \"c:\\\\Users\\\\fabri\\\\OneDrive\\\\Desktop\\\\flikker system\\\\flikker-os\\\\apps\\\\api\\\\_tmp-find-business.ts\")",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest my-flikker.service.spec --runInBand)",
       "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest reward-goal-engine --runInBand)",
-      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest reward-goal-multi-visit --runInBand)"
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest reward-goal-multi-visit --runInBand)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx prisma migrate dev --name owner_lifecycle_emails --skip-seed)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/jobs src/modules/insights src/modules/retention-v2 --silent)",
+      "Bash(dir apps\\\\api\\\\src\\\\modules\\\\flikker-account)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx prisma db execute --file \"prisma/migrations/20260821120000_flikker_account_welcome_link_sent_at/migration.sql\")",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx prisma migrate resolve --applied 20260821120000_flikker_account_welcome_link_sent_at)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/checkin --silent)",
+      "Bash(pkill -f \"next dev --port 3099\")",
+      "Bash(powershell -NoProfile -Command 'Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -like '\\\\''*next dev --port 3099*'\\\\'' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }')",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" --max-time 2 http://localhost:3099/mi)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/notifications src/modules/retention-v2 src/modules/reward-goals src/modules/flikker-account src/modules/checkin src/modules/public src/modules/home src/modules/benefits src/modules/checkin-metrics --silent)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/notifications src/modules/retention-v2 --silent)",
+      "Bash(DATABASE_URL=\"postgresql://postgres:postgres@localhost:5432/flikker_os?schema=public\" npx jest src/modules/dashboard/dashboard-overview.integration.spec.ts --silent)",
+      "Bash(echo \"TSC=$?\")"
     ],
     "additionalDirectories": [
       "c:\\Users\\fabri\\OneDrive\\Desktop\\flikker system\\flikker-os\\apps\\web\\app\\(public)\\qr",

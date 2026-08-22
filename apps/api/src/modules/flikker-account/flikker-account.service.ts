@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   UnauthorizedException,
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -24,6 +25,8 @@ import {
  */
 @Injectable()
 export class FlikkerAccountService {
+  private readonly logger = new Logger(FlikkerAccountService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly verifications: FlikkerAccountVerificationsRepository,
@@ -69,6 +72,37 @@ export class FlikkerAccountService {
 
     const session = await this.sessions.issue(account.id, userAgent);
     return { ...session, flikkerAccountId: account.id };
+  }
+
+  /**
+   * Mensaje de bienvenida a "Mi Flikker" — una sola vez por cuenta/teléfono,
+   * para siempre, sin importar en cuántos negocios distintos se registre
+   * después. Se llama desde el registro de check-in (primer registro en
+   * CUALQUIER negocio); `getOrCreateAccount` es seguro de llamar sin OTP —
+   * solo resuelve/crea la fila por teléfono, no vincula ningún `Customer`
+   * (eso sigue exigiendo OTP, ver `verifyAndIssueSession`).
+   *
+   * El `updateMany` guardado por `welcomeLinkSentAt: null` es el reclamo
+   * atómico real — mismo idioma que `RewardGoalUnlockService`: solo quien
+   * gana la carrera (un negocio distinto, un reintento) manda el mensaje.
+   * Best-effort: nunca tira hacia el caller (registro de check-in).
+   */
+  async sendWelcomeLinkOnce(phoneE164: string): Promise<void> {
+    try {
+      const account = await this.getOrCreateAccount(phoneE164);
+      const claimed = await this.prisma.flikkerAccount.updateMany({
+        where: { id: account.id, welcomeLinkSentAt: null },
+        data: { welcomeLinkSentAt: new Date() },
+      });
+      if (claimed.count === 0) return; // ya se mandó antes — otro negocio, o un reintento
+      await this.messaging.sendMiFlikkerWelcome(phoneE164);
+    } catch (error) {
+      this.logger.warn(
+        `Mi Flikker welcome-link claim failed for ${phoneE164}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   async resolveSession(rawToken: string | undefined) {

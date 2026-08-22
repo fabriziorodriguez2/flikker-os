@@ -10,6 +10,7 @@ import { ChatbotController } from './chatbot.controller';
 import { InsightsRepository } from './insights.repository';
 import { InsightsService } from './insights.service';
 import { BusinessInsightSummaryService } from './business-insight-summary.service';
+import { OwnerLifecycleAiSummaryService } from './owner-lifecycle-ai-summary.service';
 import { ChatbotService } from './chatbot.service';
 
 /**
@@ -34,6 +35,7 @@ import { ChatbotService } from './chatbot.service';
     InsightsRepository,
     InsightsService,
     BusinessInsightSummaryService,
+    OwnerLifecycleAiSummaryService,
     ChatbotService,
   ],
   exports: [InsightsService],

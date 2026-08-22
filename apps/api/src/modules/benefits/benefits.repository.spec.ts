@@ -620,3 +620,47 @@ describe('BenefitsRepository.findAvailableParticipations — vencimiento', () =>
     );
   });
 });
+
+describe('BenefitsRepository.countRedeemed / findRecentRedemptions — semántica única de "Benefit canjeado"', () => {
+  it('countRedeemed sin `from` cuenta TODO el historial, sin filtro de source', async () => {
+    const count = jest.fn().mockResolvedValue(3);
+    const prisma = { benefitParticipation: { count } };
+    const repo = new BenefitsRepository(prisma as never);
+
+    const result = await repo.countRedeemed('biz-1');
+
+    expect(result).toBe(3);
+    expect(count).toHaveBeenCalledWith({
+      where: { businessId: 'biz-1', redeemedAt: { not: null } },
+    });
+  });
+
+  it('countRedeemed con `from` aplica la ventana pedida, mismo modelo', async () => {
+    const count = jest.fn().mockResolvedValue(1);
+    const prisma = { benefitParticipation: { count } };
+    const repo = new BenefitsRepository(prisma as never);
+    const from = new Date('2026-07-22T00:00:00.000Z');
+
+    await repo.countRedeemed('biz-1', { from });
+
+    expect(count).toHaveBeenCalledWith({
+      where: { businessId: 'biz-1', redeemedAt: { gte: from } },
+    });
+  });
+
+  it('findRecentRedemptions escopea por businessId, cualquier redeemedAt no nulo, orden desc, sin filtro de source', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const prisma = { benefitParticipation: { findMany } };
+    const repo = new BenefitsRepository(prisma as never);
+
+    await repo.findRecentRedemptions('biz-1', 8);
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { businessId: 'biz-1', redeemedAt: { not: null } },
+        orderBy: { redeemedAt: 'desc' },
+        take: 8,
+      }),
+    );
+  });
+});

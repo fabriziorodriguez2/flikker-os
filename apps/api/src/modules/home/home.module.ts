@@ -3,6 +3,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { CustomersModule } from '../customers/customers.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { ReviewsModule } from '../reviews/reviews.module';
+import { BenefitsModule } from '../benefits/benefits.module';
 import { HomeController } from './home.controller';
 import { HomeService } from './home.service';
 
@@ -11,7 +12,13 @@ import { HomeService } from './home.service';
  * números de la portada sean literalmente los mismos que los de su sección.
  */
 @Module({
-  imports: [PrismaModule, CustomersModule, NotificationsModule, ReviewsModule],
+  imports: [
+    PrismaModule,
+    CustomersModule,
+    NotificationsModule,
+    ReviewsModule,
+    BenefitsModule,
+  ],
   controllers: [HomeController],
   providers: [HomeService],
 })

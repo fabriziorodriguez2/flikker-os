@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { MessageStatus, VisitAttributionType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { BenefitsRepository } from '../benefits/benefits.repository';
 import {
   averageDays,
   buildRecommendations,
@@ -16,7 +17,10 @@ const SENT_STATUSES: MessageStatus[] = [
 
 @Injectable()
 export class CheckinMetricsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly benefits: BenefitsRepository,
+  ) {}
 
   /**
    * Retention overview for the panel. Metric names are deliberately distinct so
@@ -140,9 +144,10 @@ export class CheckinMetricsService {
         this.prisma.message.count({
           where: { businessId, clickedAt: { not: null } },
         }),
-        this.prisma.benefitParticipation.count({
-          where: { businessId, redeemedAt: { not: null } },
-        }),
+        // Semántica única de "Benefit canjeado" — misma fuente que Inicio e
+        // Insights (`BenefitsRepository.countRedeemed`), sin ventana (todo
+        // el historial), igual que antes.
+        this.benefits.countRedeemed(businessId),
       ]);
 
     return {
