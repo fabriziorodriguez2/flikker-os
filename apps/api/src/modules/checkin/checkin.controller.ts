@@ -14,6 +14,7 @@ import {
   ClientEventDto,
   RecoverStartDto,
   RecoverVerifyDto,
+  CheckinDto,
   RegisterDto,
   SubmitCheckinFeedbackDto,
 } from './dto/checkin.dto';
@@ -67,18 +68,25 @@ export class CheckinController {
   ) {
     return this.service.register(
       token,
-      { name: dto.name, phone: dto.phone, birthdate: dto.birthdate },
+      {
+        name: dto.name,
+        phone: dto.phone,
+        birthdate: dto.birthdate,
+        presenceCode: dto.presenceCode,
+      },
       userAgent,
     );
   }
 
   @Post(':token/checkin')
   @HttpCode(200)
+  @UseGuards(ThrottlerGuard)
   checkin(
     @Param('token') token: string,
+    @Body() dto: CheckinDto,
     @Headers('x-flikker-session') session?: string,
   ) {
-    return this.service.checkin(token, session);
+    return this.service.checkin(token, session, dto?.presenceCode);
   }
 
   @Post(':token/recover/start')
@@ -96,7 +104,13 @@ export class CheckinController {
     @Body() dto: RecoverVerifyDto,
     @Headers('user-agent') userAgent?: string,
   ) {
-    return this.service.recoverVerify(token, dto.phone, dto.code, userAgent);
+    return this.service.recoverVerify(
+      token,
+      dto.phone,
+      dto.code,
+      userAgent,
+      dto.presenceCode,
+    );
   }
 
   @Post(':token/event')

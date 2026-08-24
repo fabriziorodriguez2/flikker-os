@@ -34,6 +34,16 @@ interface Overview {
     placeReviewsUri: string | null;
     /** Cuándo se conectó el Place actual — `null` para conexiones viejas. */
     connectedAt: string | null;
+    /**
+     * Importación histórica completa de Google, en background. Opcional
+     * defensivamente: una respuesta vieja en caché no debe romper la
+     * pantalla, simplemente no muestra el aviso.
+     */
+    historySync?: {
+      status: "idle" | "running" | "done";
+      startedAt: string | null;
+      completedAt: string | null;
+    };
   };
   summary: {
     rating: number | null;
@@ -82,6 +92,17 @@ export default function ReviewsClient({
   useEffect(() => {
     void load(days);
   }, [days, load]);
+
+  // El backfill histórico corre en background (no bloquea esta pantalla), así
+  // que mientras dice "Sincronizando historial…" hay que volver a preguntar:
+  // sin esto el dueño vería el total parcial hasta recargar a mano. Se apaga
+  // solo cuando el backend deja de reportar `running`.
+  const historyRunning = data?.google.historySync?.status === "running";
+  useEffect(() => {
+    if (!historyRunning) return;
+    const timer = window.setInterval(() => void load(days), 15_000);
+    return () => window.clearInterval(timer);
+  }, [historyRunning, days, load]);
 
   /** Reusa el mecanismo que ya existe: la URL vive en el perfil del negocio. */
   async function saveGoogleUrl() {
@@ -256,6 +277,14 @@ export default function ReviewsClient({
               ))}
             </div>
           </div>
+
+          {google.historySync?.status === "running" ? (
+            <p className="flex items-center gap-2 rounded-[12px] border border-[#DDE1F5] bg-[#F4F5FD] px-4 py-3 text-sm text-[#4A56A6]">
+              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+              Sincronizando historial de Google… Los totales se completan solos
+              a medida que llegan las reseñas.
+            </p>
+          ) : null}
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
             <Kpi

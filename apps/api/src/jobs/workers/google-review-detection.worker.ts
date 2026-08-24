@@ -4,7 +4,7 @@ import {
   OnModuleDestroy,
   OnModuleInit,
 } from '@nestjs/common';
-import { MessageStatus } from '@prisma/client';
+import { MessageStatus, Prisma } from '@prisma/client';
 import { Job, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -111,6 +111,11 @@ export class GoogleReviewDetectionWorker
       `[initial-review-scrape] Iniciando para businessId: ${businessId}${full ? ' (backfill completo)' : ''}`,
     );
 
+    // "Sincronizando historial…" arranca acá para el caso en que el job se
+    // haya encolado desde otro lado (Platform Admin) sin marcar el inicio.
+    // Best-effort: el estado de una pantalla nunca frena la importación.
+    if (full) await this.markBackfillStarted(businessId);
+
     let created = 0;
 
     try {
@@ -156,7 +161,14 @@ export class GoogleReviewDetectionWorker
       try {
         await this.prisma.business.update({
           where: { id: businessId },
-          data: { googleReviewsLastSyncAt: new Date() },
+          data: {
+            googleReviewsLastSyncAt: new Date(),
+            // El backfill se cierra pase lo que pase — también si falló.
+            // Dejarlo "corriendo" para siempre sería peor que decir que
+            // terminó: la pantalla deja de esperar y el detalle de qué se
+            // importó ya quedó en el log de arriba.
+            ...(full ? { googleReviewsBackfillCompletedAt: new Date() } : {}),
+          },
           select: { id: true },
         });
       } catch (error) {
@@ -167,6 +179,26 @@ export class GoogleReviewDetectionWorker
           error instanceof Error ? error.stack : undefined,
         );
       }
+    }
+  }
+
+  /** Best-effort: el estado de la pantalla nunca hace fallar la importación. */
+  private async markBackfillStarted(businessId: string) {
+    try {
+      await this.prisma.business.update({
+        where: { id: businessId },
+        data: {
+          googleReviewsBackfillStartedAt: new Date(),
+          googleReviewsBackfillCompletedAt: null,
+        },
+        select: { id: true },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `[initial-review-scrape] No se pudo marcar el inicio del backfill para ${businessId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     }
   }
 
@@ -213,18 +245,34 @@ export class GoogleReviewDetectionWorker
         review,
       );
 
-      await this.prisma.googleReview.create({
-        data: {
-          businessId,
-          googleReviewId: review.googleReviewId,
-          reviewerName: review.reviewerName,
-          stars: review.stars,
-          text: review.text,
-          postedAt: review.postedAt,
-          attributedMessageId,
-        },
-      });
-      created += 1;
+      try {
+        await this.prisma.googleReview.create({
+          data: {
+            businessId,
+            googleReviewId: review.googleReviewId,
+            reviewerName: review.reviewerName,
+            stars: review.stars,
+            text: review.text,
+            postedAt: review.postedAt,
+            attributedMessageId,
+          },
+        });
+        created += 1;
+      } catch (error) {
+        // Idempotencia real: el pre-filtro de arriba evita el trabajo, pero
+        // no es una garantía — el backfill completo y la corrida diaria
+        // pueden solaparse y leer "no existe" a la vez. La única garantía es
+        // el índice único (businessId, googleReviewId); un choque significa
+        // que la reseña ya está guardada, no un error que deba abortar la
+        // importación de las que faltan.
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          error.code === 'P2002'
+        ) {
+          continue;
+        }
+        throw error;
+      }
     }
 
     return created;

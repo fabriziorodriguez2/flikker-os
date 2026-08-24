@@ -9,6 +9,7 @@ import {
   BenefitIssuanceSource,
   BenefitType,
   Business,
+  CheckinPresenceMode,
   CustomerEventType,
   VisitVerificationType,
 } from '@prisma/client';
@@ -25,6 +26,7 @@ import { isCheckinV2 } from '../../common/experience/experience.util';
 import { RewardGoalOrchestratorService } from '../reward-goals/reward-goal-orchestrator.service';
 import { RewardGoalFeedbackService } from '../reward-goals/reward-goal-feedback.service';
 import { FlikkerAccountService } from '../flikker-account/flikker-account.service';
+import { PresenceChallengeService } from './presence-challenge.service';
 
 // Client-emittable timeline events (whitelist — never trust an arbitrary type).
 const CLIENT_EVENTS: Record<string, CustomerEventType> = {
@@ -58,6 +60,7 @@ type BusinessForCheckin = Pick<
   | 'checkinWelcomeMessage'
   | 'welcomeBenefitId'
   | 'checkinBackgroundColor'
+  | 'checkinPresenceMode'
 >;
 
 @Injectable()
@@ -74,6 +77,7 @@ export class CheckinService {
     private readonly rewardGoals: RewardGoalOrchestratorService,
     private readonly rewardGoalFeedback: RewardGoalFeedbackService,
     private readonly flikkerAccount: FlikkerAccountService,
+    private readonly presence: PresenceChallengeService,
   ) {}
 
   // ── Landing (GET) ──────────────────────────────────────────────────────────
@@ -97,6 +101,11 @@ export class CheckinService {
       // el subtítulo/botón de esta misma pantalla y el mensaje de WhatsApp
       // post-registro, y pisarlo rompería esas otras dos decisiones.
       welcomeMessage: business.checkinWelcomeMessage ?? null,
+      // La pantalla necesita saber si tiene que pedir el código del local
+      // ANTES de enviar. Nunca viaja el código en sí: eso lo entregaría a
+      // cualquiera que abra el link desde su casa, que es justo lo que este
+      // mecanismo evita.
+      presence: this.presenceRequirement(business),
     };
   }
 
@@ -104,10 +113,21 @@ export class CheckinService {
 
   async register(
     token: string,
-    input: { name: string; phone: string; birthdate?: string },
+    input: {
+      name: string;
+      phone: string;
+      birthdate?: string;
+      presenceCode?: string;
+    },
     userAgent?: string | null,
   ) {
     const { source, business } = await this.resolveSource(token);
+    // Antes de crear NADA (cliente, visita, sesión): sin prueba de presencia
+    // este registro no existe.
+    const presenceChallengeId = this.requirePresence(
+      business,
+      input.presenceCode,
+    );
 
     let phoneE164: string;
     try {
@@ -160,6 +180,7 @@ export class CheckinService {
       minHoursBetweenVisits: business.checkinMinHoursBetweenVisits,
       maxVisitsPerDay: business.checkinMaxVisitsPerDay,
       attribute: false,
+      presenceChallengeId,
     });
     const visitId = result.created ? result.visit.id : null;
 
@@ -232,9 +253,19 @@ export class CheckinService {
 
   // ── Return visit (checkin) — recognized via persistent session ───────────────
 
-  async checkin(token: string, sessionRawToken: string | undefined) {
+  async checkin(
+    token: string,
+    sessionRawToken: string | undefined,
+    presenceCode?: string,
+  ) {
     const { source, business } = await this.resolveSource(token);
     const session = await this.requireSession(sessionRawToken, business.id);
+
+    // Este es EL camino que un link guardado en casa reproduce: token
+    // estático en la URL + cookie de sesión de larga vida. La prueba de
+    // presencia es lo único que hace que abrirlo mañana desde afuera no
+    // acredite una visita nueva.
+    const presenceChallengeId = this.requirePresence(business, presenceCode);
 
     const customer = await this.getCustomerOrThrow(
       business.id,
@@ -250,6 +281,7 @@ export class CheckinService {
       minHoursBetweenVisits: business.checkinMinHoursBetweenVisits,
       maxVisitsPerDay: business.checkinMaxVisitsPerDay,
       attribute: true,
+      presenceChallengeId,
     });
 
     await this.events.emit({
@@ -386,8 +418,12 @@ export class CheckinService {
     phone: string,
     code: string,
     userAgent?: string | null,
+    presenceCode?: string,
   ) {
     const { source, business } = await this.resolveSource(token);
+    // Recuperar el perfil también crea una `Visit`, así que es una tercera
+    // puerta al mismo hecho y necesita la misma prueba.
+    const presenceChallengeId = this.requirePresence(business, presenceCode);
 
     let phoneE164: string;
     try {
@@ -421,6 +457,7 @@ export class CheckinService {
       minHoursBetweenVisits: business.checkinMinHoursBetweenVisits,
       maxVisitsPerDay: business.checkinMaxVisitsPerDay,
       attribute: true,
+      presenceChallengeId,
     });
 
     await this.events.emit({
@@ -537,12 +574,50 @@ export class CheckinService {
         checkinWelcomeMessage: true,
         welcomeBenefitId: true,
         checkinBackgroundColor: true,
+        checkinPresenceMode: true,
       },
     });
     if (!business || !isCheckinV2(business)) {
       throw new NotFoundException('Negocio no disponible');
     }
     return business;
+  }
+
+  /**
+   * Puerta única de prueba de presencia. Todo camino que pueda CREAR una
+   * `Visit` pasa por acá — registro, check-in reconocido y recuperación por
+   * WhatsApp. Si faltara en uno solo, ese sería el camino que un link
+   * guardado usaría, y las otras dos puertas no servirían de nada.
+   *
+   * Negocio en `off` (todos, hasta que su dueño lo prenda): devuelve `null`
+   * y nada cambia respecto de hoy.
+   */
+  private requirePresence(
+    business: BusinessForCheckin,
+    presenceCode: string | undefined,
+  ): string | null {
+    if (!this.presence.isRequired(business)) return null;
+
+    const challenge = this.presence.verify(business.id, presenceCode);
+    if (!challenge) {
+      // Mismo mensaje para "no mandaste código", "código viejo" y "código
+      // inventado": distinguirlos le diría a alguien que está probando
+      // desde su casa cuál de las tres cosas le falta.
+      throw new BadRequestException({
+        code: 'presence_required',
+        message:
+          'Pedí el código que se muestra en el local para registrar tu visita.',
+      });
+    }
+    return challenge.challengeId;
+  }
+
+  /** ¿La pantalla pública tiene que pedir el código antes de enviar? */
+  private presenceRequirement(business: BusinessForCheckin) {
+    return {
+      required: this.presence.isRequired(business),
+      mode: business.checkinPresenceMode ?? CheckinPresenceMode.off,
+    };
   }
 
   private async getCustomerOrThrow(businessId: string, customerId: string) {

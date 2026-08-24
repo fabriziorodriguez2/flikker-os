@@ -8,6 +8,8 @@ import { RetentionV2Module } from '../retention-v2/retention-v2.module';
 import { FlikkerAccountModule } from '../flikker-account/flikker-account.module';
 import { CheckinController } from './checkin.controller';
 import { CheckinService } from './checkin.service';
+import { CheckinPresenceController } from './presence.controller';
+import { PresenceChallengeService } from './presence-challenge.service';
 import { RedemptionController } from './redemption.controller';
 import { RedemptionService } from './redemption.service';
 import { VisitsRepository } from './visits.repository';
@@ -25,9 +27,14 @@ import { CustomerEventsRepository } from './customer-events.repository';
     RetentionV2Module,
     FlikkerAccountModule,
   ],
-  controllers: [CheckinController, RedemptionController],
+  controllers: [
+    CheckinController,
+    CheckinPresenceController,
+    RedemptionController,
+  ],
   providers: [
     CheckinService,
+    PresenceChallengeService,
     RedemptionService,
     VisitsRepository,
     CustomerSessionsRepository,

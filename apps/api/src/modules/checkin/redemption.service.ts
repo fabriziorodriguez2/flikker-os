@@ -141,6 +141,18 @@ export class RedemptionService {
       throw new ConflictException('Este código venció');
     }
 
+    // Cerrar la tarjeta va INMEDIATAMENTE después de consumir el código, no
+    // al final. Antes iba último, después de registrar la visita, adjuntarla
+    // y emitir el evento: si cualquiera de esos tres pasos fallaba, la
+    // participación quedaba canjeada y la goal en UNLOCKED para siempre.
+    // `BenefitsRepository.countRedeemed` (Inicio, Insights, funnel) lee la
+    // participación y `CustomerRewardGoal.redeemedAt` sigue siendo la promesa
+    // de esa tarjeta puntual: las dos tienen que quedar de acuerdo o las
+    // pantallas que leen una u otra muestran cosas distintas del mismo canje.
+    // Ahora se ponen de acuerdo primero y todo lo demás queda después, donde
+    // un fallo ya no puede dejar el canje a medias.
+    await this.closeRewardGoalIfRedeemed(consumed.participationId);
+
     const visit = await this.visits.registerRedemptionVisit({
       businessId: consumed.businessId,
       customerId: consumed.customerId,
@@ -157,8 +169,6 @@ export class RedemptionService {
       visitId: visit.id,
       metadata: { benefitId: consumed.benefitId },
     });
-
-    await this.closeRewardGoalIfRedeemed(consumed.participationId);
 
     return {
       ok: true as const,

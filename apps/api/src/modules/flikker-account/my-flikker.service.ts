@@ -9,6 +9,8 @@ export interface MyFlikkerPlace {
   businessName: string;
   logoUrl: string | null;
   primaryColor: string | null;
+  /** Color de la experiencia pública (Programa → Página de inscripción). */
+  checkinBackgroundColor: string | null;
   loyaltyCardColor: string | null;
   loyaltyCardTextColor: string | null;
   loyaltyCardBackgroundImage: string | null;
@@ -80,6 +82,9 @@ export class MyFlikkerService {
             name: true,
             logoUrl: true,
             primaryColor: true,
+            // Mismo color que el recorrido de check-in: Mi Flikker es su
+            // continuación, no una pantalla aparte de Flikker.
+            checkinBackgroundColor: true,
             loyaltyCardColor: true,
             loyaltyCardTextColor: true,
             loyaltyCardBackgroundImage: true,
@@ -118,6 +123,9 @@ export class MyFlikkerService {
             name: true,
             logoUrl: true,
             primaryColor: true,
+            // Mismo color que el recorrido de check-in: Mi Flikker es su
+            // continuación, no una pantalla aparte de Flikker.
+            checkinBackgroundColor: true,
             loyaltyCardColor: true,
             loyaltyCardTextColor: true,
             loyaltyCardBackgroundImage: true,
@@ -151,6 +159,7 @@ export class MyFlikkerService {
       name: string;
       logoUrl: string | null;
       primaryColor: string | null;
+      checkinBackgroundColor: string | null;
       loyaltyCardColor: string | null;
       loyaltyCardTextColor: string | null;
       loyaltyCardBackgroundImage: string | null;
@@ -215,6 +224,7 @@ export class MyFlikkerService {
       businessName: business.name,
       logoUrl: business.logoUrl,
       primaryColor: business.primaryColor,
+      checkinBackgroundColor: business.checkinBackgroundColor,
       loyaltyCardColor: business.loyaltyCardColor,
       loyaltyCardTextColor: business.loyaltyCardTextColor,
       loyaltyCardBackgroundImage: business.loyaltyCardBackgroundImage,

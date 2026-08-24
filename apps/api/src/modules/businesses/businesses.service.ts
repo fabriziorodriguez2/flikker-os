@@ -109,6 +109,12 @@ export class BusinessesService {
       // Ancla de "reseñas desde que usás Flikker" — se pisa en cada
       // reconexión, siempre habla del Place conectado ahora.
       googlePlaceConnectedAt: new Date(),
+      // "Sincronizando historial…" se marca ACÁ y no en el worker para que
+      // aparezca apenas el dueño conecta, incluso si el worker todavía no
+      // tomó el job — o si Redis no está configurado y nunca lo toma, en
+      // cuyo caso el estado queda visible en vez de mentir "listo".
+      googleReviewsBackfillStartedAt: new Date(),
+      googleReviewsBackfillCompletedAt: null,
     });
 
     // Pedido explícito: al conectar, traer el histórico DISPONIBLE completo
@@ -286,6 +292,8 @@ export class BusinessesService {
         googleBusinessProfileUrl: googleReviewUrl,
         defaultReviewRedirectUrl: googleReviewUrl,
         googleReviewsLastSyncAt: null,
+        googleReviewsBackfillStartedAt: new Date(),
+        googleReviewsBackfillCompletedAt: null,
       });
 
       // Mismo criterio que `connectGooglePlace`: al conectar/verificar, traer

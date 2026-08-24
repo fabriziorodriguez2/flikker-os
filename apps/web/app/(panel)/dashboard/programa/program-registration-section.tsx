@@ -97,7 +97,7 @@ export default function ProgramRegistrationSection({
         <ProgramSectionHeading
           icon={UserPlus}
           title="Página de inscripción"
-          description="Lo primero que ve un cliente nuevo al escanear tu QR, antes de dejar sus datos."
+          description="Lo primero que ve un cliente nuevo al escanear tu QR. El color se aplica a todo el recorrido: registro, check-in, tarjeta de sellos, beneficios y Mi Flikker."
         />
 
         <div className="mt-5 space-y-5">
@@ -122,7 +122,7 @@ export default function ProgramRegistrationSection({
 
           <div>
             <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-              Color de fondo
+              Color de la experiencia
             </span>
             <div className="mt-2 flex min-h-12 items-center justify-between gap-3 rounded-[10px] border border-[#E8EAF0] bg-white px-3 py-2">
               <label
@@ -173,7 +173,8 @@ export default function ProgramRegistrationSection({
             </div>
             <p className="mt-1 text-xs text-[#8891A4]">
               Tocá el círculo para elegir un color. En automático se usa la
-              paleta de tu marca.
+              paleta de tu marca. Los textos y botones ajustan su contraste
+              solos, así que ningún color deja la pantalla ilegible.
             </p>
           </div>
         </div>

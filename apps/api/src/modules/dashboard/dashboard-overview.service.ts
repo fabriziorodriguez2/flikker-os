@@ -3,6 +3,7 @@ import { ExperienceVersion, RewardGoalStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { isCheckinV2 } from '../../common/experience/experience.util';
 import { MetricsService } from '../metrics/metrics.service';
+import { BenefitsRepository } from '../benefits/benefits.repository';
 import { ReviewsRepository } from '../reviews/reviews.repository';
 import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
 import { RetentionResultsOverviewService } from '../retention-v2/retention-results-overview.service';
@@ -31,6 +32,7 @@ export class DashboardOverviewService {
     private readonly reviews: ReviewsRepository,
     private readonly retentionSettings: RetentionSettingsService,
     private readonly retentionOverview: RetentionResultsOverviewService,
+    private readonly benefits: BenefitsRepository,
   ) {}
 
   async getOverview(businessId: string, query: DashboardOverviewQuery) {
@@ -434,17 +436,9 @@ export class DashboardOverviewService {
         take,
         select: { id: true, postedAt: true, reviewerName: true, stars: true },
       }),
-      this.prisma.benefitParticipation.findMany({
-        where: { businessId, redeemedAt: { not: null } },
-        orderBy: { redeemedAt: 'desc' },
-        take,
-        select: {
-          id: true,
-          redeemedAt: true,
-          benefit: { select: { title: true } },
-          customer: { select: { name: true } },
-        },
-      }),
+      // Misma fuente que Inicio, Insights y el funnel de Retención — este
+      // dashboard ya no arma su propia query de canjes.
+      this.benefits.findRecentRedemptions(businessId, take),
       this.prisma.campaignExecution.findMany({
         where: { businessId, sentAt: { not: null } },
         orderBy: { sentAt: 'desc' },
@@ -560,7 +554,9 @@ export class DashboardOverviewService {
       ...benefitRedemptions.map((p) => ({
         id: `redemption-${p.id}`,
         type: 'benefit_redeemed',
-        title: `Beneficio "${p.benefit.title}" usado`,
+        // El título prometido en el momento, no el del catálogo de hoy:
+        // renombrar un beneficio no debe reescribir el historial.
+        title: `Beneficio "${p.benefitTitleSnapshot ?? p.benefit.title}" usado`,
         subtitle: p.customer?.name ?? null,
         occurredAt: p.redeemedAt as Date,
       })),

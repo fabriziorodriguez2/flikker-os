@@ -34,6 +34,13 @@ export interface RegisterVisitInput {
   maxVisitsPerDay: number;
   /** Run campaign attribution (only meaningful for return visits). */
   attribute: boolean;
+  /**
+   * Identidad de la ventana de presencia que acreditó esta visita, cuando el
+   * negocio exige prueba de presencia. Se persiste y su índice único es el
+   * anti-replay real: reusar el mismo desafío no puede crear una segunda
+   * visita. `undefined`/`null` = negocio en `off` (comportamiento actual).
+   */
+  presenceChallengeId?: string | null;
   now?: Date;
   /** Forced attribution (e.g. a confirmed benefit redemption in phase 3). */
   forced?: {
@@ -47,7 +54,7 @@ export type RegisterVisitResult =
   | { created: true; visit: Visit; isReturn: boolean }
   | {
       created: false;
-      reason: 'min_hours' | 'max_per_day';
+      reason: 'min_hours' | 'max_per_day' | 'presence_replay';
       lastVisitAt: Date | null;
     };
 
@@ -105,6 +112,29 @@ export class VisitsRepository {
         };
       }
 
+      // Anti-replay de la prueba de presencia. La garantía dura es el índice
+      // único `(businessId, customerId, presenceChallengeId)`; este chequeo
+      // adentro del advisory lock existe para devolver un motivo entendible
+      // en vez de un P2002 crudo. Los dos hacen falta: el índice es lo que
+      // sostiene la invariante, esto es lo que la explica.
+      if (input.presenceChallengeId) {
+        const alreadyUsed = await tx.visit.findFirst({
+          where: {
+            businessId: input.businessId,
+            customerId: input.customerId,
+            presenceChallengeId: input.presenceChallengeId,
+          },
+          select: { id: true },
+        });
+        if (alreadyUsed) {
+          return {
+            created: false,
+            reason: 'presence_replay' as const,
+            lastVisitAt: lastVisit?.occurredAt ?? null,
+          };
+        }
+      }
+
       const isReturn = priorCount > 0;
       const attribution = await this.resolveVisitAttribution(
         tx,
@@ -125,6 +155,7 @@ export class VisitsRepository {
           verificationType: input.verificationType,
           attributionType: attribution.attributionType,
           isReturn,
+          presenceChallengeId: input.presenceChallengeId ?? null,
         },
       });
 

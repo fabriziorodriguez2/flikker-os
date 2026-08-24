@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Gift, Loader2 } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
+import { buildPublicExperienceTheme } from "@/lib/public-experience-theme";
 import LoyaltyCard from "@/components/public/loyalty-card";
 import RedemptionReveal from "@/components/public/redemption-reveal";
 
@@ -22,6 +23,8 @@ interface MyFlikkerPlace {
   loyaltyStampBackgroundPattern?: string | null;
   loyaltyStampBackgroundOpacity?: number | null;
   primaryColor: string | null;
+  /** Color de la experiencia pública del negocio — el mismo del check-in. */
+  checkinBackgroundColor?: string | null;
   visitsTotal: number;
   lastVisitAt: string | null;
   rewardGoal: {
@@ -126,7 +129,7 @@ export default function PlaceDetailClient({
   const brand = palette.primary;
 
   return (
-    <Shell brand={brand}>
+    <Shell brand={brand} backgroundColor={place.checkinBackgroundColor}>
       <Link
         href="/mi-flikker"
         className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-2 text-xs font-semibold text-[#5F6375] shadow-sm transition-colors hover:bg-white"
@@ -273,19 +276,44 @@ function GiftReveal({
   );
 }
 
+/**
+ * El detalle del negocio en Mi Flikker es la continuación del recorrido que
+ * arrancó en el QR, así que usa el MISMO color de experiencia pública
+ * (`checkinBackgroundColor`) que el check-in — antes volvía al fondo
+ * genérico de Flikker en cuanto el cliente salía de la pantalla de registro.
+ * Sin color configurado se conserva el fondo claro de siempre: ningún
+ * negocio que no tocó nada cambia de aspecto.
+ */
 function Shell({
   children,
   brand = "#5C6BC0",
+  backgroundColor,
 }: {
   children: React.ReactNode;
   brand?: string;
+  backgroundColor?: string | null;
 }) {
+  const theme = buildPublicExperienceTheme(backgroundColor, brand);
+
   return (
     <div
-      className="flex min-h-screen flex-col items-center bg-[#F5F6FB] px-5 py-8"
-      style={{
-        backgroundImage: `radial-gradient(circle at 90% 0%, color-mix(in srgb, ${brand} 20%, transparent), transparent 38%), linear-gradient(160deg, #FAFAFE 0%, #F1F2F8 100%)`,
-      }}
+      className="flex min-h-screen flex-col items-center px-5 py-8"
+      style={
+        backgroundColor
+          ? ({
+              ...theme.background,
+              color: theme.text,
+              "--pub-text": theme.text,
+              "--pub-text-muted": theme.textMuted,
+              "--pub-text-soft": theme.textSoft,
+              "--pub-surface": theme.surface,
+              "--pub-surface-border": theme.surfaceBorder,
+            } as React.CSSProperties)
+          : {
+              backgroundColor: "#F5F6FB",
+              backgroundImage: `radial-gradient(circle at 90% 0%, color-mix(in srgb, ${brand} 20%, transparent), transparent 38%), linear-gradient(160deg, #FAFAFE 0%, #F1F2F8 100%)`,
+            }
+      }
     >
       <div className="w-full max-w-md">{children}</div>
     </div>

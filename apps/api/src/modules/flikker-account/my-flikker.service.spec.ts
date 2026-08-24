@@ -190,6 +190,9 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
       'businessName',
       'logoUrl',
       'primaryColor',
+      // Color de la experiencia pública: el mismo que ya ve el cliente en el
+      // check-in, para que Mi Flikker no vuelva al fondo genérico.
+      'checkinBackgroundColor',
       // Apariencia de la tarjeta: es cara-al-cliente por definición (el
       // cliente literalmente la ve), así que no viola §20 — lo que nunca
       // puede salir es segmento/assignment/experimento/uplift.

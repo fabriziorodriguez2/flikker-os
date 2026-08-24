@@ -10,7 +10,22 @@ import {
   Min,
 } from 'class-validator';
 
-export class RegisterDto {
+/**
+ * Código de presencia — el que el negocio muestra rotando en el mostrador.
+ * Opcional en el DTO a propósito: si el negocio NO lo exige
+ * (`checkinPresenceMode: off`, el default) el cliente nunca lo manda. Quién
+ * lo exige lo decide el backend por negocio, nunca el frontend.
+ */
+export class PresenceCodeDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(12)
+  presenceCode?: string;
+}
+
+export class CheckinDto extends PresenceCodeDto {}
+
+export class RegisterDto extends PresenceCodeDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(120)
@@ -33,7 +48,7 @@ export class RecoverStartDto {
   phone!: string;
 }
 
-export class RecoverVerifyDto {
+export class RecoverVerifyDto extends PresenceCodeDto {
   @IsString()
   @IsNotEmpty()
   @MaxLength(30)

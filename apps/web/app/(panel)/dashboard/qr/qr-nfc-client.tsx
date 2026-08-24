@@ -14,6 +14,7 @@ import QRCode from "qrcode";
 import PageHeader from "@/components/ui/page-header";
 import { useIsOwnerOrAdmin } from "../../role-context";
 import PhysicalSupportNotice from "./physical-support-notice";
+import PresenceCodeCard from "./presence-code-card";
 
 /**
  * QR y NFC — el acceso que usan los clientes del negocio.
@@ -279,6 +280,8 @@ export default function QrNfcClient() {
         businessId={business?.id}
         businessName={business?.name}
       />
+
+      <PresenceCodeCard canManage={canManage} />
 
       {/* ── 1. Tu acceso principal ──────────────────────────────────────── */}
       {principal ? (

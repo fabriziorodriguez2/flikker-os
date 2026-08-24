@@ -33,6 +33,14 @@ export interface CheckinLanding {
   benefitText: string | null;
   /** Programa → Página de inscripción. Encabezado propio, opcional. */
   welcomeMessage: string | null;
+  /**
+   * Si este negocio exige el código rotativo que se muestra en el local.
+   * Solo viaja el HECHO de que se exige, nunca el código: mandarlo acá lo
+   * entregaría a cualquiera que abra el link desde su casa, que es
+   * exactamente lo que este mecanismo evita. El backend vuelve a decidir en
+   * cada POST — el frontend nunca es la autoridad.
+   */
+  presence?: { required: boolean; mode: string };
 }
 
 const API_URL = process.env.API_URL ?? "http://localhost:3000";

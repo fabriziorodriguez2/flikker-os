@@ -18,6 +18,7 @@ import PoweredByFlikker from "@/components/ui/powered-by-flikker";
 import { normalizeUruguayNationalPhone } from "@/components/ui/phone-input";
 import OtpInput from "@/components/ui/otp-input";
 import { useImagePalette } from "@/lib/use-logo-palette";
+import { buildPublicExperienceTheme } from "@/lib/public-experience-theme";
 import LoyaltyCard from "@/components/public/loyalty-card";
 import CheckinFeedbackCard from "@/components/public/checkin-feedback-card";
 import RedemptionReveal from "@/components/public/redemption-reveal";
@@ -61,7 +62,7 @@ interface PersonalSpace {
   otherBenefits?: PersonalBenefit[];
 }
 
-type Mode = "booting" | "register" | "recover" | "personal";
+type Mode = "presence" | "booting" | "register" | "recover" | "personal";
 type CheckinStatus = "checked_in" | "duplicate" | null;
 
 interface JsonResult {
@@ -87,6 +88,27 @@ async function postJson(url: string, body?: unknown): Promise<JsonResult> {
   }
 }
 
+/** El backend rechazó por falta/vencimiento del código del local. */
+function isPresenceRejection(result: JsonResult): boolean {
+  return (
+    result.status === 400 &&
+    (result.data?.code === "presence_required" ||
+      (result.data?.message as { code?: string })?.code === "presence_required")
+  );
+}
+
+function presenceMessageOf(result: JsonResult): string {
+  const nested = result.data?.message as
+    | { message?: string }
+    | string
+    | undefined;
+  if (typeof nested === "string") return nested;
+  return (
+    nested?.message ??
+    "Ese código ya no sirve. Pedí el que se muestra ahora en el local."
+  );
+}
+
 function brandOf(landing: CheckinLanding): string {
   return landing.business.primaryColor ?? "#5C6BC0";
 }
@@ -106,7 +128,17 @@ export default function CheckinClient({
   landing: CheckinLanding;
   hasSession: boolean;
 }) {
-  const [mode, setMode] = useState<Mode>(hasSession ? "booting" : "register");
+  // Código del local. Se pide UNA vez, antes que nada, y después viaja en
+  // cada POST del recorrido — el cliente está parado en el mostrador, no
+  // tiene por qué tipearlo tres veces. Nunca se persiste: si vuelve mañana
+  // desde su casa, el estado arranca vacío y no hay nada que reusar.
+  const presenceRequired = landing.presence?.required ?? false;
+  const [presenceCode, setPresenceCode] = useState("");
+  const [presenceError, setPresenceError] = useState<string | null>(null);
+
+  const [mode, setMode] = useState<Mode>(
+    presenceRequired ? "presence" : hasSession ? "booting" : "register",
+  );
   const [personal, setPersonal] = useState<PersonalSpace | null>(null);
   const [checkinStatus, setCheckinStatus] = useState<CheckinStatus>(null);
   const [prefillPhone, setPrefillPhone] = useState("");
@@ -114,15 +146,24 @@ export default function CheckinClient({
   // On mount, if we already have a session cookie, attempt a recognized
   // check-in. A 401 means the session is dead → fall back to the form.
   useEffect(() => {
-    if (!hasSession) return;
+    if (!hasSession || mode !== "booting") return;
     let active = true;
     void (async () => {
-      const result = await postJson(`/api/checkin/${token}/checkin`);
+      const result = await postJson(`/api/checkin/${token}/checkin`, {
+        presenceCode: presenceCode || undefined,
+      });
       if (!active) return;
       if (result.ok && result.data) {
         setPersonal(result.data.personal as PersonalSpace);
         setCheckinStatus((result.data.status as CheckinStatus) ?? "checked_in");
         setMode("personal");
+      } else if (isPresenceRejection(result)) {
+        // El backend es la autoridad: aunque la pantalla creyera que el
+        // código estaba bien (venció mientras completaba, o ya se usó para
+        // esta visita), vuelve a pedirlo en vez de dar la visita por hecha.
+        setPresenceCode("");
+        setPresenceError(presenceMessageOf(result));
+        setMode("presence");
       } else {
         setMode("register");
       }
@@ -130,7 +171,22 @@ export default function CheckinClient({
     return () => {
       active = false;
     };
-  }, [hasSession, token]);
+  }, [hasSession, token, mode, presenceCode]);
+
+  if (mode === "presence") {
+    return (
+      <PresenceScreen
+        token={token}
+        landing={landing}
+        error={presenceError}
+        onSubmit={(code) => {
+          setPresenceCode(code);
+          setPresenceError(null);
+          setMode(hasSession ? "booting" : "register");
+        }}
+      />
+    );
+  }
 
   function goPersonal(data: PersonalSpace, status: CheckinStatus) {
     setPersonal(data);
@@ -165,6 +221,7 @@ export default function CheckinClient({
         token={token}
         landing={landing}
         initialPhone={prefillPhone}
+        presenceCode={presenceCode}
         onRecovered={(data) => goPersonal(data, "checked_in")}
         onBack={() => setMode("register")}
       />
@@ -175,6 +232,7 @@ export default function CheckinClient({
     <RegisterScreen
       token={token}
       landing={landing}
+      presenceCode={presenceCode}
       onRegistered={(data) => goPersonal(data, "checked_in")}
       onExists={(phone) => {
         setPrefillPhone(phone);
@@ -185,6 +243,97 @@ export default function CheckinClient({
         setMode("recover");
       }}
     />
+  );
+}
+
+// ── Presencia (código rotativo del local) ────────────────────────────────────
+
+/**
+ * Primer paso cuando el negocio exige prueba de presencia.
+ *
+ * Por qué existe: el QR es un cartel impreso, así que su URL es la misma
+ * siempre y cualquiera que la guarde puede volver a abrirla desde su casa.
+ * Este código, que solo se muestra dentro del local y rota cada pocos
+ * minutos, es lo que hace que ese link guardado ya no alcance.
+ *
+ * Se pide una sola vez por recorrido — el cliente lo lee del mostrador y
+ * sigue. No se guarda en el navegador a propósito: si guardara, mañana
+ * volvería a servir y no habríamos resuelto nada.
+ */
+function PresenceScreen({
+  token,
+  landing,
+  error,
+  onSubmit,
+}: {
+  token: string;
+  landing: CheckinLanding;
+  error: string | null;
+  onSubmit: (code: string) => void;
+}) {
+  const palette = useImagePalette(
+    `${token}:${landing.business.logoUrl ?? ""}`,
+    `/api/checkin/${encodeURIComponent(token)}/logo`,
+    landing.business.logoUrl,
+    landing.business.primaryColor,
+  );
+  const [code, setCode] = useState("");
+
+  const clean = code.trim().toUpperCase();
+
+  return (
+    <Shell
+      landing={landing}
+      brandOverride={palette}
+      backgroundColor={landing.business.checkinBackgroundColor}
+    >
+      <h1 className="text-center text-2xl font-bold leading-tight text-[color:var(--pub-text)]">
+        Código del local
+      </h1>
+      <p className="mt-3 max-w-sm text-center text-sm text-[color:var(--pub-text-muted)]">
+        Pedile al mostrador el código que aparece en la pantalla de{" "}
+        {landing.business.businessName} y escribilo acá.
+      </p>
+
+      <form
+        className="mt-6 w-full max-w-sm"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (clean.length === 6) onSubmit(clean);
+        }}
+      >
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value.toUpperCase())}
+          autoFocus
+          autoComplete="off"
+          autoCapitalize="characters"
+          spellCheck={false}
+          maxLength={6}
+          aria-label="Código del local"
+          placeholder="ABC234"
+          className="w-full rounded-2xl border border-[#d0d5dd] bg-white px-4 py-4 text-center text-2xl font-bold tracking-[0.4em] text-[#101828] placeholder:tracking-[0.4em] placeholder:text-[#c8cdd8] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0]"
+        />
+
+        {error ? (
+          <p className="mt-3 text-center text-sm font-semibold text-[#FFD4D4]">
+            {error}
+          </p>
+        ) : null}
+
+        <button
+          type="submit"
+          disabled={clean.length !== 6}
+          style={{
+            backgroundColor: palette.accent,
+            color: palette.accentText,
+          }}
+          className="mt-4 w-full rounded-2xl py-4 text-base font-semibold disabled:opacity-50"
+        >
+          Continuar
+        </button>
+      </form>
+    </Shell>
   );
 }
 
@@ -348,7 +497,7 @@ export function RegisterFormFields({
         </div>
 
         <div>
-          <p className="mb-1.5 text-xs font-medium text-white/70">
+          <p className="mb-1.5 text-xs font-medium text-[color:var(--pub-text-muted)]">
             Fecha de nacimiento (opcional)
           </p>
           <div className="grid grid-cols-3 gap-2">
@@ -414,7 +563,7 @@ export function RegisterFormFields({
         <button
           type="button"
           onClick={() => onRecoverInstead(phone)}
-          className="mt-5 text-xs font-medium text-white/70 underline underline-offset-2 hover:text-white"
+          className="mt-5 text-xs font-medium text-[color:var(--pub-text-muted)] underline underline-offset-2 hover:text-[color:var(--pub-text)]"
         >
           Ya soy cliente
         </button>
@@ -475,10 +624,10 @@ export function RegisterScreenContent({
       backgroundColor={landing.business.checkinBackgroundColor}
       fill={fill}
     >
-      <h1 className="text-center text-2xl font-bold leading-tight text-white">
+      <h1 className="text-center text-2xl font-bold leading-tight text-[color:var(--pub-text)]">
         {title}
       </h1>
-      <p className="mt-3 text-center text-sm text-white/70">{subtitle}</p>
+      <p className="mt-3 text-center text-sm text-[color:var(--pub-text-muted)]">{subtitle}</p>
 
       <RegisterFormFields
         benefit={landing.benefit}
@@ -496,12 +645,15 @@ export function RegisterScreenContent({
 function RegisterScreen({
   token,
   landing,
+  presenceCode,
   onRegistered,
   onExists,
   onRecoverInstead,
 }: {
   token: string;
   landing: CheckinLanding;
+  /** Código del local ya ingresado; `""` cuando el negocio no lo exige. */
+  presenceCode: string;
   onRegistered: (data: PersonalSpace) => void;
   onExists: (phone: string) => void;
   onRecoverInstead: (phone: string) => void;
@@ -518,7 +670,10 @@ function RegisterScreen({
     phone: string;
     birthdate?: string;
   }) {
-    const result = await postJson(`/api/checkin/${token}/register`, values);
+    const result = await postJson(`/api/checkin/${token}/register`, {
+      ...values,
+      presenceCode: presenceCode || undefined,
+    });
 
     if (result.ok && result.data?.status === "registered") {
       onRegistered(result.data.personal as PersonalSpace);
@@ -551,12 +706,15 @@ function RecoverScreen({
   token,
   landing,
   initialPhone,
+  presenceCode,
   onRecovered,
   onBack,
 }: {
   token: string;
   landing: CheckinLanding;
   initialPhone: string;
+  /** Código del local ya ingresado; `""` cuando el negocio no lo exige. */
+  presenceCode: string;
   onRecovered: (data: PersonalSpace) => void;
   onBack: () => void;
 }) {
@@ -602,6 +760,7 @@ function RecoverScreen({
     const result = await postJson(`/api/checkin/${token}/recover/verify`, {
       phone,
       code,
+      presenceCode: presenceCode || undefined,
     });
     setBusy(false);
     if (result.ok && result.data?.status === "restored") {
@@ -612,11 +771,15 @@ function RecoverScreen({
   }
 
   return (
-    <Shell landing={landing} brandOverride={palette}>
-      <h1 className="text-center text-2xl font-bold leading-tight text-white">
+    <Shell
+      landing={landing}
+      brandOverride={palette}
+      backgroundColor={landing.business.checkinBackgroundColor}
+    >
+      <h1 className="text-center text-2xl font-bold leading-tight text-[color:var(--pub-text)]">
         Recuperá tu perfil
       </h1>
-      <p className="mt-3 max-w-sm text-center text-sm text-white/70">
+      <p className="mt-3 max-w-sm text-center text-sm text-[color:var(--pub-text-muted)]">
         {codeSent
           ? "Te enviamos un código por WhatsApp. Ingresalo para continuar."
           : "Ingresá tu WhatsApp y te enviamos un código para confirmar que sos vos."}
@@ -672,7 +835,7 @@ function RecoverScreen({
               type="button"
               disabled={busy}
               onClick={() => void sendCode(phone)}
-              className="w-full text-xs font-medium text-white/70 underline underline-offset-2 hover:text-white"
+              className="w-full text-xs font-medium text-[color:var(--pub-text-muted)] underline underline-offset-2 hover:text-[color:var(--pub-text)]"
             >
               Reenviar código
             </button>
@@ -689,7 +852,7 @@ function RecoverScreen({
       <button
         type="button"
         onClick={onBack}
-        className="mt-5 text-xs font-medium text-white/70 underline underline-offset-2 hover:text-white"
+        className="mt-5 text-xs font-medium text-[color:var(--pub-text-muted)] underline underline-offset-2 hover:text-[color:var(--pub-text)]"
       >
         Volver
       </button>
@@ -777,7 +940,7 @@ function SlideToReveal({
 
   if (revealed) {
     return (
-      <div className="text-white">
+      <div className="text-[color:var(--pub-text)]">
         <RedemptionReveal code={code} redeemPath={`/redeem/${code}`} />
       </div>
     );
@@ -786,9 +949,9 @@ function SlideToReveal({
   if (breaking) {
     return (
       <div className="checkin-seal-break relative h-[60px] overflow-visible rounded-full">
-        <div className="checkin-seal-piece checkin-seal-piece-left absolute inset-y-0 left-0 w-[52%] rounded-l-full border border-white/30 bg-black/12 backdrop-blur-sm" />
-        <div className="checkin-seal-piece checkin-seal-piece-right absolute inset-y-0 right-0 w-[52%] rounded-r-full border border-white/30 bg-black/12 backdrop-blur-sm" />
-        <div className="checkin-seal-burst absolute inset-0 z-10 flex items-center justify-center gap-2 text-white">
+        <div className="checkin-seal-piece checkin-seal-piece-left absolute inset-y-0 left-0 w-[52%] rounded-l-full border border-[color:var(--pub-surface-border)] bg-black/12 backdrop-blur-sm" />
+        <div className="checkin-seal-piece checkin-seal-piece-right absolute inset-y-0 right-0 w-[52%] rounded-r-full border border-[color:var(--pub-surface-border)] bg-black/12 backdrop-blur-sm" />
+        <div className="checkin-seal-burst absolute inset-0 z-10 flex items-center justify-center gap-2 text-[color:var(--pub-text)]">
           <Sparkles className="h-4 w-4" aria-hidden="true" />
           <span className="text-xs font-bold">¡Listo!</span>
         </div>
@@ -799,16 +962,16 @@ function SlideToReveal({
   return (
     <div
       ref={trackRef}
-      className="relative h-[60px] touch-none select-none overflow-hidden rounded-full border border-white/30 bg-black/12 p-1 shadow-inner"
+      className="relative h-[60px] touch-none select-none overflow-hidden rounded-full border border-[color:var(--pub-surface-border)] bg-black/12 p-1 shadow-inner"
     >
       <div
         aria-hidden="true"
-        className="absolute bottom-1 left-1 top-1 rounded-full bg-white/10 transition-[width] duration-75"
+        className="absolute bottom-1 left-1 top-1 rounded-full bg-[color:var(--pub-surface)] transition-[width] duration-75"
         style={{ width: Math.max(52, dragX + 52) }}
       />
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center pl-10 pr-3">
         <span
-          className={`text-xs font-bold text-white transition-opacity duration-200 ${
+          className={`text-xs font-bold text-[color:var(--pub-text)] transition-opacity duration-200 ${
             dragX > 52 ? "opacity-40" : "opacity-90"
           }`}
         >
@@ -916,15 +1079,20 @@ function PersonalScreen({
     personal.customer.name.split(" ")[0] || personal.customer.name;
 
   return (
-    <Shell landing={landing} brandOverride={palette} compact>
+    <Shell
+      landing={landing}
+      brandOverride={palette}
+      backgroundColor={landing.business.checkinBackgroundColor}
+      compact
+    >
       <div className="flex w-full max-w-md flex-col items-center">
-        <div className="checkin-success-pop mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-white/14 text-white">
+        <div className="checkin-success-pop mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--pub-surface)] text-[color:var(--pub-text)]">
           <CheckCircle2 className="h-5 w-5" />
         </div>
-        <h1 className="checkin-enter text-center text-2xl font-bold tracking-[-0.035em] text-white">
+        <h1 className="checkin-enter text-center text-2xl font-bold tracking-[-0.035em] text-[color:var(--pub-text)]">
           ¡Hola, {firstName}! <span aria-hidden="true">👋</span>
         </h1>
-        <p className="checkin-enter mt-2 flex items-center gap-1.5 rounded-full bg-white/12 px-3 py-1.5 text-center text-xs font-semibold text-white/90">
+        <p className="checkin-enter mt-2 flex items-center gap-1.5 rounded-full bg-[color:var(--pub-surface)] px-3 py-1.5 text-center text-xs font-semibold text-[color:var(--pub-text-muted)]">
           <Check className="h-3.5 w-3.5 stroke-[2.5]" aria-hidden="true" />
           {checkinStatus === "duplicate"
             ? "Tu visita de hoy ya estaba guardada"
@@ -1015,7 +1183,7 @@ function PersonalScreen({
           type="button"
           onClick={() => void switchAccount()}
           disabled={loggingOut}
-          className="mt-2 rounded-full px-4 py-1.5 text-xs font-semibold text-white/65 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-60"
+          className="mt-2 rounded-full px-4 py-1.5 text-xs font-semibold text-[color:var(--pub-text-muted)] transition-colors hover:bg-[color:var(--pub-surface)] hover:text-[color:var(--pub-text)] disabled:opacity-60"
         >
           {loggingOut ? "Cerrando…" : "Cambiar de cuenta"}
         </button>
@@ -1041,13 +1209,13 @@ export function BenefitRewardCard({
 }) {
   return (
     <div
-      className="checkin-enter-delay relative overflow-hidden rounded-[24px] border border-white/12 bg-black/20 p-5 text-left text-white shadow-[0_10px_24px_rgba(12,16,30,0.16)]"
+      className="checkin-enter-delay relative overflow-hidden rounded-[24px] border border-[color:var(--pub-surface-border)] bg-black/20 p-5 text-left text-[color:var(--pub-text)] shadow-[0_10px_24px_rgba(12,16,30,0.16)]"
       style={{
         backgroundColor: "rgba(14, 17, 29, 0.24)",
       }}
     >
       <div className="relative flex items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/35 bg-white/20 backdrop-blur-sm">
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[color:var(--pub-surface-border)] bg-[color:var(--pub-surface)] backdrop-blur-sm">
           <BenefitIcon type={benefit.type} />
         </span>
         <div className="min-w-0 pt-0.5">
@@ -1058,29 +1226,29 @@ export function BenefitRewardCard({
               colores donde ambas cards se parecen. Nunca es "el premio de
               la tarjeta de sellos": es cualquier otro beneficio disponible
               (bienvenida, reactivación, promo). */}
-          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-white/75">
+          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--pub-text-muted)]">
             Beneficio disponible
           </p>
-          <p className="mt-1 text-lg font-bold leading-tight text-white">
+          <p className="mt-1 text-lg font-bold leading-tight text-[color:var(--pub-text)]">
             {benefit.title}
           </p>
         </div>
       </div>
       {benefit.description && (
-        <p className="relative mt-3 text-sm leading-5 text-white/78">
+        <p className="relative mt-3 text-sm leading-5 text-[color:var(--pub-text-muted)]">
           {benefit.description}
         </p>
       )}
       {benefit.terms && (
-        <p className="relative mt-2 text-[11px] leading-relaxed text-white/58">
-          <span className="font-bold text-white/72">Condiciones:</span>{" "}
+        <p className="relative mt-2 text-[11px] leading-relaxed text-[color:var(--pub-text-soft)]">
+          <span className="font-bold text-[color:var(--pub-text-muted)]">Condiciones:</span>{" "}
           {benefit.terms}
         </p>
       )}
 
       {benefit.redemption &&
         (benefit.redemption.redeemed ? (
-          <div className="relative mt-4 flex items-center gap-2 rounded-[15px] border border-white/18 bg-white/14 px-3.5 py-3 text-xs font-bold text-white/82">
+          <div className="relative mt-4 flex items-center gap-2 rounded-[15px] border border-[color:var(--pub-surface-border)] bg-[color:var(--pub-surface)] px-3.5 py-3 text-xs font-bold text-[color:var(--pub-text-muted)]">
             <CheckCircle2 className="h-4 w-4" /> Ya disfrutaste este beneficio
           </div>
         ) : (
@@ -1094,7 +1262,7 @@ export function BenefitRewardCard({
         ))}
 
       {!benefit.redemption && benefit.type === "raffle" && (
-        <div className="relative mt-4 flex items-center gap-2 rounded-[15px] border border-white/18 bg-white/14 px-3.5 py-3 text-xs font-bold text-white/86">
+        <div className="relative mt-4 flex items-center gap-2 rounded-[15px] border border-[color:var(--pub-surface-border)] bg-[color:var(--pub-surface)] px-3.5 py-3 text-xs font-bold text-[color:var(--pub-text-muted)]">
           <Ticket className="h-4 w-4" aria-hidden="true" />
           Ya estás participando. ¡Mucha suerte!
         </div>
@@ -1213,6 +1381,13 @@ export function Shell({
   const brand = brandOverride?.primary ?? brandOf(landing);
   const secondary =
     brandOverride?.secondary ?? `color-mix(in srgb, ${brand} 58%, #20233D)`;
+  // Si el caller no pasó fondo, se usa el configurado por el negocio. Así
+  // ninguna pantalla del recorrido puede "olvidarse" del branding y volver
+  // al degradado genérico de Flikker — que es exactamente lo que pasaba con
+  // recuperación y el espacio personal.
+  const surfaceColor =
+    backgroundColor ?? landing.business.checkinBackgroundColor;
+  const theme = buildPublicExperienceTheme(surfaceColor, brand);
 
   return (
     <div
@@ -1220,11 +1395,25 @@ export function Shell({
         fill ? "min-h-[100dvh]" : "h-full min-h-full"
       }`}
       style={
-        backgroundColor
-          ? { backgroundColor, backgroundImage: "none" }
-          : {
-              backgroundImage: `linear-gradient(145deg, ${brand} 0%, ${secondary} 100%)`,
-            }
+        {
+          ...(surfaceColor
+            ? theme.background
+            : {
+                backgroundImage: `linear-gradient(145deg, ${brand} 0%, ${secondary} 100%)`,
+              }),
+          color: theme.text,
+          // Tokens de contraste: todo el texto y los velos del recorrido los
+          // usan en vez de blanco fijo, así un fondo claro sigue siendo
+          // legible. El dueño elige su color; no puede volver ilegible su
+          // propia pantalla.
+          "--pub-text": theme.text,
+          "--pub-text-muted": theme.textMuted,
+          "--pub-text-soft": theme.textSoft,
+          "--pub-surface": theme.surface,
+          "--pub-surface-border": theme.surfaceBorder,
+          "--pub-accent": theme.accent,
+          "--pub-on-accent": theme.onAccent,
+        } as React.CSSProperties
       }
     >
       <div
@@ -1249,7 +1438,7 @@ export function Shell({
         {children}
       </div>
       <p
-        className={`relative text-center text-xs text-white/45 ${
+        className={`relative text-center text-xs text-[color:var(--pub-text-soft)] ${
           compact ? "pb-3" : "pb-5"
         }`}
       >

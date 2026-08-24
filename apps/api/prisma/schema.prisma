@@ -302,6 +302,16 @@ enum BenefitType {
 
 // Physical/logical origin of a check-in point. Each source has its own opaque
 // token and powers the public /check-in/{token} entry.
+/// Cómo se prueba que el cliente está REALMENTE en el local al hacer
+/// check-in. Ver `Business.checkinPresenceMode` y `presence-challenge.ts`.
+enum CheckinPresenceMode {
+  /// Sin prueba de presencia: alcanza el QR + la sesión. Es lo que hacen hoy
+  /// todos los negocios, y lo que un link guardado en casa puede replicar.
+  off
+  /// Código corto y rotativo mostrado por el negocio en el mostrador.
+  rotating_code
+}
+
 enum VisitSourceType {
   qr
   nfc
@@ -517,6 +527,16 @@ model Business {
   googlePlaceId                String?           @map("google_place_id")
   googleRefreshToken           String?           @map("google_refresh_token")
   googleReviewsLastSyncAt      DateTime?         @map("google_reviews_last_sync_at")
+  /// Estado de la importación histórica completa de reseñas de Google (se
+  /// dispara al conectar un Place — ver `enqueueBackfill`). Dos fechas y no
+  /// un enum a propósito: lo que la pantalla necesita saber es "¿está
+  /// corriendo?" y "¿cuándo terminó?", y eso se deriva de estas dos sin
+  /// inventar un estado que después haya que mantener sincronizado con la
+  /// realidad del worker. `started != null && completed == null` =
+  /// "Sincronizando historial…". Null en las dos = negocio anterior a esta
+  /// columna o que nunca conectó Google — nunca se muestra como "listo".
+  googleReviewsBackfillStartedAt   DateTime? @map("google_reviews_backfill_started_at")
+  googleReviewsBackfillCompletedAt DateTime? @map("google_reviews_backfill_completed_at")
   /// Google Places API (New) — datos de solo lectura del Place conectado
   /// (Reseñas → Conectar Google). `googlePlaceId` y `googleBusinessProfileUrl`
   /// ya existían y NO se duplican: `googleBusinessProfileUrl`/
@@ -547,6 +567,15 @@ model Business {
   checkinMinHoursBetweenVisits Int               @default(8) @map("checkin_min_hours_between_visits")
   checkinMaxVisitsPerDay       Int               @default(1) @map("checkin_max_visits_per_day")
   checkinReviewPromptEveryDays Int               @default(30) @map("checkin_review_prompt_every_days")
+  /// Prueba de presencia del check-in. El QR es FÍSICO y ESTÁTICO (carteles
+  /// A4, soportes acrílicos con NFC): no puede rotar solo, así que una URL
+  /// guardada en casa sirve para siempre y el dedup de 8 h / 1 por día
+  /// justamente PERMITE una visita nueva por día. `rotating_code` exige
+  /// además un código corto y rotativo que el negocio muestra desde el panel
+  /// en el mostrador — la URL sigue siendo la puerta de entrada pero deja de
+  /// alcanzar por sí sola. Default `off`: ningún negocio existente cambia de
+  /// comportamiento hasta que su dueño lo prende. Ver `presence-challenge.ts`.
+  checkinPresenceMode          CheckinPresenceMode @default(off) @map("checkin_presence_mode")
   // Per-business rollout. Default LEGACY on purpose: every existing business and
   // every new signup stays on the legacy experience unless an admin opts it in.
   experienceVersion            ExperienceVersion @default(LEGACY) @map("experience_version")
@@ -2855,6 +2884,14 @@ model Visit {
   verificationType VisitVerificationType @map("verification_type")
   attributionType  VisitAttributionType  @default(organic) @map("attribution_type")
   isReturn         Boolean               @default(false) @map("is_return")
+  /// Identidad de la ventana de presencia que acreditó esta visita (nunca el
+  /// código en claro — guardarlo lo volvería reutilizable por quien lea la
+  /// fila). Null para negocios en `checkinPresenceMode: off` y para todo lo
+  /// anterior a esta columna. El índice único de abajo ES el anti-replay:
+  /// un mismo desafío no puede acreditar dos visitas del mismo cliente.
+  /// Postgres trata los NULL como distintos, así que las visitas sin prueba
+  /// de presencia no se estorban entre sí.
+  presenceChallengeId String?            @map("presence_challenge_id")
   metadata         Json?
   createdAt        DateTime              @default(now()) @map("created_at")
 
@@ -2872,6 +2909,7 @@ model Visit {
   @@index([businessId, occurredAt])
   @@index([customerId])
   @@index([customerId, occurredAt])
+  @@unique([businessId, customerId, presenceChallengeId])
   @@index([businessId, customerId, visitDayKey])
   @@index([campaignId])
   @@index([sourceId])

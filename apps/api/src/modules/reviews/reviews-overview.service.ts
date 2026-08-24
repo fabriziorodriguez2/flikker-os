@@ -29,6 +29,32 @@ import {
 
 const MS_PER_DAY = 86_400_000;
 
+export type HistorySyncStatus = 'idle' | 'running' | 'done';
+
+/**
+ * Estado derivado de las dos fechas del backfill — sin un enum persistido
+ * que después haya que mantener en sincronía con la realidad del worker.
+ */
+function resolveHistorySync(
+  business: {
+    googleReviewsBackfillStartedAt: Date | null;
+    googleReviewsBackfillCompletedAt: Date | null;
+  } | null,
+): {
+  status: HistorySyncStatus;
+  startedAt: Date | null;
+  completedAt: Date | null;
+} {
+  const startedAt = business?.googleReviewsBackfillStartedAt ?? null;
+  const completedAt = business?.googleReviewsBackfillCompletedAt ?? null;
+  const status: HistorySyncStatus = !startedAt
+    ? 'idle'
+    : completedAt && completedAt >= startedAt
+      ? 'done'
+      : 'running';
+  return { status, startedAt, completedAt };
+}
+
 @Injectable()
 export class ReviewsOverviewService {
   constructor(private readonly prisma: PrismaService) {}
@@ -49,6 +75,8 @@ export class ReviewsOverviewService {
         googlePlaceUserRatingCount: true,
         googlePlaceReviewsUri: true,
         googlePlaceConnectedAt: true,
+        googleReviewsBackfillStartedAt: true,
+        googleReviewsBackfillCompletedAt: true,
       },
     });
 
@@ -233,6 +261,14 @@ export class ReviewsOverviewService {
         placeReviewsUri: business?.googlePlaceReviewsUri ?? null,
         /** Cuándo se conectó el Place actual — `null` si es de antes de este campo. */
         connectedAt: business?.googlePlaceConnectedAt ?? null,
+        /**
+         * Importación histórica completa (`enqueueBackfill`). `running`
+         * mientras el backfill trabaja en background — la pantalla dice
+         * "Sincronizando historial…" en vez de dar por bueno un total
+         * parcial. `idle` para negocios anteriores a este campo o que nunca
+         * conectaron: nunca se dice "listo" sin haber corrido.
+         */
+        historySync: resolveHistorySync(business),
       },
 
       summary: {

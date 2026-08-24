@@ -1,6 +1,7 @@
 import { BadRequestException, UnauthorizedException } from '@nestjs/common';
 import { VisitAttributionType } from '@prisma/client';
 import { CheckinService } from './checkin.service';
+import { PresenceChallengeService } from './presence-challenge.service';
 
 function makeDeps() {
   const prisma = {
@@ -84,6 +85,11 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.rewardGoals as never,
     deps.rewardGoalFeedback as never,
     deps.flikkerAccount as never,
+    // Servicio real, no un mock: estos negocios estan en
+    // checkinPresenceMode off, asi que la puerta de presencia es
+    // transparente — que es exactamente lo que estos tests deben seguir
+    // demostrando.
+    new PresenceChallengeService(deps.prisma as never),
   );
 }
 
