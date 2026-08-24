@@ -137,7 +137,9 @@ export class HomeService {
 
       reviews: {
         connected: reviews.google.connected,
-        rating: reviews.summary.rating,
+        // El de Google, igual que Reviews e Insights — no el promedio de lo
+        // que alcanzamos a importar, que con el histórico incompleto difiere.
+        rating: reviews.summary.googleRating,
         newInPeriod: reviews.summary.inPeriod,
         toReviewCount: reviews.toReview.length,
       },

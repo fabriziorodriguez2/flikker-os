@@ -67,7 +67,8 @@ export default function ProgramBenefitsTab({
     title: string;
     description?: string;
   }) => Promise<void>;
-  onDelete: (benefitId: string) => Promise<void>;
+  /** Devuelve un aviso cuando el beneficio se retiró en vez de borrarse. */
+  onDelete: (benefitId: string) => Promise<string | void>;
   onSetUse: (
     benefitId: string,
     use: "rewardCard" | "welcomeGift" | "reactivation",
@@ -83,14 +84,19 @@ export default function ProgramBenefitsTab({
   const [description, setDescription] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Informativo, no un error: "lo retiramos en vez de borrarlo". La fila
+  // sigue en la lista a propósito, así que hay que explicar por qué.
+  const [notice, setNotice] = useState<string | null>(null);
   const [togglingCatalog, setTogglingCatalog] = useState(false);
 
-  async function run(id: string, action: () => Promise<void>) {
+  async function run(id: string, action: () => Promise<string | void>) {
     setBusyId(id);
     setError(null);
+    setNotice(null);
     try {
-      await action();
+      const message = await action();
       await onReload();
+      if (typeof message === 'string') setNotice(message);
     } catch (e) {
       setError(e instanceof Error ? e.message : "No pudimos guardar.");
     } finally {
@@ -243,6 +249,12 @@ export default function ProgramBenefitsTab({
         ) : null}
 
         {error ? <p className="mt-4 text-sm text-[#C0392B]">{error}</p> : null}
+
+        {notice ? (
+          <p className="mt-4 rounded-[12px] border border-[#DDE1F5] bg-[#F4F5FD] px-4 py-3 text-sm text-[#4A56A6]">
+            {notice}
+          </p>
+        ) : null}
 
         {benefits.length === 0 ? (
           <p className="mt-5 text-sm text-[#8891A4]">

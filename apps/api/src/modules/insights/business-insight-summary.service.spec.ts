@@ -21,6 +21,9 @@ function baseBundle(): InsightsMetricsBundle {
     },
     visitTrend: [],
     visitTiming: [],
+    // Distinto de `stampCard.redeemedTotal` a propósito: uno es de los
+    // últimos 30 días y el otro es acumulado desde siempre.
+    benefitsRedeemedInWindow: 1,
     stampCard: {
       customersParticipating: 20,
       cardsInProgress: 8,
@@ -43,10 +46,17 @@ function baseBundle(): InsightsMetricsBundle {
       },
       byArm: null,
     },
+    // Los tres números son deliberadamente distintos: es la única forma de
+    // demostrar que no se sustituyen entre sí. En producción el resumen
+    // decía "el comercio cuenta con 60 reseñas" (las importadas) cuando en
+    // Google tenía 194.
     reviewStats: {
-      total: 40,
-      sinceFlikker: 12,
-      rating: 4.6,
+      googleReviewsTotal: 194,
+      googleReviewsImported: 60,
+      sinceFlikker: 3,
+      googleRating: 3.5,
+      importedRating: 3.9,
+      historySyncStatus: 'partial' as const,
       inPeriod: 3,
       feedbackInPeriod: 1,
     },
@@ -281,5 +291,126 @@ describe('BusinessInsightSummaryService', () => {
     };
     const payloadKeys = JSON.stringify(call.userPayload);
     expect(payloadKeys).not.toMatch(/phone|email|customerName/i);
+  });
+
+  /**
+   * El bug real que reportó el dueño: Inicio mostraba "Beneficios canjeados:
+   * 0 · En 30 días" y el Resumen, en la misma pantalla, decía "En el último
+   * mes... han redimido 1 beneficio". Los dos números eran correctos —
+   * `stampCard.redeemedTotal` es acumulado desde siempre y el KPI mira 30
+   * días — pero el payload no marcaba el alcance de cada uno, así que el
+   * modelo los presentaba a todos bajo "el último mes".
+   */
+  describe('alcance temporal de cada métrica', () => {
+    async function payloadOf() {
+      const deps = makeDeps();
+      await makeService(deps).getSummary('biz-1', {}, NOW);
+      return (
+        deps.provider.generateStructured.mock.calls[0][0] as {
+          userPayload: Record<string, unknown>;
+        }
+      ).userPayload;
+    }
+
+    it('el nombre de cada campo dice si es de la ventana o de siempre', async () => {
+      const payload = await payloadOf();
+
+      // Nada ambiguo: todo acumulado dice "Lifetime", todo lo de la ventana
+      // dice "InWindow". Un campo sin sufijo es exactamente lo que causó el
+      // bug, así que no puede volver a aparecer.
+      expect(payload).toMatchObject({
+        windowDays: 30,
+        newCustomersInWindow: 12,
+        returningCustomersInWindow: 17,
+        benefitsRedeemedInWindow: 1,
+        benefitsRedeemedLifetime: expect.any(Number),
+        stampCardLifetime: expect.any(Object),
+      });
+      expect(payload).not.toHaveProperty('stampCard');
+      expect(payload).not.toHaveProperty('benefitsRedeemedTotal');
+      expect(payload).not.toHaveProperty('newCustomers');
+    });
+
+    it('el número de la ventana es el de Inicio, no el acumulado de la tarjeta', async () => {
+      const payload = await payloadOf();
+
+      // El fixture los tiene distintos a propósito (1 vs 3): si alguien
+      // volviera a mandar el acumulado como si fuera del mes, esto lo caza.
+      expect(payload.benefitsRedeemedInWindow).toBe(1);
+      expect(
+        (payload.stampCardLifetime as { redeemedTotal: number }).redeemedTotal,
+      ).toBe(3);
+    });
+
+    it('el prompt le prohíbe al modelo cruzar los dos alcances', async () => {
+      const deps = makeDeps();
+      await makeService(deps).getSummary('biz-1', {}, NOW);
+
+      const call = deps.provider.generateStructured.mock.calls[0][0] as {
+        systemPrompt: string;
+      };
+      expect(call.systemPrompt).toContain('InWindow');
+      expect(call.systemPrompt).toContain('Lifetime');
+    });
+  });
+});
+
+/**
+ * El bug reportado: el resumen decía "el comercio cuenta con 60 reseñas"
+ * cuando el perfil de Google mostraba 194. Las 60 eran las que el backfill
+ * había alcanzado a persistir — `COUNT(GoogleReview)` nunca es "cuántas
+ * reseñas tiene el negocio en Google".
+ *
+ * El fixture usa tres números deliberadamente distintos (194 / 60 / 3) para
+ * que ninguna confusión entre ellos pueda pasar desapercibida.
+ */
+describe('reseñas: total de Google vs importadas vs desde Flikker', () => {
+  async function reviewsPayload() {
+    const deps = makeDeps();
+    await makeService(deps).getSummary('biz-1', {}, NOW);
+    return (
+      deps.provider.generateStructured.mock.calls[0][0] as {
+        userPayload: { reviews: Record<string, unknown> };
+      }
+    ).userPayload.reviews;
+  }
+
+  it('manda los tres números por separado, con nombres inequívocos', async () => {
+    expect(await reviewsPayload()).toEqual({
+      googleReviewsTotal: 194,
+      googleReviewsImported: 60,
+      sinceFlikker: 3,
+      googleRating: 3.5,
+      historySyncStatus: 'partial',
+    });
+  });
+
+  it('el total del comercio es el de Google (194), nunca el importado (60)', async () => {
+    const reviews = await reviewsPayload();
+
+    expect(reviews.googleReviewsTotal).toBe(194);
+    // Si alguien volviera a mandar lo importado bajo el nombre del total,
+    // este assert lo caza aunque el número siga "pareciendo" razonable.
+    expect(reviews.googleReviewsTotal).not.toBe(reviews.googleReviewsImported);
+  });
+
+  it('ya no existe un campo `total` ambiguo ni un `rating` sin dueño', async () => {
+    const reviews = await reviewsPayload();
+
+    // `total` era el nombre que hacía que el modelo lo leyera como "cuántas
+    // tiene". `rating` no decía si era el de Google o el de lo importado.
+    expect(reviews).not.toHaveProperty('total');
+    expect(reviews).not.toHaveProperty('rating');
+  });
+
+  it('el prompt le prohíbe usar las importadas como total', async () => {
+    const deps = makeDeps();
+    await makeService(deps).getSummary('biz-1', {}, NOW);
+
+    const { systemPrompt } = deps.provider.generateStructured.mock
+      .calls[0][0] as { systemPrompt: string };
+    expect(systemPrompt).toContain('googleReviewsTotal');
+    expect(systemPrompt).toContain('googleReviewsImported');
+    expect(systemPrompt).toMatch(/no es "cuántas tiene"/i);
   });
 });

@@ -116,9 +116,19 @@ export interface RetentionBridgePatch {
 export class BenefitsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
+  /**
+   * El catálogo del DUEÑO. Nunca incluye carriers internos: son filas que el
+   * sistema crea para poder emitir una recompensa, no beneficios que él haya
+   * creado. Aparecían como duplicados del premio y alguien terminaba
+   * borrándolos, llevándose por cascade emisiones ya canjeadas.
+   *
+   * El filtro es por `isInternalCarrier`, NO por `active`: un beneficio
+   * normal del dueño está inactivo la mayor parte del tiempo y tiene que
+   * seguir viéndose exactamente igual que hasta ahora.
+   */
   findMany(businessId: string) {
     return this.prisma.benefit.findMany({
-      where: { businessId },
+      where: { businessId, isInternalCarrier: false },
       orderBy: [{ active: 'desc' }, { createdAt: 'desc' }],
       include: { retentionIncentiveDefinition: BRIDGE_SELECT },
     });
@@ -147,9 +157,19 @@ export class BenefitsRepository {
     });
   }
 
+  /**
+   * Lectura administrable por el dueño — el chokepoint de detalle, edición,
+   * activación, borrado y de los pickers de promoción/reactivación (todos
+   * pasan por `BenefitsService.getOne`). Excluir acá los carriers internos
+   * los vuelve inalcanzables por cualquiera de esos caminos con un solo
+   * filtro, en vez de repetir el chequeo en cada endpoint.
+   *
+   * Devuelve `null` (que el service traduce a 404) y no un 403: para el
+   * dueño ese id sencillamente no existe.
+   */
   findOne(businessId: string, id: string) {
     return this.prisma.benefit.findFirst({
-      where: { id, businessId },
+      where: { id, businessId, isInternalCarrier: false },
       include: { retentionIncentiveDefinition: BRIDGE_SELECT },
     });
   }
@@ -177,8 +197,9 @@ export class BenefitsRepository {
   /** Scoped update. Returns null when the benefit does not belong to the tenant. */
   async update(businessId: string, id: string, data: Partial<BenefitData>) {
     return this.prisma.$transaction(async (tx) => {
+      // Nunca un carrier interno: el dueño no puede editarlo ni activarlo.
       const existing = await tx.benefit.findFirst({
-        where: { id, businessId },
+        where: { id, businessId, isInternalCarrier: false },
         select: { id: true },
       });
       if (!existing) return null;
@@ -199,8 +220,9 @@ export class BenefitsRepository {
   /** Activate/deactivate. Returns null when not found for the tenant. */
   async setActive(businessId: string, id: string, active: boolean) {
     return this.prisma.$transaction(async (tx) => {
+      // Nunca un carrier interno: el dueño no puede editarlo ni activarlo.
       const existing = await tx.benefit.findFirst({
-        where: { id, businessId },
+        where: { id, businessId, isInternalCarrier: false },
         select: { id: true },
       });
       if (!existing) return null;
@@ -215,17 +237,67 @@ export class BenefitsRepository {
     });
   }
 
-  async remove(businessId: string, id: string) {
+  /**
+   * Borrado FÍSICO — permitido solo si el beneficio nunca se emitió.
+   *
+   * `BenefitParticipation.benefit` es `onDelete: Cascade`, así que borrar un
+   * Benefit con emisiones se lleva puestas sus participaciones. Eso es
+   * pérdida de datos silenciosa en los dos casos posibles:
+   *
+   *   - emisión CANJEADA  → se destruye historial real (esto ya pasó en
+   *     producción: la `CustomerRewardGoal` quedó en REDEEMED sin emisión y
+   *     el KPI de Inicio dejó de contar un canje que sí ocurrió);
+   *   - emisión PENDIENTE → se destruye un beneficio ya prometido a un
+   *     cliente, que se queda con un código que de golpe no existe.
+   *
+   * Con emisiones, el beneficio se RETIRA en vez de borrarse: se desactiva
+   * (deja de ofrecerse en el check-in) y se desautoriza el bridge (deja de
+   * emitirse por recuperación/recompensa). El historial queda intacto.
+   *
+   * La guarda vive acá, en la aplicación, y no en el FK: cambiar el
+   * `onDelete: Cascade` afectaría también el borrado legítimo de un negocio
+   * entero, que sí tiene que arrastrar todo.
+   */
+  async remove(
+    businessId: string,
+    id: string,
+  ): Promise<
+    | { status: 'deleted' }
+    | { status: 'not_found' }
+    | { status: 'retired'; participations: number; redeemed: number }
+  > {
     return this.prisma.$transaction(async (tx) => {
-      // Piloto V2 — deauthorize before deleting: the FK is `onDelete:
-      // SetNull`, which only nulls the pointer, not the eligibility flags.
-      // Without this, a deleted Benefit could leave an orphaned
-      // RetentionIncentiveDefinition still automation/reward-eligible.
-      await this.deauthorizeBridge(tx, id);
-      const result = await tx.benefit.deleteMany({
-        where: { id, businessId },
+      const existing = await tx.benefit.findFirst({
+        where: { id, businessId, isInternalCarrier: false },
+        select: { id: true },
       });
-      return result.count > 0;
+      if (!existing) return { status: 'not_found' as const };
+
+      const [participations, redeemed] = await Promise.all([
+        tx.benefitParticipation.count({ where: { benefitId: id, businessId } }),
+        tx.benefitParticipation.count({
+          where: { benefitId: id, businessId, redeemedAt: { not: null } },
+        }),
+      ]);
+
+      // Piloto V2 — deauthorize antes de cualquiera de los dos caminos: el FK
+      // del bridge es `onDelete: SetNull`, que anula el puntero pero no los
+      // flags de elegibilidad. Sin esto, el beneficio podría dejar una
+      // `RetentionIncentiveDefinition` huérfana todavía elegible.
+      await this.deauthorizeBridge(tx, id);
+
+      if (participations > 0) {
+        await tx.benefit.update({
+          where: { id },
+          data: { active: false },
+        });
+        return { status: 'retired' as const, participations, redeemed };
+      }
+
+      const result = await tx.benefit.deleteMany({ where: { id, businessId } });
+      return result.count > 0
+        ? { status: 'deleted' as const }
+        : { status: 'not_found' as const };
     });
   }
 

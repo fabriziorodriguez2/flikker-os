@@ -315,6 +315,10 @@ export class IncentiveIssuerService {
         terms: definition.conditions,
         // Never active: the QR flow's single-active-benefit slot stays free.
         active: false,
+        // Fila interna — mismo criterio que `RewardGoalIssuerService`: el
+        // dueño nunca la ve ni puede borrarla, para que un borrado del
+        // catálogo no se lleve por cascade emisiones ya entregadas.
+        isInternalCarrier: true,
       },
       select: { id: true },
     });

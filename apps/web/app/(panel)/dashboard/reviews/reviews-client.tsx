@@ -40,14 +40,20 @@ interface Overview {
      * pantalla, simplemente no muestra el aviso.
      */
     historySync?: {
-      status: "idle" | "running" | "done";
+      status: "idle" | "running" | "done" | "partial";
       startedAt: string | null;
       completedAt: string | null;
     };
   };
   summary: {
+    /** Promedio de las reseñas IMPORTADAS — no es el que muestra Google. */
     rating: number | null;
-    /** "Reseñas totales en Google" — historial completo disponible. */
+    /** Rating autoritativo del perfil de Google. */
+    googleRating: number | null;
+    /** Total REAL que Google informa. `null` si nunca se conectó un Place. */
+    googleReviewsTotal: number | null;
+    /** Filas persistidas — NUNCA es "cuántas reseñas tiene en Google". */
+    googleReviewsImported: number;
     total: number;
     inPeriod: number;
     /**
@@ -151,6 +157,12 @@ export default function ReviewsClient({
   }
 
   const { google, summary } = data;
+  // El total autoritativo de Google. Se cae a `placeUserRatingCount` (la
+  // misma fuente, expuesta también en el bloque `google`) para respuestas
+  // viejas en caché, y nunca a las importadas: preferimos no afirmar un
+  // total antes que afirmar uno falso.
+  const googleReviewsTotal =
+    summary.googleReviewsTotal ?? google.placeUserRatingCount ?? null;
 
   return (
     <div className="space-y-7">
@@ -281,18 +293,45 @@ export default function ReviewsClient({
           {google.historySync?.status === "running" ? (
             <p className="flex items-center gap-2 rounded-[12px] border border-[#DDE1F5] bg-[#F4F5FD] px-4 py-3 text-sm text-[#4A56A6]">
               <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-              Sincronizando historial de Google… Los totales se completan solos
-              a medida que llegan las reseñas.
+              Sincronizando historial de Google
+              {googleReviewsTotal !== null
+                ? ` (${summary.googleReviewsImported} de ${googleReviewsTotal})`
+                : ""}
+              … El total de arriba ya es el real de tu perfil; lo que se
+              completa es el detalle de cada reseña.
+            </p>
+          ) : null}
+
+          {/*
+            El backfill terminó por debajo del total. No es "listo" ni es un
+            fallo: Google cuenta también las calificaciones de solo estrellas
+            (sin texto), que no se pueden traer. Por eso el aviso explica el
+            motivo en vez de prometer una sincronización futura que casi
+            nunca va a cerrar la brecha.
+          */}
+          {google.historySync?.status === "partial" && googleReviewsTotal ? (
+            <p className="rounded-[12px] border border-[#E3E5F0] bg-[#F7F8FC] px-4 py-3 text-sm text-[#5F6780]">
+              Tenés {googleReviewsTotal} reseñas en Google y pudimos traer el
+              detalle de {summary.googleReviewsImported}. Google no permite
+              descargar las calificaciones que no tienen comentario escrito,
+              así que esa diferencia es normal — tu total y tu calificación
+              de arriba son siempre los reales de tu perfil.
             </p>
           ) : null}
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            {/*
+              El total del hint es el que GOOGLE informa, no el que
+              alcanzamos a importar. Decía "60 en total en Google" mientras
+              la ficha de arriba, en la misma pantalla, mostraba 194.
+            */}
             <Kpi
               label="Reseñas con Flikker"
               value={String(summary.sinceFlikker)}
               hint={
-                summary.total !== summary.sinceFlikker
-                  ? `Desde que te uniste · ${summary.total} en total en Google`
+                googleReviewsTotal !== null &&
+                googleReviewsTotal !== summary.sinceFlikker
+                  ? `Desde que te uniste · ${googleReviewsTotal} en total en Google`
                   : "Desde que te uniste a Flikker"
               }
             />
@@ -301,10 +340,22 @@ export default function ReviewsClient({
               value={String(summary.inPeriod)}
               hint={`En los últimos ${data.periodDays} días`}
             />
+            {/*
+              "En Google" tiene que ser el rating de Google, no el promedio
+              de lo que bajamos: con el histórico incompleto no coinciden.
+            */}
             <Kpi
               label="Calificación"
-              value={summary.rating !== null ? `${summary.rating} ★` : "—"}
-              hint={summary.rating === null ? "Todavía sin reseñas" : "En Google"}
+              value={
+                summary.googleRating !== null
+                  ? `${summary.googleRating} ★`
+                  : "—"
+              }
+              hint={
+                summary.googleRating === null
+                  ? "Todavía sin reseñas"
+                  : "En Google"
+              }
             />
             <Kpi
               label="Feedback recibido"

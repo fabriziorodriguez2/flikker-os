@@ -555,6 +555,17 @@ model Business {
   /// conteo "desde que conectaste" siempre habla del Place conectado HOY, no
   /// de uno viejo que el negocio pudo haber desconectado.
   googlePlaceConnectedAt       DateTime?         @map("google_place_connected_at")
+  /// Última vez que se refrescaron `googlePlaceRating` /
+  /// `googlePlaceUserRatingCount` contra Places Details. Es el throttle de
+  /// "como máximo una vez cada 24 h por negocio".
+  ///
+  /// Columna propia y no `googleReviewsLastSyncAt`: ese otro campo significa
+  /// "última corrida del scrape inicial/backfill de reseñas", lo escribe
+  /// SOLO `runInitial` (nunca la corrida diaria) y se resetea a `null` al
+  /// reconectar un Place. Reusarlo haría que el throttle se moviera por
+  /// corridas que no refrescaron nada, y que un reset de reseñas forzara un
+  /// refresh de metadata que no corresponde. Son dos hechos distintos.
+  googlePlaceRefreshedAt       DateTime?         @map("google_place_refreshed_at")
   whatsappPhoneId              String?           @map("whatsapp_phone_id")
   messageQuotaMonthly          Int               @default(600) @map("message_quota_monthly")
   messageCountCurrentMonth     Int               @default(0) @map("message_count_current_month")
@@ -2572,6 +2583,23 @@ model Benefit {
   endDate     DateTime?   @map("end_date")
   recurrence  String?
   active      Boolean     @default(false)
+  /// Fila INTERNA: un "carrier" que el sistema crea para poder emitir una
+  /// recompensa (Reward Goals, Retention V2), no un beneficio que el dueño
+  /// haya creado ni pueda administrar.
+  ///
+  /// Existe como columna propia y explícita porque `active: false` NO
+  /// significa "interno" — un beneficio normal del dueño está inactivo la
+  /// mayor parte del tiempo. Confundir las dos cosas fue exactamente el bug:
+  /// los carriers se listaban en Programa → Beneficios como duplicados del
+  /// premio ("1 cafe gratis" aparecía dos veces, uno real y uno carrier), el
+  /// dueño borró el que no reconocía, y el `onDelete: Cascade` se llevó
+  /// puesta la `BenefitParticipation` ya canjeada — dejando su
+  /// `CustomerRewardGoal` en REDEEMED sin emisión.
+  ///
+  /// Un carrier nunca se lista, edita, activa ni elige en un picker. Sigue
+  /// siendo un `Benefit` real para que el historial de canjes tenga a qué
+  /// colgarse.
+  isInternalCarrier Boolean @default(false) @map("is_internal_carrier")
   createdAt   DateTime    @default(now()) @map("created_at")
   updatedAt   DateTime    @updatedAt @map("updated_at")
 
@@ -2591,6 +2619,8 @@ model Benefit {
 
   @@index([businessId])
   @@index([businessId, active])
+  /// El catálogo del dueño filtra siempre por (businessId, isInternalCarrier).
+  @@index([businessId, isInternalCarrier])
   @@map("benefits")
 }
 

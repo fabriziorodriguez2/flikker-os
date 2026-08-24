@@ -17,13 +17,28 @@ function makePrisma() {
       update: jest.fn().mockResolvedValue({ id: 'def-1' }),
       updateMany: jest.fn().mockResolvedValue({ count: 0 }),
     },
+    // Por default el beneficio nunca se emitió — el caso en que el borrado
+    // real sí está permitido. Cada test que necesita emisiones lo sobreescribe.
+    benefitParticipation: {
+      count: jest.fn().mockResolvedValue(0),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
   };
   const prisma = {
     benefit: tx.benefit,
     retentionIncentiveDefinition: tx.retentionIncentiveDefinition,
+    benefitParticipation: tx.benefitParticipation,
     $transaction: jest.fn((cb: (t: typeof tx) => unknown) => cb(tx)),
   };
   return { prisma, tx };
+}
+
+/**
+ * `remove()` empieza resolviendo el Benefit del tenant. Sin esto devuelve
+ * `not_found` y ningún otro assert del test tiene sentido.
+ */
+function existingBenefit(tx: ReturnType<typeof makePrisma>['tx']) {
+  tx.benefit.findFirst.mockResolvedValue({ id: 'b1' });
 }
 
 describe('BenefitsRepository single-active invariant', () => {
@@ -109,6 +124,7 @@ describe('BenefitsRepository — pre-piloto #2: solo remove() desautoriza el bri
 
   it('remove (borrado real) sí deauthorizes the bridge before deleting the Benefit', async () => {
     const { prisma, tx } = makePrisma();
+    existingBenefit(tx);
     const repo = new BenefitsRepository(prisma as never);
 
     const callOrder: string[] = [];
@@ -123,7 +139,7 @@ describe('BenefitsRepository — pre-piloto #2: solo remove() desautoriza el bri
 
     const result = await repo.remove('biz-1', 'b1');
 
-    expect(result).toBe(true);
+    expect(result).toEqual({ status: 'deleted' });
     expect(callOrder).toEqual(['deauthorize', 'delete']);
     expect(tx.retentionIncentiveDefinition.updateMany).toHaveBeenCalledWith({
       where: { benefitId: 'b1' },
@@ -662,5 +678,172 @@ describe('BenefitsRepository.countRedeemed / findRecentRedemptions — semántic
         take: 8,
       }),
     );
+  });
+});
+
+/**
+ * Un "carrier" es una fila que el SISTEMA crea solo para poder emitir una
+ * recompensa (Reward Goals, Retention V2) — no un beneficio del dueño.
+ *
+ * Estaba invisible solo por convención (`active: false`), que no significa
+ * "interno": un beneficio normal del dueño está inactivo casi siempre. Los
+ * carriers terminaban listados como duplicados del premio, alguien borraba
+ * el que no reconocía, y el `onDelete: Cascade` se llevaba puesta una
+ * `BenefitParticipation` ya canjeada.
+ */
+describe('BenefitsRepository — carriers internos fuera del catálogo', () => {
+  it('findMany excluye los carriers internos', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const repo = new BenefitsRepository({ benefit: { findMany } } as never);
+
+    await repo.findMany('biz-1');
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { businessId: 'biz-1', isInternalCarrier: false },
+      }),
+    );
+  });
+
+  it('NO oculta un beneficio del dueño por estar inactivo', async () => {
+    const findMany = jest.fn().mockResolvedValue([]);
+    const repo = new BenefitsRepository({ benefit: { findMany } } as never);
+
+    await repo.findMany('biz-1');
+
+    // El filtro es por `isInternalCarrier`, nunca por `active`: un beneficio
+    // normal inactivo tiene que seguir viéndose y comportándose igual que hoy.
+    const where = findMany.mock.calls[0][0].where as Record<string, unknown>;
+    expect(where).not.toHaveProperty('active');
+  });
+
+  it('findOne no resuelve un carrier — queda fuera de detalle, edición y pickers', async () => {
+    const findFirst = jest.fn().mockResolvedValue(null);
+    const repo = new BenefitsRepository({ benefit: { findFirst } } as never);
+
+    const found = await repo.findOne('biz-1', 'carrier-1');
+
+    expect(found).toBeNull();
+    expect(findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          id: 'carrier-1',
+          businessId: 'biz-1',
+          isInternalCarrier: false,
+        },
+      }),
+    );
+  });
+
+  it('update y setActive tampoco alcanzan un carrier', async () => {
+    for (const run of [
+      (r: BenefitsRepository) => r.update('biz-1', 'carrier-1', { title: 'x' }),
+      (r: BenefitsRepository) => r.setActive('biz-1', 'carrier-1', true),
+    ]) {
+      const { prisma, tx } = makePrisma();
+      tx.benefit.findFirst.mockResolvedValue(null); // el filtro lo dejó fuera
+      const repo = new BenefitsRepository(prisma as never);
+
+      expect(await run(repo)).toBeNull();
+      expect(tx.benefit.update).not.toHaveBeenCalled();
+    }
+  });
+
+  it('remove no alcanza un carrier: para el dueño ese id no existe', async () => {
+    const { prisma, tx } = makePrisma();
+    tx.benefit.findFirst.mockResolvedValue(null);
+    const repo = new BenefitsRepository(prisma as never);
+
+    expect(await repo.remove('biz-1', 'carrier-1')).toEqual({
+      status: 'not_found',
+    });
+    expect(tx.benefit.deleteMany).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * Borrar un Benefit con emisiones se lleva sus `BenefitParticipation` por
+ * `onDelete: Cascade`. Eso destruye historial real (emisión canjeada) o una
+ * promesa viva (emisión pendiente). Con emisiones, el beneficio se RETIRA.
+ */
+describe('BenefitsRepository — remove() nunca destruye emisiones', () => {
+  /** @param redeemed cuántas de las `total` emisiones ya se canjearon. */
+  function withParticipations(
+    tx: ReturnType<typeof makePrisma>['tx'],
+    total: number,
+    redeemed: number,
+  ) {
+    tx.benefitParticipation.count
+      .mockResolvedValueOnce(total)
+      .mockResolvedValueOnce(redeemed);
+  }
+
+  it('con una emisión CANJEADA no borra: retira y conserva el historial', async () => {
+    const { prisma, tx } = makePrisma();
+    existingBenefit(tx);
+    withParticipations(tx, 1, 1);
+    const repo = new BenefitsRepository(prisma as never);
+
+    const result = await repo.remove('biz-1', 'b1');
+
+    expect(result).toEqual({
+      status: 'retired',
+      participations: 1,
+      redeemed: 1,
+    });
+    // Lo que importa: la fila sigue existiendo, así que la participación
+    // canjeada (y su CustomerRewardGoal) no se van por cascade.
+    expect(tx.benefit.deleteMany).not.toHaveBeenCalled();
+    expect(tx.benefit.update).toHaveBeenCalledWith({
+      where: { id: 'b1' },
+      data: { active: false },
+    });
+  });
+
+  it('con una emisión PENDIENTE tampoco borra: el cliente ya tiene ese código', async () => {
+    const { prisma, tx } = makePrisma();
+    existingBenefit(tx);
+    withParticipations(tx, 1, 0);
+    const repo = new BenefitsRepository(prisma as never);
+
+    const result = await repo.remove('biz-1', 'b1');
+
+    expect(result).toEqual({
+      status: 'retired',
+      participations: 1,
+      redeemed: 0,
+    });
+    expect(tx.benefit.deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('sin ninguna emisión sí se borra de verdad — la semántica de hoy no cambia', async () => {
+    const { prisma, tx } = makePrisma();
+    existingBenefit(tx);
+    withParticipations(tx, 0, 0);
+    const repo = new BenefitsRepository(prisma as never);
+
+    expect(await repo.remove('biz-1', 'b1')).toEqual({ status: 'deleted' });
+    expect(tx.benefit.deleteMany).toHaveBeenCalledWith({
+      where: { id: 'b1', businessId: 'biz-1' },
+    });
+  });
+
+  it('el bridge se desautoriza en los dos caminos, nunca queda elegible', async () => {
+    for (const [total, redeemed] of [
+      [0, 0],
+      [2, 1],
+    ]) {
+      const { prisma, tx } = makePrisma();
+      existingBenefit(tx);
+      withParticipations(tx, total, redeemed);
+      const repo = new BenefitsRepository(prisma as never);
+
+      await repo.remove('biz-1', 'b1');
+
+      expect(tx.retentionIncentiveDefinition.updateMany).toHaveBeenCalledWith({
+        where: { benefitId: 'b1' },
+        data: { automationEligible: false, rewardGoalEligible: false },
+      });
+    }
   });
 });

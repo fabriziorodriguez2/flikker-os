@@ -270,11 +270,25 @@ function ProgramaClientContent() {
     await readJson(res);
   }
 
+  /**
+   * Un beneficio que ya se emitió NO se borra: se retira, y el backend lo
+   * dice en la respuesta. Hay que contarlo, porque el dueño apretó
+   * "Eliminar" y la fila va a seguir existiendo (retirada) en la lista —
+   * sin este aviso parece que la acción falló.
+   */
   async function deleteBenefit(benefitId: string) {
     const res = await fetch(`/api/proxy/benefits/${benefitId}`, {
       method: "DELETE",
     });
-    if (!res.ok && res.status !== 204) await readJson(res);
+    if (!res.ok && res.status !== 204) {
+      await readJson(res);
+      return;
+    }
+    const data = (await res.json().catch(() => null)) as {
+      retired?: boolean;
+      message?: string;
+    } | null;
+    return data?.retired ? data.message : undefined;
   }
 
   // Términos y condiciones — auditado: no hay campo de programa a nivel

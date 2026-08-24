@@ -80,6 +80,12 @@ export class RewardGoalIssuerService {
         terms: definition.conditions,
         // Never active: never competes for the QR flow's single-active slot.
         active: false,
+        // Fila interna: el dueño nunca la ve, edita ni puede borrar. Antes
+        // solo se distinguía por `active: false`, que no alcanza (un
+        // beneficio suyo también está inactivo casi siempre) — así terminaba
+        // listada como un duplicado del premio y alguien la borraba,
+        // llevándose por cascade la emisión ya canjeada.
+        isInternalCarrier: true,
       },
       select: { id: true },
     });

@@ -557,4 +557,64 @@ describe('Reseñas — overview (integration)', () => {
     expect(data.toReview).toEqual([]);
     expect(data.summary.rating).toBeNull();
   });
+
+  // ── Total de Google vs importadas ────────────────────────────────────────
+  //
+  // El bug reportado: el resumen decía "el comercio cuenta con 60 reseñas"
+  // cuando el perfil de Google mostraba 194. Esas 60 eran las filas que el
+  // backfill alcanzó a persistir. `COUNT(GoogleReview)` no es, ni puede
+  // sustituir, "cuántas reseñas tiene el negocio en Google".
+  describe('googleReviewsTotal nunca es COUNT(GoogleReview)', () => {
+    /** Un negocio con 194 reseñas en Google pero solo 2 importadas. */
+    async function partiallyImported() {
+      const businessId = await makeBusiness('https://g.page/x');
+      await prisma.business.update({
+        where: { id: businessId },
+        data: {
+          googlePlaceId: 'place-1',
+          googlePlaceUserRatingCount: 194,
+          googlePlaceRating: 3.9,
+          googleReviewsBackfillStartedAt: daysAgo(2),
+          googleReviewsBackfillCompletedAt: daysAgo(1),
+        },
+      });
+      await addReview(businessId, 3, { postedAt: daysAgo(10) });
+      await addReview(businessId, 4, { postedAt: daysAgo(20) });
+      return businessId;
+    }
+
+    it('el total es el que informa Google, no el que alcanzamos a importar', async () => {
+      const data = await overview(await partiallyImported());
+
+      expect(data.summary.googleReviewsTotal).toBe(194);
+      expect(data.summary.googleReviewsImported).toBe(2);
+    });
+
+    it('el rating es el de Google, no el promedio de lo importado', async () => {
+      const data = await overview(await partiallyImported());
+
+      expect(data.summary.googleRating).toBe(3.9);
+      expect(data.summary.importedRating).toBe(3.5); // (3 + 4) / 2
+    });
+
+    it('backfill terminado pero incompleto se reporta parcial, nunca listo', async () => {
+      const data = await overview(await partiallyImported());
+
+      expect(data.google.historySync.status).toBe('partial');
+      expect(data.google.historySync.imported).toBe(2);
+      expect(data.google.historySync.googleTotal).toBe(194);
+    });
+
+    it('sin Place conectado no se afirma ningún total', async () => {
+      const businessId = await makeBusiness();
+      await addReview(businessId, 5, { postedAt: daysAgo(3) });
+
+      const data = await overview(businessId);
+
+      expect(data.summary.googleReviewsTotal).toBeNull();
+      expect(data.summary.googleReviewsImported).toBe(1);
+      // Sin con qué comparar, no se inventa un estado "parcial".
+      expect(data.google.historySync.status).toBe('idle');
+    });
+  });
 });

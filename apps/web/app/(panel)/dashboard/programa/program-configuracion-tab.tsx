@@ -121,7 +121,8 @@ export default function ProgramConfiguracionTab({
     title: string;
     description?: string;
   }) => Promise<void>;
-  onDeleteBenefit: (benefitId: string) => Promise<void>;
+  /** Devuelve un aviso cuando el beneficio se retiró en vez de borrarse. */
+  onDeleteBenefit: (benefitId: string) => Promise<string | void>;
   onSetBenefitUse: (
     benefitId: string,
     use: "rewardCard" | "welcomeGift" | "reactivation",

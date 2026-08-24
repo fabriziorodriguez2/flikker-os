@@ -8,6 +8,7 @@ import { MessageStatus, Prisma } from '@prisma/client';
 import { Job, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
+import { GooglePlacesProvider } from '../google-places.provider';
 import {
   DetectedGoogleReview,
   GoogleReviewsProvider,
@@ -20,6 +21,8 @@ import {
 import { createRedisConnection, REDIS_CONFIGURED } from '../redis-connection';
 
 const ATTRIBUTION_WINDOW_DAYS = 7;
+/** Tope de refresh de metadata del Place: una vez cada 24 h por negocio. */
+const PLACE_REFRESH_INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 @Injectable()
 export class GoogleReviewDetectionWorker
@@ -32,6 +35,7 @@ export class GoogleReviewDetectionWorker
   constructor(
     private readonly prisma: PrismaService,
     private readonly googleReviewsProvider: GoogleReviewsProvider,
+    private readonly googlePlacesProvider: GooglePlacesProvider,
   ) {}
 
   onModuleInit() {
@@ -70,13 +74,30 @@ export class GoogleReviewDetectionWorker
       select: {
         id: true,
         googlePlaceId: true,
+        googlePlaceRefreshedAt: true,
       },
     });
 
     let created = 0;
     let failed = 0;
+    let refreshed = 0;
 
     for (const business of businesses) {
+      // El rating y la cantidad de reseñas que Google informa se refrescan
+      // ACÁ, en el barrido de background, nunca desde un request del panel:
+      // el dashboard no puede quedar atado a la latencia de Places, ni
+      // gastar cuota una vez por visita a la pantalla.
+      //
+      // Va antes del scrape y en su propio try: es lo más barato de los dos
+      // y un fallo suyo no puede impedir que se traigan reseñas nuevas.
+      if (this.shouldRefreshPlace(business.googlePlaceRefreshedAt)) {
+        if (
+          await this.refreshPlaceMetadata(business.id, business.googlePlaceId!)
+        ) {
+          refreshed += 1;
+        }
+      }
+
       try {
         created += await this.detectForBusiness(
           business.id,
@@ -95,8 +116,77 @@ export class GoogleReviewDetectionWorker
     return {
       businesses: businesses.length,
       created,
+      refreshed,
       failed,
     };
+  }
+
+  /** Como máximo una vez cada 24 h por negocio. */
+  private shouldRefreshPlace(
+    lastRefreshedAt: Date | null,
+    now: Date = new Date(),
+  ): boolean {
+    if (!lastRefreshedAt) return true;
+    return (
+      now.getTime() - lastRefreshedAt.getTime() >= PLACE_REFRESH_INTERVAL_MS
+    );
+  }
+
+  /**
+   * Actualiza `googlePlaceRating` / `googlePlaceUserRatingCount` con lo que
+   * Google informa hoy. Devuelve `true` solo si de verdad se escribió algo.
+   *
+   * Regla central: ante cualquier fallo se CONSERVAN los últimos valores
+   * válidos. `getDetails` ya devuelve `null` con un log sanitizado cuando
+   * Google falla (nunca imprime la API key), así que basta con no escribir.
+   * Poner `null` sería peor que un dato viejo: la pantalla pasaría de "194
+   * reseñas" a "—" por una caída ajena, y el resumen dejaría de poder
+   * afirmar un total.
+   *
+   * Tampoco se pisa un valor bueno con uno vacío: si Google responde pero no
+   * trae `rating`/`userRatingCount`, esos campos quedan como estaban.
+   */
+  private async refreshPlaceMetadata(
+    businessId: string,
+    googlePlaceId: string,
+  ): Promise<boolean> {
+    try {
+      const details = await this.googlePlacesProvider.getDetails(googlePlaceId);
+      if (!details) {
+        this.logger.warn(
+          `[google-place-refresh] Sin detalles para businessId ${businessId} — se conservan los valores anteriores.`,
+        );
+        return false;
+      }
+
+      const data: {
+        googlePlaceRefreshedAt: Date;
+        googlePlaceRating?: number;
+        googlePlaceUserRatingCount?: number;
+        googlePlaceDisplayName?: string;
+      } = { googlePlaceRefreshedAt: new Date() };
+      if (details.rating != null) data.googlePlaceRating = details.rating;
+      if (details.userRatingCount != null) {
+        data.googlePlaceUserRatingCount = details.userRatingCount;
+      }
+      if (details.displayName)
+        data.googlePlaceDisplayName = details.displayName;
+
+      await this.prisma.business.update({
+        where: { id: businessId },
+        data,
+        select: { id: true },
+      });
+      return true;
+    } catch (error) {
+      // Nunca propaga: el sync de reseñas sigue igual.
+      this.logger.warn(
+        `[google-place-refresh] Falló para businessId ${businessId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return false;
+    }
   }
 
   async runInitial(input: { businessId?: string; full?: boolean }) {

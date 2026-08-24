@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { PrismaModule } from '../../prisma/prisma.module';
+import { BenefitsModule } from '../benefits/benefits.module';
 import { AiModule } from '../ai/ai.module';
 import { CustomersModule } from '../customers/customers.module';
 import { ReviewsModule } from '../reviews/reviews.module';
@@ -29,6 +30,9 @@ import { ChatbotService } from './chatbot.service';
     ReviewsModule,
     RewardGoalsModule,
     RetentionV2Module,
+    // Para citar EXACTAMENTE el mismo número que Inicio en "Beneficios
+    // canjeados" (`BenefitsRepository.countRedeemed`), no uno propio.
+    BenefitsModule,
   ],
   controllers: [InsightsController, ChatbotController],
   providers: [

@@ -22,6 +22,7 @@ function baseBundle(
     },
     visitTrend: [],
     visitTiming: [],
+    benefitsRedeemedInWindow: 0,
     stampCard: {
       customersParticipating: 0,
       cardsInProgress: 0,
@@ -45,9 +46,12 @@ function baseBundle(
       byArm: null,
     },
     reviewStats: {
-      total: 0,
+      googleReviewsTotal: null,
+      googleReviewsImported: 0,
       sinceFlikker: 0,
-      rating: null,
+      googleRating: null,
+      importedRating: null,
+      historySyncStatus: 'idle' as const,
       inPeriod: 0,
       feedbackInPeriod: 0,
     },
@@ -293,16 +297,49 @@ describe('insights-narrator — reseñas', () => {
   it('con reseñas, cita el corte real desde que usa Flikker', () => {
     const bundle = baseBundle({
       reviewStats: {
-        total: 40,
+        googleReviewsTotal: 194,
+        googleReviewsImported: 60,
         sinceFlikker: 12,
-        rating: 4.6,
+        googleRating: 4.6,
+        importedRating: 3.9,
+        historySyncStatus: 'partial' as const,
         inPeriod: 3,
         feedbackInPeriod: 1,
       },
     });
     const statement = generateInsights(bundle).find((s) => s.id === 'reviews');
     expect(statement?.statement).toContain('12');
-    expect(statement?.statement).toContain('40');
+    // El total es el de GOOGLE (194), no el importado (60).
+    expect(statement?.statement).toContain('194');
+    expect(statement?.statement).not.toContain('60');
     expect(statement?.statement).toContain('4,6');
+  });
+
+  it('con el histórico a medio traer NO dice "todavía no tenés reseñas"', () => {
+    // 0 importadas pero 194 en Google: el negocio SÍ tiene reseñas, lo que
+    // falta es bajarlas. Antes esto se leía como "no tenés ninguna".
+    const bundle = baseBundle({
+      reviewStats: {
+        googleReviewsTotal: 194,
+        googleReviewsImported: 0,
+        sinceFlikker: 0,
+        googleRating: 3.9,
+        importedRating: null,
+        historySyncStatus: 'running' as const,
+        inPeriod: 0,
+        feedbackInPeriod: 0,
+      },
+    });
+
+    const statement = generateInsights(bundle).find((s) => s.id === 'reviews');
+    expect(statement?.statement).not.toMatch(/todavía no tenés reseñas/i);
+    expect(statement?.statement).toContain('194');
+  });
+
+  it('sin Place conectado no afirma ningún total', () => {
+    const statement = generateInsights(baseBundle()).find(
+      (s) => s.id === 'reviews',
+    );
+    expect(statement?.statement).toMatch(/todavía no tenés reseñas/i);
   });
 });

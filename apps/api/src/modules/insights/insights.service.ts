@@ -5,6 +5,7 @@ import { ReviewsOverviewService } from '../reviews/reviews-overview.service';
 import { LoyaltyProgramService } from '../reward-goals/loyalty-program.service';
 import { RetentionResultsOverviewService } from '../retention-v2/retention-results-overview.service';
 import { ReactivationFunnelService } from '../retention-v2/reactivation-funnel.service';
+import { BenefitsRepository } from '../benefits/benefits.repository';
 import { InsightsRepository } from './insights.repository';
 import {
   generateInsights,
@@ -13,6 +14,8 @@ import {
 
 const DEFAULT_TIMEZONE = 'America/Montevideo';
 const VISIT_TIMING_WINDOW_DAYS = 90;
+/** Misma ventana que el KPI "Beneficios canjeados" de Inicio. */
+const REDEEMED_WINDOW_DAYS = 30;
 
 /**
  * Insights — los 6 read-models pedidos, todos componiendo servicios que ya
@@ -31,6 +34,7 @@ export class InsightsService {
     private readonly rewardProgram: LoyaltyProgramService,
     private readonly retentionResults: RetentionResultsOverviewService,
     private readonly reactivationFunnel: ReactivationFunnelService,
+    private readonly benefits: BenefitsRepository,
   ) {}
 
   /** Pantalla Insights completa: el bundle + las afirmaciones ya narradas. */
@@ -57,12 +61,17 @@ export class InsightsService {
     const overview = await this.reviews.forBusiness(businessId, 30, now);
     // Nunca se reenvía `reviews`/`feedback`/`toReview` — esos arrays traen
     // nombre de cliente y texto libre. Solo agregados.
+    // Mismos nombres inequívocos que el bundle: el chatbot contesta preguntas
+    // como "¿cuántas reseñas tengo?" y con un `total` ambiguo respondía con
+    // las importadas.
     return {
-      total: overview.summary.total,
+      googleReviewsTotal: overview.summary.googleReviewsTotal,
+      googleReviewsImported: overview.summary.googleReviewsImported,
       sinceFlikker: overview.summary.sinceFlikker,
       inPeriod: overview.summary.inPeriod,
       feedbackInPeriod: overview.summary.feedbackInPeriod,
-      rating: overview.summary.rating,
+      googleRating: overview.summary.googleRating,
+      importedRating: overview.summary.importedRating,
       ratingDistribution: overview.summary.ratingDistribution,
     };
   }
@@ -110,6 +119,7 @@ export class InsightsService {
       promotionStats,
       reactivationFunnel,
       reviewsOverview,
+      benefitsRedeemedInWindow,
     ] = await Promise.all([
       this.loyalty.list(businessId, {}, now),
       this.loyalty.getSegmentCounts(businessId, now),
@@ -127,6 +137,11 @@ export class InsightsService {
       // El mismo KPI real que Notificaciones — nunca se recalcula acá.
       this.reactivationFunnel.forBusiness(businessId),
       this.reviews.forBusiness(businessId, 30, now),
+      // El MISMO método que usa Inicio para su KPI "Beneficios canjeados",
+      // con la MISMA ventana — no una query paralela que pueda divergir.
+      this.benefits.countRedeemed(businessId, {
+        from: new Date(now.getTime() - REDEEMED_WINDOW_DAYS * 86_400_000),
+      }),
     ]);
 
     return {
@@ -142,10 +157,19 @@ export class InsightsService {
       benefitStats,
       promotionStats,
       reactivationFunnel,
+      benefitsRedeemedInWindow,
       reviewStats: {
-        total: reviewsOverview.summary.total,
+        // Las tres cantidades son distintas y ninguna sustituye a la otra:
+        // el total real de Google (194), lo que alcanzamos a importar (60) y
+        // lo publicado desde que existe la cuenta (3). Antes solo viajaba la
+        // segunda, con el nombre `total`, y el resumen terminaba diciendo
+        // "el comercio cuenta con 60 reseñas".
+        googleReviewsTotal: reviewsOverview.summary.googleReviewsTotal,
+        googleReviewsImported: reviewsOverview.summary.googleReviewsImported,
         sinceFlikker: reviewsOverview.summary.sinceFlikker,
-        rating: reviewsOverview.summary.rating,
+        googleRating: reviewsOverview.summary.googleRating,
+        importedRating: reviewsOverview.summary.importedRating,
+        historySyncStatus: reviewsOverview.google.historySync.status,
         inPeriod: reviewsOverview.summary.inPeriod,
         feedbackInPeriod: reviewsOverview.summary.feedbackInPeriod,
       },

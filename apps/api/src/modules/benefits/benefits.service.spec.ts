@@ -1130,3 +1130,68 @@ describe('BenefitsService — "no cambiar una promesa que ya tiene un cliente"',
     });
   });
 });
+
+/**
+ * El "Eliminar" de Programa → Beneficios ya no siempre borra. Un beneficio
+ * que se emitió alguna vez se RETIRA: deja de ofrecerse y de enviarse, pero
+ * sus `BenefitParticipation` sobreviven. Borrarlo se las llevaba por
+ * `onDelete: Cascade` — así se perdió en producción el canje de un
+ * `CustomerRewardGoal` que quedó en REDEEMED sin emisión.
+ */
+describe('BenefitsService.remove — retirar vs borrar', () => {
+  it('sin emisiones: se borra y la respuesta lo dice', async () => {
+    const repo = makeRepo();
+    repo.remove.mockResolvedValue({ status: 'deleted' });
+
+    const result = await makeService(repo).remove('biz-1', 'b1');
+
+    expect(result).toMatchObject({ ok: true, deleted: true, retired: false });
+  });
+
+  it('con una emisión canjeada: retira, y el mensaje habla de historial', async () => {
+    const repo = makeRepo();
+    repo.remove.mockResolvedValue({
+      status: 'retired',
+      participations: 3,
+      redeemed: 2,
+    });
+
+    const result = (await makeService(repo).remove('biz-1', 'b1')) as {
+      deleted: boolean;
+      retired: boolean;
+      redeemed: number;
+      message: string;
+    };
+
+    expect(result.deleted).toBe(false);
+    expect(result.retired).toBe(true);
+    expect(result.redeemed).toBe(2);
+    expect(result.message).toContain('historial');
+  });
+
+  it('con una emisión pendiente: retira, y el mensaje habla del cliente que ya la tiene', async () => {
+    const repo = makeRepo();
+    repo.remove.mockResolvedValue({
+      status: 'retired',
+      participations: 1,
+      redeemed: 0,
+    });
+
+    const result = (await makeService(repo).remove('biz-1', 'b1')) as {
+      retired: boolean;
+      message: string;
+    };
+
+    expect(result.retired).toBe(true);
+    expect(result.message).toContain('todavía no lo canjearon');
+  });
+
+  it('un id que el repositorio no resuelve (incluido un carrier) es 404', async () => {
+    const repo = makeRepo();
+    repo.remove.mockResolvedValue({ status: 'not_found' });
+
+    await expect(
+      makeService(repo).remove('biz-1', 'carrier-1'),
+    ).rejects.toThrow(NotFoundException);
+  });
+});

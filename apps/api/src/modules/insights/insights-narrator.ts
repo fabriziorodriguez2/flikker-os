@@ -37,22 +37,48 @@ export interface InsightsMetricsBundle {
   segmentCounts: Record<CustomerSegment, number>;
   visitTrend: VisitTrendWindow[];
   visitTiming: VisitTimingSlot[];
+  /**
+   * Acumulados DESDE SIEMPRE, no de `windowDays` — `LoyaltyProgramService.
+   * getOverview` no filtra por fecha. Todo lo que narre estos números tiene
+   * que decir "en total": si no, un canje de hace un año se lee como del
+   * último mes y contradice al KPI de Inicio, que sí mira 30 días.
+   */
   stampCard: {
     customersParticipating: number;
     cardsInProgress: number;
     unlockedTotal: number;
     redeemedTotal: number;
   };
+  /**
+   * Beneficios canjeados en los últimos 30 días — el MISMO número que
+   * muestra Inicio, traído de `BenefitsRepository.countRedeemed`.
+   */
+  benefitsRedeemedInWindow: number;
   stampCardImpact: StampCardImpactStats;
   benefitStats: BenefitIssuanceStatsRow[];
   promotionStats: PromotionStatsRow[];
   /** "X contactados → Y volvieron → Z% de recuperación" — mismo dato que
    * Notificaciones (`ReactivationFunnelService`), nunca recalculado acá. */
   reactivationFunnel: ReactivationFunnelResult;
+  /**
+   * Tres cantidades distintas que NUNCA se sustituyen entre sí:
+   *   googleReviewsTotal    — lo que Google informa del negocio (194)
+   *   googleReviewsImported — lo que alcanzamos a persistir (60)
+   *   sinceFlikker          — publicadas desde `Business.createdAt` (3)
+   *
+   * `COUNT(GoogleReview)` no es "cuántas reseñas tiene el negocio en
+   * Google": con el histórico a medio traer son cosas muy distintas.
+   */
   reviewStats: {
-    total: number;
+    /** `null` si nunca se conectó un Place: no se inventa un total. */
+    googleReviewsTotal: number | null;
+    googleReviewsImported: number;
     sinceFlikker: number;
-    rating: number | null;
+    /** Rating autoritativo del perfil de Google. */
+    googleRating: number | null;
+    /** Promedio de lo importado — nunca rotularlo "en Google". */
+    importedRating: number | null;
+    historySyncStatus: 'idle' | 'running' | 'done' | 'partial';
     inPeriod: number;
     feedbackInPeriod: number;
   };
@@ -186,7 +212,11 @@ function stampCardOverviewStatement(
   }
   return {
     id: 'stamp-card-overview',
-    statement: `Se desbloquearon ${unlockedTotal} recompensa${unlockedTotal === 1 ? '' : 's'} de tarjeta y se canjearon ${redeemedTotal}.`,
+    // "En total" es obligatorio, no un adorno: estos dos son acumulados
+    // desde siempre y la tarjeta de al lado muestra los últimos 30 días.
+    // Sin el período explícito, los dos números se leen como del mismo mes
+    // y se contradicen.
+    statement: `En total se desbloquearon ${unlockedTotal} recompensa${unlockedTotal === 1 ? '' : 's'} de tarjeta y se canjearon ${redeemedTotal}.`,
     kind: 'neutral',
     hasEnoughData: true,
   };
@@ -307,7 +337,14 @@ function busiestTimingStatement(
 }
 
 function reviewStatement(bundle: InsightsMetricsBundle): InsightStatement {
-  if (bundle.reviewStats.total === 0) {
+  const { googleReviewsTotal, googleReviewsImported, googleRating } =
+    bundle.reviewStats;
+
+  // "Sin reseñas" solo si Google tampoco reporta ninguna. Con el histórico a
+  // medio traer, 0 importadas y 194 en Google no es "todavía no tenés
+  // reseñas": es que no las bajamos todavía.
+  const knownTotal = googleReviewsTotal ?? googleReviewsImported;
+  if (knownTotal === 0) {
     return {
       id: 'reviews',
       statement: 'Todavía no tenés reseñas de Google registradas.',
@@ -315,13 +352,15 @@ function reviewStatement(bundle: InsightsMetricsBundle): InsightStatement {
       hasEnoughData: false,
     };
   }
+
   const ratingText =
-    bundle.reviewStats.rating !== null
-      ? ` con un rating de ${bundle.reviewStats.rating.toLocaleString('es-UY', { maximumFractionDigits: 1 })}★`
+    googleRating !== null
+      ? ` con un rating de ${googleRating.toLocaleString('es-UY', { maximumFractionDigits: 1 })}★`
       : '';
   return {
     id: 'reviews',
-    statement: `Desde que usás Flikker recibiste ${bundle.reviewStats.sinceFlikker} reseñas nuevas (${bundle.reviewStats.total} en total)${ratingText}.`,
+    // El número entre paréntesis es el TOTAL de Google, no lo importado.
+    statement: `Desde que usás Flikker recibiste ${bundle.reviewStats.sinceFlikker} reseñas nuevas (${knownTotal} en total en Google)${ratingText}.`,
     kind: 'positive',
     hasEnoughData: true,
   };

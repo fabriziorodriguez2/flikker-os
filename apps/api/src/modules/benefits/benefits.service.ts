@@ -300,10 +300,36 @@ export class BenefitsService {
     return updated;
   }
 
+  /**
+   * "Eliminar" en la UI. Un beneficio que nunca se emitió se borra de
+   * verdad; uno que ya se emitió se RETIRA (deja de ofrecerse y de emitirse)
+   * pero conserva su historial — ver `BenefitsRepository.remove`. El
+   * resultado dice cuál de las dos cosas pasó para que la pantalla pueda
+   * explicarlo en vez de mentir "eliminado".
+   */
   async remove(businessId: string, id: string) {
-    const removed = await this.repository.remove(businessId, id);
-    if (!removed) throw new NotFoundException('Benefit not found');
-    return { ok: true };
+    const result = await this.repository.remove(businessId, id);
+    if (result.status === 'not_found') {
+      throw new NotFoundException('Benefit not found');
+    }
+    if (result.status === 'retired') {
+      return {
+        ok: true as const,
+        deleted: false as const,
+        retired: true as const,
+        participations: result.participations,
+        redeemed: result.redeemed,
+        message:
+          result.redeemed > 0
+            ? 'Este beneficio ya fue canjeado por clientes, así que se retiró en vez de borrarse: deja de ofrecerse y de enviarse, pero el historial de canjes se conserva.'
+            : 'Este beneficio ya fue entregado a clientes que todavía no lo canjearon, así que se retiró en vez de borrarse: deja de ofrecerse, pero quienes ya lo tienen pueden usarlo.',
+      };
+    }
+    return {
+      ok: true as const,
+      deleted: true as const,
+      retired: false as const,
+    };
   }
 
   async getParticipants(businessId: string, id: string) {

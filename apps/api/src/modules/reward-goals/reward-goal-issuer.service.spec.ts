@@ -63,6 +63,11 @@ describe('RewardGoalIssuerService — issuing a fresh reward', () => {
         businessId: 'biz-1',
         active: false,
         title: 'Café gratis',
+        // Marca explícita, no derivada de `active: false`. Es lo que mantiene
+        // al carrier fuera del catálogo del dueño y, sobre todo, fuera de su
+        // alcance para borrarlo: borrarlo se llevaba por cascade la emisión
+        // ya canjeada y dejaba la goal en REDEEMED sin participación.
+        isInternalCarrier: true,
       }),
       select: { id: true },
     });
