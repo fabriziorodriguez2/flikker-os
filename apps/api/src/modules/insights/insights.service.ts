@@ -7,6 +7,7 @@ import { RetentionResultsOverviewService } from '../retention-v2/retention-resul
 import { ReactivationFunnelService } from '../retention-v2/reactivation-funnel.service';
 import { BenefitsRepository } from '../benefits/benefits.repository';
 import { InsightsRepository } from './insights.repository';
+import { BusinessImpactService } from './business-impact.service';
 import {
   generateInsights,
   type InsightsMetricsBundle,
@@ -35,12 +36,20 @@ export class InsightsService {
     private readonly retentionResults: RetentionResultsOverviewService,
     private readonly reactivationFunnel: ReactivationFunnelService,
     private readonly benefits: BenefitsRepository,
+    private readonly businessImpact: BusinessImpactService,
   ) {}
 
-  /** Pantalla Insights completa: el bundle + las afirmaciones ya narradas. */
+  /**
+   * Pantalla Insights completa: el bundle + las afirmaciones ya narradas +
+   * "Impacto de Flikker" (`BusinessImpactService` — fuente única, la misma
+   * que consumen los emails de ciclo de vida y los hitos de WhatsApp).
+   */
   async getBusinessOverview(businessId: string, now: Date = new Date()) {
-    const metrics = await this.getMetricsBundle(businessId, now);
-    return { metrics, insights: generateInsights(metrics) };
+    const [metrics, impact] = await Promise.all([
+      this.getMetricsBundle(businessId, now),
+      this.businessImpact.getImpact(businessId, now),
+    ]);
+    return { metrics, insights: generateInsights(metrics), impact };
   }
 
   async getCustomerRetentionStats(businessId: string, now: Date = new Date()) {

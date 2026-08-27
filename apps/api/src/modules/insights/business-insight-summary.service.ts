@@ -1,6 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InsightsService } from './insights.service';
+import { BusinessImpactService } from './business-impact.service';
+import type { BusinessImpactMetrics } from './business-impact';
 import type { InsightsMetricsBundle } from './insights-narrator';
 import { validateChatbotDataAnswer } from './chatbot-answer-validator';
 import { AiGateService } from '../ai/ai-gate.service';
@@ -43,7 +45,8 @@ Reglas estrictas:
 - No inventes, redondees de más ni cambies ningún número: usá exactamente los que te dieron.
 - No menciones ningún número que no esté presente en el payload.
 - Reseñas: cuando digas cuántas reseñas TIENE el comercio, usá SIEMPRE reviews.googleReviewsTotal (lo que Google informa). reviews.googleReviewsImported es cuántas bajamos nosotros y NO es "cuántas tiene" — no lo menciones salvo que historySyncStatus sea "running" o "partial", y en ese caso decilo como "todavía estamos sincronizando el historial", nunca como el total. reviews.sinceFlikker son solo las publicadas desde que usa Flikker. Nunca uses uno de estos tres números en lugar de otro. Si googleReviewsTotal es null, no afirmes ningún total.
-- El ALCANCE de cada métrica está en el nombre del campo y es obligatorio respetarlo: los que terminan en "InWindow" son de los últimos windowDays días; los que terminan en "Lifetime" son desde que el comercio usa Flikker. NUNCA presentes un número "Lifetime" como si fuera del último mes, ni al revés. Si en una misma frase mezclás los dos, aclará el período de cada uno con palabras ("en total", "en el último mes").
+- El ALCANCE de cada métrica está en el nombre del campo y es obligatorio respetarlo: los que terminan en "InWindow" son de los últimos windowDays días; los que terminan en "Lifetime" son de todo el historial. NUNCA presentes un número "Lifetime" como si fuera del último mes, ni al revés. Si en una misma frase mezclás los dos, aclará el período de cada uno con palabras ("en total", "en el último mes").
+- "sinceActivation" es un tercer alcance, distinto de los dos anteriores: es TODO lo que pasó desde que este negocio activó Flikker (sinceActivation.days te dice hace cuántos días fue eso — puede ser mucho menos que "Lifetime" si el negocio ya existía antes). Si usás un número de "sinceActivation", aclará que es "desde que activaste Flikker" o "desde que empezaste a usar Flikker" — nunca lo mezcles con "este mes" ni con "en total".
 - El resumen es un párrafo breve (2-4 frases), tono cercano, sin genericidades ("sigue así", "es importante fidelizar") — cada frase tiene que citar un dato real del payload.
 - Como máximo 3 recomendaciones, cada una una acción concreta y corta, respaldada por un número del payload (por ejemplo, cuántos clientes están inactivos, o el resultado real de una promoción/reactivación). Si no hay una base de datos real para una recomendación, no la incluyas — es mejor devolver 1 o 2 buenas que 3 genéricas.
 - Nunca sugieras una acción destructiva ni prometas algo que Flikker no hace.
@@ -70,6 +73,8 @@ export interface InsightsSummaryPayload {
     customersParticipating: number;
     unlockedTotal: number;
     redeemedTotal: number;
+    /** Clientes con una tarjeta ACTIVA ahora mismo — foto de hoy, no un total acumulado. */
+    cardsInProgress: number;
   };
   benefitsIssuedLifetime: number;
   benefitsRedeemedLifetime: number;
@@ -104,10 +109,26 @@ export interface InsightsSummaryPayload {
     googleRating: number | null;
     historySyncStatus: 'idle' | 'running' | 'done' | 'partial';
   };
+  /**
+   * "Impacto de Flikker" desde la activación real (`BusinessImpactService`
+   * — misma fuente que usan los emails al dueño y los hitos de WhatsApp).
+   * `days` es cuánto hace que se activó, para que la IA nunca lo confunda
+   * con "este mes" ni con "en total" (ver la regla de ALCANCE arriba).
+   */
+  sinceActivation: {
+    days: number;
+    customersIdentified: number;
+    customersReturned: number;
+    customersReturnedAfterContact: number;
+    benefitsRedeemed: number;
+    newReviews: number;
+  };
 }
 
 export function buildSummaryPayload(
   bundle: InsightsMetricsBundle,
+  impact: BusinessImpactMetrics,
+  now: Date = new Date(),
 ): InsightsSummaryPayload {
   const benefitsIssuedTotal = bundle.benefitStats.reduce(
     (sum, s) => sum + s.issued,
@@ -132,6 +153,7 @@ export function buildSummaryPayload(
       customersParticipating: bundle.stampCard.customersParticipating,
       unlockedTotal: bundle.stampCard.unlockedTotal,
       redeemedTotal: bundle.stampCard.redeemedTotal,
+      cardsInProgress: bundle.stampCard.cardsInProgress,
     },
     benefitsIssuedLifetime: benefitsIssuedTotal,
     benefitsRedeemedLifetime: benefitsRedeemedTotal,
@@ -158,6 +180,21 @@ export function buildSummaryPayload(
       googleRating: bundle.reviewStats.googleRating,
       historySyncStatus: bundle.reviewStats.historySyncStatus,
     },
+    sinceActivation: {
+      days: Math.max(
+        0,
+        Math.floor(
+          (now.getTime() - impact.sinceFlikker.windowStart.getTime()) /
+            86_400_000,
+        ),
+      ),
+      customersIdentified: impact.sinceFlikker.customersIdentified,
+      customersReturned: impact.sinceFlikker.customersReturned,
+      customersReturnedAfterContact:
+        impact.sinceFlikker.customersReturnedAfterContact,
+      benefitsRedeemed: impact.sinceFlikker.benefitsRedeemed,
+      newReviews: impact.sinceFlikker.newReviews,
+    },
   };
 }
 
@@ -174,6 +211,7 @@ export class BusinessInsightSummaryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly insights: InsightsService,
+    private readonly businessImpact: BusinessImpactService,
     @Inject(AI_PROVIDER) private readonly provider: AiProvider,
     private readonly gate: AiGateService,
     private readonly usage: AiUsageService,
@@ -205,8 +243,11 @@ export class BusinessInsightSummaryService {
       return cached ? toView(cached) : null;
     }
 
-    const bundle = await this.insights.getMetricsBundle(businessId, now);
-    const payload = buildSummaryPayload(bundle);
+    const [bundle, impact] = await Promise.all([
+      this.insights.getMetricsBundle(businessId, now),
+      this.businessImpact.getImpact(businessId, now),
+    ]);
+    const payload = buildSummaryPayload(bundle, impact, now);
     const payloadRecord = payload as unknown as Record<string, unknown>;
 
     const startedAt = Date.now();

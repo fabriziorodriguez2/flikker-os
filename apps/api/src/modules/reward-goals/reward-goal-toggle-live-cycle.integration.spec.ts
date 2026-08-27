@@ -170,14 +170,16 @@ describe('Reward Goals — sellos OFF con un ciclo vivo (integration)', () => {
   it('un ciclo ACTIVE en 4/5 sobrevive a que el dueño apague sellos: cliente, dashboard, engine y cierre', async () => {
     const { business, customer } = await setupBusiness();
     try {
-      // Cuatro visitas: la primera crea el ciclo (0/5), las tres siguientes
-      // lo llevan a 3/5. Cooldown por defecto no importa acá (nunca se cierra).
+      // Cuatro visitas: la primera crea el ciclo (fundadora = 1/5, bug real
+      // corregido: antes esa visita quedaba afuera del conteo para siempre),
+      // las tres siguientes lo llevan a 4/5. Cooldown por defecto no importa
+      // acá (nunca se cierra).
       await visitOn(business.id, customer.id, daysFrom(0));
       await visitOn(business.id, customer.id, daysFrom(1));
       await visitOn(business.id, customer.id, daysFrom(2));
       const v4 = await visitOn(business.id, customer.id, daysFrom(3));
       expect(v4.goal).toMatchObject({
-        progressVisits: 3,
+        progressVisits: 4,
         targetAdditionalVisits: 5,
       });
 
@@ -197,9 +199,9 @@ describe('Reward Goals — sellos OFF con un ciclo vivo (integration)', () => {
       );
       expect(publicView.goal).toMatchObject({
         incentiveName: 'Café gratis',
-        progressVisits: 3,
+        progressVisits: 4,
         targetAdditionalVisits: 5,
-        remainingVisits: 2,
+        remainingVisits: 1,
       });
 
       // ── DASHBOARD CLIENTES: el modal sigue mostrando la tarjeta viva ──
@@ -212,7 +214,7 @@ describe('Reward Goals — sellos OFF con un ciclo vivo (integration)', () => {
       expect(dashboardOverview.currentCard).toMatchObject({
         state: 'en_progreso',
         rewardName: 'Café gratis',
-        progressVisits: 3,
+        progressVisits: 4,
         targetAdditionalVisits: 5,
       });
 
@@ -226,16 +228,14 @@ describe('Reward Goals — sellos OFF con un ciclo vivo (integration)', () => {
       expect(settingsNow.rewardGoalsEnabled).toBe(false);
       expect(settingsNow.progressReminderEnabled).toBe(false);
 
-      // Una visita más NO crea sello donde no correspondería, sigue sumando
-      // progreso normal al ciclo YA vivo — dos visitas más completan 5/5.
-      await visitOn(business.id, customer.id, daysFrom(4));
-      const v6 = await visitOn(business.id, customer.id, daysFrom(5));
-
-      // El ciclo se HONRA hasta el final — un cliente a mitad de tarjeta no
-      // pierde su promesa solo porque el dueño apagó sellos para los que
-      // vengan después.
-      expect(v6.unlockedNow).toBe(true);
-      expect(v6.benefit?.name).toBe('Café gratis');
+      // Una visita más completa el ciclo (fundadora + 4 = 5/5) y desbloquea
+      // — antes de la corrección esto recién pasaba una visita después,
+      // porque la fundadora no contaba. El ciclo se HONRA hasta el final —
+      // un cliente a mitad de tarjeta no pierde su promesa solo porque el
+      // dueño apagó sellos para los que vengan después.
+      const v5 = await visitOn(business.id, customer.id, daysFrom(4));
+      expect(v5.unlockedNow).toBe(true);
+      expect(v5.benefit?.name).toBe('Café gratis');
 
       const closedGoal = await prisma.customerRewardGoal.findFirst({
         where: { businessId: business.id, customerId: customer.id },
@@ -244,8 +244,14 @@ describe('Reward Goals — sellos OFF con un ciclo vivo (integration)', () => {
       expect(closedGoal?.status).toBe(RewardGoalStatus.UNLOCKED);
       expect(closedGoal?.benefitParticipationId).not.toBeNull();
 
-      // ── Después de completar el ciclo: NO nace uno nuevo mientras sellos
-      // siga OFF, sin importar cuántas visitas más haga. ──
+      // Una visita más, con el ciclo ya UNLOCKED sin canjear: no aparece
+      // nada nuevo (sellos sigue OFF, y un ciclo UNLOCKED sin canjear sigue
+      // bloqueando cualquier ciclo nuevo).
+      const v6 = await visitOn(business.id, customer.id, daysFrom(5));
+      expect(v6).toEqual({ goal: null, unlockedNow: false, benefit: null });
+
+      // ── Mucho después: NO nace uno nuevo mientras sellos siga OFF, sin
+      // importar cuántas visitas más haga. ──
       const v7 = await visitOn(business.id, customer.id, daysFrom(20));
       expect(v7).toEqual({ goal: null, unlockedNow: false, benefit: null });
 

@@ -13,6 +13,8 @@ function makeDeps(
     createImpl?: () => Promise<{ id: string }>;
     emailAvailable?: boolean;
     sendImpl?: () => Promise<unknown>;
+    whatsAppAvailable?: boolean;
+    whatsAppSendImpl?: () => Promise<unknown>;
   } = {},
 ) {
   const prisma = {
@@ -32,13 +34,25 @@ function makeDeps(
       .fn()
       .mockImplementation(options.sendImpl ?? (() => Promise.resolve({}))),
   };
-  return { prisma, email };
+  const whatsApp = {
+    isChannelAvailable: jest
+      .fn()
+      .mockResolvedValue(options.whatsAppAvailable ?? true),
+    sendText: jest
+      .fn()
+      .mockImplementation(
+        options.whatsAppSendImpl ??
+          (() => Promise.resolve({ whatsappMessageId: 'wa-1' })),
+      ),
+  };
+  return { prisma, email, whatsApp };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
   return new OwnerLifecycleEmailLogService(
     deps.prisma as never,
     deps.email as never,
+    deps.whatsApp as never,
   );
 }
 
@@ -111,8 +125,8 @@ describe('OwnerLifecycleEmailLogService.sendOnce', () => {
 
     const outcome = await service.sendOnce({
       businessId: 'biz-1',
-      kind: 'milestone',
-      dedupeKey: 'customers_50',
+      kind: 'monthly_summary',
+      dedupeKey: '2026-08',
       to: ['owner@negocio.com'],
       subject: 'x',
       html: '<p>x</p>',
@@ -135,6 +149,117 @@ describe('OwnerLifecycleEmailLogService.sendOnce', () => {
       to: ['owner@negocio.com'],
       subject: 'x',
       html: '<p>x</p>',
+    });
+
+    expect(outcome).toBe('failed');
+  });
+});
+
+describe('OwnerLifecycleEmailLogService.sendOnceWhatsApp', () => {
+  it('nunca reserva el slot si no hay a quién mandarle', async () => {
+    const deps = makeDeps();
+    const service = makeService(deps);
+
+    const outcome = await service.sendOnceWhatsApp({
+      businessId: 'biz-1',
+      kind: 'milestone_whatsapp',
+      dedupeKey: 'customers_50',
+      to: [],
+      text: 'x',
+    });
+
+    expect(outcome).toBe('skipped_no_recipient');
+    expect(deps.prisma.ownerLifecycleEmailLog.create).not.toHaveBeenCalled();
+  });
+
+  it('un segundo intento con el mismo (businessId, kind, dedupeKey) nunca duplica el envío', async () => {
+    const deps = makeDeps({
+      createImpl: () => Promise.reject(duplicateError()),
+    });
+    const service = makeService(deps);
+
+    const outcome = await service.sendOnceWhatsApp({
+      businessId: 'biz-1',
+      kind: 'milestone_whatsapp',
+      dedupeKey: 'customers_50',
+      to: ['+59899123456'],
+      text: 'x',
+    });
+
+    expect(outcome).toBe('skipped_duplicate');
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+  });
+
+  it('manda a CADA teléfono por separado (WhatsApp no soporta multi-destinatario)', async () => {
+    const deps = makeDeps();
+    const service = makeService(deps);
+
+    const outcome = await service.sendOnceWhatsApp({
+      businessId: 'biz-1',
+      kind: 'milestone_whatsapp',
+      dedupeKey: 'customers_50',
+      to: ['+59899111111', '+59899222222'],
+      text: 'Llegaste a 50 clientes 🙌',
+    });
+
+    expect(outcome).toBe('sent');
+    expect(deps.whatsApp.sendText).toHaveBeenCalledTimes(2);
+    expect(deps.whatsApp.sendText).toHaveBeenCalledWith({
+      phone: '+59899111111',
+      text: 'Llegaste a 50 clientes 🙌',
+    });
+    expect(deps.whatsApp.sendText).toHaveBeenCalledWith({
+      phone: '+59899222222',
+      text: 'Llegaste a 50 clientes 🙌',
+    });
+  });
+
+  it('un teléfono roto no aborta a los demás — "sent" si al menos uno recibió', async () => {
+    const deps = makeDeps();
+    deps.whatsApp.sendText
+      .mockRejectedValueOnce(new Error('invalid number'))
+      .mockResolvedValueOnce({ whatsappMessageId: 'wa-2' });
+    const service = makeService(deps);
+
+    const outcome = await service.sendOnceWhatsApp({
+      businessId: 'biz-1',
+      kind: 'milestone_whatsapp',
+      dedupeKey: 'customers_50',
+      to: ['+59899111111', '+59899222222'],
+      text: 'x',
+    });
+
+    expect(outcome).toBe('sent');
+  });
+
+  it('si el canal de WhatsApp no está disponible, queda failed sin reintentar el mismo slot', async () => {
+    const deps = makeDeps({ whatsAppAvailable: false });
+    const service = makeService(deps);
+
+    const outcome = await service.sendOnceWhatsApp({
+      businessId: 'biz-1',
+      kind: 'milestone_whatsapp',
+      dedupeKey: 'customers_50',
+      to: ['+59899111111'],
+      text: 'x',
+    });
+
+    expect(outcome).toBe('skipped_unavailable');
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+  });
+
+  it('si TODOS los envíos fallan, el resultado es failed', async () => {
+    const deps = makeDeps({
+      whatsAppSendImpl: () => Promise.reject(new Error('down')),
+    });
+    const service = makeService(deps);
+
+    const outcome = await service.sendOnceWhatsApp({
+      businessId: 'biz-1',
+      kind: 'milestone_whatsapp',
+      dedupeKey: 'customers_50',
+      to: ['+59899111111'],
+      text: 'x',
     });
 
     expect(outcome).toBe('failed');

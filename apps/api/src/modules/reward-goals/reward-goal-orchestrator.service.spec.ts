@@ -8,15 +8,31 @@ function makeDeps(
     engineDecision?: unknown;
     visits?: { occurredAt: Date }[];
     incentiveName?: string;
+    createdGoal?: unknown;
+    visitCount?: number;
+    bonusStampCount?: number;
   } = {},
 ) {
   const prisma = {
-    visit: { findMany: jest.fn().mockResolvedValue(options.visits ?? []) },
+    visit: {
+      findMany: jest.fn().mockResolvedValue(options.visits ?? []),
+      count: jest.fn().mockResolvedValue(options.visitCount ?? 0),
+    },
     retentionAssignment: { findFirst: jest.fn().mockResolvedValue(null) },
     retentionIncentiveDefinition: {
       findUnique: jest
         .fn()
         .mockResolvedValue({ name: options.incentiveName ?? 'Upgrade gratis' }),
+    },
+    // `maybeCreateGoal` busca el goal recién creado para reportar su
+    // progreso REAL (bug real corregido — antes devolvía siempre 0). `null`
+    // por default simula el caso dry-run (el engine decide CREATE_GOAL pero
+    // nunca escribe la fila); un test dedicado cubre el caso con fila real.
+    customerRewardGoal: {
+      findFirst: jest.fn().mockResolvedValue(options.createdGoal ?? null),
+    },
+    rewardGoalBonusStamp: {
+      count: jest.fn().mockResolvedValue(options.bonusStampCount ?? 0),
     },
   };
   const engine = {
@@ -109,7 +125,7 @@ describe('RewardGoalOrchestratorService — unlock takes priority', () => {
 });
 
 describe('RewardGoalOrchestratorService — creating a new goal (Fase E §27)', () => {
-  it('only asks the engine when there is no active goal to report', async () => {
+  it('only asks the engine when there is no active goal to report — dry-run preview (no row written)', async () => {
     const deps = makeDeps({
       unlockResult: { status: 'no_active_goal' },
       engineDecision: {
@@ -137,6 +153,54 @@ describe('RewardGoalOrchestratorService — creating a new goal (Fase E §27)', 
         bonusStamps: 0,
         targetAdditionalVisits: 1,
         remainingVisits: 1,
+      },
+      unlockedNow: false,
+      benefit: null,
+    });
+  });
+
+  /**
+   * Bug real corregido — auditoría de caso real: la primera visita nunca
+   * dejaba el primer sello. Cuando el engine SÍ escribió la fila (caso real,
+   * no dry-run), `maybeCreateGoal` debe reportar el progreso REAL de la
+   * visita fundadora (vía `computeProgress`), nunca el 0 hardcodeado de
+   * antes.
+   */
+  it('reports the REAL progress of the founding visit when the engine actually created the goal', async () => {
+    const deps = makeDeps({
+      unlockResult: { status: 'no_active_goal' },
+      engineDecision: {
+        action: 'CREATE_GOAL',
+        incentiveDefinitionId: 'inc-1',
+        targetAdditionalVisits: 3,
+        reasonCode: 'NEW_SECOND_VISIT',
+      },
+      createdGoal: {
+        id: 'goal-2',
+        activatedAt: new Date(NOW.getTime() - 1),
+        targetAdditionalVisits: 3,
+        incentiveDefinition: { name: 'Café gratis' },
+      },
+      visitCount: 1,
+      bonusStampCount: 0,
+    });
+    const service = makeService(deps);
+
+    const result = await service.afterVisit(
+      'biz-1',
+      'cust-1',
+      'America/Montevideo',
+      NOW,
+    );
+
+    expect(result).toEqual({
+      goal: {
+        incentiveName: 'Café gratis',
+        progressVisits: 1,
+        visitProgress: 1,
+        bonusStamps: 0,
+        targetAdditionalVisits: 3,
+        remainingVisits: 2,
       },
       unlockedNow: false,
       benefit: null,

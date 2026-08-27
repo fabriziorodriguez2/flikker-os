@@ -12,6 +12,7 @@ import { InsightsRepository } from './insights.repository';
 import { InsightsService } from './insights.service';
 import { BusinessInsightSummaryService } from './business-insight-summary.service';
 import { OwnerLifecycleAiSummaryService } from './owner-lifecycle-ai-summary.service';
+import { BusinessImpactService } from './business-impact.service';
 import { ChatbotService } from './chatbot.service';
 
 /**
@@ -40,6 +41,7 @@ import { ChatbotService } from './chatbot.service';
     InsightsService,
     BusinessInsightSummaryService,
     OwnerLifecycleAiSummaryService,
+    BusinessImpactService,
     ChatbotService,
   ],
   exports: [InsightsService],

@@ -82,6 +82,37 @@ function makeDeps() {
   const insights = {
     getMetricsBundle: jest.fn().mockResolvedValue(baseBundle()),
   };
+  const businessImpact = {
+    getImpact: jest.fn().mockResolvedValue({
+      sinceFlikker: {
+        windowStart: new Date('2026-08-01T00:00:00.000Z'), // 19 días antes de NOW
+        anchor: 'onboarding' as const,
+        customersIdentified: 12,
+        customersReturned: 4,
+        customersReturnedAfterContact: 1,
+        benefitsRedeemed: 2,
+        newReviews: 3,
+      },
+      last30Days: {
+        customersIdentified: 12,
+        customersReturned: 4,
+        customersReturnedAfterContact: 1,
+        benefitsRedeemed: 2,
+        newReviews: 3,
+      },
+      lifetime: {
+        customersIdentified: 51,
+        customersReturned: 17,
+        customersReturnedAfterContact: 0,
+        benefitsIssued: 10,
+        benefitsRedeemed: 3,
+        cardsInProgress: 8,
+        reviewsSinceFlikker: 3,
+      },
+      reactivationEvidenceState: 'INSUFFICIENT_DATA' as const,
+      hasEnoughRetentionEvidence: false,
+    }),
+  };
   const provider = {
     configured: true,
     generateStructured: jest.fn().mockResolvedValue({
@@ -101,13 +132,22 @@ function makeDeps() {
   };
   const gate = { check: jest.fn().mockResolvedValue({ allowed: true }) };
   const usage = { record: jest.fn().mockResolvedValue('event-1') };
-  return { prisma, insights, provider, gate, usage, cachedRow };
+  return {
+    prisma,
+    insights,
+    businessImpact,
+    provider,
+    gate,
+    usage,
+    cachedRow,
+  };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
   return new BusinessInsightSummaryService(
     deps.prisma as never,
     deps.insights as never,
+    deps.businessImpact as never,
     deps.provider as never,
     deps.gate as never,
     deps.usage as never,
@@ -364,6 +404,45 @@ describe('BusinessInsightSummaryService', () => {
  * El fixture usa tres números deliberadamente distintos (194 / 60 / 3) para
  * que ninguna confusión entre ellos pueda pasar desapercibida.
  */
+describe('sinceActivation — "Impacto de Flikker" en el mismo payload, misma fuente', () => {
+  it('trae los números de BusinessImpactService, nunca recalculados acá', async () => {
+    const deps = makeDeps();
+    await makeService(deps).getSummary('biz-1', {}, NOW);
+
+    expect(deps.businessImpact.getImpact).toHaveBeenCalledWith('biz-1', NOW);
+    const call = deps.provider.generateStructured.mock.calls[0][0] as {
+      userPayload: { sinceActivation: Record<string, unknown> };
+    };
+    expect(call.userPayload.sinceActivation).toEqual({
+      days: 19,
+      customersIdentified: 12,
+      customersReturned: 4,
+      customersReturnedAfterContact: 1,
+      benefitsRedeemed: 2,
+      newReviews: 3,
+    });
+  });
+
+  it('stampCardLifetime ahora incluye cardsInProgress', async () => {
+    const deps = makeDeps();
+    await makeService(deps).getSummary('biz-1', {}, NOW);
+
+    const call = deps.provider.generateStructured.mock.calls[0][0] as {
+      userPayload: { stampCardLifetime: Record<string, unknown> };
+    };
+    expect(call.userPayload.stampCardLifetime.cardsInProgress).toBe(8);
+  });
+
+  it('el prompt distingue sinceActivation de InWindow/Lifetime', async () => {
+    const deps = makeDeps();
+    await makeService(deps).getSummary('biz-1', {}, NOW);
+
+    const { systemPrompt } = deps.provider.generateStructured.mock
+      .calls[0][0] as { systemPrompt: string };
+    expect(systemPrompt).toContain('sinceActivation');
+  });
+});
+
 describe('reseñas: total de Google vs importadas vs desde Flikker', () => {
   async function reviewsPayload() {
     const deps = makeDeps();

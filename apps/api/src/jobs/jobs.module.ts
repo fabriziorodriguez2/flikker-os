@@ -4,8 +4,11 @@ import { RetentionV2Module } from '../modules/retention-v2/retention-v2.module';
 import { RewardGoalsModule } from '../modules/reward-goals/reward-goals.module';
 import { PlansModule } from '../modules/plans/plans.module';
 import { AiModule } from '../modules/ai/ai.module';
+import { CustomersModule } from '../modules/customers/customers.module';
+import { BenefitsModule } from '../modules/benefits/benefits.module';
 import { InsightsRepository } from '../modules/insights/insights.repository';
 import { OwnerLifecycleAiSummaryService } from '../modules/insights/owner-lifecycle-ai-summary.service';
+import { BusinessImpactService } from '../modules/insights/business-impact.service';
 import { OwnerNotificationsQueue } from './owner-notifications.queue';
 import { GoogleReviewDetectionQueue } from './google-review-detection.queue';
 import { GoogleReviewsProvider } from './google-reviews.provider';
@@ -45,6 +48,7 @@ import { OwnerLifecycleEmailLogService } from './owner-lifecycle-email-log.servi
 import { OwnerLifecycleEmailsService } from './owner-lifecycle-emails.service';
 import { OwnerLifecycleEmailsQueue } from './owner-lifecycle-emails.queue';
 import { OwnerLifecycleEmailsWorker } from './workers/owner-lifecycle-emails.worker';
+import { OwnerMilestoneWhatsAppService } from './owner-milestone-whatsapp.service';
 
 @Module({
   imports: [
@@ -54,12 +58,16 @@ import { OwnerLifecycleEmailsWorker } from './workers/owner-lifecycle-emails.wor
     PlansModule,
     // Deliberadamente NO `InsightsModule` — ese módulo importa
     // `ReviewsModule`, que (vía `CampaignsModule`) importa este mismo
-    // `JobsModule`, cerrando un ciclo real de módulos. `InsightsRepository`
-    // y `OwnerLifecycleAiSummaryService` solo necesitan `PrismaModule`
-    // (ya importado) y `AiModule` (sin ciclo — solo depende de
-    // `PrismaModule`), así que se registran directo como providers propios
-    // en vez de importar el módulo completo.
+    // `JobsModule`, cerrando un ciclo real de módulos. `InsightsRepository`,
+    // `OwnerLifecycleAiSummaryService` y `BusinessImpactService` solo
+    // necesitan módulos que ya no ciclan (`PrismaModule`, `AiModule`,
+    // `CustomersModule`, `BenefitsModule`, `RewardGoalsModule`,
+    // `RetentionV2Module` — verificado ninguno importa `JobsModule`), así
+    // que se registran directo como providers propios en vez de importar
+    // el módulo completo.
     AiModule,
+    CustomersModule,
+    BenefitsModule,
   ],
   providers: [
     ReviewRequestQueue,
@@ -101,8 +109,10 @@ import { OwnerLifecycleEmailsWorker } from './workers/owner-lifecycle-emails.wor
     OwnerLifecycleEmailsService,
     OwnerLifecycleEmailsQueue,
     OwnerLifecycleEmailsWorker,
+    OwnerMilestoneWhatsAppService,
     InsightsRepository,
     OwnerLifecycleAiSummaryService,
+    BusinessImpactService,
   ],
   exports: [
     ReviewRequestQueue,

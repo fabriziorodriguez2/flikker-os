@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EmailService } from './email.service';
+import { WhatsAppBspService } from './whatsapp-bsp.service';
 
 export type OwnerLifecycleEmailKind =
   | 'first_week'
@@ -10,7 +11,7 @@ export type OwnerLifecycleEmailKind =
   | 'first_month'
   | 'trial_ending_5d'
   | 'trial_ending_2d'
-  | 'milestone';
+  | 'milestone_whatsapp';
 
 export type OwnerLifecycleEmailOutcome =
   | 'sent'
@@ -26,6 +27,10 @@ export type OwnerLifecycleEmailOutcome =
  * destinatario es la lista de OWNER/ADMIN del negocio, no un Customer. Ver
  * el comentario del modelo en schema.prisma para el significado de
  * `dedupeKey` por `kind`.
+ *
+ * Dos canales, un solo idioma de idempotencia: `sendOnce` (email) y
+ * `sendOnceWhatsApp` (hitos) comparten `claim`/`markSent`/`markFailed` —
+ * la reserva atómica es la misma, solo cambia el transporte final.
  */
 @Injectable()
 export class OwnerLifecycleEmailLogService {
@@ -34,6 +39,7 @@ export class OwnerLifecycleEmailLogService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly email: EmailService,
+    private readonly whatsApp: WhatsAppBspService,
   ) {}
 
   async sendOnce(input: {
@@ -49,33 +55,15 @@ export class OwnerLifecycleEmailLogService {
     // "gasta" esa ocurrencia (mismo criterio que `LifecycleEmailsService`).
     if (input.to.length === 0) return 'skipped_no_recipient';
 
-    let logId: string;
-    try {
-      const log = await this.prisma.ownerLifecycleEmailLog.create({
-        data: {
-          businessId: input.businessId,
-          kind: input.kind,
-          dedupeKey: input.dedupeKey,
-          status: 'sent',
-        },
-        select: { id: true },
-      });
-      logId = log.id;
-    } catch (error) {
-      if (
-        error instanceof Prisma.PrismaClientKnownRequestError &&
-        error.code === 'P2002'
-      ) {
-        return 'skipped_duplicate';
-      }
-      throw error;
-    }
+    const claim = await this.claim(
+      input.businessId,
+      input.kind,
+      input.dedupeKey,
+    );
+    if (claim === 'skipped_duplicate') return claim;
 
     if (!this.email.isAvailable()) {
-      await this.prisma.ownerLifecycleEmailLog.update({
-        where: { id: logId },
-        data: { status: 'failed', errorMessage: 'EMAIL_NOT_CONFIGURED' },
-      });
+      await this.markFailed(claim.logId, 'EMAIL_NOT_CONFIGURED');
       return 'skipped_unavailable';
     }
 
@@ -85,22 +73,66 @@ export class OwnerLifecycleEmailLogService {
         subject: input.subject,
         html: input.html,
       });
-      await this.prisma.ownerLifecycleEmailLog.update({
-        where: { id: logId },
-        data: { sentAt: new Date() },
-      });
+      await this.markSent(claim.logId);
       return 'sent';
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(
         `Owner lifecycle email send failed (${input.kind}): ${message}`,
       );
-      await this.prisma.ownerLifecycleEmailLog.update({
-        where: { id: logId },
-        data: { status: 'failed', errorMessage: message.slice(0, 500) },
-      });
+      await this.markFailed(claim.logId, message.slice(0, 500));
       return 'failed';
     }
+  }
+
+  /**
+   * Mismo mecanismo que `sendOnce`, pero por WhatsApp — para los hitos
+   * (`OwnerMilestoneWhatsAppService`). WhatsApp no soporta múltiples
+   * destinatarios en un solo envío como el email: se manda a cada teléfono
+   * por separado, best-effort (un número roto no aborta a los demás).
+   * `sent` significa que al menos un teléfono lo recibió.
+   */
+  async sendOnceWhatsApp(input: {
+    businessId: string;
+    kind: OwnerLifecycleEmailKind;
+    dedupeKey: string;
+    to: string[];
+    text: string;
+  }): Promise<OwnerLifecycleEmailOutcome> {
+    if (input.to.length === 0) return 'skipped_no_recipient';
+
+    const claim = await this.claim(
+      input.businessId,
+      input.kind,
+      input.dedupeKey,
+    );
+    if (claim === 'skipped_duplicate') return claim;
+
+    if (!(await this.whatsApp.isChannelAvailable())) {
+      await this.markFailed(claim.logId, 'WHATSAPP_NOT_CONFIGURED');
+      return 'skipped_unavailable';
+    }
+
+    let anySent = false;
+    for (const phone of input.to) {
+      try {
+        await this.whatsApp.sendText({ phone, text: input.text });
+        anySent = true;
+      } catch (error) {
+        this.logger.warn(
+          `Owner milestone WhatsApp send failed for ${phone}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+
+    if (anySent) {
+      await this.markSent(claim.logId);
+      return 'sent';
+    }
+    await this.markFailed(claim.logId, 'ALL_WHATSAPP_SENDS_FAILED');
+    return 'failed';
   }
 
   /** Ya se mandó (o se intentó) esta ocurrencia puntual — sin gastar el slot. */
@@ -116,5 +148,59 @@ export class OwnerLifecycleEmailLogService {
       select: { id: true },
     });
     return row !== null;
+  }
+
+  private async claim(
+    businessId: string,
+    kind: OwnerLifecycleEmailKind,
+    dedupeKey: string,
+  ): Promise<{ logId: string } | 'skipped_duplicate'> {
+    const logId = await this.claimOnce(businessId, kind, dedupeKey);
+    return logId ? { logId } : 'skipped_duplicate';
+  }
+
+  /**
+   * El reclamo atómico real, expuesto para callers que necesitan reservar
+   * VARIOS slots por separado antes de un único envío combinado (los
+   * hitos de WhatsApp: N milestones cruzados a la vez, un solo mensaje —
+   * ver `OwnerMilestoneWhatsAppService`). La fila se crea ANTES de
+   * intentar cualquier envío; el índice único `(businessId, kind,
+   * dedupeKey)` es lo que de verdad impide un segundo envío, nunca una
+   * lectura-y-luego-escritura. `null` = ya estaba reclamado.
+   */
+  async claimOnce(
+    businessId: string,
+    kind: OwnerLifecycleEmailKind,
+    dedupeKey: string,
+  ): Promise<string | null> {
+    try {
+      const log = await this.prisma.ownerLifecycleEmailLog.create({
+        data: { businessId, kind, dedupeKey, status: 'sent' },
+        select: { id: true },
+      });
+      return log.id;
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === 'P2002'
+      ) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  markSent(logId: string) {
+    return this.prisma.ownerLifecycleEmailLog.update({
+      where: { id: logId },
+      data: { sentAt: new Date() },
+    });
+  }
+
+  markFailed(logId: string, errorMessage: string) {
+    return this.prisma.ownerLifecycleEmailLog.update({
+      where: { id: logId },
+      data: { status: 'failed', errorMessage: errorMessage.slice(0, 500) },
+    });
   }
 }

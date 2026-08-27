@@ -7,6 +7,7 @@ import {
   previousLocalMonthKey,
   previousLocalMonthRange,
   previousLocalWeekRange,
+  startOfLocalDay,
 } from './owner-lifecycle-time';
 
 const TZ = 'America/Montevideo'; // UTC-3, sin DST
@@ -54,6 +55,24 @@ describe('localMonthKey / previousLocalMonthKey', () => {
     const januaryFirst = new Date('2026-01-01T12:00:00.000Z');
     expect(localMonthKey(januaryFirst, TZ)).toBe('2026-01');
     expect(previousLocalMonthKey(januaryFirst, TZ)).toBe('2025-12');
+  });
+});
+
+describe('startOfLocalDay', () => {
+  it('devuelve el instante UTC real de medianoche local', () => {
+    // 2026-08-20 15:00 UTC = 12:00 local (UTC-3) del mismo día calendario.
+    const now = new Date('2026-08-20T15:00:00.000Z');
+    expect(startOfLocalDay(now, TZ).toISOString()).toBe(
+      '2026-08-20T03:00:00.000Z',
+    );
+  });
+
+  it('cruza el día de calendario correctamente cerca de medianoche UTC', () => {
+    // 2026-08-21 01:00 UTC = 2026-08-20 22:00 local — sigue siendo el 20.
+    const now = new Date('2026-08-21T01:00:00.000Z');
+    expect(startOfLocalDay(now, TZ).toISOString()).toBe(
+      '2026-08-20T03:00:00.000Z',
+    );
   });
 });
 

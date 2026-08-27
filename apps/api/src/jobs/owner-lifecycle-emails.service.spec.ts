@@ -18,6 +18,16 @@ function emptyFunnel() {
   };
 }
 
+function emptyWindow() {
+  return {
+    customersIdentified: 0,
+    customersReturned: 0,
+    customersReturnedAfterContact: 0,
+    benefitsRedeemed: 0,
+    newReviews: 0,
+  };
+}
+
 function business(
   overrides: Partial<{
     id: string;
@@ -85,9 +95,14 @@ function makeFakeLog() {
     },
   };
   const email = { isAvailable: jest.fn().mockReturnValue(true), send };
+  const whatsApp = {
+    isChannelAvailable: jest.fn().mockResolvedValue(true),
+    sendText: jest.fn().mockResolvedValue({ whatsappMessageId: 'wa-1' }),
+  };
   const logService = new OwnerLifecycleEmailLogService(
     prisma as never,
     email as never,
+    whatsApp as never,
   );
   return { logService, send };
 }
@@ -103,20 +118,13 @@ function makeDeps() {
         ]),
     },
     visit: { count: jest.fn().mockResolvedValue(0) },
-    customer: { count: jest.fn().mockResolvedValue(0) },
-    benefitParticipation: { count: jest.fn().mockResolvedValue(0) },
   };
   const plans = { isOnProPlan: jest.fn().mockResolvedValue(false) };
   const reactivationFunnel = {
     forBusiness: jest.fn().mockResolvedValue(emptyFunnel()),
-    countRecoveredInRange: jest.fn().mockResolvedValue(0),
   };
-  const insightsRepository = {
-    countNewCustomersInRange: jest.fn().mockResolvedValue(0),
-    countReturningCustomersInRange: jest.fn().mockResolvedValue(0),
-    countReviewsInRange: jest.fn().mockResolvedValue(0),
-    countBenefitsRedeemedInRange: jest.fn().mockResolvedValue(0),
-    countReviewsSinceFlikker: jest.fn().mockResolvedValue(0),
+  const businessImpact = {
+    getWindowMetrics: jest.fn().mockResolvedValue(emptyWindow()),
   };
   const aiSummary = { generate: jest.fn().mockResolvedValue(null) };
   const { logService, send } = makeFakeLog();
@@ -125,7 +133,7 @@ function makeDeps() {
     prisma,
     plans,
     reactivationFunnel,
-    insightsRepository,
+    businessImpact,
     aiSummary,
     logService,
     emailSend: send,
@@ -137,7 +145,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.prisma as never,
     deps.plans as never,
     deps.reactivationFunnel as never,
-    deps.insightsRepository as never,
+    deps.businessImpact as never,
     deps.aiSummary as never,
     deps.logService,
   );
@@ -303,33 +311,6 @@ describe('OwnerLifecycleEmailsService — arbitraje de prioridad', () => {
   });
 });
 
-describe('OwnerLifecycleEmailsService — hitos', () => {
-  it('el hito de 50 clientes se dispara una sola vez, incluso corriendo el sweep dos veces', async () => {
-    const deps = makeDeps();
-    deps.prisma.business.findMany.mockResolvedValue([business()]);
-    deps.prisma.customer.count.mockResolvedValue(50);
-    const service = makeService(deps);
-
-    await service.runHourlySweep(NEUTRAL_TICK);
-    await service.runHourlySweep(NEUTRAL_TICK);
-
-    expect(deps.emailSend).toHaveBeenCalledTimes(1);
-    const [{ subject }] = deps.emailSend.mock.calls[0];
-    expect(subject).toContain('50 clientes');
-  });
-
-  it('no dispara ningún hito si ningún umbral está cruzado', async () => {
-    const deps = makeDeps();
-    deps.prisma.business.findMany.mockResolvedValue([business()]);
-    deps.prisma.customer.count.mockResolvedValue(10);
-    const service = makeService(deps);
-
-    await service.runHourlySweep(NEUTRAL_TICK);
-
-    expect(deps.emailSend).not.toHaveBeenCalled();
-  });
-});
-
 describe('OwnerLifecycleEmailsService — resiliencia del sweep', () => {
   it('un negocio sin OWNER/ADMIN con email no rompe el sweep ni bloquea a los demás', async () => {
     const deps = makeDeps();
@@ -372,8 +353,8 @@ describe('OwnerLifecycleEmailsService — la IA caída nunca impide el envío', 
   });
 });
 
-describe('OwnerLifecycleEmailsService — los números del email coinciden con las métricas backend', () => {
-  it('el resumen semanal muestra exactamente el funnel y los KPIs que devolvieron los servicios reusados', async () => {
+describe('OwnerLifecycleEmailsService — los números del email coinciden con BusinessImpactService (fuente única)', () => {
+  it('el resumen semanal muestra exactamente el funnel y la ventana que devolvió BusinessImpactService', async () => {
     const deps = makeDeps();
     deps.reactivationFunnel.forBusiness.mockResolvedValue({
       overall: {
@@ -386,14 +367,25 @@ describe('OwnerLifecycleEmailsService — los números del email coinciden con l
       byArm: null,
     });
     deps.prisma.visit.count.mockResolvedValue(88);
-    deps.insightsRepository.countNewCustomersInRange.mockResolvedValue(5);
-    deps.insightsRepository.countReviewsInRange.mockResolvedValue(3);
-    deps.insightsRepository.countBenefitsRedeemedInRange.mockResolvedValue(2);
+    deps.businessImpact.getWindowMetrics.mockResolvedValue({
+      customersIdentified: 5,
+      customersReturned: 0,
+      customersReturnedAfterContact: 0,
+      benefitsRedeemed: 2,
+      newReviews: 3,
+    });
     deps.prisma.business.findMany.mockResolvedValue([business()]);
     const service = makeService(deps);
 
     await service.runHourlySweep(MONDAY_9AM);
 
+    // La ventana semanal es [lunes pasado 00:00 local, hoy 00:00 local) —
+    // no el instante exacto del tick (`MONDAY_9AM`, que es 12:00 local).
+    expect(deps.businessImpact.getWindowMetrics).toHaveBeenCalledWith(
+      'biz-1',
+      expect.any(Date),
+      expect.any(Date),
+    );
     const [{ html }] = deps.emailSend.mock.calls[0];
     expect(html).toContain('>24<');
     expect(html).toContain('>7<');

@@ -136,6 +136,24 @@ export class RewardGoalOrchestratorService {
     });
     if (!goal) return NOTHING;
 
+    const progress = await this.computeProgress(businessId, customerId, goal);
+    return {
+      goal: { incentiveName: goal.incentiveDefinition.name, ...progress },
+      unlockedNow: false,
+      benefit: null,
+    };
+  }
+
+  /**
+   * Único lugar que cuenta progreso real de una tarjeta — `currentView` y
+   * `maybeCreateGoal` (recién creada) piden acá, nunca cada uno por su
+   * cuenta, para que nunca puedan mostrar números distintos del mismo goal.
+   */
+  private async computeProgress(
+    businessId: string,
+    customerId: string,
+    goal: { id: string; activatedAt: Date; targetAdditionalVisits: number },
+  ) {
     const [visitProgress, bonusStamps] = await Promise.all([
       this.prisma.visit.count({
         where: { businessId, customerId, occurredAt: { gt: goal.activatedAt } },
@@ -144,18 +162,11 @@ export class RewardGoalOrchestratorService {
         where: { rewardGoalId: goal.id },
       }),
     ]);
-    return {
-      goal: {
-        incentiveName: goal.incentiveDefinition.name,
-        ...computeGoalProgress({
-          visitProgress,
-          bonusStamps,
-          targetAdditionalVisits: goal.targetAdditionalVisits,
-        }),
-      },
-      unlockedNow: false,
-      benefit: null,
-    };
+    return computeGoalProgress({
+      visitProgress,
+      bonusStamps,
+      targetAdditionalVisits: goal.targetAdditionalVisits,
+    });
   }
 
   private async maybeCreateGoal(
@@ -181,6 +192,38 @@ export class RewardGoalOrchestratorService {
     });
 
     if (decision.action !== 'CREATE_GOAL') return NOTHING;
+
+    // Bug real corregido acá: antes esto devolvía SIEMPRE progreso 0,
+    // aunque la visita que disparó esta creación (la fundadora) ya
+    // calificaba como el primer sello. Se busca el goal recién creado (por
+    // `engine.evaluate`, más arriba) y se cuenta su progreso REAL con la
+    // misma aritmética que `currentView` — nunca un número inventado.
+    //
+    // En modo dry-run (`RetentionSettings.dryRunEnabled`) el engine decide
+    // `CREATE_GOAL` pero NUNCA escribe la fila — acá no hay forma de
+    // distinguir eso de una carrera real sin tocar el contrato del
+    // engine, así que si no se encuentra el goal se cae a la vista previa
+    // determinística de siempre (0 de progreso, que es honesto: en dry-run
+    // no se otorgó nada todavía).
+    const goal = await this.prisma.customerRewardGoal.findFirst({
+      where: { businessId, customerId, status: 'ACTIVE' },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        activatedAt: true,
+        targetAdditionalVisits: true,
+        incentiveDefinition: { select: { name: true } },
+      },
+    });
+
+    if (goal) {
+      const progress = await this.computeProgress(businessId, customerId, goal);
+      return {
+        goal: { incentiveName: goal.incentiveDefinition.name, ...progress },
+        unlockedNow: false,
+        benefit: null,
+      };
+    }
 
     const incentive = await this.prisma.retentionIncentiveDefinition.findUnique(
       {

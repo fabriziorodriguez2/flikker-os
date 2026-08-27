@@ -154,7 +154,19 @@ export class RewardGoalEngineService {
           reasonCode: decision.reasonCode,
           segmentAtCreation: context.segment,
           createdAt: context.now,
-          activatedAt: context.now,
+          // Bug real (auditoría de caso real — primera visita nunca dejaba
+          // el primer sello): TODOS los consumidores de progreso cuentan
+          // visitas con `occurredAt` ESTRICTAMENTE posterior a
+          // `activatedAt` (`RewardGoalUnlockService`, `currentView` acá
+          // mismo, `CustomerLoyaltyService`, `customer-overview.service.ts`,
+          // el recordatorio de "cerca del premio"). Si `activatedAt` fuera
+          // exactamente `context.now` — el mismo instante que la visita que
+          // disparó esta creación — esa visita fundadora quedaría afuera
+          // para siempre (igual o antes, nunca "posterior"). Un milisegundo
+          // antes alcanza para que la visita fundadora SIEMPRE cuente como
+          // el primer sello, sin tocar la regla de "estrictamente después"
+          // en ninguno de esos lugares.
+          activatedAt: new Date(context.now.getTime() - 1),
         },
       });
     } catch (error) {

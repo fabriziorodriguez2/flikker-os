@@ -4,9 +4,11 @@ import { getEffectiveApiContext, getSession } from "@/lib/auth";
 import PageHeader from "@/components/ui/page-header";
 import SummaryCard, { type InsightsSummaryView } from "./summary-card";
 import InsightCards, { type InsightStatement } from "./insight-cards";
+import ImpactCard, { type BusinessImpactMetricsView } from "./impact-card";
 
 interface InsightsOverviewResponse {
   insights: InsightStatement[];
+  impact: BusinessImpactMetricsView;
 }
 
 /**
@@ -54,6 +56,8 @@ export default async function InsightsV2Page() {
         title="Insights"
         subtitle="Qué está pasando en tu negocio y qué convendría hacer."
       />
+
+      {overview && <ImpactCard impact={overview.impact} />}
 
       <SummaryCard initialSummary={summary} />
 

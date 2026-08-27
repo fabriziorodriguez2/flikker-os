@@ -76,6 +76,10 @@ function paragraph(text: string): string {
   return `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:${TEXT_COLOR};font-family:${BODY_FONT};">${text}</p>`;
 }
 
+function subheading(text: string): string {
+  return `<h2 style="margin:0 0 12px;font-size:13px;font-weight:700;letter-spacing:0.04em;text-transform:uppercase;color:${MUTED_COLOR};font-family:${BODY_FONT};">${escapeHtml(text)}</h2>`;
+}
+
 /** Número en violeta, más grande — mismo criterio pedido para Insights (resaltar números reales). */
 function stat(value: string | number, label: string): string {
   return `<td style="padding:0 12px 12px 0;" valign="top">
@@ -226,7 +230,7 @@ export function renderMonthlySummaryEmail(input: {
     subject: `¿Flikker generó valor este mes en ${input.businessName}?`,
     html: wrapper({
       businessName: input.businessName,
-      bodyHtml: `${heading(`Tu mes en Flikker: ${input.monthLabel}`)}${kpisHtml}${comparisonHtml}${aiHtml}`,
+      bodyHtml: `${heading(`Tu mes en Flikker: ${input.monthLabel}`)}${subheading('Lo que Flikker aportó')}${kpisHtml}${comparisonHtml}${aiHtml}`,
       ctaLabel: 'Ver mi mes en Insights',
       ctaUrl: insightsUrl(),
     }),
@@ -300,36 +304,7 @@ export function renderTrialEndingEmail(input: {
   };
 }
 
-// ---------------------------------------------------------------------------
-// 6. Hitos
-// ---------------------------------------------------------------------------
-
-const MILESTONE_LABELS: Record<string, string> = {
-  customers_50: 'llegó a 50 clientes en Flikker',
-  customers_100: 'llegó a 100 clientes en Flikker',
-  reviews_10: 'sumó 10 reseñas nuevas gracias a Flikker',
-  reviews_25: 'sumó 25 reseñas nuevas gracias a Flikker',
-  recovered_10: 'recuperó a 10 clientes con Flikker',
-  recovered_20: 'recuperó a 20 clientes con Flikker',
-  benefits_redeemed_25: 'llegó a 25 beneficios canjeados',
-};
-
-export function milestoneLabel(milestoneKey: string): string {
-  return MILESTONE_LABELS[milestoneKey] ?? 'alcanzó un nuevo hito con Flikker';
-}
-
-export function renderMilestoneEmail(input: {
-  businessName: string;
-  milestoneKey: string;
-}) {
-  const label = milestoneLabel(input.milestoneKey);
-  return {
-    subject: `🎉 ${input.businessName} ${label}`,
-    html: wrapper({
-      businessName: input.businessName,
-      bodyHtml: `${heading('¡Nuevo hito! 🎉')}${paragraph(`<strong>${escapeHtml(input.businessName)} ${label}</strong>. Gracias por seguir construyendo tu comunidad de clientes.`)}`,
-      ctaLabel: 'Ver Insights',
-      ctaUrl: insightsUrl(),
-    }),
-  };
-}
+// Los hitos ("50 clientes", "10 reseñas", ...) ya no viven acá — se
+// movieron a WhatsApp (ver `owner-milestone-whatsapp.service.ts`), un canal
+// más ocasional/celebratorio que el email. Mandarlos por los dos hubiera
+// significado felicitar al dueño dos veces por el mismo logro.

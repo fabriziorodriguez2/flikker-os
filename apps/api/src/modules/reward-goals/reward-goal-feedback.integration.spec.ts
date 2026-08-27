@@ -122,18 +122,16 @@ describe('Reward Goals — feedback bonus (integration)', () => {
     await prisma.business.delete({ where: { id: businessId } });
   }
 
+  /**
+   * A diferencia de otros specs de este módulo, acá NO se pinnea
+   * `activatedAt` a mano: `RewardGoalEngineService.createGoal` ya lo fija
+   * él mismo, de forma explícita y permanente, un milisegundo antes de
+   * `context.now` (bug real corregido — antes la visita fundadora de una
+   * tarjeta quedaba afuera de su propio conteo para siempre). Pinnearlo acá
+   * de nuevo a `at` (igual al `occurredAt` de esa misma visita) volvería a
+   * excluirla, deshaciendo la corrección solo dentro de este test.
+   */
   async function visitOn(businessId: string, customerId: string, at: Date) {
-    // A diferencia de reward-goal-multi-visit.integration.spec.ts (que solo
-    // encadena 1-2 visitas), acá el mismo goal ACTIVE recibe varias visitas
-    // seguidas — pinnear activatedAt en CADA llamada corrompería el progreso
-    // ya calculado (activatedAt se movería hacia adelante en cada visita).
-    // Solo se pinnea la primera vez, justo cuando el goal recién se crea —
-    // igual que en producción, donde activatedAt se escribe una sola vez.
-    const hadActiveGoalBefore = await prisma.customerRewardGoal.findFirst({
-      where: { businessId, customerId, status: 'ACTIVE' },
-      select: { id: true },
-    });
-
     const visit = await prisma.visit.create({
       data: {
         businessId,
@@ -149,12 +147,6 @@ describe('Reward Goals — feedback bonus (integration)', () => {
       'America/Montevideo',
       at,
     );
-    if (!hadActiveGoalBefore) {
-      await prisma.customerRewardGoal.updateMany({
-        where: { businessId, customerId, status: 'ACTIVE' },
-        data: { activatedAt: at, updatedAt: at },
-      });
-    }
     return { visit, result };
   }
 
@@ -168,14 +160,20 @@ describe('Reward Goals — feedback bonus (integration)', () => {
         day1,
       );
 
-      // Primera visita real -> crea la meta (target=2 por el override), sin
-      // desbloquear todavía.
+      // Primera visita real -> crea la meta (target=2 por el override). La
+      // fundadora ya cuenta como progreso (bug real corregido: antes
+      // quedaba afuera del conteo para siempre) -> 1/2, sin desbloquear
+      // todavía (Fase E §27: nunca crea y desbloquea en la misma visita).
       expect(firstResult.goal).toMatchObject({
         targetAdditionalVisits: 2,
-        progressVisits: 0,
+        progressVisits: 1,
       });
+      expect(firstResult.unlockedNow).toBe(false);
 
-      // Feedback NEGATIVO sobre esa misma visita -> +1 bonus igual.
+      // Feedback NEGATIVO sobre esa misma visita -> +1 bonus igual. Con la
+      // fundadora ya contando 1/2, este bonus completa 2/2 y desbloquea DE
+      // UNA — antes de la corrección esto recién pasaba en la segunda
+      // visita real, porque la fundadora no aportaba nada.
       const feedbackResult = await feedback.submit(
         business.id,
         customer.id,
@@ -188,15 +186,12 @@ describe('Reward Goals — feedback bonus (integration)', () => {
       // La oferta de Google ya no depende del puntaje: un 2 recibe la misma
       // invitación que un 5, y el cliente decide.
       expect(feedbackResult.offerGoogle).toBe(true);
-      expect(feedbackResult.rewardGoal.goal).toMatchObject({
-        progressVisits: 1,
-        bonusStamps: 1,
-        visitProgress: 0,
-        targetAdditionalVisits: 2,
-      });
-      expect(feedbackResult.rewardGoal.unlockedNow).toBe(false);
+      expect(feedbackResult.rewardGoal.unlockedNow).toBe(true);
+      expect(feedbackResult.rewardGoal.benefit?.name).toBe('Capuccino gratis');
 
-      // Reabrir/repetir el mismo feedback -> nunca un segundo bonus.
+      // Reabrir/repetir el mismo feedback -> nunca un segundo bonus. La
+      // meta ya está UNLOCKED (no ACTIVE), así que la vista actual ya no
+      // tiene una tarjeta en curso que mostrar.
       const repeated = await feedback.submit(
         business.id,
         customer.id,
@@ -207,21 +202,31 @@ describe('Reward Goals — feedback bonus (integration)', () => {
       );
       expect(repeated.alreadySubmitted).toBe(true);
       expect(repeated.bonusGranted).toBe(false);
+      expect(repeated.rewardGoal).toEqual({
+        goal: null,
+        unlockedNow: false,
+        benefit: null,
+      });
 
       const bonusCount = await prisma.rewardGoalBonusStamp.count({
         where: { businessId: business.id, customerId: customer.id },
       });
       expect(bonusCount).toBe(1); // sigue siendo 1, no 2
 
-      // Segunda visita REAL -> 1 visita + 1 bonus = 2 = target -> unlock.
+      // Segunda visita REAL -> la meta ya está UNLOCKED sin canjear, así que
+      // esta visita no otorga ni desbloquea nada nuevo (un ciclo UNLOCKED
+      // sin canjear bloquea cualquier ciclo nuevo).
       const day2 = new Date('2026-09-03T10:00:00.000Z');
       const { result: secondResult } = await visitOn(
         business.id,
         customer.id,
         day2,
       );
-      expect(secondResult.unlockedNow).toBe(true);
-      expect(secondResult.benefit?.name).toBe('Capuccino gratis');
+      expect(secondResult).toEqual({
+        goal: null,
+        unlockedNow: false,
+        benefit: null,
+      });
 
       // El bonus nunca creó una Visit falsa: solo hay 2 Visit reales, las
       // que efectivamente pasaron por `visitOn`.
@@ -244,8 +249,8 @@ describe('Reward Goals — feedback bonus (integration)', () => {
         day1,
       );
 
-      // 1 visita (la que crea la meta no cuenta como progreso) + 3 más + 1
-      // bonus de feedback = 5 = target.
+      // La fundadora ya cuenta como progreso (1/5) + 2 visitas más + 1 bonus
+      // de feedback = 4/5 — todavía no alcanza el target.
       await visitOn(
         business.id,
         customer.id,
@@ -265,26 +270,36 @@ describe('Reward Goals — feedback bonus (integration)', () => {
         new Date('2026-09-03T10:05:00.000Z'),
       );
       expect(feedbackResult.rewardGoal.goal).toMatchObject({
-        progressVisits: 3,
-        visitProgress: 2,
+        progressVisits: 4,
+        visitProgress: 3,
         bonusStamps: 1,
         targetAdditionalVisits: 5,
       });
+      expect(feedbackResult.rewardGoal.unlockedNow).toBe(false);
 
+      // Esta visita completa 3 visitas + 1 bonus + esta = 5 = target ->
+      // desbloquea DE UNA. Antes de la corrección esto recién pasaba una
+      // visita después, porque la fundadora no aportaba nada.
       const { result: lastResult } = await visitOn(
         business.id,
         customer.id,
         new Date('2026-09-04T10:00:00.000Z'),
       );
-      // Todavía falta 1 (2 visitas + 1 bonus + esta = 4, no 5 todavía).
-      expect(lastResult.unlockedNow).toBe(false);
+      expect(lastResult.unlockedNow).toBe(true);
+      expect(lastResult.benefit?.name).toBe('Capuccino gratis');
 
+      // La meta ya está UNLOCKED sin canjear: una visita más no otorga nada
+      // nuevo.
       const { result: finalResult } = await visitOn(
         business.id,
         customer.id,
         new Date('2026-09-05T10:00:00.000Z'),
       );
-      expect(finalResult.unlockedNow).toBe(true);
+      expect(finalResult).toEqual({
+        goal: null,
+        unlockedNow: false,
+        benefit: null,
+      });
     } finally {
       await cleanup(business.id);
     }
@@ -303,6 +318,12 @@ describe('Reward Goals — feedback bonus (integration)', () => {
         day1,
       );
 
+      // Con target=1, la fundadora sola ya cumple el objetivo (1/1) — el
+      // feedback en sí no suma nada (bonus OFF), pero SU LLAMADO a
+      // `evaluateUnlock` (que corre siempre que hay una meta ACTIVE, gane o
+      // no bonus) encuentra progreso ya completo y desbloquea DE UNA. No es
+      // el feedback el que otorga el sello — es la visita fundadora, recién
+      // reconocida por la corrección.
       const feedbackResult = await feedback.submit(
         business.id,
         customer.id,
@@ -312,24 +333,26 @@ describe('Reward Goals — feedback bonus (integration)', () => {
         new Date('2026-09-01T10:05:00.000Z'),
       );
       expect(feedbackResult.bonusGranted).toBe(false);
-      expect(feedbackResult.rewardGoal.goal).toMatchObject({
-        progressVisits: 0,
-        bonusStamps: 0,
-      });
+      expect(feedbackResult.rewardGoal.unlockedNow).toBe(true);
+      expect(feedbackResult.rewardGoal.benefit?.name).toBe('Capuccino gratis');
 
       const bonusCount = await prisma.rewardGoalBonusStamp.count({
         where: { businessId: business.id, customerId: customer.id },
       });
       expect(bonusCount).toBe(0);
 
-      // Con target=1, esta segunda visita REAL alcanza sola — el feedback
-      // (bonus desactivado) nunca contó como si fuera una.
+      // La meta ya está UNLOCKED sin canjear: esta segunda visita REAL no
+      // otorga ni desbloquea nada nuevo.
       const { result: secondResult } = await visitOn(
         business.id,
         customer.id,
         new Date('2026-09-03T10:00:00.000Z'),
       );
-      expect(secondResult.unlockedNow).toBe(true);
+      expect(secondResult).toEqual({
+        goal: null,
+        unlockedNow: false,
+        benefit: null,
+      });
     } finally {
       await cleanup(business.id);
     }

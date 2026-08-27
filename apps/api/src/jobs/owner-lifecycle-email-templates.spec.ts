@@ -2,7 +2,6 @@ import {
   MERCADOPAGO_CHECKOUT_URL,
   renderFirstMonthEmail,
   renderFirstWeekEmail,
-  renderMilestoneEmail,
   renderMonthlySummaryEmail,
   renderTrialEndingEmail,
   renderWeeklySummaryEmail,
@@ -94,6 +93,21 @@ describe('renderWeeklySummaryEmail', () => {
 });
 
 describe('renderMonthlySummaryEmail', () => {
+  it('incluye el encabezado "Lo que Flikker aportó"', () => {
+    const { html } = renderMonthlySummaryEmail({
+      businessName: 'Café Test',
+      monthLabel: 'agosto de 2026',
+      returningCustomers: 5,
+      recoveredCustomers: 2,
+      newCustomers: 3,
+      newReviews: 1,
+      benefitsRedeemed: 0,
+      comparison: null,
+      aiText: null,
+    });
+    expect(html).toContain('Lo que Flikker aportó');
+  });
+
   it('omite la comparación cuando no se pasa (mes anterior sin data suficiente)', () => {
     const { html } = renderMonthlySummaryEmail({
       businessName: 'Café Test',
@@ -155,16 +169,5 @@ describe('renderFirstMonthEmail', () => {
     expect(html).toContain('15');
     expect(html).toContain('3');
     expect(html).toContain('8');
-  });
-});
-
-describe('renderMilestoneEmail', () => {
-  it('arma un subject con el nombre del negocio y el hito', () => {
-    const { subject } = renderMilestoneEmail({
-      businessName: 'Café Test',
-      milestoneKey: 'customers_100',
-    });
-    expect(subject).toContain('Café Test');
-    expect(subject).toContain('100 clientes');
   });
 });

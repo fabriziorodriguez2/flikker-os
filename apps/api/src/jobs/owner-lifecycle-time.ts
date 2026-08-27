@@ -131,6 +131,12 @@ function zonedMidnightToUtc(
   return new Date(guess.getTime() - offset);
 }
 
+/** Medianoche local de HOY (el día de `date`), como instante UTC real — para acotar "ya se mandó algo hoy" en una query. */
+export function startOfLocalDay(date: Date, timezone: string): Date {
+  const parts = localParts(date, timezone);
+  return zonedMidnightToUtc(parts.year, parts.month, parts.day, timezone);
+}
+
 /** [inicio, fin) del mes local que contiene `date`, como instantes UTC reales. */
 export function localMonthRangeContaining(
   date: Date,

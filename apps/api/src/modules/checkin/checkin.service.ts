@@ -241,6 +241,7 @@ export class CheckinService {
       forceReviewPrompt: true,
       ensureCode: true,
       justVisited: result.created,
+      visitOccurredAt: result.created ? result.visit.occurredAt : undefined,
     });
 
     return {
@@ -295,6 +296,7 @@ export class CheckinService {
     const personal = await this.buildPersonalSpace(business, customer.id, {
       ensureCode: true,
       justVisited: result.created,
+      visitOccurredAt: result.created ? result.visit.occurredAt : undefined,
     });
 
     return {
@@ -472,6 +474,7 @@ export class CheckinService {
     const personal = await this.buildPersonalSpace(business, customer.id, {
       ensureCode: true,
       justVisited: result.created,
+      visitOccurredAt: result.created ? result.visit.occurredAt : undefined,
     });
 
     return {
@@ -682,6 +685,18 @@ export class CheckinService {
        * plain read (`me`) or a dedup-prevented duplicate scan (Fase E §27).
        */
       justVisited?: boolean;
+      /**
+       * El `occurredAt` REAL de esa visita — nunca `new Date()` tomado acá.
+       * Bug real corregido: entre registrar la Visit y llegar a este punto
+       * corren varios `await` (eventos, WhatsApp, sesión, regalo de
+       * bienvenida), así que un "ahora" tomado de nuevo acá siempre cae
+       * DESPUÉS del `occurredAt` real de la visita — y todo el progreso de
+       * sellos cuenta visitas estrictamente posteriores a `activatedAt`
+       * (que el engine fija a partir de este mismo "ahora"). Sin este
+       * timestamp real, la visita fundadora de una tarjeta nueva nunca
+       * podía contar como su propio primer sello.
+       */
+      visitOccurredAt?: Date;
     },
   ) {
     const customer = await this.getCustomerOrThrow(business.id, customerId);
@@ -695,6 +710,7 @@ export class CheckinService {
             business.id,
             customerId,
             business.timezone,
+            opts.visitOccurredAt,
           )
         : this.rewardGoals.currentView(business.id, customerId),
     ]);

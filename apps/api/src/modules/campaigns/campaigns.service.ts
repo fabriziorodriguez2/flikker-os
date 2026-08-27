@@ -16,6 +16,34 @@ import { UpdateRepeatCampaignDto } from './dto/update-repeat-campaign.dto';
 import { UpdateCampaignStatusDto } from './dto/update-campaign-status.dto';
 import { SendManualCampaignDto } from './dto/send-manual-campaign.dto';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { WhatsAppProviderError } from '../../jobs/whatsapp-provider';
+
+/**
+ * WaSenderAPI rechaza más de 1 mensaje cada 5 segundos por cuenta (auditoría
+ * de caso real — 2 de 3 destinatarios de una promoción fallaron porque
+ * `sendManual` los mandaba todos en paralelo con `Promise.all`). Este es el
+ * piso real del proveedor, no un valor arbitrario.
+ */
+const MANUAL_CAMPAIGN_MIN_SEND_INTERVAL_MS = 5000;
+/** 1 intento inicial + 2 reintentos — solo para rate limit, nunca para errores definitivos. */
+const MANUAL_CAMPAIGN_MAX_SEND_ATTEMPTS = 3;
+const RATE_LIMIT_MESSAGE_PATTERN =
+  /rate.?limit|account protection|too many (requests|messages)|every \d+ seconds/i;
+
+/**
+ * Distingue "el proveedor rechazó esto por volumen, reintentar tiene sentido"
+ * de un error definitivo (número inválido, sesión caída, auth, payload) que
+ * reintentar nunca arregla. `statusCode === 429` es la señal HTTP estándar de
+ * rate limit; el patrón de mensaje cubre proveedores (como WaSenderAPI) que
+ * devuelven este error con otro status HTTP.
+ */
+export function isRetryableRateLimitError(error: unknown): boolean {
+  if (error instanceof WhatsAppProviderError && error.statusCode === 429) {
+    return true;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return RATE_LIMIT_MESSAGE_PATTERN.test(message);
+}
 
 /** Allowed status transitions: from → [to, to, ...] */
 const STATUS_TRANSITIONS: Record<CampaignStatus, CampaignStatus[]> = {
@@ -285,36 +313,70 @@ export class CampaignsService {
 
     let sent = 0;
     let failed = 0;
-    const BATCH_SIZE = 10;
+    // WaSenderAPI acepta como máximo 1 mensaje cada 5 segundos por cuenta —
+    // el envío es SECUENCIAL, nunca en paralelo (bug real corregido: antes
+    // `Promise.all` mandaba hasta 10 a la vez). `lastAttemptStartedAt` mide
+    // el piso real desde el INICIO del intento anterior, sea de este
+    // contacto o del anterior — así un reintento con backoff también cuenta
+    // como el "último intento" para el siguiente contacto.
+    let lastAttemptStartedAt: number | null = null;
 
-    for (let i = 0; i < contacts.length; i += BATCH_SIZE) {
-      if (i > 0) await new Promise((resolve) => setTimeout(resolve, 1000));
-      const batch = contacts.slice(i, i + BATCH_SIZE);
-      await Promise.all(
-        batch.map(async (contact) => {
-          try {
-            const text = dto.messageBody
-              .replace(/{nombre}/g, contact.name)
-              .replace(/{negocio}/g, businessName)
-              .replace(/{link}/g, contact.link ?? '');
-            await this.whatsApp.sendText({ phone: contact.phoneE164, text });
-            await this.campaignsRepository.updateManualCampaignContact(
-              contact.id,
-              true,
-            );
-            sent++;
-          } catch (err) {
-            const reason =
-              err instanceof Error ? err.message : 'Error al enviar';
-            await this.campaignsRepository.updateManualCampaignContact(
-              contact.id,
-              false,
-              reason,
-            );
-            failed++;
-          }
-        }),
-      );
+    for (const contact of contacts) {
+      // Idempotencia: un contacto ya `sent` nunca se vuelve a enviar, sin
+      // importar por qué este loop lo esté viendo de nuevo.
+      if (contact.status === 'sent') continue;
+
+      const text = dto.messageBody
+        .replace(/{nombre}/g, contact.name)
+        .replace(/{negocio}/g, businessName)
+        .replace(/{link}/g, contact.link ?? '');
+
+      let lastError: unknown;
+      let delivered = false;
+
+      for (
+        let attempt = 1;
+        attempt <= MANUAL_CAMPAIGN_MAX_SEND_ATTEMPTS;
+        attempt++
+      ) {
+        if (lastAttemptStartedAt !== null) {
+          const elapsed = Date.now() - lastAttemptStartedAt;
+          const waitMs = MANUAL_CAMPAIGN_MIN_SEND_INTERVAL_MS - elapsed;
+          if (waitMs > 0) await this.sleep(waitMs);
+        }
+        lastAttemptStartedAt = Date.now();
+
+        try {
+          await this.whatsApp.sendText({ phone: contact.phoneE164, text });
+          delivered = true;
+          break;
+        } catch (err) {
+          lastError = err;
+          const isLastAttempt = attempt >= MANUAL_CAMPAIGN_MAX_SEND_ATTEMPTS;
+          if (!isRetryableRateLimitError(err) || isLastAttempt) break;
+          // Backoff creciente (5s, 10s, ...) — también deja pasado el piso
+          // mínimo entre intentos, así que no hace falta esperar de nuevo.
+          await this.sleep(MANUAL_CAMPAIGN_MIN_SEND_INTERVAL_MS * attempt);
+          lastAttemptStartedAt = Date.now();
+        }
+      }
+
+      if (delivered) {
+        await this.campaignsRepository.updateManualCampaignContact(
+          contact.id,
+          true,
+        );
+        sent++;
+      } else {
+        const reason =
+          lastError instanceof Error ? lastError.message : 'Error al enviar';
+        await this.campaignsRepository.updateManualCampaignContact(
+          contact.id,
+          false,
+          reason,
+        );
+        failed++;
+      }
     }
 
     await this.campaignsRepository.updateManualCampaignStats(
@@ -333,5 +395,9 @@ export class CampaignsService {
     if (!branch) {
       throw new BadRequestException('Branch does not belong to this business');
     }
+  }
+
+  private sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }

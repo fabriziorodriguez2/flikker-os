@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Star } from "lucide-react";
+import GoogleLogo from "@/components/icons/google-logo";
 
 interface FeedbackRewardGoal {
   goal: {
@@ -121,6 +122,7 @@ export default function CheckinFeedbackCard({
                 className="inline-flex h-11 items-center justify-center gap-2 rounded-[14px] px-4 text-sm font-bold"
                 style={{ backgroundColor: accentBg, color: accentText }}
               >
+                <GoogleLogo className="h-4 w-4 shrink-0" />
                 Dejar reseña en Google
               </a>
             </div>
@@ -173,24 +175,27 @@ export default function CheckinFeedbackCard({
         aria-label="Calificación"
         onMouseLeave={() => setHovered(null)}
       >
-        {SCORES.map((value) => (
-          <button
-            key={value}
-            type="button"
-            onClick={() => chooseScore(value)}
-            onMouseEnter={() => setHovered(value)}
-            disabled={sending}
-            className="p-1 transition-transform active:scale-90 disabled:opacity-60"
-            aria-label={`${value} de 5`}
-          >
-            <Star
-              className="h-7 w-7"
-              fill={(hovered ?? 0) >= value ? "#FBBF24" : "none"}
-              stroke={(hovered ?? 0) >= value ? "#FBBF24" : "#D1D5DB"}
-              strokeWidth={1.5}
-            />
-          </button>
-        ))}
+        {SCORES.map((value) => {
+          const active = (hovered ?? score ?? 0) >= value;
+          return (
+            <button
+              key={value}
+              type="button"
+              onClick={() => chooseScore(value)}
+              onMouseEnter={() => setHovered(value)}
+              disabled={sending}
+              className="p-1 transition-transform active:scale-90 disabled:opacity-60"
+              aria-label={`${value} de 5`}
+            >
+              <Star
+                className="h-7 w-7"
+                fill={active ? "#FBBF24" : "none"}
+                stroke={active ? "#FBBF24" : "#6B7280"}
+                strokeWidth={1.5}
+              />
+            </button>
+          );
+        })}
       </div>
       {error && <p className="mt-2 text-xs text-[#C0392B]">{error}</p>}
     </div>

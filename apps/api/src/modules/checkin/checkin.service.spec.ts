@@ -195,10 +195,15 @@ describe('CheckinService', () => {
       id: 'cust-1',
       name: 'Ana',
     });
+    const firstVisitOccurredAt = new Date('2026-09-01T10:00:00.000Z');
     deps.visits.registerVisit.mockResolvedValue({
       created: true,
       isReturn: false,
-      visit: { id: 'v-1', attributionType: VisitAttributionType.organic },
+      visit: {
+        id: 'v-1',
+        attributionType: VisitAttributionType.organic,
+        occurredAt: firstVisitOccurredAt,
+      },
     });
     deps.sessions.issue.mockResolvedValue({
       rawToken: 'raw-token',
@@ -222,10 +227,15 @@ describe('CheckinService', () => {
       'ua',
     );
 
+    // El 4to argumento es el `occurredAt` REAL de la visita fundadora — nunca
+    // un `new Date()` tomado después de los `await` de mensajería/sesión/
+    // regalo de bienvenida (bug real corregido: eso hacía que la fundadora
+    // siempre quedara excluida de su propio conteo de progreso).
     expect(deps.rewardGoals.afterVisit).toHaveBeenCalledWith(
       'biz-1',
       'cust-1',
       'America/Montevideo',
+      firstVisitOccurredAt,
     );
     expect(deps.rewardGoals.currentView).not.toHaveBeenCalled();
     if (result.status !== 'registered') throw new Error('expected registered');

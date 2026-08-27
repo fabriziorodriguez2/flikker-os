@@ -33,10 +33,18 @@ import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
  *      demuestra el límite real de esa hipótesis (nunca crea Y desbloquea
  *      en la misma visita — como mucho, una recompensa cada 2 visitas).
  *
- * Ningún código de `reward-goal-engine.service.ts` /
- * `reward-goal-unlock.service.ts` se modificó para este ajuste — esto solo
- * agrega la cobertura multi-visita que faltaba (ver informe: los guards
- * `hasActiveGoal`/`isCooldownActive` ya existían y ya funcionan).
+ * `reward-goal-unlock.service.ts` no se tocó — los guards
+ * `hasActiveGoal`/`isCooldownActive` ya existían y ya funcionan.
+ *
+ * `reward-goal-engine.service.ts` SÍ se corrigió (auditoría de caso real:
+ * la primera visita nunca dejaba el primer sello) — `activatedAt` de una
+ * goal recién creada ahora queda un milisegundo antes de `context.now` en
+ * vez de exactamente igual, así que la visita fundadora de cada ciclo
+ * cuenta como su propio primer sello. Eso hace que cada ciclo de este test
+ * se complete una visita antes que en la versión vieja del archivo — los
+ * números de `progressVisits`/`unlockedNow` de abajo son los reales,
+ * confirmados corriendo este escenario contra la base local con el fix
+ * aplicado, no derivados a mano.
  */
 describe('Reward Goals — múltiples visitas consecutivas (integration)', () => {
   let prisma: PrismaService;
@@ -230,11 +238,13 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
     const day = daysFrom;
     const { business, customer } = await setupBusiness({});
     try {
-      // Visita 1 — crea la primera goal (segmento NEW → target 1).
+      // Visita 1 — crea la primera goal (segmento NEW → target 1). La
+      // fundadora ya cuenta como el primer sello (bug real corregido: antes
+      // quedaba afuera del conteo para siempre).
       const v1 = await visitOn(business.id, customer.id, day(0));
       expect(v1.unlockedNow).toBe(false);
       expect(v1.goal).toMatchObject({
-        progressVisits: 0,
+        progressVisits: 1,
         targetAdditionalVisits: 1,
       });
       let goal = await dumpGoal(business.id, customer.id);
@@ -245,7 +255,9 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
         segmentAtCreation: 'NEW',
       });
 
-      // Visita 2 — un día después: desbloquea LA MISMA goal (progreso 1/1).
+      // Visita 2 — un día después: desbloquea LA MISMA goal (Fase E §27 igual
+      // exige que el desbloqueo ocurra en una visita distinta a la de
+      // creación, aunque la fundadora ya valga como progreso).
       const v2 = await visitOn(business.id, customer.id, day(1));
       expect(v2.unlockedNow).toBe(true);
       expect(v2.benefit?.name).toBe('Capuccino gratis');
@@ -265,11 +277,11 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
       // — auditoría de caso real: "si está REDEEMED, la próxima Visit
       // válida debe crear inmediatamente un nuevo goal ACTIVE, sin esperar
       // ningún cooldown adicional". visitCount=3 en este punto → REPEAT
-      // (entre NEW y FREQUENT), objetivo=2.
+      // (entre NEW y FREQUENT), objetivo=2. La fundadora ya cuenta 1/2.
       const v3 = await visitOn(business.id, customer.id, day(2));
       expect(v3.unlockedNow).toBe(false);
       expect(v3.goal).toMatchObject({
-        progressVisits: 0,
+        progressVisits: 1,
         targetAdditionalVisits: 2,
       });
       goal = await dumpGoal(business.id, customer.id);
@@ -284,50 +296,71 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
       });
       expect(goalsAfterV3).toBe(2); // el ciclo anterior (REDEEMED) + este nuevo.
 
-      // Visita 4 — progreso hacia el objetivo REPEAT (todavía no desbloquea).
+      // Visita 4 — completa el objetivo REPEAT (fundadora + esta = 2/2) y
+      // desbloquea. Antes de la corrección esto recién pasaba en la visita 5
+      // — la fundadora contaba un ciclo entero más tarde de lo debido. Se
+      // canjea, para probar el tercer ciclo.
       const v4 = await visitOn(business.id, customer.id, day(3));
-      expect(v4.unlockedNow).toBe(false);
-      expect(v4.goal?.progressVisits).toBe(1);
+      expect(v4.unlockedNow).toBe(true);
+      await redeemGoal(business.id, customer.id, day(3));
 
-      // Visita 5 — completa el objetivo REPEAT (2/2) y desbloquea. Se canjea
-      // de nuevo, para probar el tercer ciclo.
+      // Visita 5 — de nuevo sin esperar cooldown (REDEEMED). visitCount=5 en
+      // este punto → FREQUENT, así que el objetivo escala a 3. La fundadora
+      // ya cuenta 1/3.
       const v5 = await visitOn(business.id, customer.id, day(4));
-      expect(v5.unlockedNow).toBe(true);
-      await redeemGoal(business.id, customer.id, day(4));
-
-      // Visita 6 — de nuevo sin esperar cooldown (REDEEMED). visitCount=6 en
-      // este punto → FREQUENT, así que el objetivo escala a 3.
-      const v6 = await visitOn(business.id, customer.id, day(5));
-      expect(v6.unlockedNow).toBe(false);
-      expect(v6.goal).toMatchObject({
-        progressVisits: 0,
+      expect(v5.unlockedNow).toBe(false);
+      expect(v5.goal).toMatchObject({
+        progressVisits: 1,
         targetAdditionalVisits: 3,
       });
       goal = await dumpGoal(business.id, customer.id);
       expect(goal).toMatchObject({
         status: RewardGoalStatus.ACTIVE,
-        startingVisitCount: 6,
+        startingVisitCount: 5,
         targetAdditionalVisits: 3,
         segmentAtCreation: 'FREQUENT',
       });
 
-      // Visitas 7 y 8 — progreso hacia el objetivo FREQUENT (3 visitas), sin
-      // desbloquear nada todavía.
+      // Visita 6 — progreso hacia el objetivo FREQUENT (3 visitas), sin
+      // desbloquear todavía.
+      const v6 = await visitOn(business.id, customer.id, day(5));
+      expect(v6.unlockedNow).toBe(false);
+      expect(v6.goal?.progressVisits).toBe(2);
+
+      // Visita 7 — completa las 3 visitas requeridas (fundadora + v6 + v7):
+      // la TERCERA recompensa real (nunca en cada visita — cada ciclo pide
+      // sus propias visitas). Se canjea, para probar un cuarto ciclo.
       const v7 = await visitOn(business.id, customer.id, day(6));
-      expect(v7.unlockedNow).toBe(false);
-      expect(v7.goal?.progressVisits).toBe(1);
+      expect(v7.unlockedNow).toBe(true);
+      await redeemGoal(business.id, customer.id, day(6));
+
+      // Visita 8 — arranca un cuarto ciclo (sigue FREQUENT, objetivo 3), sin
+      // esperar cooldown (REDEEMED). La fundadora ya cuenta 1/3.
       const v8 = await visitOn(business.id, customer.id, day(7));
       expect(v8.unlockedNow).toBe(false);
-      expect(v8.goal?.progressVisits).toBe(2);
+      expect(v8.goal).toMatchObject({
+        progressVisits: 1,
+        targetAdditionalVisits: 3,
+      });
+      goal = await dumpGoal(business.id, customer.id);
+      expect(goal).toMatchObject({
+        status: RewardGoalStatus.ACTIVE,
+        startingVisitCount: 8,
+        targetAdditionalVisits: 3,
+        segmentAtCreation: 'FREQUENT',
+      });
 
-      // Visita 9 — completa las 3 visitas requeridas: la TERCERA recompensa
-      // real (nunca en cada visita — cada ciclo pide sus propias visitas).
+      // Visita 9 — progreso hacia el cuarto ciclo, sin desbloquear: el
+      // patrón nunca premia en cada visita, ni siquiera dentro de un mismo
+      // ciclo FREQUENT.
       const v9 = await visitOn(business.id, customer.id, day(8));
-      expect(v9.unlockedNow).toBe(true);
+      expect(v9.unlockedNow).toBe(false);
+      expect(v9.goal?.progressVisits).toBe(2);
+
       const totalGoals = await prisma.customerRewardGoal.count({
         where: { businessId: business.id, customerId: customer.id },
       });
-      expect(totalGoals).toBe(3); // 3 ciclos completos (NEW→REPEAT→FREQUENT), cada uno con su propia recompensa.
+      expect(totalGoals).toBe(4); // 3 ciclos completos y canjeados (NEW→REPEAT→FREQUENT) + un cuarto ciclo FREQUENT todavía en progreso.
     } finally {
       await cleanup(business.id);
     }
