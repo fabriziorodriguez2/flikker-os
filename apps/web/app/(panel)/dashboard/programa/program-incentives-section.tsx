@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, Percent, Plus, Trash2 } from "lucide-react";
 import FlikkerSelect from "@/components/ui/flikker-select";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 import ProgramSectionHeading from "./program-section-heading";
 import {
   CREATABLE_BENEFIT_TYPES,
@@ -180,11 +181,7 @@ export default function ProgramIncentivesSection({
   }
 
   if (incentives === null) {
-    return (
-      <div className="flex h-32 items-center justify-center text-[#8891A4]">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Cargando…
-      </div>
-    );
+    return <RouteProgressBar />;
   }
 
   return (

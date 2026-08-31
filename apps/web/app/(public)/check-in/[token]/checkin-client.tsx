@@ -6,7 +6,6 @@ import {
   BadgePercent,
   Check,
   CheckCircle2,
-  Footprints,
   Gift,
   Loader2,
   LockKeyhole,
@@ -111,10 +110,6 @@ function presenceMessageOf(result: JsonResult): string {
 
 function brandOf(landing: CheckinLanding): string {
   return landing.business.primaryColor ?? "#5C6BC0";
-}
-
-function colorWithAlpha(color: string, alpha: string, fallback: string) {
-  return /^#[0-9a-f]{6}$/i.test(color) ? `${color}${alpha}` : fallback;
 }
 
 // ── Root ─────────────────────────────────────────────────────────────────────
@@ -1100,40 +1095,19 @@ function PersonalScreen({
         </p>
 
         <div className="mt-4 grid w-full grid-cols-1 gap-3">
-          <div className="checkin-enter relative overflow-hidden rounded-[20px] bg-white px-4 py-3 shadow-[0_10px_24px_rgba(12,16,30,0.14)]">
-            <div className="relative flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <span
-                  className="flex h-10 w-10 items-center justify-center rounded-[12px]"
-                  style={{
-                    backgroundColor: colorWithAlpha(
-                      brand,
-                      "18",
-                      "rgba(92,107,192,0.1)",
-                    ),
-                    color: brand,
-                  }}
-                >
-                  <Footprints className="h-5 w-5" aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="text-sm font-bold text-[#24283A]">
-                    ¡Seguís sumando!
-                  </p>
-                  <p className="mt-0.5 text-xs text-[#8A91A3]">
-                    Cada visita te acerca a algo lindo
-                  </p>
-                </div>
-              </div>
-              <div className="text-right">
-                <p className="text-[28px] font-bold leading-none text-[#171A2B]">
-                  {personal.visits.total}
-                </p>
-                <p className="mt-1 text-[11px] font-semibold text-[#8A91A3]">
-                  {personal.visits.total === 1 ? "visita" : "visitas"}
-                </p>
-              </div>
-            </div>
+          {/* Liviana a propósito — la tarjeta de fidelización de abajo es el
+              elemento principal; esto es solo un dato de contexto, no otra
+              tarjeta compitiendo por atención. */}
+          <div className="checkin-enter flex w-full items-baseline justify-between gap-3 px-1">
+            <p className="text-xs font-semibold text-[#8A91A3]">
+              Visitas totales
+            </p>
+            <p className="text-lg font-bold text-[#171A2B]">
+              {personal.visits.total}{" "}
+              <span className="text-xs font-semibold text-[#8A91A3]">
+                {personal.visits.total === 1 ? "visita" : "visitas"}
+              </span>
+            </p>
           </div>
 
           <RewardGoalCard

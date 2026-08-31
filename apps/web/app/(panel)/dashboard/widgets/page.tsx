@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Copy, Check, ChevronLeft, ChevronRight } from "lucide-react";
 import Switch from "@/components/ui/switch";
 import PoweredByFlikker from "@/components/ui/powered-by-flikker";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 import type { Widget } from "@/components/widgets/types";
 
 interface Business {
@@ -570,7 +571,7 @@ export default function WidgetsPage() {
       ) : null}
 
       {loading ? (
-        <div className="h-[400px] animate-pulse rounded-[12px] bg-[#F5F6FA]" />
+        <RouteProgressBar />
       ) : (
         <div className="grid gap-4 lg:grid-cols-[1fr_400px]">
           {/* Config card */}

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Check, Copy, ExternalLink, Loader2, MapPin, Search } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 import GoogleLogo from "@/components/icons/google-logo";
 import { useIsOwnerOrAdmin } from "../../role-context";
 import { Stars, relativeDay } from "../customers/loyalty-ui";
@@ -149,11 +150,7 @@ export default function ReviewsClient({
   }
 
   if (!data) {
-    return (
-      <div className="flex h-48 items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-[#5C6BC0]" />
-      </div>
-    );
+    return <RouteProgressBar />;
   }
 
   const { google, summary } = data;

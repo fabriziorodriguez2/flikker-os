@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import {
-  isCheckinV2Business,
+  isCheckinV2Experience,
   redirectIfAbsorbed,
 } from "@/components/panel/absorbed-route";
 import { ArrowRight, QrCode, Star, UserRoundCheck } from "lucide-react";
@@ -393,10 +393,16 @@ function QrFunnelCard({ funnel }: { funnel: ConversionFunnel | null }) {
 export default async function InsightsPage({ searchParams }: InsightsPageProps) {
   // Reversión deliberada (pedido explícito): para un negocio Check-in V2
   // real, Insights vuelve a ser su propia pantalla — ya no se absorbe hacia
-  // Inicio/Reseñas. LEGACY e impersonation siguen exactamente como antes
-  // (ver `isCheckinV2Business`, que ya excluye ambos casos).
+  // Inicio/Reseñas. LEGACY sigue exactamente como antes.
+  //
+  // A diferencia de las rutas absorbidas (Retention V2, Check-ins técnicos),
+  // acá la impersonation NO cae a LEGACY (bug real corregido — auditoría de
+  // caso real: un Platform Admin impersonando un negocio Check-in V2 real
+  // veía el Insights viejo en vez del que ve el dueño). Ver
+  // `isCheckinV2Experience` en `absorbed-route.tsx` para el porqué de la
+  // distinción con `isCheckinV2Business`.
   const previewSession = await getSession();
-  if (await isCheckinV2Business(previewSession)) {
+  if (await isCheckinV2Experience(previewSession)) {
     return <InsightsV2Page />;
   }
 

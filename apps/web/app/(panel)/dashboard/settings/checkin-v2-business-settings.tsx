@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, CalendarDays, Loader2, Save, Upload } from "lucide-react";
 import BusinessLogo from "@/components/business/business-logo";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 import {
   BUSINESS_VERTICAL_OPTIONS,
   DEFAULT_BUSINESS_VERTICAL,
@@ -204,11 +205,7 @@ export default function CheckinV2BusinessSettings() {
   }
 
   if (loading) {
-    return (
-      <div className="flex min-h-[360px] items-center justify-center rounded-[18px] border border-[#E8EAF0] bg-white text-sm text-[#8891A4]">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Cargando…
-      </div>
-    );
+    return <RouteProgressBar />;
   }
 
   if (!business) {

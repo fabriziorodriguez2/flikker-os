@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import QRCode from "qrcode";
 import PageHeader from "@/components/ui/page-header";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 import { useIsOwnerOrAdmin } from "../../role-context";
 import PhysicalSupportNotice from "./physical-support-notice";
 
@@ -230,11 +231,7 @@ export default function QrNfcClient() {
   }
 
   if (loading) {
-    return (
-      <div className="flex h-48 items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-[#5C6BC0]" />
-      </div>
-    );
+    return <RouteProgressBar />;
   }
 
   if (error) {

@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { Clock3, Loader2 } from "lucide-react";
+import { Clock3 } from "lucide-react";
 import EmptyState from "@/components/ui/empty-state";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 import { MESSAGE_TYPE_LABEL, type MessageKind } from "@/lib/message-kind";
 import { relativeDay, shortDate } from "../customers/loyalty-ui";
 
@@ -80,11 +81,7 @@ export default function HistoryTab() {
   }
 
   if (rows === null) {
-    return (
-      <div className="flex h-40 items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-[#5C6BC0]" />
-      </div>
-    );
+    return <RouteProgressBar />;
   }
 
   if (rows.length === 0) {

@@ -6,6 +6,7 @@ import AdminStatusBadge from "@/components/admin/admin-status-badge";
 import MetricCard from "@/components/ui/metric-card";
 import PageHeader from "@/components/ui/page-header";
 import SectionCard from "@/components/ui/section-card";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 import { FEATURES } from "@/src/config/features";
 import { useCanMutate } from "../../role-context";
 import SettingsTabs from "@/components/panel/settings-tabs";
@@ -121,18 +122,7 @@ function MembersContent() {
   }
 
   if (loading) {
-    return (
-      <div className="mx-auto max-w-6xl space-y-6">
-        <div className="h-4 w-28 animate-pulse rounded-full bg-[color:var(--surface-subtle)]" />
-        <div className="h-12 w-80 animate-pulse rounded-[18px] bg-[color:var(--surface-muted)]" />
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="h-32 animate-pulse rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)]" />
-          <div className="h-32 animate-pulse rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)]" />
-          <div className="h-32 animate-pulse rounded-[24px] border border-[color:var(--border)] bg-[color:var(--surface)]" />
-        </div>
-        <div className="h-80 animate-pulse rounded-[28px] border border-[color:var(--border)] bg-[color:var(--surface)]" />
-      </div>
-    );
+    return <RouteProgressBar />;
   }
 
   const activeMembers = members.filter(

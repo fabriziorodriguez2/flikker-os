@@ -204,8 +204,10 @@ export default function MiFlikkerClient({
         <p className="mt-6 text-center text-sm text-[#C0392B]">{loadError}</p>
       ) : places.length === 0 ? (
         <p className="mt-6 text-center text-sm text-[#8A91A3]">
-          Todavía no tenés lugares. Escaneá el QR o NFC de un negocio Flikker
-          para empezar.
+          No encontramos lugares para este número. Si ya tenés una tarjeta en
+          algún negocio, verificá acá el mismo WhatsApp que usaste al
+          registrarte ahí — si escaneás un QR por primera vez, va a aparecer
+          apenas hagas tu primer check-in.
         </p>
       ) : (
         <div ref={walletRef} className="mi-wallet mt-12 w-full pb-16">
@@ -370,8 +372,8 @@ function VerifyScreen({ onVerified }: { onVerified: () => void }) {
     <Shell>
       <MiFlikkerTitle />
       <p className="mt-1 text-center text-sm text-[#8A91A3]">
-        Ingresá tu WhatsApp para ver tus recompensas en todos los negocios
-        Flikker.
+        Ingresá el mismo WhatsApp con el que te registraste en tus negocios
+        Flikker para ver tus tarjetas y recompensas ahí.
       </p>
 
       <div className="mt-6 w-full space-y-3">

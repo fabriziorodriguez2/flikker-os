@@ -6,7 +6,6 @@ import {
   Bell,
   Check,
   Gift,
-  Loader2,
   MessageCircle,
   QrCode,
   RefreshCw,
@@ -14,7 +13,9 @@ import {
   UserPlus,
 } from "lucide-react";
 import RewardGoalStamps from "@/components/public/reward-goal-stamps";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 import { useIsCheckinV2 } from "../../experience-context";
+import type { LoyaltyAppearance } from "../programa/types";
 import {
   MESSAGE_LABEL,
   RECURRENCE,
@@ -126,6 +127,13 @@ export default function CustomerDetailContent({
 }) {
   const isCheckinV2 = useIsCheckinV2();
   const [data, setData] = useState<Overview | null>(null);
+  // Mismo endpoint que usa Programa (`/businesses/current/brand`) para su
+  // propia preview — bug real corregido: sin esto, `RewardGoalStamps` acá
+  // caía al tema por defecto (casi blanco) en vez de los colores reales de
+  // la tarjeta, así que los sellos se veían "vacíos" aunque el progreso
+  // (3 de 6) fuera correcto. Nunca se duplica la lógica de color, solo se
+  // completa el fetch que faltaba.
+  const [appearance, setAppearance] = useState<LoyaltyAppearance | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -139,10 +147,18 @@ export default function CustomerDetailContent({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/proxy/customers/${customerId}/overview`);
-      if (res.status === 404) throw new Error("Este cliente no existe.");
-      if (!res.ok) throw new Error("No pudimos cargar el cliente.");
-      setData((await res.json()) as Overview);
+      const [overviewRes, brandRes] = await Promise.all([
+        fetch(`/api/proxy/customers/${customerId}/overview`),
+        fetch("/api/proxy/businesses/current/brand"),
+      ]);
+      if (overviewRes.status === 404) throw new Error("Este cliente no existe.");
+      if (!overviewRes.ok) throw new Error("No pudimos cargar el cliente.");
+      setData((await overviewRes.json()) as Overview);
+      // Best-effort: si falla, los sellos simplemente usan el tema por
+      // defecto de `RewardGoalStamps` — nunca bloquea el resto de la vista.
+      if (brandRes.ok) {
+        setAppearance((await brandRes.json()) as LoyaltyAppearance);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "No pudimos cargar el cliente.");
     } finally {
@@ -175,11 +191,7 @@ export default function CustomerDetailContent({
   }
 
   if (loading) {
-    return (
-      <div className="flex h-48 items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-[#5C6BC0]" />
-      </div>
-    );
+    return <RouteProgressBar />;
   }
 
   if (error || !data) {
@@ -246,10 +258,15 @@ export default function CustomerDetailContent({
               </p>
 
               <div className="mt-5 max-w-md">
-                {/* La misma visualización que ve el cliente en su tarjeta. */}
+                {/* La misma visualización que ve el cliente en su tarjeta,
+                    con los mismos colores/ícono reales del negocio. */}
                 <RewardGoalStamps
                   progress={currentCard.progressVisits}
                   target={currentCard.targetAdditionalVisits}
+                  cardColor={appearance?.loyaltyCardColor}
+                  stampAreaColor={appearance?.loyaltyStampAreaColor}
+                  stampColor={appearance?.loyaltyStampColor}
+                  icon={appearance?.loyaltyStampIcon}
                 />
               </div>
 

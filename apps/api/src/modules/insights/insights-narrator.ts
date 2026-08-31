@@ -121,7 +121,61 @@ export function generateInsights(
   const timing = busiestTimingStatement(bundle);
   if (timing) statements.push(timing);
 
+  const frequency = visitFrequencyStatement(bundle);
+  if (frequency) statements.push(frequency);
+
+  const feedback = feedbackStatement(bundle);
+  if (feedback) statements.push(feedback);
+
   return statements;
+}
+
+/**
+ * Complementa a `newVsReturningStatement` (que mira solo la ventana) con la
+ * composición COMPLETA de la base por frecuencia de visita — mismo
+ * `segmentCounts` que ya calcula `CustomerLoyaltyService`, nunca
+ * recalculado. Deliberadamente no incluye AT_RISK/INACTIVE: ese es
+ * territorio exclusivo de `churnStatement`, para no decir lo mismo dos veces
+ * con dos números que podrían leerse como contradictorios.
+ */
+function visitFrequencyStatement(
+  bundle: InsightsMetricsBundle,
+): InsightStatement | null {
+  const { NEW, REPEAT, FREQUENT } = bundle.segmentCounts;
+  const total = NEW + REPEAT + FREQUENT;
+  if (total < MIN_SAMPLE_SIZE) return null;
+
+  return {
+    id: 'visit-frequency',
+    statement: `De tus clientes activos, ${FREQUENT} son frecuentes, ${REPEAT} vuelven de a poco y ${NEW} recién empezaron.`,
+    kind: 'neutral',
+    hasEnoughData: true,
+  };
+}
+
+/**
+ * Feedback interno (`CheckinFeedback`, distinto de las reseñas de Google) —
+ * mismo conteo agregado que ya trae `reviewStats.feedbackInPeriod`
+ * (`ReviewsOverviewService`), nunca nombre/comentario de cliente: eso vive
+ * únicamente en la pantalla de Reviews, con su propio control de acceso.
+ */
+function feedbackStatement(bundle: InsightsMetricsBundle): InsightStatement {
+  const { feedbackInPeriod } = bundle.reviewStats;
+  if (feedbackInPeriod === 0) {
+    return {
+      id: 'feedback',
+      statement:
+        'Todavía no recibiste respuestas de feedback en los últimos 30 días.',
+      kind: 'neutral',
+      hasEnoughData: false,
+    };
+  }
+  return {
+    id: 'feedback',
+    statement: `Recibiste ${feedbackInPeriod} ${feedbackInPeriod === 1 ? 'respuesta' : 'respuestas'} de feedback en los últimos 30 días.`,
+    kind: 'neutral',
+    hasEnoughData: true,
+  };
 }
 
 function newVsReturningStatement(

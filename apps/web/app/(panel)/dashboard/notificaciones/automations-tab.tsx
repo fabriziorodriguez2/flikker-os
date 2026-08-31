@@ -5,7 +5,6 @@ import Link from "next/link";
 import {
   CakeSlice,
   Clock3,
-  Loader2,
   Lock,
   Mail,
   RefreshCw,
@@ -13,6 +12,7 @@ import {
   TimerReset,
   UserRoundSearch,
 } from "lucide-react";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 import { useIsOwnerOrAdmin } from "../../role-context";
 
 /**
@@ -168,11 +168,7 @@ export default function AutomationsTab() {
   }
 
   if (loading) {
-    return (
-      <div className="flex h-40 items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-[#5C6BC0]" />
-      </div>
-    );
+    return <RouteProgressBar />;
   }
 
   if (error && !data) {

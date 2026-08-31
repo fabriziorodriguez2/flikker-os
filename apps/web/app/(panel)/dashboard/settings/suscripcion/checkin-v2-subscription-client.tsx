@@ -7,13 +7,13 @@ import {
   Gift,
   Globe2,
   Layers3,
-  Loader2,
   MessageCircle,
   QrCode,
   Send,
   Stamp,
   UserRoundSearch,
 } from "lucide-react";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 import { useIsOwnerOrAdmin } from "../../../role-context";
 
 const MERCADOPAGO_CHECKOUT_URL = "https://mpago.la/1Acxajh";
@@ -135,11 +135,7 @@ export default function CheckinV2SubscriptionClient() {
   }, [load]);
 
   if (loading) {
-    return (
-      <div className="flex min-h-[340px] items-center justify-center text-sm text-[#8891A4]">
-        <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Cargando…
-      </div>
-    );
+    return <RouteProgressBar />;
   }
 
   if (error || !overview) {

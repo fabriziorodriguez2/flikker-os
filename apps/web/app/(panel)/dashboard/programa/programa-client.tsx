@@ -5,13 +5,13 @@ import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
   LayoutDashboard,
-  Loader2,
   QrCode,
   Settings2,
   Stamp,
   Target,
 } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 import { useIsCheckinV2 } from "../../experience-context";
 import { useIsOwnerOrAdmin } from "../../role-context";
 import ProgramSummaryTab from "./program-summary-tab";
@@ -330,13 +330,7 @@ function ProgramaClientContent() {
   }
 
   if (loading) {
-    return (
-      <div className="mx-auto max-w-5xl">
-        <div className="flex h-40 items-center justify-center text-[#8891A4]">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Cargando…
-        </div>
-      </div>
-    );
+    return <RouteProgressBar />;
   }
 
   if (loadError || !overview || !appearance) {

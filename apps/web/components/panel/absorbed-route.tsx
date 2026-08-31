@@ -22,22 +22,12 @@ import { apiFetch } from "@/lib/api";
  *     justamente el punto: el dueño no las ve, nosotros no las perdemos.
  */
 /**
- * Extraído de `redirectIfAbsorbed` (pedido explícito, Insights): la MISMA
- * regla — incluida la excepción de impersonation — pero como pregunta en
- * vez de como redirect, para que una pantalla como `/dashboard/insights`
- * pueda decidir "¿le muestro la versión Check-in V2 o la LEGACY?" sin tener
- * que redirigir a otro lado primero. Nunca cambia el comportamiento de las
- * rutas que ya usan `redirectIfAbsorbed` (Retention V2, Check-ins
- * técnicos): siguen redirigiendo exactamente igual que antes.
+ * El chequeo real de `experienceVersion` — sin ninguna opinión sobre
+ * impersonation. Cada uno de los dos exports de abajo decide POR SU CUENTA
+ * si la excepción de impersonation aplica o no, porque no es la misma
+ * pregunta en los dos casos (ver el comentario de cada uno).
  */
-export async function isCheckinV2Business(
-  session: Session | null,
-): Promise<boolean> {
-  if (!session) return false;
-  // El operador de plataforma conserva la vista LEGACY/interna mientras
-  // impersona — mismo criterio que `redirectIfAbsorbed`.
-  if (session.impersonation) return false;
-
+async function fetchIsCheckinV2(session: Session): Promise<boolean> {
   const businessId = session.activeBusinessId;
   if (!businessId) return false;
 
@@ -54,6 +44,40 @@ export async function isCheckinV2Business(
     // no le sirve (mismo criterio que `redirectIfAbsorbed`).
     return false;
   }
+}
+
+/**
+ * Para `redirectIfAbsorbed` — decide si una ruta VIEJA (Retention V2,
+ * Check-ins técnicos, Beneficios standalone, Campañas) debe mandar a un
+ * dueño real de Check-in V2 a su nuevo hogar. Acá la excepción de
+ * impersonation es intencional y se mantiene: un operador de Flikker que
+ * impersona necesita la herramienta interna cruda tal como está, no la
+ * versión consolidada que ve el dueño — son pantallas de soporte/config,
+ * nunca las ve un dueño V2 real de todos modos.
+ */
+export async function isCheckinV2Business(
+  session: Session | null,
+): Promise<boolean> {
+  if (!session) return false;
+  if (session.impersonation) return false;
+  return fetchIsCheckinV2(session);
+}
+
+/**
+ * Para decidir QUÉ EXPERIENCIA DE PRODUCTO mostrar (hoy: Insights) — a
+ * diferencia de `isCheckinV2Business`, acá la impersonation NO fuerza
+ * LEGACY (pedido explícito, auditoría de caso real: un Platform Admin
+ * impersonando un negocio Check-in V2 tiene que ver EXACTAMENTE lo mismo
+ * que vería su dueño, para poder soportarlo/probarlo de verdad). La
+ * distinción con `isCheckinV2Business` es a propósito: esa función protege
+ * herramientas internas que un dueño real nunca ve; esta protege la
+ * experiencia de producto que si ve.
+ */
+export async function isCheckinV2Experience(
+  session: Session | null,
+): Promise<boolean> {
+  if (!session) return false;
+  return fetchIsCheckinV2(session);
 }
 
 export async function redirectIfAbsorbed(destination: string): Promise<void> {

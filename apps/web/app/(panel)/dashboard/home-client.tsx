@@ -8,7 +8,6 @@ import {
   Check,
   CreditCard,
   Gift,
-  Loader2,
   MessageCircle,
   Repeat2,
   Star,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 import { relativeDay } from "./customers/loyalty-ui";
 import QuickActions from "./quick-actions";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 
 /**
  * Inicio — la portada del producto. Rediseño (pedido explícito, referencia
@@ -198,11 +198,7 @@ export default function HomeClient({ firstName }: { firstName: string }) {
   }
 
   if (!data) {
-    return (
-      <div className="flex h-48 items-center justify-center">
-        <Loader2 className="h-5 w-5 animate-spin text-[#5C6BC0]" />
-      </div>
-    );
+    return <RouteProgressBar />;
   }
 
   const { kpis, activity, setupAlert, setupTasks } = data;

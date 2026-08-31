@@ -775,6 +775,34 @@ select option {
   }
 }
 
+/* Route progress bar — franja global de carga (pedido explícito: un solo
+   lenguaje visual para "algo principal está cargando" en todo el panel, en
+   vez de 15 skeletons/spinners distintos). Es un segmento que se desliza de
+   izquierda a derecha en loop, nunca una barra que "llena" un porcentaje:
+   no hay forma de saber desde afuera de Suspense cuánto falta, así que la
+   señal real de que terminó es que el componente se desmonta (Next lo hace
+   solo), no que la animación llegue a un final. */
+@keyframes route-progress-slide {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(250%);
+  }
+}
+
+.route-progress-bar-fill {
+  width: 40%;
+  animation: route-progress-slide 1.1s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-progress-bar-fill {
+    width: 100%;
+    animation: none;
+  }
+}
+
 /* Insights QR funnel — responds to the card width, not the viewport width. */
 .qr-funnel-container {
   container-type: inline-size;

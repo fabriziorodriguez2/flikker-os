@@ -343,3 +343,88 @@ describe('insights-narrator — reseñas', () => {
     expect(statement?.statement).toMatch(/todavía no tenés reseñas/i);
   });
 });
+
+describe('insights-narrator — visit-frequency (gap real cerrado: segmentCounts nunca se narraba)', () => {
+  it('con menos de la muestra mínima, no aparece', () => {
+    const bundle = baseBundle({
+      segmentCounts: {
+        [CustomerSegment.NEW]: 2,
+        [CustomerSegment.REPEAT]: 1,
+        [CustomerSegment.FREQUENT]: 0,
+        [CustomerSegment.AT_RISK]: 0,
+        [CustomerSegment.INACTIVE]: 0,
+        [CustomerSegment.RECOVERED]: 0,
+      },
+    });
+    expect(
+      generateInsights(bundle).find((s) => s.id === 'visit-frequency'),
+    ).toBeUndefined();
+  });
+
+  it('con muestra suficiente, arma la frase con los tres números reales (nunca AT_RISK/INACTIVE — eso es territorio de churn)', () => {
+    const bundle = baseBundle({
+      segmentCounts: {
+        [CustomerSegment.NEW]: 4,
+        [CustomerSegment.REPEAT]: 3,
+        [CustomerSegment.FREQUENT]: 2,
+        [CustomerSegment.AT_RISK]: 99,
+        [CustomerSegment.INACTIVE]: 99,
+        [CustomerSegment.RECOVERED]: 0,
+      },
+    });
+    const statement = generateInsights(bundle).find(
+      (s) => s.id === 'visit-frequency',
+    );
+    expect(statement?.hasEnoughData).toBe(true);
+    expect(statement?.statement).toContain('2 son frecuentes');
+    expect(statement?.statement).toContain('3 vuelven de a poco');
+    expect(statement?.statement).toContain('4 recién empezaron');
+    expect(statement?.statement).not.toContain('99');
+  });
+});
+
+describe('insights-narrator — feedback interno (gap real cerrado: feedbackInPeriod nunca se narraba)', () => {
+  it('sin feedback en el período, lo dice sin inventar un número', () => {
+    const statement = generateInsights(baseBundle()).find(
+      (s) => s.id === 'feedback',
+    );
+    expect(statement?.hasEnoughData).toBe(false);
+    expect(statement?.statement).toMatch(/todavía no recibiste/i);
+  });
+
+  it('con feedback en el período, arma la frase con el conteo real (nunca nombre/comentario de cliente)', () => {
+    const bundle = baseBundle({
+      reviewStats: {
+        googleReviewsTotal: null,
+        googleReviewsImported: 0,
+        sinceFlikker: 0,
+        googleRating: null,
+        importedRating: null,
+        historySyncStatus: 'idle' as const,
+        inPeriod: 0,
+        feedbackInPeriod: 7,
+      },
+    });
+    const statement = generateInsights(bundle).find((s) => s.id === 'feedback');
+    expect(statement?.hasEnoughData).toBe(true);
+    expect(statement?.statement).toContain('7 respuestas');
+    expect(statement?.statement).not.toContain('undefined');
+  });
+
+  it('con un solo feedback, usa singular', () => {
+    const bundle = baseBundle({
+      reviewStats: {
+        googleReviewsTotal: null,
+        googleReviewsImported: 0,
+        sinceFlikker: 0,
+        googleRating: null,
+        importedRating: null,
+        historySyncStatus: 'idle' as const,
+        inPeriod: 0,
+        feedbackInPeriod: 1,
+      },
+    });
+    const statement = generateInsights(bundle).find((s) => s.id === 'feedback');
+    expect(statement?.statement).toContain('1 respuesta de feedback');
+  });
+});

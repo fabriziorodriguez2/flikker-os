@@ -15,6 +15,16 @@ export interface BusinessImpactMetricsView {
     benefitsRedeemed: number;
     newReviews: number;
   };
+  /**
+   * Acumulados de siempre, no de la ventana `sinceFlikker` — el backend ya
+   * los calcula y los manda (`BusinessImpactService.getImpact`), pero hasta
+   * ahora esta card nunca los leía. `cardsInProgress` es una FOTO de hoy
+   * (cuántas tarjetas están activas ahora mismo), no un delta de período.
+   */
+  lifetime: {
+    benefitsIssued: number;
+    cardsInProgress: number;
+  };
   hasEnoughRetentionEvidence: boolean;
 }
 
@@ -58,6 +68,20 @@ export default function ImpactCard({
         label: "Volvieron después de que Flikker los contactó",
       });
     }
+  }
+  // Solo si el negocio usa tarjeta de sellos — en un negocio Beneficios-only
+  // esto sería siempre 0, y mostrarlo sería ruido, no información.
+  if (impact.lifetime.cardsInProgress > 0) {
+    stats.push({
+      value: impact.lifetime.cardsInProgress,
+      label: "Tarjetas en curso",
+    });
+  }
+  if (impact.lifetime.benefitsIssued > 0) {
+    stats.push({
+      value: impact.lifetime.benefitsIssued,
+      label: "Beneficios emitidos",
+    });
   }
   if (sinceFlikker.benefitsRedeemed > 0) {
     stats.push({

@@ -186,9 +186,11 @@ describe('Self-service — smoke end to end (integration)', () => {
     // al rango por segmento.
     expect(view.goal!.targetAdditionalVisits).toBe(5);
     expect(view.goal!.incentiveName).toBe('Café gratis');
-    // La visita de arranque no cuenta como sello: el contador arranca en 0.
-    expect(view.goal!.progressVisits).toBe(0);
-    expect(view.goal!.remainingVisits).toBe(5);
+    // La visita de arranque YA cuenta como el primer sello (bug real
+    // corregido — auditoría de caso real: antes esa visita quedaba afuera
+    // del conteo para siempre; ver `reward-goal-engine.service.ts`).
+    expect(view.goal!.progressVisits).toBe(1);
+    expect(view.goal!.remainingVisits).toBe(4);
 
     // ── El regalo de bienvenida se entregó ────────────────────────────────
     const welcome = await prisma.benefitParticipation.findFirst({

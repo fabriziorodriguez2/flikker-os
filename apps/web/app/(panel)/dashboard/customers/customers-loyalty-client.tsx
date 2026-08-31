@@ -6,7 +6,6 @@ import { useRouter, useSearchParams } from "next/navigation";
 import {
   ChevronRight,
   Gift,
-  Loader2,
   QrCode,
   Search,
   SearchX,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import EmptyState from "@/components/ui/empty-state";
 import PageHeader from "@/components/ui/page-header";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 import CustomerModal from "./customer-modal";
 import { RECURRENCE, relativeDay, type RecurrenceKey } from "./loyalty-ui";
 
@@ -219,9 +219,7 @@ function CustomersLoyaltyContent() {
           </button>
         </div>
       ) : loading ? (
-        <div className="flex h-40 items-center justify-center">
-          <Loader2 className="h-5 w-5 animate-spin text-[#5C6BC0]" />
-        </div>
+        <RouteProgressBar />
       ) : businessHasNoCustomers ? (
         <div className="rounded-[18px] border border-[#E8EAF0] bg-white px-6 py-14 text-center">
           <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-[14px] bg-[#F3F4F8] text-[#7F879C]">

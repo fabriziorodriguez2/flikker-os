@@ -199,6 +199,14 @@ export default function ProgramDesignTab({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // Responsive del editor (pedido explícito) — dos controles independientes:
+  // en laptop angosta (1024-1279px, donde el preview fijo de 340px apretaba
+  // el formulario) el dueño puede ocultarlo para darle todo el ancho al
+  // editor; en mobile/tablet (<1024px) el preview nunca compite por espacio
+  // en la misma columna, se abre aparte en una hoja. Desktop grande (≥1280px)
+  // no cambia: nav → editor → preview sticky, sin ningún toggle de por medio.
+  const [desktopPreviewCollapsed, setDesktopPreviewCollapsed] = useState(false);
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
 
   const theme = buildLoyaltyCardTheme(cardColor, stampColor || null);
   const stampBackground = resolveLoyaltyStampAreaColor(
@@ -277,11 +285,61 @@ export default function ProgramDesignTab({
     setStampColor(preset.stamp);
   }
 
+  const previewContent = (
+    <>
+      <PhoneFrame>
+        <div className="flex h-full min-h-full items-start bg-white px-3 pb-6 pt-12">
+          <div className="w-full">
+            <LoyaltyCard
+              rewardName={rewardName}
+              progress={Math.min(2, stampsRequired)}
+              target={stampsRequired}
+              appearance={{
+                cardColor,
+                textColor: textColor || null,
+                backgroundImage: backgroundImage || null,
+                stampAreaColor: stampAreaColor || null,
+                stampColor: stampColor || null,
+                stampIcon: icon,
+                logoUrl: logoUrl || null,
+                businessName,
+                showBusinessName,
+                stampBackgroundPattern: pattern,
+                stampBackgroundOpacity: patternIntensity,
+              }}
+            />
+          </div>
+        </div>
+      </PhoneFrame>
+      <p className="mt-3 text-xs leading-5 text-[#8891A4]">
+        Los colores con poco contraste se corrigen automáticamente para
+        mantener la tarjeta legible.
+      </p>
+    </>
+  );
+
   return (
     <>
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div
+        className={
+          desktopPreviewCollapsed
+            ? "grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_340px]"
+            : "grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_340px]"
+        }
+      >
         <div className="min-w-0 space-y-5">
           {children}
+
+          {/* Solo existe en la franja angosta (1024-1279px) — ahí es donde
+              el preview fijo apretaba el editor. En desktop grande (≥1280px)
+              nunca se ve: el preview siempre está sticky, como antes. */}
+          <button
+            type="button"
+            onClick={() => setDesktopPreviewCollapsed((current) => !current)}
+            className="hidden items-center gap-2 rounded-[10px] border border-[#E4E7EF] bg-white px-3.5 py-2 text-xs font-semibold text-[#5C6BC0] hover:border-[#BFC5EA] lg:inline-flex xl:hidden"
+          >
+            {desktopPreviewCollapsed ? "Ver preview" : "Ocultar preview"}
+          </button>
           <section className="overflow-hidden rounded-[16px] border border-[#E8EAF0] bg-white">
             <div className="p-6">
               <ProgramSectionHeading
@@ -648,40 +706,62 @@ export default function ProgramDesignTab({
           </section>
         </div>
 
-        <aside className="lg:sticky lg:top-4 lg:self-start">
+        <aside
+          className={
+            desktopPreviewCollapsed
+              ? "hidden xl:sticky xl:top-4 xl:block xl:self-start"
+              : "hidden lg:sticky lg:top-4 lg:block lg:self-start"
+          }
+        >
           <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
             Vista previa en vivo
           </p>
-          <PhoneFrame>
-            <div className="flex h-full min-h-full items-start bg-white px-3 pb-6 pt-12">
-              <div className="w-full">
-                <LoyaltyCard
-                  rewardName={rewardName}
-                  progress={Math.min(2, stampsRequired)}
-                  target={stampsRequired}
-                  appearance={{
-                    cardColor,
-                    textColor: textColor || null,
-                    backgroundImage: backgroundImage || null,
-                    stampAreaColor: stampAreaColor || null,
-                    stampColor: stampColor || null,
-                    stampIcon: icon,
-                    logoUrl: logoUrl || null,
-                    businessName,
-                    showBusinessName,
-                    stampBackgroundPattern: pattern,
-                    stampBackgroundOpacity: patternIntensity,
-                  }}
-                />
-              </div>
-            </div>
-          </PhoneFrame>
-          <p className="mt-3 text-xs leading-5 text-[#8891A4]">
-            Los colores con poco contraste se corrigen automáticamente para
-            mantener la tarjeta legible.
-          </p>
+          {previewContent}
         </aside>
       </div>
+
+      {/* Mobile/tablet (<1024px): el preview nunca se aplasta en la misma
+          columna — vive en una hoja aparte, un tap de distancia. */}
+      <button
+        type="button"
+        onClick={() => setMobilePreviewOpen(true)}
+        className="fixed inset-x-0 bottom-5 z-30 mx-auto flex w-fit items-center gap-2 rounded-full bg-[#202333] px-5 py-3 text-sm font-semibold text-white shadow-[0_12px_28px_rgba(17,22,59,0.3)] lg:hidden"
+      >
+        <CreditCard className="h-4 w-4" aria-hidden="true" />
+        Ver preview
+      </button>
+
+      {mobilePreviewOpen ? (
+        <div
+          className="fixed inset-0 z-[70] flex items-end justify-center bg-[#0D1B2A]/40 lg:hidden"
+          onClick={() => setMobilePreviewOpen(false)}
+          role="presentation"
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="Vista previa de la tarjeta"
+            onClick={(event) => event.stopPropagation()}
+            className="flex max-h-[85vh] w-full flex-col rounded-t-[20px] border border-[#E8EAF0] bg-white px-5 pb-8 pt-4 shadow-xl"
+          >
+            <div className="mx-auto mb-3 h-1 w-10 shrink-0 rounded-full bg-[#E3E5F0]" />
+            <div className="flex shrink-0 items-center justify-between pb-3">
+              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
+                Vista previa en vivo
+              </p>
+              <button
+                type="button"
+                onClick={() => setMobilePreviewOpen(false)}
+                aria-label="Cerrar vista previa"
+                className="flex h-8 w-8 items-center justify-center rounded-[8px] text-[#8891A4] hover:bg-[#F5F6FA]"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto">{previewContent}</div>
+          </div>
+        </div>
+      ) : null}
 
       {styleOpen ? (
         <StylePickerModal
