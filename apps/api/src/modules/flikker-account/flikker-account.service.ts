@@ -109,6 +109,42 @@ export class FlikkerAccountService {
     return this.sessions.resolveLive(rawToken ?? '');
   }
 
+  /**
+   * Vuelve a aplicar el vínculo teléfono-probado → `Customer` para una cuenta
+   * que YA verificó su teléfono alguna vez.
+   *
+   * Bug real que esto cierra (auditoría de caso real, +598 91 624 988):
+   * `linkExistingCustomers` corría ÚNICAMENTE dentro de
+   * `verifyAndIssueSession`, así que cualquier `Customer` creado DESPUÉS del
+   * último OTP quedaba huérfano para siempre — la sesión dura 30 días, el
+   * cliente nunca vuelve a verificar, y cada negocio nuevo al que se sumaba
+   * se volvía invisible en "Mis lugares y premios". En el caso real: el
+   * último OTP fue el 22/08 01:09 y el Customer de Bar Fraternidad (con su
+   * goal ACTIVE y 3 visitas) se creó el 22/08 16:29 — 15 horas tarde.
+   *
+   * NO afloja la seguridad: no linkea por un teléfono "escrito en un
+   * check-in", linkea por el teléfono que ESTA cuenta ya probó por OTP, con
+   * coincidencia exacta — exactamente la misma operación que
+   * `verifyAndIssueSession` ya hacía, solo que también después. Best-effort:
+   * si falla, Mi Flikker sigue mostrando lo que ya tenía.
+   */
+  async syncLinkedCustomers(flikkerAccountId: string): Promise<void> {
+    try {
+      const account = await this.prisma.flikkerAccount.findUnique({
+        where: { id: flikkerAccountId },
+        select: { phoneE164: true },
+      });
+      if (!account) return;
+      await this.linkExistingCustomers(flikkerAccountId, account.phoneE164);
+    } catch (error) {
+      this.logger.warn(
+        `Mi Flikker customer re-link failed for account ${flikkerAccountId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+  }
+
   async logout(rawToken: string | undefined) {
     if (rawToken) await this.sessions.revoke(rawToken);
     return { ok: true as const };

@@ -294,14 +294,13 @@ function ConfigForm({
         </div>
       ) : null}
 
-      {stamps && (rewardBenefitId || newRewardTitle.trim()) ? (
-        <p className="mt-4 rounded-[10px] bg-[#F5F6FB] px-3 py-2 text-sm font-semibold text-[#1A202C]">
-          {stamps} sellos →{" "}
-          {rewardBenefitId
-            ? (redeemable.find((b) => b.id === rewardBenefitId)?.title ?? "")
-            : newRewardTitle.trim() || "tu recompensa"}
-        </p>
-      ) : null}
+      {/*
+        Acá vivía un resumen "N sellos → recompensa" que repetía, palabra por
+        palabra, lo que ya dicen los dos campos que están justo arriba y el
+        bloque de "Tarjeta de sellos activa". Se saca por redundante: no
+        aportaba un dato nuevo, solo ruido visual. La lógica de configuración
+        y el snapshot de las goals existentes no se tocan.
+      */}
 
       {note ? (
         <p className="mt-4 rounded-[10px] bg-[#F5F6FB] px-3 py-2 text-xs leading-5 text-[#7B8295]">

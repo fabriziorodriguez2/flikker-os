@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession, type Session } from "@/lib/auth";
+import { getEffectiveApiContext, getSession, type Session } from "@/lib/auth";
 import { apiFetch } from "@/lib/api";
 
 /**
@@ -26,15 +26,30 @@ import { apiFetch } from "@/lib/api";
  * impersonation. Cada uno de los dos exports de abajo decide POR SU CUENTA
  * si la excepción de impersonation aplica o no, porque no es la misma
  * pregunta en los dos casos (ver el comentario de cada uno).
+ *
+ * `getEffectiveApiContext` NO es opcional acá (bug real corregido — el fix
+ * anterior sacó el gate de impersonation pero dejó esta parte leyendo la
+ * sesión cruda, así que siguió mostrando LEGACY): impersonando,
+ * `session.accessToken` sigue siendo el token DEL ADMIN, y `TenantGuard`
+ * exige una Membership activa en ese negocio para cualquier token que no
+ * sea de impersonation. El admin no es miembro del negocio de su cliente,
+ * así que la llamada volvía 403 → `catch` → `false` → Insights LEGACY. El
+ * token de impersonation vive aparte, en `session.impersonation`, y es el
+ * único que `TenantGuard` acepta para ese negocio.
+ *
+ * Sin impersonation, `getEffectiveApiContext` devuelve exactamente
+ * `{ accessToken: session.accessToken, businessId: session.activeBusinessId }`
+ * — o sea, para `isCheckinV2Business`/`redirectIfAbsorbed` (que ya cortan
+ * antes si hay impersonation) el comportamiento no cambia en nada.
  */
 async function fetchIsCheckinV2(session: Session): Promise<boolean> {
-  const businessId = session.activeBusinessId;
+  const { accessToken, businessId } = getEffectiveApiContext(session);
   if (!businessId) return false;
 
   try {
     const business = await apiFetch<{ experienceVersion?: string }>(
       "/businesses/current",
-      session.accessToken,
+      accessToken,
       { businessId },
     );
     return business.experienceVersion === "CHECKIN_V2";

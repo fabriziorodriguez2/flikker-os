@@ -758,7 +758,9 @@ export default function ProgramDesignTab({
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto">{previewContent}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              {previewContent}
+            </div>
           </div>
         </div>
       ) : null}
@@ -826,7 +828,7 @@ function StylePickerModal({
         role="dialog"
         aria-modal="true"
         aria-labelledby="card-style-title"
-        className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto rounded-[20px] border border-[#E3E5F0] bg-white p-5 shadow-[0_28px_80px_rgba(17,22,59,0.24)] sm:p-6"
+        className="max-h-[calc(100vh-2rem)] w-full max-w-2xl overflow-y-auto overscroll-contain rounded-[20px] border border-[#E3E5F0] bg-white p-5 shadow-[0_28px_80px_rgba(17,22,59,0.24)] sm:p-6"
       >
         <div className="flex items-start justify-between gap-4">
           <div>

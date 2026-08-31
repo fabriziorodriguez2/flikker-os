@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
+import { useToast } from "@/components/ui/toast";
 import { useIsCheckinV2 } from "../../experience-context";
 import { useIsOwnerOrAdmin } from "../../role-context";
 import ProgramSummaryTab from "./program-summary-tab";
@@ -102,6 +103,7 @@ function resolveInitialSection(
 
 function ProgramaClientContent() {
   const isCheckinV2 = useIsCheckinV2();
+  const toast = useToast();
   // Espeja `@Roles(OWNER, ADMIN)` de `loyalty-program.controller.ts` y
   // `benefits.controller.ts` — las dos superficies que Programa mutila. Antes
   // usaba `useCanMutate()` (deja pasar a OPERATOR), que mostraba controles
@@ -162,33 +164,72 @@ function ProgramaClientContent() {
     else setLoading(false);
   }, [isCheckinV2, load]);
 
+  /**
+   * Confirmación única para las escrituras de Programa. El `success` se
+   * dispara DESPUÉS de que la respuesta del backend ya se validó
+   * (`readJson` tira si vino mal), nunca en optimista. El error se re-lanza
+   * a propósito: cada sección sigue mostrando además su propio mensaje
+   * inline junto al campo que falló, que es donde el dueño está mirando.
+   * Los duplicados (guardar + recargar en el mismo click) los descarta el
+   * propio `ToastProvider`.
+   */
+  async function withToast<T>(
+    action: () => Promise<T>,
+    successMessage: string,
+  ): Promise<T> {
+    try {
+      const result = await action();
+      toast.success(successMessage);
+      return result;
+    } catch (e) {
+      toast.error(
+        e instanceof Error && e.message
+          ? e.message
+          : "No pudimos guardar los cambios.",
+      );
+      throw e;
+    }
+  }
+
   async function saveBrand(patch: Record<string, unknown>) {
-    const res = await fetch("/api/proxy/businesses/current/brand", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
-    await readJson(res);
-    await load();
+    await withToast(async () => {
+      const res = await fetch("/api/proxy/businesses/current/brand", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      await readJson(res);
+      await load();
+    }, "Programa actualizado");
   }
 
   async function toggleStampsCard(enabled: boolean) {
-    const res = await fetch("/api/proxy/loyalty-program/stamps-card", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled }),
-    });
-    await readJson(res);
+    await withToast(
+      async () => {
+        const res = await fetch("/api/proxy/loyalty-program/stamps-card", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled }),
+        });
+        await readJson(res);
+      },
+      enabled ? "Tarjeta de sellos activada" : "Tarjeta de sellos desactivada",
+    );
   }
 
   /** Capacidad independiente de sellos — ver `RetentionSettings.benefitsEnabled`. */
   async function toggleBenefitsCatalog(enabled: boolean) {
-    const res = await fetch("/api/proxy/loyalty-program/benefits-enabled", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled }),
-    });
-    await readJson(res);
+    await withToast(
+      async () => {
+        const res = await fetch("/api/proxy/loyalty-program/benefits-enabled", {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ enabled }),
+        });
+        await readJson(res);
+      },
+      enabled ? "Beneficios activados" : "Beneficios desactivados",
+    );
   }
 
   async function saveStampsCardConfig(patch: {
@@ -198,12 +239,14 @@ function ProgramaClientContent() {
     rewardType?: string;
     feedbackBonusEnabled?: boolean;
   }) {
-    const res = await fetch("/api/proxy/loyalty-program/stamps-card/config", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(patch),
-    });
-    await readJson(res);
+    await withToast(async () => {
+      const res = await fetch("/api/proxy/loyalty-program/stamps-card/config", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(patch),
+      });
+      await readJson(res);
+    }, "Configuración guardada");
   }
 
   /**
@@ -219,26 +262,33 @@ function ProgramaClientContent() {
       // Endpoint propio, NO `activate`: el regalo de bienvenida se entrega
       // una sola vez en el registro, mientras que `active` significa
       // "visible en cada check-in". Son cosas distintas.
-      const res = value
-        ? await fetch(`/api/proxy/benefits/${benefitId}/welcome-gift`, {
-            method: "POST",
-          })
-        : await fetch("/api/proxy/benefits/welcome-gift/current", {
-            method: "DELETE",
-          });
-      if (!res.ok && res.status !== 204) await readJson(res);
+      await withToast(async () => {
+        const res = value
+          ? await fetch(`/api/proxy/benefits/${benefitId}/welcome-gift`, {
+              method: "POST",
+            })
+          : await fetch("/api/proxy/benefits/welcome-gift/current", {
+              method: "DELETE",
+            });
+        if (!res.ok && res.status !== 204) await readJson(res);
+      }, "Beneficio actualizado");
       return;
     }
     const body =
       use === "rewardCard"
         ? { rewardGoalEnabled: value }
         : { recoveryEnabled: value };
-    const res = await fetch(`/api/proxy/benefits/${benefitId}/retention-bridge`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    await readJson(res);
+    await withToast(async () => {
+      const res = await fetch(
+        `/api/proxy/benefits/${benefitId}/retention-bridge`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+      );
+      await readJson(res);
+    }, "Beneficio actualizado");
   }
 
   /**
@@ -250,11 +300,16 @@ function ProgramaClientContent() {
    * cliente — no es un endpoint nuevo, solo faltaba el control en esta UI.
    */
   async function setBenefitActive(benefitId: string, active: boolean) {
-    const res = await fetch(
-      `/api/proxy/benefits/${benefitId}/${active ? "activate" : "deactivate"}`,
-      { method: "POST" },
+    await withToast(
+      async () => {
+        const res = await fetch(
+          `/api/proxy/benefits/${benefitId}/${active ? "activate" : "deactivate"}`,
+          { method: "POST" },
+        );
+        await readJson(res);
+      },
+      active ? "Beneficio activado" : "Beneficio desactivado",
     );
-    await readJson(res);
   }
 
   async function createBenefit(payload: {
@@ -262,12 +317,14 @@ function ProgramaClientContent() {
     title: string;
     description?: string;
   }) {
-    const res = await fetch("/api/proxy/benefits", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    await readJson(res);
+    await withToast(async () => {
+      const res = await fetch("/api/proxy/benefits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      await readJson(res);
+    }, "Beneficio creado");
   }
 
   /**
@@ -277,18 +334,37 @@ function ProgramaClientContent() {
    * sin este aviso parece que la acción falló.
    */
   async function deleteBenefit(benefitId: string) {
-    const res = await fetch(`/api/proxy/benefits/${benefitId}`, {
-      method: "DELETE",
-    });
-    if (!res.ok && res.status !== 204) {
-      await readJson(res);
-      return;
+    try {
+      const res = await fetch(`/api/proxy/benefits/${benefitId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        await readJson(res); // tira con el motivo real del backend
+        return;
+      }
+      const data = (await res.json().catch(() => null)) as {
+        retired?: boolean;
+        message?: string;
+      } | null;
+
+      // Resultado PARCIAL, no éxito: el beneficio ya se había emitido, así
+      // que no se borró — se retiró y la fila sigue en la lista. Decir
+      // "Beneficio eliminado" acá sería mentirle al dueño.
+      if (data?.retired) {
+        toast.warning("Beneficio retirado — ya tenía emisiones");
+        return data.message;
+      }
+
+      toast.success("Beneficio eliminado");
+      return undefined;
+    } catch (e) {
+      toast.error(
+        e instanceof Error && e.message
+          ? e.message
+          : "No pudimos eliminar el beneficio.",
+      );
+      throw e;
     }
-    const data = (await res.json().catch(() => null)) as {
-      retired?: boolean;
-      message?: string;
-    } | null;
-    return data?.retired ? data.message : undefined;
   }
 
   // Términos y condiciones — auditado: no hay campo de programa a nivel
@@ -296,13 +372,15 @@ function ProgramaClientContent() {
   // en la landing de check-in) es `Benefit.terms`. Mismo PATCH que el resto
   // de la edición de un beneficio, sin endpoint nuevo.
   async function saveBenefitTerms(benefitId: string, terms: string) {
-    const res = await fetch(`/api/proxy/benefits/${benefitId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ terms }),
-    });
-    await readJson(res);
-    await load();
+    await withToast(async () => {
+      const res = await fetch(`/api/proxy/benefits/${benefitId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ terms }),
+      });
+      await readJson(res);
+      await load();
+    }, "Cambios guardados");
   }
 
   function goToConfig(section: ConfigSection) {

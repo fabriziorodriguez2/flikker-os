@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Star } from "lucide-react";
+import { Globe, Lock, Star } from "lucide-react";
 import GoogleLogo from "@/components/icons/google-logo";
 
 interface FeedbackRewardGoal {
@@ -109,9 +109,24 @@ export default function CheckinFeedbackCard({
           </p>
         )}
         {result.offerGoogle && result.googleUrl && (
-          <div className="mt-4">
-            <p className="text-sm font-semibold text-[#24283A]">
-              ¿Querés compartir también tu experiencia en Google?
+          /*
+            Separador real, no decorativo: arriba termina lo PRIVADO (el
+            feedback, que ya se guardó y ya dio el sello si correspondía) y
+            acá empieza algo PÚBLICO y distinto. Sin esta línea las dos cosas
+            se leían como un mismo paso encadenado.
+          */
+          <div className="mt-4 border-t border-[#E9EAF2] pt-4">
+            <p className="flex items-center justify-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8A91A3]">
+              <Globe className="h-3.5 w-3.5" aria-hidden="true" />
+              Público · opcional
+            </p>
+            <p className="mt-2 text-sm font-semibold text-[#24283A]">
+              ¿Querés contarlo también en Google?
+            </p>
+            <p className="mt-1 text-xs leading-5 text-[#8A91A3]">
+              Se publica en tu perfil de Google y lo puede ver cualquiera. No
+              suma sellos ni beneficios — tu opinión de arriba ya quedó
+              guardada.
             </p>
             <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
               <a
@@ -162,13 +177,24 @@ export default function CheckinFeedbackCard({
   // ── Estado inicial — pedir la calificación ────────────────────────────────
   return (
     <div className={cardClass}>
-      <p className="text-sm font-bold text-[#24283A]">
+      {/*
+        La etiqueta "Privado" arriba de todo es lo que separa esto de la
+        reseña de Google: es la MISMA pantalla, así que si no se dice, las
+        dos cosas se leen como lo mismo. El sello extra se nombra sólo si el
+        negocio realmente lo tiene activo — nunca se promete algo que no se
+        va a otorgar.
+      */}
+      <p className="flex items-center justify-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8A91A3]">
+        <Lock className="h-3.5 w-3.5" aria-hidden="true" />
+        Privado
+      </p>
+      <p className="mt-2 text-sm font-bold text-[#24283A]">
         ¿Cómo fue tu experiencia?
       </p>
-      <p className="mt-1 text-xs text-[#8A91A3]">
-        {hasActiveGoal
-          ? "Contanos y ganá 1 sello extra"
-          : "Tu opinión nos ayuda a mejorar"}
+      <p className="mt-1 text-xs leading-5 text-[#8A91A3]">
+        Lo lee solo el negocio, queda dentro de Flikker y no se publica en
+        ningún lado.
+        {hasActiveGoal ? " Además te suma 1 sello extra." : ""}
       </p>
       <div
         className="mt-3 flex justify-center gap-1.5"

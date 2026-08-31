@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Check, Copy, Download, Save } from "lucide-react";
 import Link from "next/link";
 import QRCode from "qrcode";
+import { useToast } from "@/components/ui/toast";
 import { useIsCheckinV2 } from "../../experience-context";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -477,6 +478,7 @@ export default function QrPrintStudio() {
   const generatingStickerRef = useRef(false);
 
   // Saving / downloading state
+  const toast = useToast();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [downloading, setDownloading] = useState(false);
@@ -585,13 +587,23 @@ export default function QrPrintStudio() {
         version === "a4"
           ? { qrA4Title: a4Title, qrA4Subtitle: a4Subtitle, qrA4BgColor: a4BgColor, benefitText }
           : { benefitText };
-      await fetch("/api/proxy/businesses/current/brand", {
+      const res = await fetch("/api/proxy/businesses/current/brand", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      // Antes esto marcaba "guardado" sin mirar la respuesta: un PATCH
+      // rechazado se veía exactamente igual que uno exitoso.
+      if (!res.ok) throw new Error("No pudimos guardar los cambios.");
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
+      toast.success("Cambios guardados");
+    } catch (e) {
+      toast.error(
+        e instanceof Error && e.message
+          ? e.message
+          : "No pudimos guardar los cambios.",
+      );
     } finally {
       setSaving(false);
     }

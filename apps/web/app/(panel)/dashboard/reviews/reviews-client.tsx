@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Check, Copy, ExternalLink, Loader2, MapPin, Search } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
+import { useToast } from "@/components/ui/toast";
 import GoogleLogo from "@/components/icons/google-logo";
 import { useIsOwnerOrAdmin } from "../../role-context";
 import { Stars, relativeDay } from "../customers/loyalty-ui";
@@ -76,6 +77,7 @@ export default function ReviewsClient({
   businessName: string;
 }) {
   const canConnect = useIsOwnerOrAdmin();
+  const toast = useToast();
 
   const [days, setDays] = useState<number>(30);
   const [data, setData] = useState<Overview | null>(null);
@@ -123,8 +125,12 @@ export default function ReviewsClient({
       if (res.ok) {
         setEditingUrl(false);
         await load(days);
+        toast.success("Cambios guardados");
       } else {
-        setError("Ese link no se pudo guardar. Revisalo e intentá de nuevo.");
+        const detail =
+          "Ese link no se pudo guardar. Revisalo e intentá de nuevo.";
+        setError(detail);
+        toast.error(detail);
       }
     } finally {
       setSavingUrl(false);

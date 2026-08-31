@@ -1,6 +1,7 @@
 "use client";
 
 import { Clock } from "lucide-react";
+import { relativeDayLabel } from "@/lib/relative-day";
 import type { ProgramHistoryItem } from "./types";
 
 /**
@@ -69,20 +70,14 @@ function formatTime(iso: string) {
   });
 }
 
+/**
+ * Misma utilidad central que usa Clientes (`@/lib/relative-day`) — antes
+ * había dos implementaciones distintas de "Hoy/Ayer" en el panel. Acá el
+ * historial agrupa por día, así que a partir del segundo día ya muestra la
+ * fecha en vez de "Hace N días".
+ */
 function dayLabel(iso: string) {
-  const date = new Date(iso);
-  const today = new Date();
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-
-  const sameDay = (a: Date, b: Date) =>
-    a.getFullYear() === b.getFullYear() &&
-    a.getMonth() === b.getMonth() &&
-    a.getDate() === b.getDate();
-
-  if (sameDay(date, today)) return "Hoy";
-  if (sameDay(date, yesterday)) return "Ayer";
-  return date.toLocaleDateString("es-UY", { day: "2-digit", month: "short" });
+  return relativeDayLabel(iso, { absoluteAfterDays: 2 });
 }
 
 function groupByDay(

@@ -17,7 +17,7 @@ import SessionExpiryHandler from "@/components/auth/session-expiry-handler";
 import ImpersonationBanner from "./impersonation-banner";
 import QueryProvider from "@/components/providers/query-provider";
 import MobileMenuButton from "./mobile-menu-button";
-import ElasticScrollBoundary from "@/components/ui/elastic-scroll-boundary";
+import { ToastProvider } from "@/components/ui/toast";
 import BusinessLoadError from "@/components/ui/business-load-error";
 import FlikkerChatbotLauncher from "@/components/panel/flikker-chatbot-launcher";
 
@@ -178,19 +178,37 @@ export default async function PanelLayout({
             </div>
           </div>
 
-          <main className="min-h-0 flex-1 overflow-auto px-4 py-6 md:px-6 md:py-8">
-            <ElasticScrollBoundary>
+          {/*
+            `overscroll-contain`: este `<main>` es el scroller real del panel
+            (no el documento). Sin esto, al llegar a su tope el gesto seguía
+            encadenando hacia la página y el navegador sumaba su propio
+            rubber-band.
+
+            Acá vivía además `<ElasticScrollBoundary>`, un rebote artificial
+            hecho a mano: escuchaba `wheel` en window y animaba un
+            `translateY(±7px)` de 300 ms sobre TODO el contenido. Se quitó
+            (auditoría de caso real: "rebota varias veces y se siente roto")
+            porque su throttle era de 240 ms — MÁS CORTO que la animación de
+            300 ms — así que un gesto de trackpad, que emite decenas de
+            eventos con inercia, cancelaba y relanzaba el rebote una y otra
+            vez, y de paso hacía "saltar" a los elementos sticky de adentro.
+            El límite firme y natural que se pidió es el nativo, sin JS.
+          */}
+          <main className="min-h-0 flex-1 overflow-auto overscroll-contain px-4 py-6 md:px-6 md:py-8">
+            <div className="min-h-full">
               <QueryProvider>
                 <RoleProvider role={currentRole}>
                   <ExperienceProvider
                     experienceVersion={experienceVersion}
                     retentionEngineV2Enabled={retentionEngineV2Enabled}
                   >
-                    {children}
+                    {/* Montado UNA sola vez para todo el panel — ninguna
+                        pantalla arma su propio cartel de "Guardado ✓". */}
+                    <ToastProvider>{children}</ToastProvider>
                   </ExperienceProvider>
                 </RoleProvider>
               </QueryProvider>
-            </ElasticScrollBoundary>
+            </div>
           </main>
         </div>
       </div>

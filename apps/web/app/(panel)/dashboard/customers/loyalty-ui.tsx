@@ -15,6 +15,8 @@
 // dónde están.
 export { MESSAGE_LABEL, type MessageKind } from "@/lib/message-kind";
 
+import { relativeDayLabel } from "@/lib/relative-day";
+
 export type RecurrenceKey =
   | "nuevo"
   | "vuelve_seguido"
@@ -43,17 +45,17 @@ export const RECURRENCE: Record<
 };
 
 
-const MS_PER_DAY = 86_400_000;
-
-/** "Hoy", "Ayer", "Hace 3 días", y a partir de ahí la fecha. */
+/**
+ * "Hoy", "Ayer", "Hace 3 días", y a partir de ahí la fecha.
+ *
+ * Delega en `relativeDayLabel` (`@/lib/relative-day`) — la única
+ * implementación de fechas relativas del repo. Antes calculaba
+ * `Math.floor(elapsed / 24h)`, que son períodos de 24 horas y no días de
+ * calendario: una visita de ayer 23:30 vista hoy a las 10:00 daba 0 y decía
+ * "Hoy". Ver el comentario de ese archivo para el detalle.
+ */
 export function relativeDay(value: string | null | undefined): string {
-  if (!value) return "Nunca";
-  const date = new Date(value);
-  const days = Math.floor((Date.now() - date.getTime()) / MS_PER_DAY);
-  if (days <= 0) return "Hoy";
-  if (days === 1) return "Ayer";
-  if (days < 30) return `Hace ${days} días`;
-  return shortDate(value);
+  return relativeDayLabel(value);
 }
 
 export function shortDate(value: string | null | undefined): string {

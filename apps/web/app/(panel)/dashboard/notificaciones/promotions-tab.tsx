@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Check, Loader2, Megaphone, Send } from "lucide-react";
 import EmptyState from "@/components/ui/empty-state";
+import { useToast } from "@/components/ui/toast";
 import { useCanMutate } from "../../role-context";
 
 /**
@@ -49,6 +50,7 @@ interface Benefit {
 
 export default function PromotionsTab() {
   const canSend = useCanMutate();
+  const toast = useToast();
 
   const [creating, setCreating] = useState(false);
   const [message, setMessage] = useState("");
@@ -131,8 +133,25 @@ export default function PromotionsTab() {
       const result = data as { sent: number; failed: number };
       setSentSummary({ sent: result.sent, failed: result.failed });
       setConfirming(false);
+
+      // La confirmación dice lo que REALMENTE pasó. Un envío parcial no es
+      // un éxito: el endpoint responde 200 con el desglose, así que un
+      // "Promoción enviada" a secas cuando 2 de 3 fallaron sería mentira.
+      if (result.failed === 0) {
+        toast.success(
+          `Promoción enviada a ${result.sent} ${result.sent === 1 ? "contacto" : "contactos"}`,
+        );
+      } else if (result.sent > 0) {
+        toast.warning(
+          `Enviada a ${result.sent}, ${result.failed} no se pudieron entregar`,
+        );
+      } else {
+        toast.error("No se pudo entregar a ningún contacto");
+      }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error inesperado.");
+      const detail = e instanceof Error ? e.message : "Error inesperado.";
+      setError(detail);
+      toast.error(detail);
       setConfirming(false);
     } finally {
       setSending(false);

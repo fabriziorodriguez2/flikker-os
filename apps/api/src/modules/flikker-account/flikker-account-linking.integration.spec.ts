@@ -231,4 +231,178 @@ describe('FlikkerAccount — check-in con goal ACTIVE, luego OTP en Mi Flikker (
       await cleanup(business.id, phoneE164);
     }
   });
+
+  /**
+   * El caso REAL que estaba roto en producción (+598 91 624 988): el OTP se
+   * hizo ANTES de conocer este negocio. Como la sesión dura 30 días, el
+   * cliente nunca vuelve a verificar, y `linkExistingCustomers` solo corría
+   * dentro de `verifyAndIssueSession` — así que el `Customer` creado después
+   * quedaba huérfano y el negocio no aparecía nunca en Mi Flikker.
+   *
+   * Datos reales del caso: último OTP 22/08 01:09, Customer de Bar
+   * Fraternidad creado 22/08 16:29 (15 h después), con goal ACTIVE y 3
+   * visitas → "Mis lugares y premios" devolvía 16 lugares, ninguno era Bar
+   * Fraternidad.
+   */
+  it('OTP PRIMERO y check-in DESPUÉS: el negocio nuevo igual aparece, sin pedir otro OTP', async () => {
+    const suffix = makeTestSuffix();
+    const business = await createTestBusiness(
+      prisma,
+      `flikker-account-late-${suffix}`,
+    );
+    const phoneE164 = `+598${Math.floor(10_000_000 + Math.random() * 89_999_999)}`;
+
+    await prisma.retentionIncentiveDefinition.create({
+      data: {
+        businessId: business.id,
+        name: 'Café gratis',
+        type: BenefitType.gift,
+        active: true,
+        rewardGoalEligible: true,
+      },
+    });
+    await prisma.retentionSettings.create({
+      data: {
+        businessId: business.id,
+        rewardGoalsEnabled: true,
+        rewardGoalMinVisits: 3,
+        rewardGoalMaxVisits: 3,
+      },
+    });
+
+    try {
+      // ── 1. El cliente verifica su teléfono ANTES de conocer este negocio ──
+      const { code } = await verifications.start(phoneE164);
+      const session = await flikkerAccount.verifyAndIssueSession(
+        phoneE164,
+        code as string,
+      );
+      expect(session.flikkerAccountId).toBeTruthy();
+
+      // En este punto no tiene ningún lugar: todavía no se registró en nada.
+      expect(await myFlikker.listPlaces(session.flikkerAccountId)).toHaveLength(
+        0,
+      );
+
+      // ── 2. RECIÉN AHORA hace check-in en el negocio nuevo (mismo teléfono).
+      //      El registro NO linkea a propósito — eso sigue exigiendo teléfono
+      //      probado, nunca uno tipeado en un formulario. ──
+      const customer = await prisma.customer.create({
+        data: {
+          id: randomUUID(),
+          businessId: business.id,
+          name: `Cliente ${suffix}`,
+          phoneE164,
+        },
+      });
+      const at = new Date();
+      await prisma.visit.create({
+        data: {
+          businessId: business.id,
+          customerId: customer.id,
+          occurredAt: at,
+          visitDayKey: at.toISOString().slice(0, 10),
+          verificationType: 'manual',
+        },
+      });
+      const view = await orchestrator.afterVisit(
+        business.id,
+        customer.id,
+        'America/Montevideo',
+        at,
+      );
+      expect(view.goal).toMatchObject({
+        progressVisits: 1,
+        targetAdditionalVisits: 3,
+      });
+
+      // El Customer nace huérfano — ese es el estado que rompía todo.
+      expect(
+        (
+          await prisma.customer.findUniqueOrThrow({
+            where: { id: customer.id },
+            select: { flikkerAccountId: true },
+          })
+        ).flikkerAccountId,
+      ).toBeNull();
+
+      // ── 3. El cliente abre Mi Flikker con la sesión que YA tenía (sin otro
+      //      OTP). El re-link corre acá y el negocio aparece. ──
+      await flikkerAccount.syncLinkedCustomers(session.flikkerAccountId);
+
+      expect(
+        (
+          await prisma.customer.findUniqueOrThrow({
+            where: { id: customer.id },
+            select: { flikkerAccountId: true },
+          })
+        ).flikkerAccountId,
+      ).toBe(session.flikkerAccountId);
+
+      const places = await myFlikker.listPlaces(session.flikkerAccountId);
+      expect(places).toHaveLength(1);
+      expect(places[0]).toMatchObject({
+        businessId: business.id,
+        rewardGoal: {
+          incentiveName: 'Café gratis',
+          progressVisits: 1,
+          targetAdditionalVisits: 3,
+        },
+      });
+    } finally {
+      await cleanup(business.id, phoneE164);
+    }
+  });
+
+  /**
+   * El límite que el re-link NO puede cruzar: un teléfono que esta cuenta
+   * nunca probó. Si `syncLinkedCustomers` linkeara por cualquier teléfono
+   * escrito en un check-in, cualquiera podría tipear el número de otra
+   * persona y heredar sus tarjetas — exactamente lo que el OTP evita.
+   */
+  it('el re-link NUNCA toca un Customer de OTRO teléfono', async () => {
+    const suffix = makeTestSuffix();
+    const business = await createTestBusiness(
+      prisma,
+      `flikker-account-other-${suffix}`,
+    );
+    const minePhone = `+598${Math.floor(10_000_000 + Math.random() * 89_999_999)}`;
+    const otherPhone = `+598${Math.floor(10_000_000 + Math.random() * 89_999_999)}`;
+
+    try {
+      const { code } = await verifications.start(minePhone);
+      const session = await flikkerAccount.verifyAndIssueSession(
+        minePhone,
+        code as string,
+      );
+
+      const otherCustomer = await prisma.customer.create({
+        data: {
+          id: randomUUID(),
+          businessId: business.id,
+          name: 'Cliente ajeno',
+          phoneE164: otherPhone,
+        },
+      });
+
+      await flikkerAccount.syncLinkedCustomers(session.flikkerAccountId);
+
+      expect(
+        (
+          await prisma.customer.findUniqueOrThrow({
+            where: { id: otherCustomer.id },
+            select: { flikkerAccountId: true },
+          })
+        ).flikkerAccountId,
+      ).toBeNull();
+      expect(await myFlikker.listPlaces(session.flikkerAccountId)).toHaveLength(
+        0,
+      );
+    } finally {
+      await cleanup(business.id, minePhone);
+      await prisma.flikkerAccountVerification
+        .deleteMany({ where: { phoneE164: otherPhone } })
+        .catch(() => undefined);
+    }
+  });
 });

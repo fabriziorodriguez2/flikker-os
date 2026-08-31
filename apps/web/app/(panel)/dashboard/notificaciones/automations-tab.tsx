@@ -13,6 +13,7 @@ import {
   UserRoundSearch,
 } from "lucide-react";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
+import { useToast } from "@/components/ui/toast";
 import { useIsOwnerOrAdmin } from "../../role-context";
 
 /**
@@ -111,6 +112,7 @@ const DAY_NAMES = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
 export default function AutomationsTab() {
   const canManage = useIsOwnerOrAdmin();
+  const toast = useToast();
 
   const [data, setData] = useState<Overview | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
@@ -151,20 +153,43 @@ export default function AutomationsTab() {
       });
       if (!res.ok) throw new Error("No pudimos guardar el cambio.");
       setData((await res.json()) as Overview);
+      // Cada toggle manda una sola clave booleana; decir "activada/
+      // desactivada" es más útil que un "Cambios guardados" genérico.
+      const values = Object.values(body);
+      const toggled = values.length === 1 ? values[0] : undefined;
+      toast.success(
+        typeof toggled === "boolean"
+          ? toggled
+            ? "Automatización activada"
+            : "Automatización desactivada"
+          : "Cambios guardados",
+      );
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error inesperado.");
+      const detail = e instanceof Error ? e.message : "Error inesperado.";
+      setError(detail);
+      toast.error(detail);
     } finally {
       setSaving(false);
     }
   }
 
   async function patchSettings(body: Record<string, unknown>) {
-    const res = await fetch("/api/proxy/notifications/settings", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (res.ok) setSettings((await res.json()) as Settings);
+    try {
+      const res = await fetch("/api/proxy/notifications/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      // Antes un guardado fallido era invisible: sin `else`, la ventana de
+      // envío quedaba en pantalla como si se hubiera guardado.
+      if (!res.ok) throw new Error("No pudimos guardar la configuración.");
+      setSettings((await res.json()) as Settings);
+      toast.success("Cambios guardados");
+    } catch (e) {
+      toast.error(
+        e instanceof Error ? e.message : "No pudimos guardar la configuración.",
+      );
+    }
   }
 
   if (loading) {

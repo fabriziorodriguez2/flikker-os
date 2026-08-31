@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Loader2, MapPin, Search, Star, X } from "lucide-react";
+import { useToast } from "@/components/ui/toast";
 
 interface PlaceSearchResult {
   placeId: string;
@@ -40,6 +41,7 @@ export default function GoogleConnectModal({
   onClose: () => void;
   onConnected: () => void;
 }) {
+  const toast = useToast();
   const [query, setQuery] = useState(businessName);
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<PlaceSearchResult[] | null>(null);
@@ -91,9 +93,13 @@ export default function GoogleConnectModal({
         },
       );
       await readJson(res);
+      toast.success("Local de Google vinculado");
       onConnected();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No pudimos conectar ese negocio.");
+      const detail =
+        e instanceof Error ? e.message : "No pudimos conectar ese negocio.";
+      setError(detail);
+      toast.error(detail);
     } finally {
       setConnectingId(null);
     }

@@ -6,6 +6,7 @@ import {
   BadgePercent,
   Check,
   CheckCircle2,
+  Footprints,
   Gift,
   Loader2,
   LockKeyhole,
@@ -1095,19 +1096,21 @@ function PersonalScreen({
         </p>
 
         <div className="mt-4 grid w-full grid-cols-1 gap-3">
-          {/* Liviana a propósito — la tarjeta de fidelización de abajo es el
-              elemento principal; esto es solo un dato de contexto, no otra
-              tarjeta compitiendo por atención. */}
-          <div className="checkin-enter flex w-full items-baseline justify-between gap-3 px-1">
-            <p className="text-xs font-semibold text-[#8A91A3]">
-              Visitas totales
-            </p>
-            <p className="text-lg font-bold text-[#171A2B]">
+          {/*
+            Un dato de contexto, no una tarjeta: sin fondo, sin borde y sin
+            sombra a propósito, para que la jerarquía quede clara — la tarjeta
+            de sellos de abajo es el elemento principal de la pantalla. El
+            color sale de `--pub-text-muted`, la misma variable que el resto
+            de los textos secundarios de la experiencia pública, así el
+            contraste sigue siendo correcto sobre cualquier fondo que el
+            negocio haya elegido.
+          */}
+          <div className="checkin-enter flex w-full items-center justify-center gap-1.5 text-[color:var(--pub-text-muted)]">
+            <Footprints className="h-4 w-4 shrink-0" aria-hidden="true" />
+            <span className="text-sm font-semibold">
               {personal.visits.total}{" "}
-              <span className="text-xs font-semibold text-[#8A91A3]">
-                {personal.visits.total === 1 ? "visita" : "visitas"}
-              </span>
-            </p>
+              {personal.visits.total === 1 ? "visita" : "visitas"}
+            </span>
           </div>
 
           <RewardGoalCard

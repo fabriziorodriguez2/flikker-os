@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Loader2, Percent, Plus, Trash2 } from "lucide-react";
 import FlikkerSelect from "@/components/ui/flikker-select";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
+import { useToast } from "@/components/ui/toast";
 import ProgramSectionHeading from "./program-section-heading";
 import {
   CREATABLE_BENEFIT_TYPES,
@@ -63,6 +64,7 @@ export default function ProgramIncentivesSection({
   const [incentives, setIncentives] = useState<ProgramIncentive[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const toast = useToast();
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -129,47 +131,71 @@ export default function ProgramIncentivesSection({
       });
       const data = (await readJson(res)) as RetentionBudget;
       setBudget(data);
+      toast.success("Cambios guardados");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No pudimos guardar.");
+      const detail = e instanceof Error ? e.message : "No pudimos guardar.";
+      setError(detail);
+      toast.error(detail);
     } finally {
       setSavingLimit(false);
     }
   }
 
-  async function run(id: string, action: () => Promise<void>) {
+  /**
+   * Único envoltorio de escritura de esta sección — por eso la confirmación
+   * vive acá y no repetida en cada handler. El `recargar` posterior no
+   * dispara su propio toast: es una lectura, y además el dedupe del
+   * `ToastProvider` evitaría el duplicado igual.
+   */
+  async function run(
+    id: string,
+    action: () => Promise<void>,
+    successMessage: string,
+  ) {
     setBusyId(id);
     setError(null);
     try {
       await action();
       await load();
+      toast.success(successMessage);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "No pudimos guardar.");
+      const detail = e instanceof Error ? e.message : "No pudimos guardar.";
+      setError(detail);
+      toast.error(detail);
     } finally {
       setBusyId(null);
     }
   }
 
   async function remove(id: string) {
-    await run(id, async () => {
-      const res = await fetch(`/api/proxy/retention-v2/incentives/${id}`, {
-        method: "DELETE",
-      });
-      if (!res.ok && res.status !== 204) await readJson(res);
-    });
+    await run(
+      id,
+      async () => {
+        const res = await fetch(`/api/proxy/retention-v2/incentives/${id}`, {
+          method: "DELETE",
+        });
+        if (!res.ok && res.status !== 204) await readJson(res);
+      },
+      "Incentivo eliminado",
+    );
   }
 
   async function toggleActive(incentive: ProgramIncentive) {
-    await run(incentive.id, async () => {
-      const res = await fetch(
-        `/api/proxy/retention-v2/incentives/${incentive.id}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ active: !incentive.active }),
-        },
-      );
-      await readJson(res);
-    });
+    await run(
+      incentive.id,
+      async () => {
+        const res = await fetch(
+          `/api/proxy/retention-v2/incentives/${incentive.id}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ active: !incentive.active }),
+          },
+        );
+        await readJson(res);
+      },
+      incentive.active ? "Incentivo desactivado" : "Incentivo activado",
+    );
   }
 
   if (loadError) {
@@ -266,14 +292,18 @@ export default function ProgramIncentivesSection({
           <IncentiveForm
             onCancel={() => setCreating(false)}
             onSubmit={async (payload) => {
-              await run("new", async () => {
-                const res = await fetch("/api/proxy/retention-v2/incentives", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify(payload),
-                });
-                await readJson(res);
-              });
+              await run(
+                "new",
+                async () => {
+                  const res = await fetch("/api/proxy/retention-v2/incentives", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload),
+                  });
+                  await readJson(res);
+                },
+                "Incentivo creado",
+              );
               setCreating(false);
             }}
             busy={busyId === "new"}

@@ -13,6 +13,7 @@ import {
 import QRCode from "qrcode";
 import PageHeader from "@/components/ui/page-header";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
+import { useToast } from "@/components/ui/toast";
 import { useIsOwnerOrAdmin } from "../../role-context";
 import PhysicalSupportNotice from "./physical-support-notice";
 
@@ -54,6 +55,7 @@ function checkinUrl(token: string): string {
 
 export default function QrNfcClient() {
   const canManage = useIsOwnerOrAdmin();
+  const toast = useToast();
 
   const [points, setPoints] = useState<AccessPoint[]>([]);
   const [business, setBusiness] = useState<BusinessInfo | null>(null);
@@ -184,8 +186,11 @@ export default function QrNfcClient() {
         { method: "DELETE" },
         "No pudimos eliminar el acceso.",
       );
+      toast.success("Acceso eliminado");
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Error inesperado.");
+      const message = e instanceof Error ? e.message : "Error inesperado.";
+      setActionError(message);
+      toast.error(message);
     } finally {
       setBusyId(null);
     }
@@ -208,8 +213,11 @@ export default function QrNfcClient() {
         "No pudimos crear el acceso.",
       );
       setNewName("");
+      toast.success("QR creado");
     } catch (e) {
-      setActionError(e instanceof Error ? e.message : "Error inesperado.");
+      const message = e instanceof Error ? e.message : "Error inesperado.";
+      setActionError(message);
+      toast.error(message);
     } finally {
       setCreating(false);
     }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Building2, CalendarDays, Loader2, Save, Upload } from "lucide-react";
 import BusinessLogo from "@/components/business/business-logo";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
+import { useToast } from "@/components/ui/toast";
 import {
   BUSINESS_VERTICAL_OPTIONS,
   DEFAULT_BUSINESS_VERTICAL,
@@ -76,6 +77,7 @@ function formatCreatedAt(value: string) {
 export default function CheckinV2BusinessSettings() {
   const router = useRouter();
   const canManage = useIsOwnerOrAdmin();
+  const toast = useToast();
   const [business, setBusiness] = useState<Business | null>(null);
   const [name, setName] = useState("");
   const [editingName, setEditingName] = useState(false);
@@ -191,14 +193,16 @@ export default function CheckinV2BusinessSettings() {
       });
       await readJson(response);
       setMessage("Cambios guardados.");
+      toast.success("Configuración guardada");
       await load();
       router.refresh();
     } catch (saveError) {
-      setError(
+      const detail =
         saveError instanceof Error
           ? saveError.message
-          : "No pudimos guardar los cambios.",
-      );
+          : "No pudimos guardar los cambios.";
+      setError(detail);
+      toast.error(detail);
     } finally {
       setSaving(false);
     }

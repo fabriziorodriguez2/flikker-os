@@ -36,9 +36,18 @@ export class MyFlikkerController {
     return this.myFlikker.placeDetail(account.flikkerAccountId, businessId);
   }
 
+  /**
+   * Punto único por el que pasan los dos endpoints — por eso el re-link vive
+   * acá y no duplicado en cada uno. `syncLinkedCustomers` re-aplica el
+   * vínculo del teléfono YA probado por OTP de esta cuenta a cualquier
+   * `Customer` que haya aparecido después de la última verificación (ver el
+   * comentario de ese método: sin esto, todo negocio al que el cliente se
+   * sumó después de su último OTP quedaba invisible acá para siempre).
+   */
   private async requireAccount(session: string | undefined) {
     const account = await this.accounts.resolveSession(session);
     if (!account) throw new UnauthorizedException('No session');
+    await this.accounts.syncLinkedCustomers(account.flikkerAccountId);
     return account;
   }
 }

@@ -43,7 +43,7 @@ describe("isCheckinV2Experience vs isCheckinV2Business — la distinción de imp
     mockedApiFetch.mockResolvedValue({ experienceVersion: "CHECKIN_V2" });
     const session = makeSession({
       impersonation: {
-        accessToken: "token-admin",
+        accessToken: "token-impersonation",
         businessId: "biz-impersonated",
         businessName: "Bar Fraternidad",
         businessSlug: "bar-fraternidad",
@@ -52,6 +52,51 @@ describe("isCheckinV2Experience vs isCheckinV2Business — la distinción de imp
     });
     const result = await isCheckinV2Experience(session);
     expect(result).toBe(true);
+  });
+
+  /**
+   * Bug real que el test anterior NO atrapaba: con `apiFetch` mockeado para
+   * resolver siempre, daba `true` igual aunque la llamada usara el token del
+   * ADMIN. En producción eso es un 403 de `TenantGuard` (el admin no tiene
+   * Membership en el negocio de su cliente) → `catch` → `false` → Insights
+   * LEGACY. Por eso acá se afirma CON QUÉ credenciales se llama, no solo el
+   * booleano que vuelve.
+   */
+  it("isCheckinV2Experience: impersonando, pregunta con el token DE IMPERSONATION y el negocio impersonado — nunca con el del admin", async () => {
+    mockedApiFetch.mockResolvedValue({ experienceVersion: "CHECKIN_V2" });
+    const session = makeSession({
+      accessToken: "token-admin",
+      activeBusinessId: "biz-impersonated",
+      impersonation: {
+        accessToken: "token-impersonation",
+        businessId: "biz-impersonated",
+        businessName: "Bar Fraternidad",
+        businessSlug: "bar-fraternidad",
+        startedAt: new Date().toISOString(),
+      },
+    });
+
+    await isCheckinV2Experience(session);
+
+    expect(mockedApiFetch).toHaveBeenCalledWith(
+      "/businesses/current",
+      "token-impersonation",
+      { businessId: "biz-impersonated" },
+    );
+  });
+
+  it("isCheckinV2Experience: sin impersonation, sigue preguntando con el token y el negocio del dueño", async () => {
+    mockedApiFetch.mockResolvedValue({ experienceVersion: "CHECKIN_V2" });
+
+    await isCheckinV2Experience(
+      makeSession({ accessToken: "token-owner", activeBusinessId: "biz-1" }),
+    );
+
+    expect(mockedApiFetch).toHaveBeenCalledWith(
+      "/businesses/current",
+      "token-owner",
+      { businessId: "biz-1" },
+    );
   });
 
   it("isCheckinV2Experience: false para un negocio LEGACY, con o sin impersonation", async () => {

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { X } from "lucide-react";
+import { useBodyScrollLock } from "@/lib/use-body-scroll-lock";
 import CustomerDetailContent from "./customer-detail-content";
 
 /**
@@ -25,6 +26,10 @@ export default function CustomerModal({
     window.addEventListener("keydown", handleKey);
     return () => window.removeEventListener("keydown", handleKey);
   }, [onClose]);
+
+  // La página de atrás queda quieta mientras el modal está abierto, y
+  // recupera su posición exacta al cerrar (ver `useBodyScrollLock`).
+  useBodyScrollLock(true);
 
   return (
     <div
@@ -53,7 +58,9 @@ export default function CustomerModal({
           </button>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-5 py-5 sm:px-6">
+        {/* `overscroll-contain`: al llegar al tope de ESTE scroller, el gesto
+            muere acá — no sigue empujando la página de atrás. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 sm:px-6">
           <CustomerDetailContent customerId={customerId} />
         </div>
       </div>
