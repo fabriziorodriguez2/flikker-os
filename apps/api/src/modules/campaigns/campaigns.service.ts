@@ -16,15 +16,17 @@ import { UpdateRepeatCampaignDto } from './dto/update-repeat-campaign.dto';
 import { UpdateCampaignStatusDto } from './dto/update-campaign-status.dto';
 import { SendManualCampaignDto } from './dto/send-manual-campaign.dto';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
-import { WhatsAppProviderError } from '../../jobs/whatsapp-provider';
+import {
+  WHATSAPP_MIN_SEND_INTERVAL_MS,
+  WhatsAppProviderError,
+} from '../../jobs/whatsapp-provider';
 
 /**
- * WaSenderAPI rechaza más de 1 mensaje cada 5 segundos por cuenta (auditoría
- * de caso real — 2 de 3 destinatarios de una promoción fallaron porque
- * `sendManual` los mandaba todos en paralelo con `Promise.all`). Este es el
- * piso real del proveedor, no un valor arbitrario.
+ * El piso real del proveedor (1 mensaje cada 5 segundos por cuenta) vive en
+ * `whatsapp-provider.ts`, junto al contrato — acá solo se reusa, para que no
+ * haya dos números distintos que puedan divergir.
  */
-const MANUAL_CAMPAIGN_MIN_SEND_INTERVAL_MS = 5000;
+const MANUAL_CAMPAIGN_MIN_SEND_INTERVAL_MS = WHATSAPP_MIN_SEND_INTERVAL_MS;
 /** 1 intento inicial + 2 reintentos — solo para rate limit, nunca para errores definitivos. */
 const MANUAL_CAMPAIGN_MAX_SEND_ATTEMPTS = 3;
 const RATE_LIMIT_MESSAGE_PATTERN =

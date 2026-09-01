@@ -41,13 +41,29 @@ export class PublicMessagingService {
     private readonly reviewRequestQueue: ReviewRequestQueue,
   ) {}
 
+  /**
+   * El ÚNICO mensaje de bienvenida del registro.
+   *
+   * `miFlikkerLink` se agrega a ESTE mismo texto en vez de mandar un segundo
+   * WhatsApp (bug real, auditoría de caso real): antes el check-in disparaba
+   * dos welcomes en paralelo — este y uno aparte con el link de Mi Flikker —
+   * y como WaSenderAPI acepta 1 mensaje cada 5 segundos, el segundo volvía
+   * rechazado con "account protection". El cliente recibía el saludo sin
+   * link y el link no se reintentaba nunca. Un solo mensaje elimina la
+   * carrera de raíz.
+   *
+   * Devuelve si el proveedor ACEPTÓ el envío. El caller lo necesita para no
+   * marcar el welcome como entregado cuando en realidad falló; sigue siendo
+   * best-effort (nunca tira), solo que ahora lo dice.
+   */
   async sendWelcome(
     phoneE164: string,
     customerName: string,
     businessName: string,
     benefitText: string | null,
     benefitType: BenefitType | null = null,
-  ): Promise<void> {
+    miFlikkerLink: string | null = null,
+  ): Promise<boolean> {
     try {
       const registered = `Hola ${customerName}! 🎉 Quedaste registrado en *${businessName}*.`;
       let body: string;
@@ -62,14 +78,20 @@ export class PublicMessagingService {
               : 'beneficio';
         body = `${registered}\nTu ${noun}: ${benefitText}\nMostrá este mensaje en el local para usarlo. ¡Te esperamos!`;
       } else {
-        body = `Hola ${customerName}! 🎉 Gracias por pasar por *${businessName}*. ¡Fue un gusto tenerte y te esperamos pronto de nuevo!`;
+        body = `Hola ${customerName} 👋 Gracias por pasar por *${businessName}*.`;
+      }
+
+      if (miFlikkerLink) {
+        body += `\n\nYa tenés tu perfil en Flikker. Desde acá podés ver tus tarjetas, beneficios y premios cuando quieras:\n${miFlikkerLink}`;
       }
 
       await this.whatsApp.sendText({ phone: phoneE164, text: body });
+      return true;
     } catch (error) {
       this.logger.warn(
         `WhatsApp welcome failed for ${phoneE164}: ${errMsg(error)}`,
       );
+      return false;
     }
   }
 
@@ -121,39 +143,30 @@ export class PublicMessagingService {
     }
   }
 
-  /**
-   * "Mi Flikker" — mensaje único de bienvenida con el link de acceso
-   * permanente (ver `FlikkerAccountService.sendWelcomeLinkOnce`, que
-   * garantiza que esto se llama como máximo una vez por cuenta/teléfono).
-   * Best-effort — nunca tira, igual que el resto de esta clase.
+  /*
+   * `sendMiFlikkerWelcome` vivía acá y se eliminó a propósito: era el
+   * SEGUNDO WhatsApp del registro, y competir con `sendWelcome` por la
+   * misma ventana de 5 segundos del proveedor era exactamente por qué el
+   * link nunca llegaba. El link ahora viaja dentro de `sendWelcome`, en un
+   * solo mensaje. `buildMiFlikkerLink` sigue exportado y es la única forma
+   * de armar ese link (siempre desde `APP_PUBLIC_URL`).
    */
-  async sendMiFlikkerWelcome(phoneE164: string): Promise<void> {
-    try {
-      const link = buildMiFlikkerLink();
-      const text = [
-        '✨ Ya tenés tu perfil en *Mi Flikker*.',
-        '',
-        'Desde acá vas a poder ver todos los negocios donde tenés tarjeta o beneficios, sin necesidad de escanear ningún QR de nuevo:',
-        '',
-        `👉 ${link}`,
-      ].join('\n');
-      await this.whatsApp.sendText({ phone: phoneE164, text });
-    } catch (error) {
-      this.logger.warn(
-        `Mi Flikker welcome message failed for ${phoneE164}: ${errMsg(error)}`,
-      );
-    }
-  }
 
   /**
    * Creates a queued review-request Message and schedules it. Returns the
    * created message id (or null when it could not be enqueued) so callers can
    * link a Visit to the message that triggered the review ask.
+   *
+   * `visitId` es la visita que originó el pedido. Se guarda en el mensaje
+   * porque una hora después, al despachar, hay que preguntar por ESA visita
+   * puntual y no por "la última": si el cliente volvió en el medio, la
+   * decisión de este recordatorio no debe cambiar.
    */
   async enqueueReviewRequest(
     businessId: string,
     customerId: string,
     campaignId: string | null,
+    visitId: string | null = null,
   ): Promise<string | null> {
     try {
       const trackingToken = randomBytes(8).toString('base64url');
@@ -162,6 +175,7 @@ export class PublicMessagingService {
           businessId,
           customerId,
           campaignId: campaignId ?? undefined,
+          originatingVisitId: visitId ?? undefined,
           channel: MessageChannel.whatsapp,
           trackingToken,
           status: MessageStatus.queued,

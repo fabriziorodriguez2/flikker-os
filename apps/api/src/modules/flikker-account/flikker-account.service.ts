@@ -6,7 +6,10 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
-import { PublicMessagingService } from '../public/public-messaging.service';
+import {
+  buildMiFlikkerLink,
+  PublicMessagingService,
+} from '../public/public-messaging.service';
 import { FlikkerAccountVerificationsRepository } from './flikker-account-verifications.repository';
 import {
   FlikkerAccountSessionsRepository,
@@ -75,30 +78,59 @@ export class FlikkerAccountService {
   }
 
   /**
-   * Mensaje de bienvenida a "Mi Flikker" — una sola vez por cuenta/teléfono,
-   * para siempre, sin importar en cuántos negocios distintos se registre
-   * después. Se llama desde el registro de check-in (primer registro en
-   * CUALQUIER negocio); `getOrCreateAccount` es seguro de llamar sin OTP —
-   * solo resuelve/crea la fila por teléfono, no vincula ningún `Customer`
-   * (eso sigue exigiendo OTP, ver `verifyAndIssueSession`).
+   * Reclama el derecho a incluir el link de "Mi Flikker" en el welcome de
+   * este registro. Devuelve el link si le toca a este registro mandarlo, o
+   * `null` si ya se mandó antes (otro negocio, otra visita, un reintento).
    *
    * El `updateMany` guardado por `welcomeLinkSentAt: null` es el reclamo
-   * atómico real — mismo idioma que `RewardGoalUnlockService`: solo quien
-   * gana la carrera (un negocio distinto, un reintento) manda el mensaje.
-   * Best-effort: nunca tira hacia el caller (registro de check-in).
+   * atómico — mismo idioma que `RewardGoalUnlockService`: bajo concurrencia
+   * solo uno gana, así que el mismo teléfono nunca recibe el link dos veces.
+   * `getOrCreateAccount` es seguro sin OTP: solo resuelve/crea la fila por
+   * teléfono, nunca vincula un `Customer` (eso sigue exigiendo OTP, ver
+   * `verifyAndIssueSession`).
+   *
+   * IMPORTANTE: reclamar NO es haber enviado. Si el envío después falla, el
+   * caller tiene que llamar a `releaseWelcomeLink` — ver ahí el porqué.
+   * Best-effort: nunca tira hacia el registro de check-in.
    */
-  async sendWelcomeLinkOnce(phoneE164: string): Promise<void> {
+  async claimWelcomeLink(phoneE164: string): Promise<string | null> {
     try {
       const account = await this.getOrCreateAccount(phoneE164);
       const claimed = await this.prisma.flikkerAccount.updateMany({
         where: { id: account.id, welcomeLinkSentAt: null },
         data: { welcomeLinkSentAt: new Date() },
       });
-      if (claimed.count === 0) return; // ya se mandó antes — otro negocio, o un reintento
-      await this.messaging.sendMiFlikkerWelcome(phoneE164);
+      if (claimed.count === 0) return null;
+      return buildMiFlikkerLink();
     } catch (error) {
       this.logger.warn(
         `Mi Flikker welcome-link claim failed for ${phoneE164}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Devuelve el reclamo cuando el envío NO salió.
+   *
+   * Bug real que esto cierra (caso de David García, +598 92 216 861):
+   * `welcomeLinkSentAt` se marcaba ANTES de intentar el envío, así que
+   * cuando el proveedor rechazaba el mensaje por rate limit la cuenta
+   * quedaba marcada como "welcome enviado" para siempre y el cliente no lo
+   * recibía nunca — no había reintento posible. Liberando el reclamo, el
+   * próximo registro de ese mismo teléfono vuelve a intentarlo.
+   */
+  async releaseWelcomeLink(phoneE164: string): Promise<void> {
+    try {
+      await this.prisma.flikkerAccount.updateMany({
+        where: { phoneE164 },
+        data: { welcomeLinkSentAt: null },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Mi Flikker welcome-link release failed for ${phoneE164}: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );

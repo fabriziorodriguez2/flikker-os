@@ -169,32 +169,34 @@ describe('FlikkerAccountService.verifyAndIssueSession — the core safety rule',
   });
 });
 
-describe('FlikkerAccountService.sendWelcomeLinkOnce — una sola vez por cuenta/teléfono', () => {
-  it('resuelve/crea la cuenta, reclama el slot y manda el WhatsApp cuando gana la carrera', async () => {
+/**
+ * Reemplaza a los tests de `sendWelcomeLinkOnce`, que ya no existe: ese
+ * método mandaba un SEGUNDO WhatsApp (el que competía con el welcome del
+ * check-in y volvía rechazado por rate limit). Ahora el link viaja dentro
+ * del welcome y acá solo se reclama/libera el derecho a incluirlo.
+ */
+describe('FlikkerAccountService.claimWelcomeLink — una sola vez por cuenta/teléfono', () => {
+  it('reclama el slot y devuelve el link cuando gana la carrera', async () => {
     const deps = makeDeps({ account: { id: 'account-existing' } });
     const service = makeService(deps);
 
-    await service.sendWelcomeLinkOnce('+59899123456');
+    const link = await service.claimWelcomeLink('+59899123456');
 
     expect(deps.prisma.flikkerAccount.updateMany).toHaveBeenCalledWith({
       where: { id: 'account-existing', welcomeLinkSentAt: null },
       data: { welcomeLinkSentAt: expect.any(Date) },
     });
-    expect(deps.messaging.sendMiFlikkerWelcome).toHaveBeenCalledWith(
-      '+59899123456',
-    );
+    expect(link).toContain('/mi');
   });
 
-  it('no manda nada si ya se mandó antes (reclamo perdido, count: 0)', async () => {
+  it('devuelve null si ya se mandó antes (reclamo perdido, count: 0)', async () => {
     const deps = makeDeps({
       account: { id: 'account-existing' },
       welcomeLinkClaimCount: 0,
     });
     const service = makeService(deps);
 
-    await service.sendWelcomeLinkOnce('+59899123456');
-
-    expect(deps.messaging.sendMiFlikkerWelcome).not.toHaveBeenCalled();
+    expect(await service.claimWelcomeLink('+59899123456')).toBeNull();
   });
 
   it('nunca tira hacia el caller, ni siquiera si la base falla', async () => {
@@ -204,9 +206,19 @@ describe('FlikkerAccountService.sendWelcomeLinkOnce — una sola vez por cuenta/
     );
     const service = makeService(deps);
 
-    await expect(
-      service.sendWelcomeLinkOnce('+59899123456'),
-    ).resolves.toBeUndefined();
+    await expect(service.claimWelcomeLink('+59899123456')).resolves.toBeNull();
+  });
+
+  it('releaseWelcomeLink devuelve el reclamo para que se pueda reintentar', async () => {
+    const deps = makeDeps({ account: { id: 'account-existing' } });
+    const service = makeService(deps);
+
+    await service.releaseWelcomeLink('+59899123456');
+
+    expect(deps.prisma.flikkerAccount.updateMany).toHaveBeenCalledWith({
+      where: { phoneE164: '+59899123456' },
+      data: { welcomeLinkSentAt: null },
+    });
   });
 });
 

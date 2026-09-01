@@ -88,7 +88,8 @@ function makeDeps(experienceVersion: ExperienceVersion) {
     }),
   };
   const flikkerAccount = {
-    sendWelcomeLinkOnce: jest.fn().mockResolvedValue(undefined),
+    claimWelcomeLink: jest.fn().mockResolvedValue(null),
+    releaseWelcomeLink: jest.fn().mockResolvedValue(undefined),
   };
   return {
     prisma,

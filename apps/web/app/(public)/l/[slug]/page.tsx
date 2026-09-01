@@ -26,6 +26,11 @@ export default async function LandingPage({
   const { slug } = await params;
   const data = await getFeedbackData(slug);
   if (!data) notFound();
+  // Ruta LEGACY: su landing existe para redirigir a Google, así que sin esa
+  // URL no hay nada que mostrar. El backend ya devuelve 404 en ese caso — el
+  // guard solo refleja eso en el tipo, ahora que el campo puede ser `null`
+  // para Check-in V2 (que usa `/r/[token]`, no esta ruta).
+  if (!data.googleReviewUrl) notFound();
 
   return (
     <FeedbackLanding

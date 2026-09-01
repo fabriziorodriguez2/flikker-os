@@ -86,7 +86,8 @@ function makeDeps() {
   // Dep de main (envío único del link de "Mi Flikker"): irrelevante para la
   // prueba de presencia, pero el servicio la exige.
   const flikkerAccount = {
-    sendWelcomeLinkOnce: jest.fn().mockResolvedValue(undefined),
+    claimWelcomeLink: jest.fn().mockResolvedValue(null),
+    releaseWelcomeLink: jest.fn().mockResolvedValue(undefined),
   };
 
   return {

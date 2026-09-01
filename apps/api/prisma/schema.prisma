@@ -160,7 +160,14 @@ enum MessageStatus {
   sent
   delivered
   read
+  /// El envío se intentó y el provider (o una regla dura, como opt-out) lo
+  /// rechazó. Cuenta como fallo en las métricas.
   failed
+  /// El envío se descartó a propósito porque dejó de tener sentido antes de
+  /// salir — hoy: el recordatorio de feedback cuya visita ya recibió su
+  /// `CheckinFeedback`. No es un envío ni un fallo: no debe contarse en
+  /// ninguna de las dos columnas, y no se reintenta.
+  skipped
 }
 
 enum AppointmentNotificationStatus {
@@ -2016,6 +2023,15 @@ model Message {
   /// actually invoked (copySource = AI or DETERMINISTIC_FALLBACK). Never set
   /// for DETERMINISTIC_DISABLED, since AI was never called.
   aiUsageEventId String?        @unique @map("ai_usage_event_id")
+  /// La Visit que ORIGINÓ este mensaje. Hoy solo la usa el recordatorio de
+  /// feedback de Check-in V2, para poder preguntar —justo antes de enviar—
+  /// si esa visita puntual ya tiene su `CheckinFeedback`.
+  ///
+  /// Es una relación distinta de `visits` (abajo), que apunta al revés: ahí
+  /// el mensaje es la ATRIBUCIÓN de la visita ("qué mensaje trajo a este
+  /// cliente"). Mezclarlas haría que una visita figure como traída por un
+  /// mensaje que en realidad se mandó una hora DESPUÉS.
+  originatingVisitId String?    @map("originating_visit_id")
 
   business                Business             @relation(fields: [businessId], references: [id])
   customer                Customer             @relation(fields: [customerId], references: [id])
@@ -2026,6 +2042,7 @@ model Message {
   attributedGoogleReviews GoogleReview[]
   retentionSends          RetentionSend[]
   visits                  Visit[]
+  originatingVisit        Visit?               @relation("MessageOriginatingVisit", fields: [originatingVisitId], references: [id], onDelete: SetNull)
   /// Present only on messages sent by Retention Engine V2 — this FK is what
   /// identifies a V2 message unambiguously, with no opaque metadata.
   retentionAssignment     RetentionAssignment?
@@ -2036,6 +2053,7 @@ model Message {
   @@index([campaignId])
   @@index([serviceEventId])
   @@index([businessId, createdAt])
+  @@index([originatingVisitId])
 }
 
 // ---------------------------------------------------------------------------
@@ -2932,6 +2950,10 @@ model Visit {
   message           Message?           @relation(fields: [messageId], references: [id], onDelete: SetNull)
   events            CustomerEvent[]
   retentionOutcomes RetentionOutcome[]
+  /// Mensajes que ESTA visita originó (el recordatorio de feedback). Inverso
+  /// de `Message.originatingVisitId` — no confundir con `message`, que es la
+  /// atribución de la visita.
+  originatedMessages Message[]         @relation("MessageOriginatingVisit")
   /// At most one feedback per visit — see `CheckinFeedback.visitId`.
   checkinFeedback   CheckinFeedback?
 

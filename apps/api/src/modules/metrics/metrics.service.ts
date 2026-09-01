@@ -884,9 +884,10 @@ export class MetricsService {
         customerName: e.customer?.name ?? 'Cliente',
         eventAt: e.eventAt.toISOString(),
         hasReview: e.messages.some((m) => m.attributedGoogleReviews.length > 0),
-        messageSent: e.messages.some(
-          (m) => m.status !== 'queued' && m.status !== 'failed',
-        ),
+        // Lista blanca, no lista negra: un estado nuevo nunca debe contar
+        // como "enviado" por omisión. `skipped` (descartado a propósito) no
+        // es un envío, igual que `queued` o `failed`.
+        messageSent: e.messages.some((m) => SENT_STATUSES.includes(m.status)),
       })),
     };
   }

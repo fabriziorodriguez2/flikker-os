@@ -11,6 +11,19 @@
  * evita.
  */
 
+/**
+ * Piso real entre dos envíos a la misma cuenta del proveedor. WaSenderAPI
+ * rechaza más de 1 mensaje cada 5 segundos ("account protection"), y ese
+ * rechazo es la causa raíz confirmada de dos incidentes distintos: 2 de 3
+ * destinatarios de una promoción, y el welcome de Mi Flikker que nunca
+ * llegaba porque competía con el welcome del check-in en la misma ventana
+ * de milisegundos.
+ *
+ * Vive acá, junto al contrato del proveedor, para que no haya dos números
+ * distintos dando vueltas por el repo.
+ */
+export const WHATSAPP_MIN_SEND_INTERVAL_MS = 5000;
+
 export interface SendTextInput {
   /** Destinatario en E.164 (`+598...`) — ya normalizado por el caller. */
   to: string;

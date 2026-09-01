@@ -6,6 +6,7 @@ import { PlansModule } from '../modules/plans/plans.module';
 import { AiModule } from '../modules/ai/ai.module';
 import { CustomersModule } from '../modules/customers/customers.module';
 import { BenefitsModule } from '../modules/benefits/benefits.module';
+import { FeedbackRepository } from '../modules/feedback/feedback.repository';
 import { InsightsRepository } from '../modules/insights/insights.repository';
 import { OwnerLifecycleAiSummaryService } from '../modules/insights/owner-lifecycle-ai-summary.service';
 import { BusinessImpactService } from '../modules/insights/business-impact.service';
@@ -97,6 +98,12 @@ import { OwnerMilestoneWhatsAppService } from './owner-milestone-whatsapp.servic
     RaffleWorker,
     WhatsAppInboundWorker,
     ReviewRequestWorker,
+    // `FeedbackRepository` se registra directo (mismo criterio que
+    // `InsightsRepository` arriba): `ReviewRequestWorker` lo necesita para
+    // re-verificar el feedback justo antes de mandar el recordatorio, e
+    // importar `FeedbackModule` cerraría un ciclo — ese módulo importa este.
+    // Solo depende de `PrismaModule` y no tiene estado propio.
+    FeedbackRepository,
     WhatsAppBspService,
     EmailService,
     LifecycleEmailsService,

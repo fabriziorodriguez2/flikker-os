@@ -55,7 +55,8 @@ function makeDeps() {
     }),
   };
   const flikkerAccount = {
-    sendWelcomeLinkOnce: jest.fn().mockResolvedValue(undefined),
+    claimWelcomeLink: jest.fn().mockResolvedValue(null),
+    releaseWelcomeLink: jest.fn().mockResolvedValue(undefined),
   };
   return {
     prisma,
@@ -175,6 +176,9 @@ describe('CheckinService', () => {
       'biz-1',
       'cust-1',
       null,
+      // El recordatorio queda atado a ESTA visita, no al cliente: dentro de
+      // una hora se pregunta por `v-1`, aunque el cliente haya vuelto.
+      'v-1',
     );
     expect(result).toMatchObject({
       status: 'registered',
@@ -246,6 +250,9 @@ describe('CheckinService', () => {
       'biz-1',
       'cust-1',
       null,
+      // El recordatorio queda atado a ESTA visita, no al cliente: dentro de
+      // una hora se pregunta por `v-1`, aunque el cliente haya vuelto.
+      'v-1',
     );
   });
 
@@ -329,5 +336,151 @@ describe('CheckinService', () => {
     await expect(
       service.emitClientEvent('tok', 'visit_created', 'sess'),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+/**
+ * Bug real (caso David García, +598 92 216 861): en su primera registración
+ * recibió el saludo SIN link a Mi Flikker. Causa confirmada en los logs de
+ * producción — el registro disparaba DOS WhatsApp al mismo cliente en
+ * paralelo (`sendWelcome` + el welcome aparte de Mi Flikker) y WaSenderAPI,
+ * que acepta 1 mensaje cada 5 segundos, rechazó el segundo con "account
+ * protection". Encima `welcomeLinkSentAt` ya se había marcado ANTES de
+ * enviar, así que la cuenta quedó como "welcome enviado" para siempre.
+ */
+describe('CheckinService — welcome de la primera registración (un solo WhatsApp, con link)', () => {
+  function newRegistrationDeps() {
+    const deps = makeDeps();
+    deps.sources.findByToken.mockResolvedValue(activeSource);
+    deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+    deps.prisma.customer.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue({ id: 'cust-1', name: 'David' });
+    deps.prisma.customer.create.mockResolvedValue({
+      id: 'cust-1',
+      name: 'David',
+    });
+    deps.visits.registerVisit.mockResolvedValue({
+      created: true,
+      isReturn: false,
+      visit: {
+        id: 'v-1',
+        attributionType: VisitAttributionType.organic,
+        occurredAt: new Date('2026-09-01T00:20:08.425Z'),
+      },
+    });
+    deps.sessions.issue.mockResolvedValue({
+      rawToken: 'raw-token',
+      expiresAt: new Date('2027-01-01T00:00:00Z'),
+    });
+    return deps;
+  }
+
+  /** El welcome sale en una cadena fire-and-forget: hay que dejarla correr. */
+  const flushOutbound = () => new Promise((resolve) => setImmediate(resolve));
+
+  it('cliente nuevo: el welcome se manda UNA vez y lleva el link de Mi Flikker', async () => {
+    const deps = newRegistrationDeps();
+    deps.flikkerAccount.claimWelcomeLink.mockResolvedValue(
+      'https://flikker.site/mi',
+    );
+    deps.messaging.sendWelcome.mockResolvedValue(true);
+    const service = makeService(deps);
+
+    await service.register('tok', { name: 'David', phone: '092216861' }, 'ua');
+    await flushOutbound();
+
+    expect(deps.messaging.sendWelcome).toHaveBeenCalledTimes(1);
+    const args = deps.messaging.sendWelcome.mock.calls[0];
+    expect(args[0]).toBe('+59892216861');
+    // El link viaja como argumento del MISMO mensaje.
+    expect(args[5]).toBe('https://flikker.site/mi');
+    expect(args[5]).toContain('/mi');
+    // Y nunca se libera un reclamo que sí se entregó.
+    expect(deps.flikkerAccount.releaseWelcomeLink).not.toHaveBeenCalled();
+  });
+
+  it('no existe un segundo welcome: el único envío al cliente es sendWelcome', async () => {
+    const deps = newRegistrationDeps();
+    deps.flikkerAccount.claimWelcomeLink.mockResolvedValue(
+      'https://flikker.site/mi',
+    );
+    deps.messaging.sendWelcome.mockResolvedValue(true);
+    const service = makeService(deps);
+
+    await service.register('tok', { name: 'David', phone: '092216861' }, 'ua');
+    await flushOutbound();
+
+    // El servicio de mensajería ya no expone ningún otro welcome al cliente.
+    expect(
+      (deps.messaging as Record<string, unknown>).sendMiFlikkerWelcome,
+    ).toBeUndefined();
+    expect(deps.messaging.sendWelcome).toHaveBeenCalledTimes(1);
+  });
+
+  it('el link sale de APP_PUBLIC_URL — el check-in nunca lo arma a mano', async () => {
+    const deps = newRegistrationDeps();
+    deps.messaging.sendWelcome.mockResolvedValue(true);
+    const service = makeService(deps);
+
+    await service.register('tok', { name: 'David', phone: '092216861' }, 'ua');
+    await flushOutbound();
+
+    // El único origen posible del link es `claimWelcomeLink`, que lo arma con
+    // `buildMiFlikkerLink()` (APP_PUBLIC_URL). Acá devuelve null y el welcome
+    // sale sin link — nunca con una URL inventada por el check-in.
+    expect(deps.flikkerAccount.claimWelcomeLink).toHaveBeenCalledWith(
+      '+59892216861',
+    );
+    expect(deps.messaging.sendWelcome.mock.calls[0][5]).toBeNull();
+  });
+
+  it('segunda visita del mismo teléfono: no repite el welcome ni el link', async () => {
+    const deps = newRegistrationDeps();
+    // El teléfono ya recibió el link antes → el reclamo se pierde.
+    deps.flikkerAccount.claimWelcomeLink.mockResolvedValue(null);
+    deps.messaging.sendWelcome.mockResolvedValue(true);
+    const service = makeService(deps);
+
+    await service.register('tok', { name: 'David', phone: '092216861' }, 'ua');
+    await flushOutbound();
+
+    expect(deps.messaging.sendWelcome.mock.calls[0][5]).toBeNull();
+    expect(deps.flikkerAccount.releaseWelcomeLink).not.toHaveBeenCalled();
+  });
+
+  it('si el proveedor rechaza el envío, el welcome NO queda marcado como enviado', async () => {
+    const deps = newRegistrationDeps();
+    deps.flikkerAccount.claimWelcomeLink.mockResolvedValue(
+      'https://flikker.site/mi',
+    );
+    // Exactamente lo que devolvió WaSenderAPI en el caso real.
+    deps.messaging.sendWelcome.mockResolvedValue(false);
+    const service = makeService(deps);
+
+    await service.register('tok', { name: 'David', phone: '092216861' }, 'ua');
+    await flushOutbound();
+
+    // Se devuelve el reclamo para que el próximo registro lo reintente.
+    expect(deps.flikkerAccount.releaseWelcomeLink).toHaveBeenCalledWith(
+      '+59892216861',
+    );
+  });
+
+  it('el ping al dueño no compite con el welcome del cliente en la misma ventana', async () => {
+    const deps = newRegistrationDeps();
+    deps.flikkerAccount.claimWelcomeLink.mockResolvedValue(
+      'https://flikker.site/mi',
+    );
+    deps.messaging.sendWelcome.mockResolvedValue(true);
+    const service = makeService(deps);
+
+    await service.register('tok', { name: 'David', phone: '092216861' }, 'ua');
+    await flushOutbound();
+
+    // El welcome del cliente ya salió; el del dueño espera el piso del
+    // proveedor, así que todavía no.
+    expect(deps.messaging.sendWelcome).toHaveBeenCalledTimes(1);
+    expect(deps.messaging.sendOwnerNotification).not.toHaveBeenCalled();
   });
 });

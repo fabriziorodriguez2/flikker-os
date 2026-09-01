@@ -17,6 +17,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
 import { BenefitsService } from '../benefits/benefits.service';
 import { PublicMessagingService } from '../public/public-messaging.service';
+import { WHATSAPP_MIN_SEND_INTERVAL_MS } from '../../jobs/whatsapp-provider';
 import { VisitSourcesRepository } from '../visit-sources/visit-sources.repository';
 import { VisitsRepository } from './visits.repository';
 import { CustomerSessionsRepository } from './customer-sessions.repository';
@@ -29,6 +30,22 @@ import { FlikkerAccountService } from '../flikker-account/flikker-account.servic
 import { PresenceChallengeService } from './presence-challenge.service';
 
 // Client-emittable timeline events (whitelist — never trust an arbitrary type).
+/**
+ * Espera entre dos envíos al proveedor — ver `WHATSAPP_MIN_SEND_INTERVAL_MS`.
+ *
+ * `unref()` a propósito: esta espera corre en una cadena fire-and-forget, así
+ * que no debe mantener vivo el proceso por sí sola. En el servidor da igual
+ * (el HTTP lo mantiene vivo igual), pero sin esto un test que registra un
+ * cliente deja el worker de Jest colgado 5 segundos esperando un timer que a
+ * nadie le importa.
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    timer.unref?.();
+  });
+}
+
 const CLIENT_EVENTS: Record<string, CustomerEventType> = {
   review_prompt_shown: CustomerEventType.review_prompt_shown,
   review_link_clicked: CustomerEventType.review_link_clicked,
@@ -201,27 +218,58 @@ export class CheckinService {
       });
     }
 
-    // Outbound side effects (welcome, owner ping, review request) — same as the
-    // legacy QR flow, reused so behaviour is identical.
-    void this.messaging.sendWelcome(
-      phoneE164,
-      customer.name,
-      business.name,
-      benefit?.title ?? null,
-      benefit?.type ?? null,
-    );
-    void this.messaging.sendOwnerNotification(
+    // Outbound side effects (welcome, owner ping, review request).
+    //
+    // Van EN SERIE y espaciados, no en paralelo (bug real — caso David
+    // García): WaSenderAPI acepta 1 mensaje cada 5 segundos por cuenta, así
+    // que disparar los dos WhatsApp del registro a la vez hacía que el
+    // proveedor rechazara uno con "account protection". Todo esto sigue
+    // siendo fire-and-forget: el `void` envuelve la cadena entera, así que
+    // la espera NO agrega latencia a la respuesta del check-in.
+    //
+    // El welcome del CLIENTE va primero a propósito: si algo se pierde, que
+    // no sea el mensaje de la persona que acaba de registrarse.
+    void (async () => {
+      // El link de Mi Flikker viaja DENTRO del welcome — un solo mensaje,
+      // nunca dos. `claimWelcomeLink` devuelve null si este teléfono ya lo
+      // recibió antes (otro negocio, otra visita).
+      const miFlikkerLink =
+        await this.flikkerAccount.claimWelcomeLink(phoneE164);
+
+      const delivered = await this.messaging.sendWelcome(
+        phoneE164,
+        customer.name,
+        business.name,
+        benefit?.title ?? null,
+        benefit?.type ?? null,
+        miFlikkerLink,
+      );
+
+      // Si el proveedor no lo tomó, el link NO se envió: se devuelve el
+      // reclamo para que el próximo registro de este teléfono lo reintente.
+      // Sin esto, la cuenta quedaba marcada como "welcome enviado" para
+      // siempre y el cliente no lo recibía nunca.
+      if (miFlikkerLink && !delivered) {
+        await this.flikkerAccount.releaseWelcomeLink(phoneE164);
+      }
+
+      await sleep(WHATSAPP_MIN_SEND_INTERVAL_MS);
+      await this.messaging.sendOwnerNotification(
+        business.id,
+        business.name,
+        business.phone,
+        customer.name,
+      );
+    })();
+
+    // El recordatorio queda atado a ESTA visita: dentro de una hora se le
+    // pregunta a `visitId`, no a "la última visita del cliente".
+    void this.messaging.enqueueReviewRequest(
       business.id,
-      business.name,
-      business.phone,
-      customer.name,
+      customer.id,
+      null,
+      visitId,
     );
-    void this.messaging.enqueueReviewRequest(business.id, customer.id, null);
-    // "Mi Flikker" — mensaje único, para siempre, sin importar cuántos
-    // negocios distintos registren después a este mismo teléfono
-    // (`sendWelcomeLinkOnce` reclama atómicamente por FlikkerAccount, no
-    // por este registro puntual).
-    void this.flikkerAccount.sendWelcomeLinkOnce(phoneE164);
 
     const session = await this.sessions.issue(
       business.id,

@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable } from '@nestjs/common';
-import { Prisma, RetentionObjective } from '@prisma/client';
+import { MessageStatus, Prisma, RetentionObjective } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { RetentionResultsOverviewService } from '../retention-v2/retention-results-overview.service';
@@ -41,6 +41,16 @@ import type { UpdateNotificationSettingsDto } from './dto/update-notification-se
  * en ninguna respuesta de este servicio. Hay un test que lo verifica
  * serializando la respuesta entera y buscando esas palabras.
  */
+
+/**
+ * Un mensaje que efectivamente salió. Lista blanca deliberada: `queued`,
+ * `sending`, `failed` y `skipped` NO son envíos.
+ */
+const SENT_STATUSES: MessageStatus[] = [
+  MessageStatus.sent,
+  MessageStatus.delivered,
+  MessageStatus.read,
+];
 
 /** Las dos automatizaciones que EXISTEN. No hay una tercera. */
 export type AutomationKey = 'cerca_del_premio' | 'te_extranamos';
@@ -593,8 +603,12 @@ export class NotificationsService {
         m.retentionAssignment?.benefitParticipation?.benefitTitleSnapshot ??
         m.retentionAssignment?.benefitParticipation?.benefit.title ??
         null,
-      sent: m.status !== 'failed' && m.status !== 'queued' ? 1 : 0,
-      failed: m.status === 'failed' ? 1 : 0,
+      // Lista blanca: un estado nuevo no debe contar como enviado por
+      // omisión. `skipped` (descartado a propósito) no suma ni acá ni en
+      // `failed` — hoy no puede llegar a esta consulta, que solo trae
+      // mensajes de Retention V2, pero la regla vale igual.
+      sent: SENT_STATUSES.includes(m.status) ? 1 : 0,
+      failed: m.status === MessageStatus.failed ? 1 : 0,
       state: stateOfMessage(m.status),
       message: null as string | null,
       channel: 'whatsapp' as const,
@@ -769,7 +783,14 @@ export class NotificationsService {
   }
 }
 
-/** Estado de un mensaje en palabras, sin exponer el enum de la API. */
+/**
+ * Estado de un mensaje en palabras, sin exponer el enum de la API.
+ *
+ * `skipped` no aparece acá a propósito: este historial solo trae mensajes de
+ * Retention V2 (`retentionAssignment: { isNot: null }`) y ese flujo nunca
+ * saltea. Si algún día un mensaje salteado llega a este feed, necesita su
+ * propio estado ("omitido"), no caer en `enviado` por descarte.
+ */
 function stateOfMessage(status: string): 'enviado' | 'en_progreso' | 'fallo' {
   if (status === 'failed') return 'fallo';
   // `sending` es el claim atómico del dispatcher justo antes de llamar a
