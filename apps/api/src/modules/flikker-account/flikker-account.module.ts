@@ -3,6 +3,7 @@ import { PrismaModule } from '../../prisma/prisma.module';
 import { PublicModule } from '../public/public.module';
 import { RewardGoalsModule } from '../reward-goals/reward-goals.module';
 import { BenefitsModule } from '../benefits/benefits.module';
+import { MissionsModule } from '../missions/missions.module';
 import { FlikkerAccountController } from './flikker-account.controller';
 import { FlikkerAccountService } from './flikker-account.service';
 import { FlikkerAccountSessionsRepository } from './flikker-account-sessions.repository';
@@ -11,7 +12,13 @@ import { MyFlikkerController } from './my-flikker.controller';
 import { MyFlikkerService } from './my-flikker.service';
 
 @Module({
-  imports: [PrismaModule, PublicModule, RewardGoalsModule, BenefitsModule],
+  imports: [
+    PrismaModule,
+    PublicModule,
+    RewardGoalsModule,
+    BenefitsModule,
+    MissionsModule,
+  ],
   controllers: [FlikkerAccountController, MyFlikkerController],
   providers: [
     FlikkerAccountService,

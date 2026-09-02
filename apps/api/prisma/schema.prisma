@@ -636,6 +636,8 @@ model Business {
   benefits                      Benefit[]
   welcomeBenefit                Benefit?                       @relation("BusinessWelcomeBenefit", fields: [welcomeBenefitId], references: [id], onDelete: SetNull)
   benefitParticipations         BenefitParticipation[]
+  missions                      Mission[]
+  customerMissions              CustomerMission[]
   retentionSequences            RetentionSequence[]
   retentionSteps                RetentionStep[]
   retentionSends                RetentionSend[]
@@ -1849,6 +1851,7 @@ model Customer {
   rewardGoals              CustomerRewardGoal[]
   checkinFeedback          CheckinFeedback[]
   rewardGoalBonusStamps    RewardGoalBonusStamp[]
+  customerMissions         CustomerMission[]
   emailLogs                EmailLog[]
   automationContact        CustomerAutomationContact?
 
@@ -2634,12 +2637,139 @@ model Benefit {
   /// `retentionVariant` above: this points at the real, editable Benefit the
   /// owner sees; `retentionVariant` points at an internal, inert copy.
   retentionIncentiveDefinition RetentionIncentiveDefinition?
+  /// Misiones que ofrecen ESTE beneficio como premio. `Restrict` en la FK:
+  /// un beneficio prometido por una misión viva no se puede borrar.
+  missions                     Mission[]
 
   @@index([businessId])
   @@index([businessId, active])
   /// El catálogo del dueño filtra siempre por (businessId, isInternalCarrier).
   @@index([businessId, isInternalCarrier])
   @@map("benefits")
+}
+
+// ---------------------------------------------------------------------------
+// Mission — "vení 3 veces este mes"
+// ---------------------------------------------------------------------------
+
+/// Ciclo de vida de una misión. `active: Boolean` no alcanzaba: hay una
+/// diferencia real entre "todavía no la publiqué" (DRAFT), "la pausé y podría
+/// volver" (PAUSED) y "se terminó, no vuelve" (ENDED) — y esa última es la
+/// que reemplaza al borrado cuando ya hay historial.
+enum MissionStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  /// Terminal. Es también el destino de una misión que el dueño "elimina"
+  /// teniendo participaciones: se archiva, nunca se borra (mismo principio
+  /// que `BenefitsRepository.remove` con los beneficios ya entregados).
+  ENDED
+}
+
+/// De qué preset salió la ventana. SOLO informativo — para que la UI pueda
+/// mostrar "Este mes" en vez de dos fechas, y para saber de qué botón salió.
+/// La verdad operativa son SIEMPRE `startsAt`/`endsAt`, que se resuelven una
+/// sola vez al crear, con el timezone del negocio. No hay ventanas rolling
+/// por cliente en esta fase: toda la gente de una misión comparte la misma
+/// ventana absoluta.
+enum MissionPeriodPreset {
+  THIS_WEEK
+  THIS_MONTH
+  NEXT_N_DAYS
+  CUSTOM
+}
+
+model Mission {
+  id          String        @id @default(uuid())
+  businessId  String        @map("business_id")
+  name        String
+  description String?
+  /// Visitas válidas necesarias para completarla. Congelado apenas hay una
+  /// participación — ver `MISSION_LOCKED_FIELDS`.
+  targetVisits Int          @map("target_visits")
+
+  periodPreset MissionPeriodPreset @default(CUSTOM) @map("period_preset")
+  /// Solo cuando el preset es NEXT_N_DAYS, y solo para poder mostrar "próximos
+  /// 14 días" en la UI. La ventana real ya está resuelta en startsAt/endsAt.
+  periodDays   Int?                @map("period_days")
+
+  /// Ventana ABSOLUTA, medio-abierta: cuenta `occurredAt >= startsAt` y
+  /// `occurredAt < endsAt`. Resuelta al crear desde el timezone del negocio,
+  /// nunca recalculada después — si el negocio cambiara de timezone, una
+  /// misión en curso no debe moverse bajo los pies de quien ya está jugando.
+  startsAt DateTime @map("starts_at")
+  endsAt   DateTime @map("ends_at")
+
+  /// El premio: un Benefit REAL del catálogo del dueño, el mismo que ya ve en
+  /// Programa → Beneficios. Nullable: una misión sin premio es válida (el
+  /// progreso ya es el incentivo). No se crea ningún carrier interno.
+  rewardBenefitId String? @map("reward_benefit_id")
+  /// Presentación pura: oculta el nombre del premio hasta completarla
+  /// ("🎁 Premio secreto — te faltan 2 visitas"). No cambia NADA de la
+  /// emisión: el premio ya está decidido desde que se creó la misión. Nada de
+  /// azar, ruletas ni probabilidades.
+  rewardHiddenUntilComplete Boolean @default(false) @map("reward_hidden_until_complete")
+
+  status    MissionStatus @default(DRAFT)
+  createdAt DateTime      @default(now()) @map("created_at")
+  updatedAt DateTime      @updatedAt @map("updated_at")
+
+  business      Business          @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  rewardBenefit Benefit?          @relation(fields: [rewardBenefitId], references: [id], onDelete: Restrict)
+  participants  CustomerMission[]
+
+  @@index([businessId, status])
+  @@index([businessId, startsAt, endsAt])
+  @@map("missions")
+}
+
+// ---------------------------------------------------------------------------
+// CustomerMission — la participación de un cliente en una misión
+// ---------------------------------------------------------------------------
+
+/// DELIBERADAMENTE SIN COLUMNA `progress`.
+///
+/// El progreso se deriva contando `Visit` dentro de la ventana de la misión,
+/// cada vez que se lee. Esa decisión es lo que hace la idempotencia gratis: no
+/// existe ningún contador que una Visit reprocesada pueda incrementar dos
+/// veces, porque no hay contador. La misma razón por la que
+/// `CustomerRewardGoal` cuenta visitas en vez de guardar un número.
+///
+/// Esta fila existe por dos motivos, los dos de idempotencia:
+///   1. `@@unique([missionId, customerId])` — una sola participación.
+///   2. `rewardParticipationId` único — un solo premio emitido, jamás dos.
+model CustomerMission {
+  id         String              @id @default(uuid())
+  missionId  String              @map("mission_id")
+  customerId String              @map("customer_id")
+  /// Denormalizado desde `Mission.businessId` para poder scopear por tenant
+  /// sin un join en cada lectura. Nunca se escribe desde el cliente.
+  businessId String              @map("business_id")
+  status     CustomerMissionStatus @default(ACTIVE)
+
+  enrolledAt  DateTime  @default(now()) @map("enrolled_at")
+  completedAt DateTime? @map("completed_at")
+
+  /// La emisión del premio. Único: segunda línea de defensa contra una doble
+  /// emisión, además de la transición guardada ACTIVE→COMPLETED.
+  rewardParticipationId String? @unique @map("reward_participation_id")
+
+  mission            Mission               @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  customer           Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  business           Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  rewardParticipation BenefitParticipation? @relation(fields: [rewardParticipationId], references: [id], onDelete: SetNull)
+
+  @@unique([missionId, customerId])
+  @@index([businessId, customerId, status])
+  @@index([missionId, status])
+  @@map("customer_missions")
+}
+
+enum CustomerMissionStatus {
+  ACTIVE
+  COMPLETED
+  /// La ventana se cerró sin alcanzar el objetivo. Terminal.
+  EXPIRED
 }
 
 // ---------------------------------------------------------------------------
@@ -2658,6 +2788,8 @@ enum BenefitIssuanceSource {
   /// El beneficio `active` que el check-in ofrece por default, fuera de
   /// cualquier promoción/bienvenida/reactivación explícita.
   CHECKIN_ACTIVE
+  /// Premio de una Mission completada. Ver `CustomerMission`.
+  MISSION
   /// Filas de antes de que existiera esta columna — backfill best-effort,
   /// nunca se escribe desde código nuevo.
   LEGACY
@@ -2716,6 +2848,8 @@ model BenefitParticipation {
   raffleDraw          RaffleDraw?          @relation(fields: [raffleDrawId], references: [id], onDelete: SetNull)
   retentionAssignment RetentionAssignment?
   rewardGoal          CustomerRewardGoal?
+  /// Set cuando esta emisión es el premio de una misión completada.
+  customerMission     CustomerMission?
 
   // NO @@unique([benefitId, customerId]) — un cliente puede recibir el MISMO
   // Benefit múltiples veces (pedido explícito: cada entrega es una emisión

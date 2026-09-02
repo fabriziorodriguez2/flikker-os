@@ -61,13 +61,15 @@ function makeDeps(
       .fn()
       .mockResolvedValue(options.otherBenefits ?? []),
   };
-  return { prisma, rewardGoals, benefits };
+  const missions = { currentView: jest.fn().mockResolvedValue([]) };
+  return { prisma, rewardGoals, missions, benefits };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
   return new MyFlikkerService(
     deps.prisma as never,
     deps.rewardGoals as never,
+    deps.missions as never,
     deps.benefits as never,
   );
 }
@@ -213,6 +215,10 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
       // canjear — cara-al-cliente por definición, mismo criterio que
       // `benefitAvailable` arriba.
       'otherBenefits',
+      // Misiones: progreso y premio, ambos cosas que el cliente ya ve en la
+      // pantalla de check-in. Nunca lleva participantes de otros clientes ni
+      // nada de lo que §20 prohíbe.
+      'missions',
     ]);
   });
 

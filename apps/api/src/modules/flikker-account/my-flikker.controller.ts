@@ -27,6 +27,16 @@ export class MyFlikkerController {
     return this.myFlikker.listPlaces(account.flikkerAccountId);
   }
 
+  /**
+   * Desafíos — todo lo activo del cliente, de todos sus negocios, en una
+   * lista. Ruta literal ANTES de `:businessId`, o Nest la trataría como un id.
+   */
+  @Get('challenges')
+  async challenges(@Headers('x-flikker-account-session') session?: string) {
+    const account = await this.requireAccount(session);
+    return this.myFlikker.listChallenges(account.flikkerAccountId);
+  }
+
   @Get(':businessId')
   async detail(
     @Param('businessId') businessId: string,

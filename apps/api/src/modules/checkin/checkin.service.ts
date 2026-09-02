@@ -25,6 +25,7 @@ import { CustomerVerificationsRepository } from './customer-verifications.reposi
 import { CustomerEventsRepository } from './customer-events.repository';
 import { isCheckinV2 } from '../../common/experience/experience.util';
 import { RewardGoalOrchestratorService } from '../reward-goals/reward-goal-orchestrator.service';
+import { MissionProgressService } from '../missions/mission-progress.service';
 import { RewardGoalFeedbackService } from '../reward-goals/reward-goal-feedback.service';
 import { FlikkerAccountService } from '../flikker-account/flikker-account.service';
 import { PresenceChallengeService } from './presence-challenge.service';
@@ -92,6 +93,7 @@ export class CheckinService {
     private readonly benefits: BenefitsService,
     private readonly messaging: PublicMessagingService,
     private readonly rewardGoals: RewardGoalOrchestratorService,
+    private readonly missions: MissionProgressService,
     private readonly rewardGoalFeedback: RewardGoalFeedbackService,
     private readonly flikkerAccount: FlikkerAccountService,
     private readonly presence: PresenceChallengeService,
@@ -749,19 +751,31 @@ export class CheckinService {
   ) {
     const customer = await this.getCustomerOrThrow(business.id, customerId);
 
-    const [total, lastVisit, benefit, rewardGoal] = await Promise.all([
-      this.visits.countByCustomer(business.id, customerId),
-      this.visits.findLastByCustomer(business.id, customerId),
-      this.benefits.resolveActiveBenefit(business.id, undefined, customerId),
-      opts.justVisited
-        ? this.rewardGoals.afterVisit(
-            business.id,
-            customerId,
-            business.timezone,
-            opts.visitOccurredAt,
-          )
-        : this.rewardGoals.currentView(business.id, customerId),
-    ]);
+    const [total, lastVisit, benefit, rewardGoal, missions] = await Promise.all(
+      [
+        this.visits.countByCustomer(business.id, customerId),
+        this.visits.findLastByCustomer(business.id, customerId),
+        this.benefits.resolveActiveBenefit(business.id, undefined, customerId),
+        opts.justVisited
+          ? this.rewardGoals.afterVisit(
+              business.id,
+              customerId,
+              business.timezone,
+              opts.visitOccurredAt,
+            )
+          : this.rewardGoals.currentView(business.id, customerId),
+        // Misiones: mismo criterio que los sellos. Una visita real inscribe y
+        // evalúa; una simple lectura de la pantalla NUNCA completa una misión
+        // ni emite un premio.
+        opts.justVisited
+          ? this.missions.afterVisit(
+              business.id,
+              customerId,
+              opts.visitOccurredAt,
+            )
+          : this.missions.currentView(business.id, customerId),
+      ],
+    );
 
     // For redeemable benefits (not raffle/none), issue the code on write paths
     // and always surface its current state. `me` (read-only) never issues.
@@ -821,6 +835,9 @@ export class CheckinService {
         lastAt: lastVisit?.occurredAt.toISOString() ?? null,
       },
       benefit: publicBenefit ? { ...publicBenefit, redemption } : null,
+      // Array vacío cuando el negocio no tiene misiones vivas — la pantalla
+      // no debe inventar un "0 de 3" que nadie propuso.
+      missions,
       welcomeGift,
       otherBenefits: otherBenefits.map((b) => ({
         type: b.type,

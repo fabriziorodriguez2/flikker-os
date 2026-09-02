@@ -60,6 +60,25 @@ interface PersonalSpace {
    * `rewardGoal`.
    */
   otherBenefits?: PersonalBenefit[];
+  /**
+   * Misiones vivas de este negocio. Optional defensivamente, mismo criterio
+   * que `rewardGoal`: un negocio sin misiones manda una lista vacía.
+   */
+  missions?: MissionView[];
+}
+
+interface MissionView {
+  missionId: string;
+  name: string;
+  progress: {
+    current: number;
+    target: number;
+    remaining: number;
+    complete: boolean;
+  };
+  rewardName: string | null;
+  rewardHidden: boolean;
+  rewardCode: string | null;
 }
 
 type Mode = "presence" | "booting" | "register" | "recover" | "personal";
@@ -1135,6 +1154,16 @@ function PersonalScreen({
               onReveal={onBenefitReveal}
             />
           ))}
+
+          {(personal.missions ?? []).map((mission) => (
+            <MissionCard
+              key={mission.missionId}
+              mission={mission}
+              // Solo cuando además hay tarjeta de sellos: sin ella la frase no
+              // tendría a qué referirse con "también".
+              hasStampCard={Boolean(personal.rewardGoal?.goal)}
+            />
+          ))}
         </div>
 
         {showReview && (
@@ -1244,6 +1273,90 @@ export function BenefitRewardCard({
           Ya estás participando. ¡Mucha suerte!
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Una misión en curso, en la pantalla de check-in.
+ *
+ * `hasStampCard` resuelve una confusión concreta: cuando el negocio tiene
+ * tarjeta de sellos Y misiones, una sola visita mueve los dos contadores, y
+ * dos números subiendo a la vez se leen como dos visitas. La línea al pie lo
+ * aclara en una frase, sin modal ni explicación larga.
+ *
+ * El copy es deliberadamente general ("tus visitas") y no "esta visita": la
+ * respuesta del check-in no trae deltas por evento, así que el componente
+ * sabe que hay una tarjeta activa pero NO que esta visita puntual haya
+ * avanzado las dos cosas. Además esta pantalla también se renderiza en
+ * lecturas, sin ninguna visita recién ocurrida. Afirmar "esta visita" sería
+ * decir algo que acá no se puede saber; para eso habría que mandar el delta
+ * desde la API, que es otro cambio.
+ */
+function MissionCard({
+  mission,
+  hasStampCard,
+}: {
+  mission: MissionView;
+  hasStampCard: boolean;
+}) {
+  const { current, target, remaining, complete } = mission.progress;
+
+  return (
+    <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[24px] bg-white p-5 shadow-[0_10px_24px_rgba(12,16,30,0.14)]">
+      <div className="flex items-center gap-2.5">
+        <span className="text-base leading-none" aria-hidden="true">
+          🎯
+        </span>
+        <p className="font-display text-[15px] font-bold text-[#171A2B]">
+          {mission.name}
+        </p>
+      </div>
+
+      {target <= 10 ? (
+        <div
+          className="mt-3 flex flex-wrap gap-1.5"
+          role="img"
+          aria-label={`${current} de ${target} visitas`}
+        >
+          {Array.from({ length: target }, (_, index) => (
+            <span
+              key={index}
+              className={`h-2.5 w-2.5 rounded-full ${
+                index < current ? "bg-[#5C6BC0]" : "bg-[#E2E4EF]"
+              }`}
+            />
+          ))}
+        </div>
+      ) : null}
+
+      <p className="mt-2 text-sm text-[#5B6076]">
+        {complete ? "¡Completaste el desafío!" : `${current} de ${target} visitas`}
+      </p>
+
+      {mission.rewardHidden ? (
+        <p className="mt-3 rounded-[14px] bg-[#F5F5FA] px-3.5 py-3 text-sm text-[#5B6076]">
+          🎁 Premio secreto —{" "}
+          {remaining === 1
+            ? "te falta 1 visita"
+            : `te faltan ${remaining} visitas`}{" "}
+          para descubrirlo.
+        </p>
+      ) : mission.rewardName ? (
+        <p className="mt-3 rounded-[14px] bg-[#F5F5FA] px-3.5 py-3 text-sm text-[#5B6076]">
+          {complete ? "🎉 Desbloqueaste: " : "Premio: "}
+          <span className="font-semibold text-[#171A2B]">
+            {mission.rewardName}
+          </span>
+          {mission.rewardCode ? ` — código ${mission.rewardCode}` : ""}
+        </p>
+      ) : null}
+
+      {hasStampCard ? (
+        <p className="mt-3 text-xs text-[color:var(--pub-text-muted)]">
+          Tus visitas también cuentan para este desafío 🎯
+        </p>
+      ) : null}
     </div>
   );
 }

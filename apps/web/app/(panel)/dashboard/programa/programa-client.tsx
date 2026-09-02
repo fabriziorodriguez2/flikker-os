@@ -16,6 +16,7 @@ import { useToast } from "@/components/ui/toast";
 import { useIsCheckinV2 } from "../../experience-context";
 import { useIsOwnerOrAdmin } from "../../role-context";
 import ProgramSummaryTab from "./program-summary-tab";
+import ProgramMissionsTab from "./program-missions-tab";
 import ProgramConfiguracionTab, {
   type ConfigSection,
   isConfigSection,
@@ -26,6 +27,12 @@ import type {
   ProgramBenefit,
   ProgramHistoryItem,
 } from "./types";
+import type {
+  CreateMissionPayload,
+  Mission,
+  MissionStatus,
+  MissionTemplate,
+} from "./mission-types";
 
 /**
  * Programa = "todo lo que este negocio ofrece para incentivar que sus
@@ -43,7 +50,7 @@ import type {
  * de cada una). El Historial no desaparece, se ve desde Resumen ("Ver toda la
  * actividad"), y ProgramAuditEvent sigue siendo la misma fuente.
  */
-type Tab = "resumen" | "configuracion";
+type Tab = "resumen" | "misiones" | "configuracion";
 
 async function readJson(res: Response) {
   const data: unknown = await res.json().catch(() => null);
@@ -76,6 +83,7 @@ export default function ProgramaClient() {
 }
 
 function resolveInitialTab(rawTab: string | null): Tab {
+  if (rawTab === "misiones") return "misiones";
   if (rawTab === "configuracion") return "configuracion";
   if (rawTab === "beneficios" || rawTab === "sellos") return "configuracion";
   return "resumen";
@@ -119,6 +127,10 @@ function ProgramaClientContent() {
 
   const [overview, setOverview] = useState<LoyaltyProgramOverview | null>(null);
   const [benefits, setBenefits] = useState<ProgramBenefit[]>([]);
+  const [missions, setMissions] = useState<Mission[]>([]);
+  const [missionTemplates, setMissionTemplates] = useState<MissionTemplate[]>(
+    [],
+  );
   const [appearance, setAppearance] = useState<LoyaltyAppearance | null>(null);
   const [history, setHistory] = useState<ProgramHistoryItem[]>([]);
   const [businessName, setBusinessName] = useState("");
@@ -131,21 +143,40 @@ function ProgramaClientContent() {
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const [overviewRes, benefitsRes, brandRes, historyRes] = await Promise.all([
+      const [
+        overviewRes,
+        benefitsRes,
+        brandRes,
+        historyRes,
+        missionsRes,
+        templatesRes,
+      ] = await Promise.all([
         fetch("/api/proxy/loyalty-program/overview"),
         fetch("/api/proxy/benefits"),
         fetch("/api/proxy/businesses/current/brand"),
         fetch("/api/proxy/loyalty-program/history"),
+        fetch("/api/proxy/missions"),
+        fetch("/api/proxy/missions/templates"),
       ]);
-      const [overviewData, benefitsData, brandData, historyData] =
-        await Promise.all([
-          readJson(overviewRes),
-          readJson(benefitsRes),
-          readJson(brandRes),
-          readJson(historyRes),
-        ]);
+      const [
+        overviewData,
+        benefitsData,
+        brandData,
+        historyData,
+        missionsData,
+        templatesData,
+      ] = await Promise.all([
+        readJson(overviewRes),
+        readJson(benefitsRes),
+        readJson(brandRes),
+        readJson(historyRes),
+        readJson(missionsRes),
+        readJson(templatesRes),
+      ]);
       setOverview(overviewData as LoyaltyProgramOverview);
       setBenefits(benefitsData as ProgramBenefit[]);
+      setMissions(missionsData as Mission[]);
+      setMissionTemplates(templatesData as MissionTemplate[]);
       const brand = brandData as LoyaltyAppearance & { name?: string };
       setAppearance(brand);
       setBusinessName(brand.name ?? "");
@@ -188,6 +219,58 @@ function ProgramaClientContent() {
           : "No pudimos guardar los cambios.",
       );
       throw e;
+    }
+  }
+
+  async function createMission(payload: CreateMissionPayload) {
+    await withToast(async () => {
+      const res = await fetch("/api/proxy/missions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      await readJson(res);
+      await load();
+    }, "Misión creada");
+  }
+
+  async function setMissionStatus(missionId: string, status: MissionStatus) {
+    await withToast(
+      async () => {
+        const res = await fetch(`/api/proxy/missions/${missionId}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        await readJson(res);
+        await load();
+      },
+      status === "PAUSED" ? "Misión pausada" : "Misión activada",
+    );
+  }
+
+  async function deleteMission(missionId: string) {
+    try {
+      const res = await fetch(`/api/proxy/missions/${missionId}`, {
+        method: "DELETE",
+      });
+      const data = (await readJson(res)) as { ended?: boolean };
+      await load();
+      // Con participantes la misión se archiva en vez de borrarse: decirlo
+      // como "eliminada" sería mentir sobre lo que acaba de pasar.
+      if (data.ended) {
+        toast.warning(
+          "La misión se terminó en vez de borrarse: ya tenía participantes y su historial se conserva.",
+        );
+      } else {
+        toast.success("Misión eliminada");
+      }
+    } catch (e) {
+      toast.error(
+        e instanceof Error && e.message
+          ? e.message
+          : "No pudimos eliminar la misión.",
+      );
     }
   }
 
@@ -496,6 +579,18 @@ function ProgramaClientContent() {
         </button>
         <button
           type="button"
+          onClick={() => setTab("misiones")}
+          className={`inline-flex items-center gap-2 rounded-[9px] px-4 py-2 transition-colors ${
+            tab === "misiones"
+              ? "bg-white text-[#4A56A6] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
+              : "text-[#7F879C] hover:bg-[#F5F3FF] hover:text-[#5C6BC0]"
+          }`}
+        >
+          <Target className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+          Misiones
+        </button>
+        <button
+          type="button"
           onClick={() => setTab("configuracion")}
           className={`inline-flex items-center gap-2 rounded-[9px] px-4 py-2 transition-colors ${
             tab === "configuracion"
@@ -513,6 +608,18 @@ function ProgramaClientContent() {
           overview={overview}
           history={history}
           onGoToConfig={goToConfig}
+        />
+      ) : null}
+
+      {tab === "misiones" ? (
+        <ProgramMissionsTab
+          missions={missions}
+          templates={missionTemplates}
+          benefits={benefits}
+          canMutate={canMutate}
+          onCreate={createMission}
+          onSetStatus={setMissionStatus}
+          onDelete={deleteMission}
         />
       ) : null}
 

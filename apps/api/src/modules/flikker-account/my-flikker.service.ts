@@ -2,6 +2,10 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { RewardGoalStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RewardGoalOrchestratorService } from '../reward-goals/reward-goal-orchestrator.service';
+import {
+  MissionProgressService,
+  type CustomerMissionView,
+} from '../missions/mission-progress.service';
 import { BenefitsService } from '../benefits/benefits.service';
 
 export interface MyFlikkerPlace {
@@ -49,6 +53,19 @@ export interface MyFlikkerPlace {
     code: string;
     expiresAt: string | null;
   }[];
+  /**
+   * Misiones vivas o recién completadas de ESTE negocio. Array vacío cuando el
+   * negocio no ofrece ninguna — la pantalla no muestra una tarjeta decorativa
+   * con un progreso inventado.
+   */
+  missions: CustomerMissionView[];
+}
+
+/** Una tarjeta de la sección Desafíos, ya resuelta a lo que se muestra. */
+export interface MyFlikkerChallenge extends CustomerMissionView {
+  businessId: string;
+  businessName: string;
+  logoUrl: string | null;
 }
 
 /**
@@ -63,8 +80,58 @@ export class MyFlikkerService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly rewardGoals: RewardGoalOrchestratorService,
+    private readonly missions: MissionProgressService,
     private readonly benefits: BenefitsService,
   ) {}
+
+  /**
+   * "Desafíos" — todo lo que este cliente tiene activo para volver, de TODOS
+   * sus negocios, en una sola lista.
+   *
+   * Es el read-model convergente: hoy solo trae misiones; cuando existan
+   * rachas y desafíos de regreso se suman acá y la pantalla no cambia de
+   * forma. Nunca devuelve tarjetas vacías: si no hay nada, la lista es vacía
+   * y la pantalla lo dice con sus palabras.
+   *
+   * Orden: primero lo que está por vencer, después el resto. Lo ya completado
+   * va al final — es un premio para retirar, no una tarea pendiente.
+   */
+  async listChallenges(
+    flikkerAccountId: string,
+    now: Date = new Date(),
+  ): Promise<MyFlikkerChallenge[]> {
+    const customers = await this.prisma.customer.findMany({
+      where: { flikkerAccountId, isActive: true },
+      select: {
+        id: true,
+        businessId: true,
+        business: { select: { name: true, logoUrl: true } },
+      },
+    });
+
+    const perBusiness = await Promise.all(
+      customers.map(async (customer) => {
+        const missions = await this.missions.currentView(
+          customer.businessId,
+          customer.id,
+          now,
+        );
+        return missions.map((mission) => ({
+          ...mission,
+          businessId: customer.businessId,
+          businessName: customer.business.name,
+          logoUrl: customer.business.logoUrl,
+        }));
+      }),
+    );
+
+    return perBusiness.flat().sort((a, b) => {
+      const aDone = a.status === 'COMPLETED';
+      const bDone = b.status === 'COMPLETED';
+      if (aDone !== bDone) return aDone ? 1 : -1;
+      return Date.parse(a.endsAt) - Date.parse(b.endsAt);
+    });
+  }
 
   /**
    * Every business where this account has a real, tenant-scoped Customer —
@@ -172,7 +239,7 @@ export class MyFlikkerService {
       loyaltyStampBackgroundOpacity: number | null;
     },
   ): Promise<MyFlikkerPlace> {
-    const [visitsTotal, lastVisit, rewardView, unclaimedBenefit] =
+    const [visitsTotal, lastVisit, rewardView, unclaimedBenefit, missions] =
       await Promise.all([
         this.prisma.visit.count({ where: { businessId, customerId } }),
         this.prisma.visit.findFirst({
@@ -194,6 +261,9 @@ export class MyFlikkerService {
             },
           },
         }),
+        // Lectura pura: abrir Mi Flikker nunca completa una misión ni emite
+        // un premio — eso solo lo hace una visita real.
+        this.missions.currentView(businessId, customerId),
       ]);
 
     const benefitAvailable = unclaimedBenefit?.benefitParticipation
@@ -245,6 +315,7 @@ export class MyFlikkerService {
         code: b.code,
         expiresAt: b.expiresAt?.toISOString() ?? null,
       })),
+      missions,
     };
   }
 }

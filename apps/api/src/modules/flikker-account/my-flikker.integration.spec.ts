@@ -145,9 +145,14 @@ describe('MyFlikkerService — cross-business aggregation is real (integration)'
       const benefitsStub = {
         getOtherAvailableBenefits: () => Promise.resolve([]),
       };
+      // Misiones no participan de este test de aislamiento: sin misiones
+      // creadas, el read-model devuelve una lista vacia igual que en la vida
+      // real.
+      const missionsStub = { currentView: () => Promise.resolve([]) };
       service = new MyFlikkerService(
         prisma,
         orchestrator,
+        missionsStub as never,
         benefitsStub as never,
       );
 

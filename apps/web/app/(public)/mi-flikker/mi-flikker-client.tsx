@@ -8,6 +8,9 @@ import { useLogoPalette } from "@/lib/use-logo-palette";
 import LoyaltyCard from "@/components/public/loyalty-card";
 import PhoneInput, { isValidNationalPhone } from "@/components/ui/phone-input";
 import OtpInput from "@/components/ui/otp-input";
+import ChallengesTab, {
+  type MyFlikkerChallenge,
+} from "./challenges-tab";
 
 interface MyFlikkerPlace {
   businessId: string;
@@ -81,6 +84,10 @@ export default function MiFlikkerClient({
   const [places, setPlaces] = useState<MyFlikkerPlace[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const walletRef = useRef<HTMLDivElement>(null);
+  const [view, setView] = useState<"lugares" | "desafios">("lugares");
+  const [challenges, setChallenges] = useState<MyFlikkerChallenge[]>([]);
+  const [challengesLoading, setChallengesLoading] = useState(false);
+  const [challengesLoaded, setChallengesLoaded] = useState(false);
 
   useEffect(() => {
     if (!hasSession) return;
@@ -178,6 +185,29 @@ export default function MiFlikkerClient({
     }
   }
 
+  /**
+   * Desafíos se pide recién cuando se abre la pestaña, y una sola vez: es una
+   * consulta por cada negocio del cliente, así que no hay motivo para pagarla
+   * si nunca la mira.
+   */
+  async function loadChallenges() {
+    if (challengesLoaded || challengesLoading) return;
+    setChallengesLoading(true);
+    try {
+      const res = await fetch("/api/mi-flikker/challenges");
+      if (res.ok) {
+        setChallenges((await res.json()) as MyFlikkerChallenge[]);
+        setChallengesLoaded(true);
+      }
+    } catch {
+      // Silencioso a propósito: la pestaña muestra su propio estado vacío,
+      // que dice lo mismo que diría un error ("no hay nada para mostrar")
+      // sin alarmar por algo que se arregla recargando.
+    } finally {
+      setChallengesLoading(false);
+    }
+  }
+
   if (status === "verify") {
     return <VerifyScreen onVerified={load} />;
   }
@@ -200,7 +230,45 @@ export default function MiFlikkerClient({
         Todas tus recompensas Flikker en un solo lugar.
       </p>
 
-      {loadError ? (
+      <div
+        className="mx-auto mt-6 flex w-fit rounded-[12px] bg-[#ECEEF4] p-1 text-sm font-semibold"
+        role="tablist"
+        aria-label="Secciones de Mi Flikker"
+      >
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "lugares"}
+          onClick={() => setView("lugares")}
+          className={`rounded-[9px] px-4 py-2 transition-colors ${
+            view === "lugares"
+              ? "bg-white text-[#4A56A6] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
+              : "text-[#7F879C]"
+          }`}
+        >
+          Lugares
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={view === "desafios"}
+          onClick={() => {
+            setView("desafios");
+            void loadChallenges();
+          }}
+          className={`rounded-[9px] px-4 py-2 transition-colors ${
+            view === "desafios"
+              ? "bg-white text-[#4A56A6] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
+              : "text-[#7F879C]"
+          }`}
+        >
+          Desafíos
+        </button>
+      </div>
+
+      {view === "desafios" ? (
+        <ChallengesTab challenges={challenges} loading={challengesLoading} />
+      ) : loadError ? (
         <p className="mt-6 text-center text-sm text-[#C0392B]">{loadError}</p>
       ) : places.length === 0 ? (
         <p className="mt-6 text-center text-sm text-[#8A91A3]">

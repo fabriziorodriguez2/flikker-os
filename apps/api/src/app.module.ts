@@ -35,6 +35,7 @@ import { VisitSourcesModule } from './modules/visit-sources/visit-sources.module
 import { CheckinModule } from './modules/checkin/checkin.module';
 import { CheckinMetricsModule } from './modules/checkin-metrics/checkin-metrics.module';
 import { FlikkerAccountModule } from './modules/flikker-account/flikker-account.module';
+import { MissionsModule } from './modules/missions/missions.module';
 import { RewardGoalsModule } from './modules/reward-goals/reward-goals.module';
 import { SimulationModule } from './modules/simulation/simulation.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
@@ -78,6 +79,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     CheckinModule,
     CheckinMetricsModule,
     FlikkerAccountModule,
+    MissionsModule,
     RewardGoalsModule,
     SimulationModule,
     DashboardModule,
