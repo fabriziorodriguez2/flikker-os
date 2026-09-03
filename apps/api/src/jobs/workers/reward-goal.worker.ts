@@ -13,6 +13,7 @@ import {
 } from '../reward-goal.queue';
 import { RewardGoalSweepService } from '../../modules/reward-goals/reward-goal-sweep.service';
 import { MissionSweepService } from '../../modules/missions/mission-sweep.service';
+import { ReturnChallengeSweepService } from '../../modules/return-challenges/return-challenge-sweep.service';
 
 /**
  * Runs the Reward Goal reconciliation sweep (Fase E §33). Real, not dry-run.
@@ -35,6 +36,7 @@ export class RewardGoalWorker implements OnModuleInit, OnModuleDestroy {
   constructor(
     private readonly sweep: RewardGoalSweepService,
     private readonly missions: MissionSweepService,
+    private readonly returnChallenges: ReturnChallengeSweepService,
   ) {}
 
   onModuleInit() {
@@ -51,12 +53,13 @@ export class RewardGoalWorker implements OnModuleInit, OnModuleDestroy {
       // Same daily cron drives both reconciliations (Fase F §0.1): creation
       // sweep and expiry sweep are independent concerns but need no separate
       // queue/schedule — a failure in one must not skip the other.
-      const [sweep, expiry, missionRewards, missionExpiry] =
+      const [sweep, expiry, missionRewards, missionExpiry, challengeExpiry] =
         await Promise.allSettled([
           this.sweep.runDaily(now, false),
           this.sweep.expireOverdue(now),
           this.missions.reconcilePendingRewards(),
           this.missions.expireOverdue(now),
+          this.returnChallenges.expireOverdue(now),
         ]);
       if (sweep.status === 'rejected') {
         this.logger.error(
@@ -78,6 +81,11 @@ export class RewardGoalWorker implements OnModuleInit, OnModuleDestroy {
           `Mission expiry sweep failed: ${String(missionExpiry.reason)}`,
         );
       }
+      if (challengeExpiry.status === 'rejected') {
+        this.logger.error(
+          `Return challenge expiry sweep failed: ${String(challengeExpiry.reason)}`,
+        );
+      }
       return {
         sweep: sweep.status === 'fulfilled' ? sweep.value : null,
         expiry: expiry.status === 'fulfilled' ? expiry.value : null,
@@ -85,6 +93,8 @@ export class RewardGoalWorker implements OnModuleInit, OnModuleDestroy {
           missionRewards.status === 'fulfilled' ? missionRewards.value : null,
         missionExpiry:
           missionExpiry.status === 'fulfilled' ? missionExpiry.value : null,
+        challengeExpiry:
+          challengeExpiry.status === 'fulfilled' ? challengeExpiry.value : null,
       };
     }
     this.logger.warn(`Unknown reward-goal job: ${job.name}`);

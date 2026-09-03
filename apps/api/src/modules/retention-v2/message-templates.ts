@@ -25,6 +25,15 @@ export interface MessageContext {
    * for it.
    */
   progressReminder?: { remainingVisits: number; rewardName: string };
+  /**
+   * Desafío de vuelta (Fase 3), cuando el cliente tiene uno vivo. SOLO se
+   * setea para variantes REMINDER — ver `RetentionV2EvaluateService`.
+   *
+   * Es estrictamente aditivo: si está ausente, el copy del REMINDER es
+   * carácter por carácter el de siempre. Eso importa porque esta plantilla
+   * arma TODOS los mensajes de reactivación, no solo los que llevan desafío.
+   */
+  returnChallenge?: { deadlineLabel: string };
 }
 
 /** First name only — friendlier, and avoids echoing a full record back. */
@@ -120,6 +129,12 @@ export function buildRetentionMessage(context: MessageContext): string {
       `Te dejamos esto para tu próxima visita: *${context.incentiveLabel}*.${expiryClause(
         context.expiresInDays,
       )}`,
+    );
+  } else if (context.returnChallenge) {
+    // El desafío REEMPLAZA la línea genérica, no se suma a ella: dos frases
+    // diciendo "volvé" en el mismo mensaje suenan a plantilla mal armada.
+    parts.push(
+      `⏳ Volvé antes del ${context.returnChallenge.deadlineLabel} y sumás *+1 sello*.`,
     );
   } else {
     parts.push('¡Nos encantaría verte de nuevo!');

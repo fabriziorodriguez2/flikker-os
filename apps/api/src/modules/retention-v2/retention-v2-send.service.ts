@@ -13,6 +13,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { evaluateEligibility } from './eligibility';
 import { IncentiveIssuerService } from './incentive-issuer.service';
 import { RetentionSettingsService } from './retention-settings.service';
+import { ReturnChallengeService } from '../return-challenges/return-challenge.service';
 import { RetentionExperimentService } from './retention-experiment.service';
 import {
   DECISION_CODES,
@@ -52,6 +53,7 @@ export class RetentionV2SendService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: RetentionSettingsService,
+    private readonly returnChallenges: ReturnChallengeService,
     private readonly experiments: RetentionExperimentService,
     private readonly issuer: IncentiveIssuerService,
     private readonly decisions: RetentionDecisionLogService,
@@ -241,6 +243,26 @@ export class RetentionV2SendService {
       }
     }
 
+    /**
+     * Desafío de vuelta (Fase 3) — se RE-LEE acá, no se confía en que existía
+     * al reclutar.
+     *
+     * Entre el reclutamiento y este envío pueden pasar horas: el cliente pudo
+     * haber vuelto (y el desafío quedar COMPLETED), la tarjeta pudo cerrarse
+     * (CANCELLED) o el plazo pudo vencer (EXPIRED). En cualquiera de esos
+     * casos el mensaje sale con el copy de REMINDER de siempre, sin prometer
+     * un sello que ya no corresponde.
+     *
+     * `currentView` filtra por ACTIVE y por `expiresAt > now`, así que cubre
+     * los tres casos de una. Y el guard de `returnedSince` de más arriba ya
+     * suprimió el envío entero si el cliente volvió — esto es la segunda red.
+     */
+    const challenge = await this.returnChallenges.currentView(
+      assignment.businessId,
+      assignment.customerId,
+      now,
+    );
+
     // ── Message (Fase F §9/§13 — AI-eligible, template is the guaranteed
     // fallback either way) ────────────────────────────────────────────────────
     const definition = assignment.variant.incentiveDefinition;
@@ -253,6 +275,16 @@ export class RetentionV2SendService {
         strategyType: assignment.variant.strategyType,
         incentiveLabel,
         expiresInDays,
+        // Solo REMINDER: las variantes con incentivo mantienen su copy y su
+        // `sourceOfTruth` exactamente como estaban.
+        ...(challenge &&
+        assignment.variant.strategyType === RetentionStrategyType.REMINDER
+          ? {
+              returnChallenge: {
+                deadlineLabel: weekdayLabelOf(challenge.deadlineDayKey),
+              },
+            }
+          : {}),
       },
       toneOfVoice: assignment.business.toneOfVoice,
       sourceOfTruth: {
@@ -559,4 +591,21 @@ export class RetentionV2SendService {
       },
     });
   }
+}
+
+/**
+ * "2026-09-27" → "domingo". El día ya viene resuelto en el calendario del
+ * negocio, así que se lee a mediodía UTC —lejos de los dos bordes— solo para
+ * pedirle el nombre del día a `Intl`. No hay conversión de zona acá: ya se
+ * hizo al resolver `deadlineDayKey`.
+ *
+ * Se nombra el día, no la fecha: "volvé antes del domingo" se entiende sin
+ * pensar; "antes del 27/9" obliga a mirar un calendario.
+ */
+export function weekdayLabelOf(dayKey: string): string {
+  const [year, month, day] = dayKey.split('-').map(Number);
+  return new Intl.DateTimeFormat('es-UY', {
+    weekday: 'long',
+    timeZone: 'UTC',
+  }).format(new Date(Date.UTC(year, month - 1, day, 12)));
 }

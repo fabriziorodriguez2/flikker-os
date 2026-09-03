@@ -56,3 +56,65 @@ describe("Check-in — sellos y misiones contando la misma visita", () => {
     expect(missionCard).toMatch(/mission\.rewardHidden \?/);
   });
 });
+
+/**
+ * Solo el CUERPO de `ReturnChallengeDone`, sin los comentarios de las
+ * funciones vecinas — que sí hablan de "dos visitas" para explicar por qué el
+ * copy no debe hacerlo.
+ */
+function returnChallengeDoneBody(): string {
+  const start = source.indexOf("function ReturnChallengeDone(");
+  const end = source.indexOf("\n}", start);
+  return source.slice(start, end);
+}
+
+describe("Check-in — desafío de vuelta completado", () => {
+  it("avisa que volvió a tiempo y ganó un sello extra", () => {
+    expect(source).toContain("Volviste a tiempo");
+    expect(source).toContain("Ganaste +1 sello extra por tu desafío");
+  });
+
+  it("NO lo representa como dos visitas", () => {
+    const aviso = returnChallengeDoneBody();
+    expect(aviso).not.toMatch(/2 visitas|dos visitas|segunda visita/i);
+  });
+
+  it("solo aparece cuando ESA visita lo completó", () => {
+    expect(source).toMatch(
+      /\{personal\.returnChallengeCompleted \? \(\s*<ReturnChallengeDone/,
+    );
+  });
+
+  it("va ANTES de la tarjeta, para que el progreso real se lea después", () => {
+    const aviso = source.indexOf("<ReturnChallengeDone");
+    const tarjeta = source.indexOf("<RewardGoalCard");
+    expect(aviso).toBeGreaterThan(-1);
+    expect(aviso).toBeLessThan(tarjeta);
+  });
+
+  it("no es un modal ni tiene confeti", () => {
+    const aviso = returnChallengeDoneBody();
+    expect(aviso).not.toMatch(/role="dialog"/);
+    expect(aviso).not.toMatch(/confetti|useState|onClick/i);
+  });
+
+  it("solo promete el sello cuando bonusApplied es true", () => {
+    // El desafío se completó igual (volvió a tiempo, eso es un hecho), pero
+    // "+1 sello extra" solo puede afirmarse si ese sello realmente sumó
+    // progreso — si no, sería prometer algo que no pasó.
+    const aviso = returnChallengeDoneBody();
+    expect(aviso).toMatch(/bonusApplied\s*\?[\s\S]*Ganaste \+1 sello extra/);
+  });
+
+  it("sin bonusApplied usa el copy neutral, sin mencionar el sello", () => {
+    // "¡Completaste tu desafío de vuelta!" es verdad en los dos casos — no
+    // depende de si el sello sumó algo.
+    expect(source).toContain("¡Completaste tu desafío de vuelta!");
+  });
+
+  it("recibe bonusApplied desde personal.returnChallengeBonusApplied", () => {
+    expect(source).toMatch(
+      /bonusApplied=\{Boolean\(personal\.returnChallengeBonusApplied\)\}/,
+    );
+  });
+});

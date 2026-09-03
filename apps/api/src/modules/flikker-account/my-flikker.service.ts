@@ -6,6 +6,9 @@ import {
   MissionProgressService,
   type CustomerMissionView,
 } from '../missions/mission-progress.service';
+import { StreakService } from '../streaks/streak.service';
+import { isWorthShowing } from '../streaks/streak-rules';
+import { ReturnChallengeService } from '../return-challenges/return-challenge.service';
 import { BenefitsService } from '../benefits/benefits.service';
 
 export interface MyFlikkerPlace {
@@ -61,11 +64,77 @@ export interface MyFlikkerPlace {
   missions: CustomerMissionView[];
 }
 
-/** Una tarjeta de la sección Desafíos, ya resuelta a lo que se muestra. */
-export interface MyFlikkerChallenge extends CustomerMissionView {
+/**
+ * Una tarjeta de la sección Desafíos.
+ *
+ * Unión discriminada por `kind`: cada mecánica tiene los campos que
+ * realmente necesita, sin forzar a que una misión y una racha compartan una
+ * forma artificial. Hoy hay dos variantes; `return_challenge` se suma en
+ * Fase 3 sin que la pantalla cambie de estructura.
+ */
+export type MyFlikkerChallenge =
+  | MissionChallenge
+  | StreakChallenge
+  | ReturnChallengeCard;
+
+interface ChallengeBase {
   businessId: string;
   businessName: string;
   logoUrl: string | null;
+}
+
+export interface MissionChallenge extends ChallengeBase, CustomerMissionView {
+  kind: 'mission';
+}
+
+export interface ReturnChallengeCard extends ChallengeBase {
+  kind: 'return_challenge';
+  challengeId: string;
+  /** Domingo local — el último día para volver. */
+  deadlineDayKey: string;
+}
+
+export interface StreakChallenge extends ChallengeBase {
+  kind: 'streak';
+  /** Semanas consecutivas. Nunca 0: una racha rota no llega a la pantalla. */
+  currentWeeks: number;
+  /** ACTIVE = ya vino esta semana. AT_RISK = todavía puede mantenerla. */
+  state: 'ACTIVE' | 'AT_RISK';
+  /** Domingo de la semana en curso — el último día para mantenerla. */
+  deadlineDayKey: string;
+}
+
+/**
+ * Prioridad de la lista de Desafíos: primero lo más urgente de atender.
+ *
+ * Las misiones activas van antes que las rachas porque tienen fecha de corte
+ * dura; dentro de cada grupo se ordena por vencimiento. Lo ya completado va
+ * al final: es un premio para retirar, no una tarea pendiente.
+ *
+ * Deja hueco deliberado para `return_challenge` (Fase 3), que entrará arriba
+ * de todo sin tocar el resto del orden.
+ */
+function rank(challenge: MyFlikkerChallenge): number {
+  // Lo más urgente de todo: plazo corto y un sello concreto en juego.
+  if (challenge.kind === 'return_challenge') return 10;
+  if (challenge.kind === 'streak') {
+    return challenge.state === 'AT_RISK' ? 30 : 40;
+  }
+  if (challenge.status === 'COMPLETED') return 50;
+  return 20;
+}
+
+/** Dentro de un mismo grupo, primero lo que vence antes. */
+function compareChallenges(
+  a: MyFlikkerChallenge,
+  b: MyFlikkerChallenge,
+): number {
+  const byRank = rank(a) - rank(b);
+  if (byRank !== 0) return byRank;
+  if (a.kind === 'mission' && b.kind === 'mission') {
+    return Date.parse(a.endsAt) - Date.parse(b.endsAt);
+  }
+  return 0;
 }
 
 /**
@@ -81,6 +150,8 @@ export class MyFlikkerService {
     private readonly prisma: PrismaService,
     private readonly rewardGoals: RewardGoalOrchestratorService,
     private readonly missions: MissionProgressService,
+    private readonly streaks: StreakService,
+    private readonly returnChallenges: ReturnChallengeService,
     private readonly benefits: BenefitsService,
   ) {}
 
@@ -105,32 +176,86 @@ export class MyFlikkerService {
       select: {
         id: true,
         businessId: true,
-        business: { select: { name: true, logoUrl: true } },
+        business: { select: { name: true, logoUrl: true, timezone: true } },
       },
     });
 
-    const perBusiness = await Promise.all(
-      customers.map(async (customer) => {
-        const missions = await this.missions.currentView(
-          customer.businessId,
-          customer.id,
-          now,
-        );
-        return missions.map((mission) => ({
-          ...mission,
+    // Las rachas de TODOS los lugares salen en una sola query — no una por
+    // negocio. Ver `getStreaksForCustomers`.
+    const [perBusinessMissions, streaks, challenges] = await Promise.all([
+      Promise.all(
+        customers.map(async (customer) => {
+          const missions = await this.missions.currentView(
+            customer.businessId,
+            customer.id,
+            now,
+          );
+          return missions.map(
+            (mission): MissionChallenge => ({
+              kind: 'mission',
+              ...mission,
+              businessId: customer.businessId,
+              businessName: customer.business.name,
+              logoUrl: customer.business.logoUrl,
+            }),
+          );
+        }),
+      ),
+      this.streaks.getStreaksForCustomers(
+        customers.map((customer) => ({
+          customerId: customer.id,
           businessId: customer.businessId,
-          businessName: customer.business.name,
-          logoUrl: customer.business.logoUrl,
-        }));
-      }),
-    );
+          timezone: customer.business.timezone,
+        })),
+        now,
+      ),
+      // También en una sola query, por el mismo motivo que las rachas.
+      this.returnChallenges.currentViewForCustomers(
+        customers.map((customer) => customer.id),
+        now,
+      ),
+    ]);
 
-    return perBusiness.flat().sort((a, b) => {
-      const aDone = a.status === 'COMPLETED';
-      const bDone = b.status === 'COMPLETED';
-      if (aDone !== bDone) return aDone ? 1 : -1;
-      return Date.parse(a.endsAt) - Date.parse(b.endsAt);
-    });
+    // Solo los ACTIVE y sin vencer llegan hasta acá: `currentViewForCustomers`
+    // ya filtra por estado y por fecha, así que EXPIRED y CANCELLED nunca se
+    // muestran — un desafío cancelado no es algo que explicarle al cliente.
+    const challengeCards: ReturnChallengeCard[] = [];
+    for (const customer of customers) {
+      const challenge = challenges.get(customer.id);
+      if (!challenge) continue;
+      challengeCards.push({
+        kind: 'return_challenge',
+        challengeId: challenge.id,
+        businessId: customer.businessId,
+        businessName: customer.business.name,
+        logoUrl: customer.business.logoUrl,
+        deadlineDayKey: challenge.deadlineDayKey,
+      });
+    }
+
+    const streakCards: StreakChallenge[] = [];
+    for (const customer of customers) {
+      const streak = streaks.get(customer.id);
+      // `isWorthShowing` es la única regla: sin dos semanas consecutivas no
+      // hay tarjeta. Una racha rota tampoco llega acá, así que la pantalla
+      // no puede recibir un "0 semanas".
+      if (!streak || !isWorthShowing(streak)) continue;
+      streakCards.push({
+        kind: 'streak',
+        businessId: customer.businessId,
+        businessName: customer.business.name,
+        logoUrl: customer.business.logoUrl,
+        currentWeeks: streak.currentWeeks,
+        state: streak.state === 'ACTIVE' ? 'ACTIVE' : 'AT_RISK',
+        deadlineDayKey: streak.deadlineDayKey,
+      });
+    }
+
+    return [
+      ...perBusinessMissions.flat(),
+      ...streakCards,
+      ...challengeCards,
+    ].sort(compareChallenges);
   }
 
   /**

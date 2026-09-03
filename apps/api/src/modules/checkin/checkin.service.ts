@@ -26,6 +26,7 @@ import { CustomerEventsRepository } from './customer-events.repository';
 import { isCheckinV2 } from '../../common/experience/experience.util';
 import { RewardGoalOrchestratorService } from '../reward-goals/reward-goal-orchestrator.service';
 import { MissionProgressService } from '../missions/mission-progress.service';
+import { ReturnChallengeService } from '../return-challenges/return-challenge.service';
 import { RewardGoalFeedbackService } from '../reward-goals/reward-goal-feedback.service';
 import { FlikkerAccountService } from '../flikker-account/flikker-account.service';
 import { PresenceChallengeService } from './presence-challenge.service';
@@ -94,6 +95,7 @@ export class CheckinService {
     private readonly messaging: PublicMessagingService,
     private readonly rewardGoals: RewardGoalOrchestratorService,
     private readonly missions: MissionProgressService,
+    private readonly returnChallenges: ReturnChallengeService,
     private readonly rewardGoalFeedback: RewardGoalFeedbackService,
     private readonly flikkerAccount: FlikkerAccountService,
     private readonly presence: PresenceChallengeService,
@@ -751,6 +753,38 @@ export class CheckinService {
   ) {
     const customer = await this.getCustomerOrThrow(business.id, customerId);
 
+    /**
+     * ORDEN CRÍTICO — el desafío de vuelta se resuelve ANTES que los sellos.
+     *
+     * `RewardGoalUnlockService.evaluateUnlock` cuenta las visitas Y los bonus
+     * stamps en la MISMA lectura que decide si desbloquea la tarjeta. Si el
+     * sello del desafío se creara después, la visita normal ya podría haber
+     * desbloqueado el goal y el sello prometido llegaría a una tarjeta
+     * cerrada: se pierde.
+     *
+     * Corriendo antes, `evaluateUnlock` ve los dos —la visita y el bonus— y
+     * desbloquea con el total correcto. El race no se mitiga: deja de existir.
+     *
+     * Por eso esto NO puede ir dentro del `Promise.all` de abajo. Misiones sí
+     * pueden: no tocan la tarjeta, así que son genuinamente independientes.
+     */
+    let returnChallengeCompleted = false;
+    // Solo tiene sentido leerlo cuando `returnChallengeCompleted` es true —
+    // ver el comentario de `ReturnChallengeDone` en el cliente. `false` por
+    // default, nunca `undefined`: la UI compara con `===`, no con `Boolean()`.
+    let returnChallengeBonusApplied = false;
+    if (opts.justVisited && opts.visitOccurredAt) {
+      const outcome = await this.returnChallenges.completeForVisit({
+        businessId: business.id,
+        customerId,
+        visitOccurredAt: opts.visitOccurredAt,
+      });
+      returnChallengeCompleted = outcome.status === 'completed';
+      if (outcome.status === 'completed') {
+        returnChallengeBonusApplied = outcome.bonusApplied;
+      }
+    }
+
     const [total, lastVisit, benefit, rewardGoal, missions] = await Promise.all(
       [
         this.visits.countByCustomer(business.id, customerId),
@@ -838,6 +872,16 @@ export class CheckinService {
       // Array vacío cuando el negocio no tiene misiones vivas — la pantalla
       // no debe inventar un "0 de 3" que nadie propuso.
       missions,
+      // True SOLO cuando ESTA visita completó un desafío de vuelta. La
+      // pantalla lo usa para el aviso de "volviste a tiempo" — nunca para
+      // representar el sello extra como si hubiera sido una segunda visita.
+      returnChallengeCompleted,
+      // True SOLO cuando el bonus del desafío realmente sumó progreso. Puede
+      // haber quedado en false con `returnChallengeCompleted: true`: la
+      // visita normal, sola, ya alcanzaba el target de la tarjeta, y el sello
+      // del desafío quedó como excedente — la UI no debe prometer "+1 sello
+      // extra" por algo que no avanzó nada.
+      returnChallengeBonusApplied,
       welcomeGift,
       otherBenefits: otherBenefits.map((b) => ({
         type: b.type,

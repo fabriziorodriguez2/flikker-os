@@ -71,6 +71,9 @@ function makeDeps(experienceVersion: ExperienceVersion) {
     enqueueReviewRequest: jest.fn(),
     sendVerificationCode: jest.fn(),
   };
+  const returnChallenges = {
+    completeForVisit: jest.fn().mockResolvedValue({ status: 'none' }),
+  };
   const missions = {
     afterVisit: jest.fn().mockResolvedValue([]),
     currentView: jest.fn().mockResolvedValue([]),
@@ -106,6 +109,7 @@ function makeDeps(experienceVersion: ExperienceVersion) {
     messaging,
     rewardGoals,
     missions,
+    returnChallenges,
     rewardGoalFeedback,
     flikkerAccount,
   };
@@ -123,6 +127,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.messaging as never,
     deps.rewardGoals as never,
     deps.missions as never,
+    deps.returnChallenges as never,
     deps.rewardGoalFeedback as never,
     deps.flikkerAccount as never,
     // Servicio real, no un mock: estos negocios estan en

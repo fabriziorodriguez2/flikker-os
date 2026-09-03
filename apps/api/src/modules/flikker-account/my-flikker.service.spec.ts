@@ -62,7 +62,13 @@ function makeDeps(
       .mockResolvedValue(options.otherBenefits ?? []),
   };
   const missions = { currentView: jest.fn().mockResolvedValue([]) };
-  return { prisma, rewardGoals, missions, benefits };
+  const streaks = {
+    getStreaksForCustomers: jest.fn().mockResolvedValue(new Map()),
+  };
+  const returnChallenges = {
+    currentViewForCustomers: jest.fn().mockResolvedValue(new Map()),
+  };
+  return { prisma, rewardGoals, missions, streaks, returnChallenges, benefits };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
@@ -70,6 +76,8 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.prisma as never,
     deps.rewardGoals as never,
     deps.missions as never,
+    deps.streaks as never,
+    deps.returnChallenges as never,
     deps.benefits as never,
   );
 }
@@ -314,5 +322,157 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
       'cust-a',
       ['benefit-reward-goal', 'benefit-welcome'],
     );
+  });
+});
+
+describe('MyFlikkerService.listChallenges — misiones y rachas juntas', () => {
+  function makeChallengeDeps() {
+    const deps = makeDeps();
+    deps.prisma.customer.findMany = jest.fn().mockResolvedValue([
+      {
+        id: 'cust-a',
+        businessId: 'biz-a',
+        business: {
+          name: 'Bar Fraternidad',
+          logoUrl: null,
+          timezone: 'America/Montevideo',
+        },
+      },
+    ]);
+    return deps;
+  }
+
+  it('pide las rachas de TODOS los lugares en un solo llamado', async () => {
+    const deps = makeChallengeDeps();
+    const service = makeService(deps);
+
+    await service.listChallenges('account-1');
+
+    // Una llamada al batch, no una por negocio.
+    expect(deps.streaks.getStreaksForCustomers).toHaveBeenCalledTimes(1);
+    expect(deps.streaks.getStreaksForCustomers).toHaveBeenCalledWith(
+      [
+        {
+          customerId: 'cust-a',
+          businessId: 'biz-a',
+          timezone: 'America/Montevideo',
+        },
+      ],
+      expect.any(Date),
+    );
+  });
+
+  it('una racha que vale la pena se convierte en tarjeta', async () => {
+    const deps = makeChallengeDeps();
+    deps.streaks.getStreaksForCustomers.mockResolvedValue(
+      new Map([
+        [
+          // El Map viene clavado por customerId, no por businessId: una
+          // cuenta puede tener dos Customer del mismo negocio.
+          'cust-a',
+          {
+            currentWeeks: 3,
+            state: 'AT_RISK',
+            currentWeekStart: '2026-09-21',
+            deadlineDayKey: '2026-09-27',
+          },
+        ],
+      ]),
+    );
+    const service = makeService(deps);
+
+    const challenges = await service.listChallenges('account-1');
+
+    expect(challenges).toEqual([
+      {
+        kind: 'streak',
+        businessId: 'biz-a',
+        businessName: 'Bar Fraternidad',
+        logoUrl: null,
+        currentWeeks: 3,
+        state: 'AT_RISK',
+        deadlineDayKey: '2026-09-27',
+      },
+    ]);
+  });
+
+  it('una racha de una sola semana NO llega a la pantalla', async () => {
+    const deps = makeChallengeDeps();
+    deps.streaks.getStreaksForCustomers.mockResolvedValue(
+      new Map([
+        [
+          // El Map viene clavado por customerId, no por businessId: una
+          // cuenta puede tener dos Customer del mismo negocio.
+          'cust-a',
+          {
+            currentWeeks: 1,
+            state: 'ACTIVE',
+            currentWeekStart: '2026-09-21',
+            deadlineDayKey: '2026-09-27',
+          },
+        ],
+      ]),
+    );
+
+    expect(await makeService(deps).listChallenges('account-1')).toEqual([]);
+  });
+
+  it('una racha rota tampoco', async () => {
+    const deps = makeChallengeDeps();
+    deps.streaks.getStreaksForCustomers.mockResolvedValue(
+      new Map([
+        [
+          // El Map viene clavado por customerId, no por businessId: una
+          // cuenta puede tener dos Customer del mismo negocio.
+          'cust-a',
+          {
+            currentWeeks: 0,
+            state: 'BROKEN',
+            currentWeekStart: '2026-09-21',
+            deadlineDayKey: '2026-09-27',
+          },
+        ],
+      ]),
+    );
+
+    expect(await makeService(deps).listChallenges('account-1')).toEqual([]);
+  });
+
+  it('las misiones activas van antes que las rachas', async () => {
+    const deps = makeChallengeDeps();
+    deps.missions.currentView.mockResolvedValue([
+      {
+        missionId: 'm-1',
+        name: 'Vení 3 veces',
+        status: 'ACTIVE',
+        endsAt: '2026-10-01T03:00:00.000Z',
+        progress: { current: 1, target: 3, remaining: 2, complete: false },
+      },
+    ]);
+    deps.streaks.getStreaksForCustomers.mockResolvedValue(
+      new Map([
+        [
+          // El Map viene clavado por customerId, no por businessId: una
+          // cuenta puede tener dos Customer del mismo negocio.
+          'cust-a',
+          {
+            currentWeeks: 3,
+            state: 'AT_RISK',
+            currentWeekStart: '2026-09-21',
+            deadlineDayKey: '2026-09-27',
+          },
+        ],
+      ]),
+    );
+
+    const challenges = await makeService(deps).listChallenges('account-1');
+
+    expect(challenges.map((c) => c.kind)).toEqual(['mission', 'streak']);
+  });
+
+  it('sin misiones ni rachas la lista queda vacía, no rota', async () => {
+    const deps = makeChallengeDeps();
+
+    expect(await makeService(deps).listChallenges('account-1')).toEqual([]);
   });
 });

@@ -5,6 +5,7 @@ import { PublicModule } from '../public/public.module';
 import { VisitSourcesModule } from '../visit-sources/visit-sources.module';
 import { RewardGoalsModule } from '../reward-goals/reward-goals.module';
 import { MissionsModule } from '../missions/missions.module';
+import { ReturnChallengesModule } from '../return-challenges/return-challenges.module';
 import { RetentionV2Module } from '../retention-v2/retention-v2.module';
 import { FlikkerAccountModule } from '../flikker-account/flikker-account.module';
 import { CheckinController } from './checkin.controller';
@@ -26,6 +27,7 @@ import { CustomerEventsRepository } from './customer-events.repository';
     VisitSourcesModule,
     RewardGoalsModule,
     MissionsModule,
+    ReturnChallengesModule,
     RetentionV2Module,
     FlikkerAccountModule,
   ],

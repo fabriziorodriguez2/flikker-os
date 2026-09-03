@@ -222,3 +222,91 @@ describe('buildRetentionMessage', () => {
     });
   });
 });
+
+describe('Desafío de vuelta — enriquece el REMINDER, no lo reemplaza', () => {
+  const base = {
+    customerName: 'David García',
+    businessName: 'Bar Fraternidad',
+    objective: RetentionObjective.AT_RISK_RECOVERY,
+    strategyType: RetentionStrategyType.REMINDER,
+    incentiveLabel: null,
+    expiresInDays: null,
+  };
+
+  it('SIN desafío el copy es exactamente el de siempre', () => {
+    // Esta plantilla arma TODOS los mensajes de reactivación, no solo los que
+    // llevan desafío. El campo es opcional justamente para que la ausencia no
+    // cambie ni un carácter.
+    expect(buildRetentionMessage(base)).toBe(
+      [
+        'Hola David, hace unos días que no te vemos por *Bar Fraternidad*.',
+        '¡Nos encantaría verte de nuevo!',
+        'Cuando vuelvas, escaneá el QR del local para ver tus beneficios.',
+      ].join('\n'),
+    );
+  });
+
+  it('CON desafío nombra el plazo y el sello', () => {
+    const message = buildRetentionMessage({
+      ...base,
+      returnChallenge: { deadlineLabel: 'domingo' },
+    });
+
+    expect(message).toContain('Volvé antes del domingo');
+    expect(message).toContain('+1 sello');
+  });
+
+  it('el desafío REEMPLAZA la línea genérica, no se suma', () => {
+    // Dos frases diciendo "volvé" en el mismo mensaje suenan a plantilla mal
+    // armada.
+    const message = buildRetentionMessage({
+      ...base,
+      returnChallenge: { deadlineLabel: 'domingo' },
+    });
+
+    expect(message).not.toContain('¡Nos encantaría verte de nuevo!');
+    expect(message.split('\n')).toHaveLength(3);
+  });
+
+  it('conserva el saludo y el cierre del REMINDER', () => {
+    const message = buildRetentionMessage({
+      ...base,
+      returnChallenge: { deadlineLabel: 'domingo' },
+    });
+
+    expect(message).toContain('Hola David');
+    expect(message).toContain('hace unos días que no te vemos');
+    expect(message).toContain('escaneá el QR del local');
+  });
+
+  it('una variante CON incentivo ignora el desafío por completo', () => {
+    // SOFT_BENEFIT y STRONG_BENEFIT mantienen su copy y su reward tal cual:
+    // un solo contacto no puede prometer dos recompensas.
+    const conIncentivo = {
+      ...base,
+      strategyType: RetentionStrategyType.SOFT_BENEFIT,
+      incentiveLabel: '10% OFF',
+      expiresInDays: 7,
+    };
+
+    expect(
+      buildRetentionMessage({
+        ...conIncentivo,
+        returnChallenge: { deadlineLabel: 'domingo' },
+      }),
+    ).toBe(buildRetentionMessage(conIncentivo));
+  });
+
+  it('nunca menciona un sello en una variante con beneficio', () => {
+    const message = buildRetentionMessage({
+      ...base,
+      strategyType: RetentionStrategyType.STRONG_BENEFIT,
+      incentiveLabel: '2x1',
+      expiresInDays: 3,
+      returnChallenge: { deadlineLabel: 'domingo' },
+    });
+
+    expect(message).not.toContain('sello');
+    expect(message).toContain('2x1');
+  });
+});

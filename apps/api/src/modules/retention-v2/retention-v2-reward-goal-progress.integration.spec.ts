@@ -162,6 +162,9 @@ describe('RetentionV2EvaluateService — REWARD_GOAL_PROGRESS recruitment (integ
         new RetentionSettingsService(prisma),
         new RetentionExperimentService(prisma),
         new RetentionAssignmentService(prisma),
+        // Fase 3: este test es sobre recordatorios de progreso, no sobre
+        // desafíos de vuelta.
+        { ensureReturnChallenge: () => Promise.resolve(null) } as never,
         new RetentionDecisionLogService(prisma),
       );
       available = true;

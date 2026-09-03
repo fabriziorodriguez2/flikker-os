@@ -111,6 +111,8 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.settings as never,
     deps.experiments as never,
     deps.assignments as never,
+    // Fase 3: sin desafíos de vuelta en este test.
+    { ensureReturnChallenge: () => Promise.resolve(null) } as never,
     deps.decisions as never,
   );
 }

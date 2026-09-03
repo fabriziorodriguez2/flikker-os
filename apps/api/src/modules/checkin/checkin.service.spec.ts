@@ -38,6 +38,9 @@ function makeDeps() {
     enqueueReviewRequest: jest.fn(),
     sendVerificationCode: jest.fn(),
   };
+  const returnChallenges = {
+    completeForVisit: jest.fn().mockResolvedValue({ status: 'none' }),
+  };
   const missions = {
     afterVisit: jest.fn().mockResolvedValue([]),
     currentView: jest.fn().mockResolvedValue([]),
@@ -73,6 +76,7 @@ function makeDeps() {
     messaging,
     rewardGoals,
     missions,
+    returnChallenges,
     rewardGoalFeedback,
     flikkerAccount,
   };
@@ -90,6 +94,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.messaging as never,
     deps.rewardGoals as never,
     deps.missions as never,
+    deps.returnChallenges as never,
     deps.rewardGoalFeedback as never,
     deps.flikkerAccount as never,
     // Servicio real, no un mock: estos negocios estan en
@@ -488,5 +493,144 @@ describe('CheckinService — welcome de la primera registración (un solo WhatsA
     // proveedor, así que todavía no.
     expect(deps.messaging.sendWelcome).toHaveBeenCalledTimes(1);
     expect(deps.messaging.sendOwnerNotification).not.toHaveBeenCalled();
+  });
+});
+
+describe('Check-in — el desafío de vuelta se resuelve ANTES que los sellos', () => {
+  /**
+   * Test de ORDEN, no de resultado. `evaluateUnlock` cuenta visitas y bonus
+   * stamps en la misma lectura: si el sello del desafío se creara después,
+   * la visita normal ya podría haber desbloqueado la tarjeta y el sello
+   * prometido caería en una tarjeta cerrada.
+   */
+  function setupReturnVisit(deps: ReturnType<typeof makeDeps>) {
+    deps.sources.findByToken.mockResolvedValue(activeSource);
+    deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+    deps.prisma.customer.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue({ id: 'cust-1', name: 'Ana' });
+    deps.prisma.customer.create.mockResolvedValue({
+      id: 'cust-1',
+      name: 'Ana',
+    });
+    deps.visits.registerVisit.mockResolvedValue({
+      created: true,
+      isReturn: true,
+      visit: {
+        id: 'v-1',
+        attributionType: VisitAttributionType.organic,
+        occurredAt: new Date('2026-09-24T18:00:00Z'),
+      },
+    });
+    deps.sessions.issue.mockResolvedValue({
+      rawToken: 'raw-token',
+      expiresAt: new Date('2027-01-01T00:00:00Z'),
+    });
+  }
+
+  it('completeForVisit corre antes de rewardGoals.afterVisit', async () => {
+    const deps = makeDeps();
+    setupReturnVisit(deps);
+    const service = makeService(deps);
+
+    await service.register('tok', { name: 'Ana', phone: '099111222' }, 'ua');
+
+    const challenge =
+      deps.returnChallenges.completeForVisit.mock.invocationCallOrder[0];
+    const rewardGoal = deps.rewardGoals.afterVisit.mock.invocationCallOrder[0];
+    expect(challenge).toBeLessThan(rewardGoal);
+  });
+
+  it('le pasa el instante REAL de la visita, no "ahora"', async () => {
+    const deps = makeDeps();
+    setupReturnVisit(deps);
+    const service = makeService(deps);
+
+    await service.register('tok', { name: 'Ana', phone: '099111222' }, 'ua');
+
+    expect(deps.returnChallenges.completeForVisit).toHaveBeenCalledWith({
+      businessId: 'biz-1',
+      customerId: 'cust-1',
+      visitOccurredAt: new Date('2026-09-24T18:00:00Z'),
+    });
+  });
+
+  it('una lectura sin visita NUNCA intenta completar nada', async () => {
+    const deps = makeDeps();
+    deps.sources.findByToken.mockResolvedValue(activeSource);
+    deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+    deps.prisma.customer.findFirst.mockResolvedValue({
+      id: 'cust-1',
+      name: 'Ana',
+    });
+    deps.sessions.resolveLive.mockResolvedValue({
+      customerId: 'cust-1',
+      businessId: 'biz-1',
+    });
+    const service = makeService(deps);
+
+    await service.me('session-token');
+
+    expect(deps.returnChallenges.completeForVisit).not.toHaveBeenCalled();
+  });
+
+  it('expone si ESTA visita completó el desafío', async () => {
+    const deps = makeDeps();
+    setupReturnVisit(deps);
+    deps.returnChallenges.completeForVisit.mockResolvedValue({
+      status: 'completed',
+      challengeId: 'rc-1',
+      bonusApplied: true,
+    });
+    const service = makeService(deps);
+
+    const result = await service.register(
+      'tok',
+      { name: 'Ana', phone: '099111222' },
+      'ua',
+    );
+
+    if (result.status !== 'registered') throw new Error('expected registered');
+    expect(result.personal.returnChallengeCompleted).toBe(true);
+    expect(result.personal.returnChallengeBonusApplied).toBe(true);
+  });
+
+  it('completado sin progreso efectivo → bonusApplied false, sin prometer el sello', async () => {
+    // La visita normal, sola, ya alcanzaba el target: el bonus quedó como
+    // excedente. La UI no debe decir "+1 sello extra" por esto.
+    const deps = makeDeps();
+    setupReturnVisit(deps);
+    deps.returnChallenges.completeForVisit.mockResolvedValue({
+      status: 'completed',
+      challengeId: 'rc-1',
+      bonusApplied: false,
+    });
+    const service = makeService(deps);
+
+    const result = await service.register(
+      'tok',
+      { name: 'Ana', phone: '099111222' },
+      'ua',
+    );
+
+    if (result.status !== 'registered') throw new Error('expected registered');
+    expect(result.personal.returnChallengeCompleted).toBe(true);
+    expect(result.personal.returnChallengeBonusApplied).toBe(false);
+  });
+
+  it('sin desafío completado el flag es false, no undefined', async () => {
+    const deps = makeDeps();
+    setupReturnVisit(deps);
+    const service = makeService(deps);
+
+    const result = await service.register(
+      'tok',
+      { name: 'Ana', phone: '099111222' },
+      'ua',
+    );
+
+    if (result.status !== 'registered') throw new Error('expected registered');
+    expect(result.personal.returnChallengeCompleted).toBe(false);
+    expect(result.personal.returnChallengeBonusApplied).toBe(false);
   });
 });

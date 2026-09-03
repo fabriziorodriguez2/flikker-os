@@ -106,6 +106,8 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
   return new RetentionV2SendService(
     deps.prisma as never,
     deps.settings as never,
+    // Fase 3: sin desafío de vuelta en este test.
+    { currentView: () => Promise.resolve(null) } as never,
     deps.experiments as never,
     deps.issuer as never,
     deps.decisions as never,

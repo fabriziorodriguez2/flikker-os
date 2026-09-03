@@ -4,6 +4,8 @@ import { PublicModule } from '../public/public.module';
 import { RewardGoalsModule } from '../reward-goals/reward-goals.module';
 import { BenefitsModule } from '../benefits/benefits.module';
 import { MissionsModule } from '../missions/missions.module';
+import { StreaksModule } from '../streaks/streaks.module';
+import { ReturnChallengesModule } from '../return-challenges/return-challenges.module';
 import { FlikkerAccountController } from './flikker-account.controller';
 import { FlikkerAccountService } from './flikker-account.service';
 import { FlikkerAccountSessionsRepository } from './flikker-account-sessions.repository';
@@ -18,6 +20,8 @@ import { MyFlikkerService } from './my-flikker.service';
     RewardGoalsModule,
     BenefitsModule,
     MissionsModule,
+    StreaksModule,
+    ReturnChallengesModule,
   ],
   controllers: [FlikkerAccountController, MyFlikkerController],
   providers: [

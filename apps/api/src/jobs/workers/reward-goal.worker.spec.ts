@@ -14,10 +14,17 @@ function buildHarness() {
       .fn()
       .mockResolvedValue({ missionsEnded: 0, participationsExpired: 0 }),
   };
-  const worker = new RewardGoalWorker(sweep as never, missions as never);
+  const returnChallenges = {
+    expireOverdue: jest.fn().mockResolvedValue({ expired: 0 }),
+  };
+  const worker = new RewardGoalWorker(
+    sweep as never,
+    missions as never,
+    returnChallenges as never,
+  );
   const run = () =>
     worker.process({ name: RUN_REWARD_GOAL_SWEEP_JOB } as never);
-  return { worker, sweep, missions, run };
+  return { worker, sweep, missions, returnChallenges, run };
 }
 
 describe('RewardGoalWorker — el tick diario dispara los cuatro barridos', () => {

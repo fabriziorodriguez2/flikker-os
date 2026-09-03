@@ -149,10 +149,17 @@ describe('MyFlikkerService — cross-business aggregation is real (integration)'
       // creadas, el read-model devuelve una lista vacia igual que en la vida
       // real.
       const missionsStub = { currentView: () => Promise.resolve([]) };
+      // Rachas tampoco: este test es sobre aislamiento cross-business de
+      // visitas y reward goals.
+      const streaksStub = {
+        getStreaksForCustomers: () => Promise.resolve(new Map()),
+      };
       service = new MyFlikkerService(
         prisma,
         orchestrator,
         missionsStub as never,
+        streaksStub as never,
+        { currentViewForCustomers: () => Promise.resolve(new Map()) } as never,
         benefitsStub as never,
       );
 

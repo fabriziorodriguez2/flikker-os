@@ -74,6 +74,9 @@ function makeDeps() {
     enqueueReviewRequest: jest.fn(),
     sendVerificationCode: jest.fn(),
   };
+  const returnChallenges = {
+    completeForVisit: jest.fn().mockResolvedValue({ status: 'none' }),
+  };
   const missions = {
     afterVisit: jest.fn().mockResolvedValue([]),
     currentView: jest.fn().mockResolvedValue([]),
@@ -105,6 +108,7 @@ function makeDeps() {
     messaging,
     rewardGoals,
     missions,
+    returnChallenges,
     rewardGoalFeedback,
     flikkerAccount,
   };
@@ -122,6 +126,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.messaging as never,
     deps.rewardGoals as never,
     deps.missions as never,
+    deps.returnChallenges as never,
     deps.rewardGoalFeedback as never,
     deps.flikkerAccount as never,
     new PresenceChallengeService(deps.prisma as never),

@@ -638,6 +638,7 @@ model Business {
   benefitParticipations         BenefitParticipation[]
   missions                      Mission[]
   customerMissions              CustomerMission[]
+  returnChallenges              ReturnChallenge[]
   retentionSequences            RetentionSequence[]
   retentionSteps                RetentionStep[]
   retentionSends                RetentionSend[]
@@ -1169,6 +1170,7 @@ model RetentionAssignment {
   benefitParticipation BenefitParticipation?  @relation(fields: [benefitParticipationId], references: [id], onDelete: SetNull)
   decisions            RetentionDecisionLog[]
   outcome              RetentionOutcome?
+  returnChallenge      ReturnChallenge?
 
   @@unique([experimentId, customerId])
   @@index([businessId, status])
@@ -1307,6 +1309,8 @@ model CustomerRewardGoal {
   /// Progreso adicional otorgado por completar el feedback post-check-in —
   /// nunca una Visit falsa. Ver comentario de `RewardGoalBonusStamp`.
   bonusStamps          RewardGoalBonusStamp[]
+  /// Desafíos de vuelta que prometieron un sello sobre ESTA tarjeta.
+  returnChallenges     ReturnChallenge[]
 
   @@index([businessId, customerId])
   @@index([businessId, status])
@@ -1363,21 +1367,111 @@ model RewardGoalBonusStamp {
   businessId   String   @map("business_id")
   customerId   String   @map("customer_id")
   rewardGoalId String   @map("reward_goal_id")
-  feedbackId   String   @unique @map("feedback_id")
+  /// LA causa del sello, opción 1: el cliente completó el feedback del
+  /// check-in. Nullable desde que existe una segunda causa; una fila con
+  /// `feedbackId` tiene `returnChallengeId` en null y viceversa — ver el CHECK
+  /// `bonus_stamp_one_cause` en la migración.
+  feedbackId   String?  @unique @map("feedback_id")
+  /// LA causa del sello, opción 2: el cliente volvió dentro del plazo de un
+  /// desafío de vuelta.
+  ///
+  /// Esta FK es la relación AUTORITATIVA entre challenge y sello — a propósito
+  /// `ReturnChallenge` no tiene una columna `bonusStampId` espejo: dos
+  /// punteros para el mismo vínculo son dos fuentes de verdad que pueden
+  /// discrepar. Y su `@unique` es la garantía real de que un desafío nunca
+  /// emite dos sellos, incluso si dos procesos entran a la vez.
+  returnChallengeId String? @unique @map("return_challenge_id")
   /// Stable, extensible reason — same pattern as `CustomerRewardGoal.reasonCode`.
-  /// Only value today, but a string (not an enum) so a future second bonus
-  /// type never needs a migration.
+  /// 'feedback_completed' | 'return_challenge_completed'. Es un string (no un
+  /// enum) justamente para que un tipo nuevo de bonus no necesite migración.
   reasonCode   String   @default("feedback_completed") @map("reason_code")
   createdAt    DateTime @default(now()) @map("created_at")
 
-  business   Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  customer   Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  rewardGoal CustomerRewardGoal @relation(fields: [rewardGoalId], references: [id], onDelete: Cascade)
-  feedback   CheckinFeedback    @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  business        Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer        Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  rewardGoal      CustomerRewardGoal @relation(fields: [rewardGoalId], references: [id], onDelete: Cascade)
+  feedback        CheckinFeedback?   @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  returnChallenge ReturnChallenge?   @relation(fields: [returnChallengeId], references: [id], onDelete: Cascade)
 
   @@index([rewardGoalId])
   @@map("reward_goal_bonus_stamps")
 }
+
+// ---------------------------------------------------------------------------
+// ReturnChallenge — "volvé antes del domingo y sumás +1 sello"
+// ---------------------------------------------------------------------------
+
+/// COMPLETED significa que el cliente volvió a tiempo **y el sello fue
+/// otorgado**: las dos cosas pasan en la misma transacción, así que no existe
+/// un COMPLETED sin sello. CANCELLED es el caso en que la promesa ya no se
+/// puede cumplir por algo ajeno al cliente.
+enum ReturnChallengeStatus {
+  ACTIVE
+  COMPLETED
+  /// Venció sin que el cliente volviera.
+  EXPIRED
+  /// La promesa dejó de ser cumplible antes del regreso. Ver `cancelReason`.
+  CANCELLED
+}
+
+/// Por qué un desafío terminó sin sello. Vive en `ReturnChallenge` y no en
+/// `RewardGoalBonusStamp` porque describe justamente el caso en que ese sello
+/// NO existe — no habría fila donde escribirlo.
+enum ReturnChallengeCancelReason {
+  /// La tarjeta prometida se desbloqueó, canjeó, venció o se canceló antes de
+  /// que el cliente volviera. El sello no se transfiere a una tarjeta nueva.
+  REWARD_GOAL_CLOSED
+}
+
+model ReturnChallenge {
+  id         String @id @default(uuid())
+  businessId String @map("business_id")
+  customerId String @map("customer_id")
+
+  /// La decisión de Retention V2 que lo originó. Único: un assignment produce
+  /// a lo sumo un desafío, y es lo que hace idempotente al reclutamiento.
+  /// Nullable para poder crear uno a mano en el futuro sin pasar por Retention.
+  retentionAssignmentId String? @unique @map("retention_assignment_id")
+
+  /// La tarjeta prometida, snapshoteada al crear. NUNCA se reapunta a otra: si
+  /// esta se cierra, el desafío se cancela en vez de premiar una tarjeta que
+  /// nadie prometió.
+  rewardGoalId String @map("reward_goal_id")
+
+  startsAt DateTime @map("starts_at")
+  /// Instante UTC concreto, resuelto UNA vez con el timezone del negocio al
+  /// crear. No se reinterpreta después — mismo criterio que `Mission.endsAt`.
+  expiresAt DateTime @map("expires_at")
+
+  status       ReturnChallengeStatus        @default(ACTIVE)
+  completedAt  DateTime?                    @map("completed_at")
+  cancelReason ReturnChallengeCancelReason? @map("cancel_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  business   Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer   Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  /// `Restrict`: borrar una tarjeta que un desafío prometió dejaría la promesa
+  /// apuntando al vacío.
+  rewardGoal CustomerRewardGoal   @relation(fields: [rewardGoalId], references: [id], onDelete: Restrict)
+  assignment RetentionAssignment? @relation(fields: [retentionAssignmentId], references: [id], onDelete: SetNull)
+  /// Inverso de `RewardGoalBonusStamp.returnChallengeId`. Sin columna escalar
+  /// acá: la FK del otro lado es la única fuente de verdad del vínculo.
+  bonusStamp RewardGoalBonusStamp?
+
+  /// El sweep diario busca por acá.
+  @@index([status, expiresAt])
+  @@index([businessId, customerId])
+  @@map("return_challenges")
+}
+
+// return_challenges_one_active_per_customer — índice único parcial
+// (business_id, customer_id) WHERE status = 'ACTIVE', escrito a mano en la
+// migración. Prisma no tiene "unique where", igual que con
+// `customer_reward_goals_one_active_per_customer`. Es el backstop de DB para
+// "un solo desafío vivo por cliente y negocio" que `ensureReturnChallenge`
+// también aplica en código.
 
 // ---------------------------------------------------------------------------
 // EmailLog — idempotencia + historial COMPARTIDO para toda notificación por
@@ -1852,6 +1946,7 @@ model Customer {
   checkinFeedback          CheckinFeedback[]
   rewardGoalBonusStamps    RewardGoalBonusStamp[]
   customerMissions         CustomerMission[]
+  returnChallenges         ReturnChallenge[]
   emailLogs                EmailLog[]
   automationContact        CustomerAutomationContact?
 

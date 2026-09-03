@@ -13,6 +13,7 @@ import { segmentCustomer } from './segmentation';
 import { evaluateEligibility } from './eligibility';
 import { pickVariant } from './allocation';
 import { RetentionAssignmentService } from './retention-assignment.service';
+import { ReturnChallengeService } from '../return-challenges/return-challenge.service';
 import { RetentionSettingsService } from './retention-settings.service';
 import { RetentionExperimentService } from './retention-experiment.service';
 import {
@@ -65,6 +66,7 @@ export class RetentionV2EvaluateService {
     private readonly settings: RetentionSettingsService,
     private readonly experiments: RetentionExperimentService,
     private readonly assignments: RetentionAssignmentService,
+    private readonly returnChallenges: ReturnChallengeService,
     private readonly decisions: RetentionDecisionLogService,
   ) {}
 
@@ -81,6 +83,9 @@ export class RetentionV2EvaluateService {
         isActive: true,
         experienceVersion: true,
         retentionEngineV2Enabled: true,
+        // Para resolver el deadline del desafío de vuelta con el reloj del
+        // negocio — ver `ensureReturnChallenge`.
+        timezone: true,
       },
     });
   }
@@ -138,6 +143,8 @@ export class RetentionV2EvaluateService {
       isActive: boolean;
       experienceVersion: ExperienceVersion;
       retentionEngineV2Enabled: boolean;
+      /** Para el deadline del desafío de vuelta. */
+      timezone: string;
     },
     settings: RetentionSettings,
     now: Date,
@@ -282,6 +289,37 @@ export class RetentionV2EvaluateService {
             typicalIntervalDays: frequency.typicalIntervalDays,
           },
         });
+
+        /**
+         * Desafío de vuelta (Fase 3) — SOLO sobre variantes REMINDER.
+         *
+         * `SOFT_BENEFIT` y `STRONG_BENEFIT` ya entregan un Benefit con ese
+         * mismo mensaje; sumarles un sello haría que un solo contacto prometa
+         * dos recompensas y obligaría a describir las dos en `sourceOfTruth`.
+         * En un REMINDER, en cambio, el +1 sello es exactamente lo que le
+         * faltaba: una razón concreta en vez de un "te extrañamos" a secas.
+         *
+         * Nunca tira: un problema creando el desafío no puede impedir que la
+         * campaña de reactivación —que ya está decidida y funciona— siga su
+         * curso. Sin desafío, el mensaje sale con su copy de siempre.
+         */
+        if (outcome.strategyType === RetentionStrategyType.REMINDER) {
+          try {
+            await this.returnChallenges.ensureReturnChallenge({
+              businessId: business.id,
+              customerId: customer.id,
+              retentionAssignmentId: outcome.assignmentId,
+              timezone: business.timezone,
+              now,
+            });
+          } catch (error) {
+            this.logger.warn(
+              `No se pudo crear el desafío de vuelta para ${customer.id}: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+            );
+          }
+        }
       }
     }
 

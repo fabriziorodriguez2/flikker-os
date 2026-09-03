@@ -28,6 +28,7 @@ import { RetentionOptimizationService } from './retention-optimization.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { RetentionV2BootstrapService } from './retention-v2-bootstrap.service';
 import { PlansModule } from '../plans/plans.module';
+import { ReturnChallengesModule } from '../return-challenges/return-challenges.module';
 import { EmailService } from '../../jobs/email.service';
 import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 import { AutomationCooldownService } from '../../jobs/automation-cooldown.service';
@@ -39,7 +40,7 @@ import { AutomationCooldownService } from '../../jobs/automation-cooldown.servic
  * controllers only let the owner configure what the workers read.
  */
 @Module({
-  imports: [PrismaModule, AiModule, PlansModule],
+  imports: [PrismaModule, AiModule, PlansModule, ReturnChallengesModule],
   controllers: [
     RetentionSettingsController,
     RetentionIncentivesController,

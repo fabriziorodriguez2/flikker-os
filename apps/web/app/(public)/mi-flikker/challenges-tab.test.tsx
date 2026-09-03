@@ -2,12 +2,47 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import ChallengesTab, { type MyFlikkerChallenge } from "./challenges-tab";
+import ChallengesTab, {
+  type MissionChallenge,
+  type MyFlikkerChallenge,
+  type ReturnChallengeCard,
+  type StreakChallenge,
+} from "./challenges-tab";
+
+function returnChallenge(
+  overrides: Partial<ReturnChallengeCard> = {},
+): ReturnChallengeCard {
+  return {
+    kind: "return_challenge",
+    challengeId: "rc-1",
+    businessId: "b-1",
+    businessName: "Bar Fraternidad",
+    logoUrl: null,
+    deadlineDayKey: "2026-09-27",
+    ...overrides,
+  };
+}
+
+function streak(
+  overrides: Partial<StreakChallenge> = {},
+): StreakChallenge {
+  return {
+    kind: "streak",
+    businessId: "b-1",
+    businessName: "Bar Fraternidad",
+    logoUrl: null,
+    currentWeeks: 3,
+    state: "AT_RISK",
+    deadlineDayKey: "2026-09-27",
+    ...overrides,
+  };
+}
 
 function challenge(
-  overrides: Partial<MyFlikkerChallenge> = {},
-): MyFlikkerChallenge {
+  overrides: Partial<MissionChallenge> = {},
+): MissionChallenge {
   return {
+    kind: "mission",
     missionId: "m-1",
     businessId: "b-1",
     businessName: "Bar Fraternidad",
@@ -189,5 +224,140 @@ describe("Mi Flikker — cableado de la pestaña Desafíos", () => {
 
   it("no vuelve a pedirlos si ya los tiene", () => {
     expect(source).toMatch(/if \(challengesLoaded \|\| challengesLoading\) return;/);
+  });
+});
+
+describe("ChallengesTab — racha", () => {
+  it("AT_RISK muestra las semanas y la fecha para mantenerla", () => {
+    const html = render([streak()]);
+
+    expect(html).toContain("Racha actual");
+    expect(html).toContain("3");
+    expect(html).toContain("semanas");
+    expect(html).toContain("Volvé antes del 27 de setiembre para mantenerla");
+  });
+
+  it("ACTIVE dice que ya la mantuvo, sin apurar a nadie", () => {
+    const html = render([streak({ state: "ACTIVE", currentWeeks: 4 })]);
+
+    expect(html).toContain("Ya mantuviste tu racha esta semana");
+    expect(html).not.toContain("Volvé antes del");
+  });
+
+  it("pluraliza bien", () => {
+    const dos = render([streak({ currentWeeks: 2 })]);
+    expect(dos).toMatch(/2\s*<span[^>]*>semanas<\/span>/);
+
+    // La regla de UX no deja llegar una racha de 1, pero si llegara, el
+    // singular tiene que estar bien igual.
+    const una = render([streak({ currentWeeks: 1 })]);
+    expect(una).toMatch(/1\s*<span[^>]*>semana<\/span>/);
+  });
+
+  it("nunca muestra una racha de 0 — el backend no la manda", () => {
+    // BROKEN y las de una sola semana se filtran en `isWorthShowing`, así que
+    // la pantalla no recibe ninguna. Sin tarjetas, el estado vacío normal.
+    const html = render([]);
+
+    expect(html).not.toContain("Racha actual");
+    expect(html).toContain("Todavía no tenés desafíos");
+  });
+
+  it("no muestra ningún premio: en esta fase la racha no da nada", () => {
+    const html = render([streak()]);
+
+    expect(html).not.toContain("Premio");
+    expect(html).not.toContain("código");
+    expect(html).not.toMatch(/🎁|🎉/);
+  });
+
+  it("no usa vocabulario interno", () => {
+    const html = render([streak(), streak({ state: "ACTIVE" })]);
+
+    for (const palabra of ["streak", "AT_RISK", "ACTIVE", "BROKEN", "week"]) {
+      expect(html).not.toContain(palabra);
+    }
+  });
+
+  it("misión y racha conviven en la misma lista", () => {
+    const html = render([challenge(), streak()]);
+
+    expect(html).toContain("Vení 3 veces este mes");
+    expect(html).toContain("Racha actual");
+    expect(html).toContain("2 de 3 visitas");
+  });
+
+  it("la racha no dibuja puntitos de progreso de misión", () => {
+    const html = render([streak()]);
+
+    expect(html).not.toContain("bg-[#E2E4EF]");
+    expect(html).not.toContain("visitas");
+  });
+});
+
+describe("ChallengesTab — desafío de vuelta", () => {
+  it("muestra el plazo y el sello extra", () => {
+    const html = render([returnChallenge()]);
+
+    expect(html).toContain("Desafío de vuelta");
+    expect(html).toContain("Volvé antes del 27 de setiembre");
+    expect(html).toContain("+1 sello extra");
+  });
+
+  it("ofrece ir a la tarjeta del negocio", () => {
+    const html = render([returnChallenge()]);
+
+    expect(html).toContain('href="/mi-flikker/b-1"');
+    expect(html).toContain("Ver mi tarjeta");
+  });
+
+  it("no muestra progreso: es binario, volvió o no volvió", () => {
+    const html = render([returnChallenge()]);
+
+    expect(html).not.toMatch(/\d+ de \d+ visitas/);
+    expect(html).not.toContain("bg-[#E2E4EF]");
+  });
+
+  it("no usa vocabulario interno", () => {
+    const html = render([returnChallenge()]);
+
+    for (const palabra of [
+      "return_challenge",
+      "ACTIVE",
+      "CANCELLED",
+      "EXPIRED",
+      "rewardGoal",
+    ]) {
+      expect(html).not.toContain(palabra);
+    }
+  });
+
+  it("EXPIRED y CANCELLED no llegan a la pantalla", () => {
+    // El backend solo manda ACTIVE sin vencer: la lista vacía es el estado
+    // vacío normal, no una tarjeta gris de "se te venció".
+    const html = render([]);
+
+    expect(html).not.toContain("Desafío de vuelta");
+    expect(html).toContain("Todavía no tenés desafíos");
+  });
+
+  it("convive con misión y racha en la misma lista", () => {
+    const html = render([returnChallenge(), challenge(), streak()]);
+
+    expect(html).toContain("Desafío de vuelta");
+    expect(html).toContain("Vení 3 veces este mes");
+    expect(html).toContain("Racha actual");
+  });
+
+  it("el desafío de vuelta se renderiza primero", () => {
+    // El orden lo decide el backend, pero la pantalla tiene que respetarlo.
+    const html = render([returnChallenge(), challenge(), streak()]);
+
+    expect(html.indexOf("Desafío de vuelta")).toBeLessThan(
+      html.indexOf("Vení 3 veces este mes"),
+    );
+    expect(html.indexOf("Vení 3 veces este mes")).toBeLessThan(
+      html.indexOf("Racha actual"),
+    );
   });
 });

@@ -69,6 +69,7 @@ async function captureV2Where(): Promise<Record<string, unknown>> {
     {} as never,
     {} as never,
     {} as never,
+    {} as never,
   );
 
   await service.runDaily(new Date('2026-09-02T15:00:00.000Z'));

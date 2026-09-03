@@ -65,6 +65,18 @@ interface PersonalSpace {
    * que `rewardGoal`: un negocio sin misiones manda una lista vacía.
    */
   missions?: MissionView[];
+  /**
+   * True SOLO cuando la visita que se acaba de registrar completó un desafío
+   * de vuelta. Optional defensivamente, mismo criterio que el resto.
+   */
+  returnChallengeCompleted?: boolean;
+  /**
+   * True SOLO cuando el sello del desafío realmente sumó progreso. Puede ser
+   * `false` con `returnChallengeCompleted: true`: la visita normal, sola, ya
+   * alcanzaba el target de la tarjeta, y el sello del desafío quedó como
+   * excedente. El copy no debe prometer "+1 sello extra" en ese caso.
+   */
+  returnChallengeBonusApplied?: boolean;
 }
 
 interface MissionView {
@@ -1132,6 +1144,12 @@ function PersonalScreen({
             </span>
           </div>
 
+          {personal.returnChallengeCompleted ? (
+            <ReturnChallengeDone
+              bonusApplied={Boolean(personal.returnChallengeBonusApplied)}
+            />
+          ) : null}
+
           <RewardGoalCard
             rewardGoal={personal.rewardGoal}
             brand={brand}
@@ -1273,6 +1291,46 @@ export function BenefitRewardCard({
           Ya estás participando. ¡Mucha suerte!
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * El aviso de que ESTA visita completó un desafío de vuelta.
+ *
+ * Chico y arriba de la tarjeta, para que lo siguiente que se lea sea el
+ * progreso REAL ya actualizado — con el sello normal y el bonus ya contados.
+ * No es un modal ni tiene confeti: la persona está parada en el local con el
+ * teléfono en la mano.
+ *
+ * Dice "sello extra", nunca "dos visitas". La visita fue una sola; el sello
+ * normal y el bonus son dos premios de esa misma visita, y presentarlos como
+ * dos visitas sería mentir sobre lo que pasó.
+ *
+ * `bonusApplied` es lo que decide la segunda línea. El desafío SIEMPRE se
+ * completó (volvió a tiempo, eso es un hecho), pero el sello puede haber
+ * quedado como excedente si la visita normal, sola, ya alcanzaba el target de
+ * la tarjeta — en ese caso no se promete "+1 sello extra" por algo que no
+ * avanzó nada.
+ */
+function ReturnChallengeDone({ bonusApplied }: { bonusApplied: boolean }) {
+  return (
+    <div className="checkin-enter flex w-full items-start gap-2.5 rounded-[18px] bg-white/95 px-4 py-3 shadow-[0_6px_18px_rgba(12,16,30,0.10)]">
+      <span className="text-base leading-none" aria-hidden="true">
+        {bonusApplied ? "✓" : "🎉"}
+      </span>
+      <span className="flex flex-col gap-0.5">
+        <span className="text-sm font-bold text-[#171A2B]">
+          {bonusApplied
+            ? "Volviste a tiempo"
+            : "¡Completaste tu desafío de vuelta!"}
+        </span>
+        {bonusApplied ? (
+          <span className="text-xs text-[#5B6076]">
+            Ganaste +1 sello extra por tu desafío.
+          </span>
+        ) : null}
+      </span>
     </div>
   );
 }
