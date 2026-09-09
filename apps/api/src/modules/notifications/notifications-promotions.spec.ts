@@ -4,7 +4,7 @@ import type { CustomerLoyaltyService } from '../customers/loyalty/customer-loyal
 import type { CampaignsService } from '../campaigns/campaigns.service';
 import type { BenefitsService } from '../benefits/benefits.service';
 import type { PrismaService } from '../../prisma/prisma.service';
-import type { VisitSourcesService } from '../visit-sources/visit-sources.service';
+import type { CustomerPublicUrlService } from '../public/customer-public-url.service';
 import type { PlansService } from '../plans/plans.service';
 import type { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 
@@ -98,13 +98,10 @@ function makeDeps(
         : Promise.resolve(undefined),
     ),
   };
-  const visitSources = {
-    ensureDefaultSource: jest
+  const publicUrls = {
+    checkinUrlByBusinessId: jest
       .fn()
-      .mockResolvedValue({ token: 'tok-principal' }),
-    buildCheckinUrl: jest.fn(
-      (token: string) => `https://flikker.site/check-in/${token}`,
-    ),
+      .mockResolvedValue('https://flikker.site/check-in/tok-principal'),
   };
   // Default "nunca bloqueado" — el gate de trial de Beneficios tiene su
   // propio describe block más abajo.
@@ -118,7 +115,7 @@ function makeDeps(
     loyalty,
     campaigns,
     benefits,
-    visitSources,
+    publicUrls,
     plans,
     lifecycleEmails,
   };
@@ -130,7 +127,7 @@ const service = (d: ReturnType<typeof makeDeps>) =>
     d.loyalty as unknown as CustomerLoyaltyService,
     d.campaigns as unknown as CampaignsService,
     d.benefits as unknown as BenefitsService,
-    d.visitSources as unknown as VisitSourcesService,
+    d.publicUrls as unknown as CustomerPublicUrlService,
     d.plans as unknown as PlansService,
     d.lifecycleEmails as unknown as LifecycleEmailsService,
   );
@@ -491,8 +488,11 @@ describe('Promociones — beneficio', () => {
     expect(deps.benefits.issueBenefit).not.toHaveBeenCalled();
     expect(deps.benefits.registerParticipation).toHaveBeenCalledTimes(3);
     expect(deps.campaigns.sendManual).toHaveBeenCalled();
-    // `ensureDefaultSource` es idempotente: reusa el que ya existe.
-    expect(deps.visitSources.ensureDefaultSource).toHaveBeenCalledWith('biz-1');
+    // `CustomerPublicUrlService` decide V2 vs LEGACY — acá solo se confirma
+    // que el link genérico del negocio se pide y se usa.
+    expect(deps.publicUrls.checkinUrlByBusinessId).toHaveBeenCalledWith(
+      'biz-1',
+    );
     const body = (
       deps.campaigns.sendManual.mock.calls[0][2] as { messageBody: string }
     ).messageBody;

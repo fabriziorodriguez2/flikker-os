@@ -46,7 +46,13 @@ function makeDeps(
       .fn()
       .mockResolvedValue(options.claimResult ?? 'confirmed'),
   };
-  return { prisma, lifecycleEmails, retentionSettings, cooldown };
+  const publicUrls = {
+    benefitIssuanceUrl: jest.fn(
+      (participationId: string) =>
+        `https://flikker.site/beneficio/${participationId}`,
+    ),
+  };
+  return { prisma, lifecycleEmails, retentionSettings, cooldown, publicUrls };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
@@ -55,6 +61,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.lifecycleEmails as never,
     deps.retentionSettings as never,
     deps.cooldown as never,
+    deps.publicUrls as never,
   );
 }
 

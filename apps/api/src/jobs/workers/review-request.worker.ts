@@ -18,6 +18,7 @@ import {
 } from '../review-request.queue';
 import { WhatsAppBspService } from '../whatsapp-bsp.service';
 import { WHATSAPP_MIN_SEND_INTERVAL_MS } from '../whatsapp-provider';
+import { CustomerPublicUrlService } from '../../modules/public/customer-public-url.service';
 
 @Injectable()
 export class ReviewRequestWorker implements OnModuleInit, OnModuleDestroy {
@@ -29,6 +30,7 @@ export class ReviewRequestWorker implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly whatsAppBspService: WhatsAppBspService,
     private readonly feedbackRepository: FeedbackRepository,
+    private readonly publicUrls: CustomerPublicUrlService,
     @Optional() private readonly reviewRequestQueue?: ReviewRequestQueue,
   ) {}
 
@@ -166,7 +168,7 @@ export class ReviewRequestWorker implements OnModuleInit, OnModuleDestroy {
         phone: message.customer.phoneE164,
         customerName: message.customer.name,
         clinicName: message.business.name,
-        trackingUrl: this.buildTrackingUrl(message.trackingToken),
+        trackingUrl: this.publicUrls.feedbackUrl(message.trackingToken),
       });
 
       await this.prisma.$transaction([
@@ -207,11 +209,6 @@ export class ReviewRequestWorker implements OnModuleInit, OnModuleDestroy {
       where: { id: messageId },
       data: { status: MessageStatus.skipped },
     });
-  }
-
-  private buildTrackingUrl(trackingToken: string) {
-    const baseUrl = process.env.APP_PUBLIC_URL ?? 'https://app.flikker.com';
-    return `${baseUrl.replace(/\/$/, '')}/r/${trackingToken}`;
   }
 
   private reportToSentry(message: string, error: unknown) {

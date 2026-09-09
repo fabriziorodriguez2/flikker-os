@@ -34,6 +34,7 @@ import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.q
 import { PrismaService } from '../../prisma/prisma.service';
 import { DEMO_BUSINESS_NAME, DEMO_BUSINESS_SLUG } from '../../config/demo';
 import { PlansService } from '../plans/plans.service';
+import { CustomerPublicUrlService } from '../public/customer-public-url.service';
 
 const BCRYPT_ROUNDS = 12;
 const BUSINESS_VERTICALS = new Set([
@@ -69,6 +70,7 @@ export class PlatformService {
     private readonly googleReviewDetectionQueue: GoogleReviewDetectionQueue,
     private readonly prisma: PrismaService,
     private readonly plansService: PlansService,
+    private readonly publicUrls: CustomerPublicUrlService,
   ) {}
 
   async listBusinesses() {
@@ -525,11 +527,7 @@ export class PlatformService {
       throw new BadRequestException('name is required');
     }
     const trackingToken = randomBytes(8).toString('base64url');
-    const appPublicUrl =
-      process.env.APP_PUBLIC_URL ??
-      process.env.WEB_BASE_URL ??
-      'https://app.flikker.com';
-    const trackingUrl = `${appPublicUrl.replace(/\/$/, '')}/r/${trackingToken}`;
+    const trackingUrl = this.publicUrls.feedbackUrl(trackingToken);
     const { customer, message } =
       await this.repository.createOnboardingTestMessage({
         businessId,

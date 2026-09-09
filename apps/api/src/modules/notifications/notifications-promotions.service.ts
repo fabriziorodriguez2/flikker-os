@@ -7,7 +7,7 @@ import {
   CustomerLoyaltyService,
   type LoyaltyFilter,
 } from '../customers/loyalty/customer-loyalty.service';
-import { VisitSourcesService } from '../visit-sources/visit-sources.service';
+import { CustomerPublicUrlService } from '../public/customer-public-url.service';
 import { PlansService } from '../plans/plans.service';
 import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 import { promotionEmail } from '../../jobs/email-templates';
@@ -55,7 +55,7 @@ export class NotificationsPromotionsService {
     private readonly loyalty: CustomerLoyaltyService,
     private readonly campaigns: CampaignsService,
     private readonly benefits: BenefitsService,
-    private readonly visitSources: VisitSourcesService,
+    private readonly publicUrls: CustomerPublicUrlService,
     private readonly plans: PlansService,
     private readonly lifecycleEmails: LifecycleEmailsService,
   ) {}
@@ -303,10 +303,14 @@ export class NotificationsPromotionsService {
    * Es el MISMO destino que el QR del mostrador: un punto de acceso, un
    * token, un destino. Solo se usa como fallback para Benefits de
    * sorteo/ninguno, que no tienen una pantalla de emisión propia.
+   *
+   * `CustomerPublicUrlService` decide V2 (`/check-in/{token}`) vs LEGACY
+   * (`/qr/{businessId}`) — antes esto mandaba siempre `/check-in/`, un link
+   * que un negocio LEGACY no puede abrir (`CheckinService.resolveSource` lo
+   * rechaza con 404).
    */
-  private async checkinLink(businessId: string): Promise<string | null> {
-    const source = await this.visitSources.ensureDefaultSource(businessId);
-    return source ? this.visitSources.buildCheckinUrl(source.token) : null;
+  private checkinLink(businessId: string): Promise<string | null> {
+    return this.publicUrls.checkinUrlByBusinessId(businessId);
   }
 
   /**

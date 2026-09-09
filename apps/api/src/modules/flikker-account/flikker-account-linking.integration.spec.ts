@@ -17,6 +17,12 @@ import { EmailService } from '../../jobs/email.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { BenefitsService } from '../benefits/benefits.service';
 import { PublicMessagingService } from '../public/public-messaging.service';
+import { CustomerPublicUrlService } from '../public/customer-public-url.service';
+import { VisitSourcesService } from '../visit-sources/visit-sources.service';
+import { VisitSourcesRepository } from '../visit-sources/visit-sources.repository';
+import { MissionProgressService } from '../missions/mission-progress.service';
+import { StreakService } from '../streaks/streak.service';
+import { ReturnChallengeService } from '../return-challenges/return-challenge.service';
 import { FlikkerAccountService } from './flikker-account.service';
 import { FlikkerAccountVerificationsRepository } from './flikker-account-verifications.repository';
 import { FlikkerAccountSessionsRepository } from './flikker-account-sessions.repository';
@@ -66,6 +72,13 @@ describe('FlikkerAccount — check-in con goal ACTIVE, luego OTP en Mi Flikker (
         FlikkerAccountSessionsRepository,
         FlikkerAccountService,
         MyFlikkerService,
+        CustomerPublicUrlService,
+        VisitSourcesService,
+        VisitSourcesRepository,
+        // Rachas y desafíos de vuelta solo necesitan `PrismaService` (ya
+        // arriba) — reales, sin nada que fakear.
+        StreakService,
+        ReturnChallengeService,
         // Tangenciales a lo que prueba este archivo (progreso de sellos +
         // linkeo de cuenta) — se fakean para no arrastrar todo su propio
         // árbol de dependencias.
@@ -74,6 +87,10 @@ describe('FlikkerAccount — check-in con goal ACTIVE, luego OTP en Mi Flikker (
           useValue: {
             getOtherAvailableBenefits: jest.fn().mockResolvedValue([]),
           },
+        },
+        {
+          provide: MissionProgressService,
+          useValue: { currentView: jest.fn().mockResolvedValue([]) },
         },
         {
           provide: PublicMessagingService,

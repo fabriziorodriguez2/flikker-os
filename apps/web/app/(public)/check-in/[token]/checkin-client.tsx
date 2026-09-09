@@ -9,10 +9,10 @@ import {
   Footprints,
   Gift,
   Loader2,
-  LockKeyhole,
   PartyPopper,
   Sparkles,
   Ticket,
+  type LucideIcon,
 } from "lucide-react";
 import PoweredByFlikker from "@/components/ui/powered-by-flikker";
 import { normalizeUruguayNationalPhone } from "@/components/ui/phone-input";
@@ -21,7 +21,9 @@ import { useImagePalette } from "@/lib/use-logo-palette";
 import { buildPublicExperienceTheme } from "@/lib/public-experience-theme";
 import LoyaltyCard from "@/components/public/loyalty-card";
 import CheckinFeedbackCard from "@/components/public/checkin-feedback-card";
-import RedemptionReveal from "@/components/public/redemption-reveal";
+import BenefitCard from "@/components/public/benefit-card";
+import SlideToReveal from "@/components/public/slide-to-reveal";
+import ChallengeRow from "@/components/public/challenge-row";
 import type { CheckinLanding, PublicBenefit } from "./page";
 
 // ── Types shared with the API responses ──────────────────────────────────────
@@ -889,158 +891,13 @@ function RecoverScreen({
 
 // ── Personal space ───────────────────────────────────────────────────────────
 
-function BenefitIcon({ type }: { type: string }) {
-  const iconClass = "h-5 w-5";
-
-  if (type === "discount") {
-    return <BadgePercent className={iconClass} aria-hidden="true" />;
-  }
-  if (type === "gift") {
-    return <Gift className={iconClass} aria-hidden="true" />;
-  }
-  if (type === "raffle") {
-    return <Ticket className={iconClass} aria-hidden="true" />;
-  }
-  if (type === "promotion") {
-    return <Sparkles className={iconClass} aria-hidden="true" />;
-  }
-  return <PartyPopper className={iconClass} aria-hidden="true" />;
-}
-
-function SlideToReveal({
-  code,
-  brand,
-  onReveal,
-}: {
-  code: string;
-  brand: string;
-  onReveal: () => void;
-}) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const dragRef = useRef(0);
-  const pointerStartRef = useRef<{ pointerX: number; dragX: number } | null>(
-    null,
-  );
-  const [dragX, setDragX] = useState(0);
-  const [dragging, setDragging] = useState(false);
-  const [breaking, setBreaking] = useState(false);
-  const [revealed, setRevealed] = useState(false);
-  const revealTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (revealTimerRef.current) clearTimeout(revealTimerRef.current);
-    };
-  }, []);
-
-  function maxDrag() {
-    return Math.max(0, (trackRef.current?.clientWidth ?? 0) - 60);
-  }
-
-  function moveTo(next: number) {
-    const value = Math.min(maxDrag(), Math.max(0, next));
-    dragRef.current = value;
-    setDragX(value);
-  }
-
-  function reveal() {
-    if (revealed || breaking) return;
-    moveTo(maxDrag());
-    setBreaking(true);
-    onReveal();
-    revealTimerRef.current = setTimeout(() => {
-      setRevealed(true);
-      setBreaking(false);
-    }, 620);
-  }
-
-  function finishDrag() {
-    const max = maxDrag();
-    pointerStartRef.current = null;
-    setDragging(false);
-    if (max > 0 && dragRef.current >= max * 0.76) {
-      reveal();
-    } else {
-      moveTo(0);
-    }
-  }
-
-  if (revealed) {
-    return (
-      <div className="text-[color:var(--pub-text)]">
-        <RedemptionReveal code={code} redeemPath={`/redeem/${code}`} />
-      </div>
-    );
-  }
-
-  if (breaking) {
-    return (
-      <div className="checkin-seal-break relative h-[60px] overflow-visible rounded-full">
-        <div className="checkin-seal-piece checkin-seal-piece-left absolute inset-y-0 left-0 w-[52%] rounded-l-full border border-[color:var(--pub-surface-border)] bg-black/12 backdrop-blur-sm" />
-        <div className="checkin-seal-piece checkin-seal-piece-right absolute inset-y-0 right-0 w-[52%] rounded-r-full border border-[color:var(--pub-surface-border)] bg-black/12 backdrop-blur-sm" />
-        <div className="checkin-seal-burst absolute inset-0 z-10 flex items-center justify-center gap-2 text-[color:var(--pub-text)]">
-          <Sparkles className="h-4 w-4" aria-hidden="true" />
-          <span className="text-xs font-bold">¡Listo!</span>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      ref={trackRef}
-      className="relative h-[60px] touch-none select-none overflow-hidden rounded-full border border-[color:var(--pub-surface-border)] bg-black/12 p-1 shadow-inner"
-    >
-      <div
-        aria-hidden="true"
-        className="absolute bottom-1 left-1 top-1 rounded-full bg-[color:var(--pub-surface)] transition-[width] duration-75"
-        style={{ width: Math.max(52, dragX + 52) }}
-      />
-      <div className="pointer-events-none absolute inset-0 flex items-center justify-center pl-10 pr-3">
-        <span
-          className={`text-xs font-bold text-[color:var(--pub-text)] transition-opacity duration-200 ${
-            dragX > 52 ? "opacity-40" : "opacity-90"
-          }`}
-        >
-          Deslizá para reclamar
-        </span>
-      </div>
-      <button
-        type="button"
-        aria-label="Deslizá hacia la derecha para revelar el código del beneficio"
-        onPointerDown={(event) => {
-          event.currentTarget.setPointerCapture(event.pointerId);
-          pointerStartRef.current = {
-            pointerX: event.clientX,
-            dragX: dragRef.current,
-          };
-          setDragging(true);
-        }}
-        onPointerMove={(event) => {
-          const start = pointerStartRef.current;
-          if (!start) return;
-          moveTo(start.dragX + event.clientX - start.pointerX);
-        }}
-        onPointerUp={finishDrag}
-        onPointerCancel={finishDrag}
-        onKeyDown={(event) => {
-          if (event.key === "Enter" || event.key === " ") {
-            event.preventDefault();
-            reveal();
-          }
-        }}
-        className={`absolute left-1 top-1/2 z-10 flex h-[52px] w-[52px] items-center justify-center rounded-full border-[3px] border-white bg-white shadow-[0_6px_18px_rgba(31,35,58,0.22)] outline outline-1 outline-white/35 outline-offset-2 focus-visible:ring-2 focus-visible:ring-white/80 ${
-          dragging ? "" : "transition-transform duration-300 ease-out"
-        }`}
-        style={{
-          transform: `translate3d(${dragX}px, -50%, 0)`,
-          color: brand,
-        }}
-      >
-        <LockKeyhole className="h-5 w-5" aria-hidden="true" />
-      </button>
-    </div>
-  );
+/** El icono del tipo de beneficio, para pasárselo a `BenefitCard`. */
+function benefitIconFor(type: string): LucideIcon {
+  if (type === "discount") return BadgePercent;
+  if (type === "gift") return Gift;
+  if (type === "raffle") return Ticket;
+  if (type === "promotion") return Sparkles;
+  return PartyPopper;
 }
 
 function PersonalScreen({
@@ -1105,6 +962,37 @@ function PersonalScreen({
   const firstName =
     personal.customer.name.split(" ")[0] || personal.customer.name;
 
+  const isDuplicate = checkinStatus === "duplicate";
+
+  /**
+   * El estado de la tarjeta, leído una sola vez. Los tres bloques que
+   * dependen de él (premio desbloqueado, tarjeta activa, misiones) preguntan
+   * por estas dos constantes en vez de repetir el `?.` cada uno.
+   *
+   * Son mutuamente excluyentes por construcción del backend: un ciclo que
+   * acaba de desbloquearse ya no está ACTIVE, así que nunca hay tarjeta en
+   * progreso y premio recién desbloqueado a la vez.
+   */
+  const unlockedReward =
+    personal.rewardGoal?.unlockedNow && personal.rewardGoal.benefit
+      ? personal.rewardGoal.benefit
+      : null;
+  const activeGoal = personal.rewardGoal?.goal ?? null;
+
+  /**
+   * ¿Este beneficio es el mismo que ya se está mostrando como premio recién
+   * desbloqueado? Se compara por código de canje, que es lo único que
+   * identifica una emisión concreta — dos beneficios distintos pueden
+   * llamarse igual.
+   */
+  function isUnlockedRewardBenefit(benefit: PersonalBenefit): boolean {
+    return Boolean(
+      unlockedReward &&
+        benefit.redemption &&
+        benefit.redemption.code === unlockedReward.code,
+    );
+  }
+
   return (
     <Shell
       landing={landing}
@@ -1113,50 +1001,58 @@ function PersonalScreen({
       compact
     >
       <div className="flex w-full max-w-md flex-col items-center">
+        {/*
+          ── 1. Qué pasó con ESTA visita ─────────────────────────────────────
+          Una sola cabecera para los dos estados. En `duplicate` el mensaje
+          que manda es que la visita ya estaba contada: va en el título, no en
+          una pastilla debajo del saludo, porque es la única pregunta que la
+          persona tiene parada frente al mostrador. Y no es un error: mismo
+          tono, mismos colores, sin rojo ni ícono de alerta.
+        */}
         <div className="checkin-success-pop mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--pub-surface)] text-[color:var(--pub-text)]">
-          <CheckCircle2 className="h-5 w-5" />
+          {isDuplicate ? (
+            <Check className="h-5 w-5 stroke-[2.5]" aria-hidden="true" />
+          ) : (
+            <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
+          )}
         </div>
-        <h1 className="checkin-enter text-center text-2xl font-bold tracking-[-0.035em] text-[color:var(--pub-text)]">
-          ¡Hola, {firstName}! <span aria-hidden="true">👋</span>
+        <h1 className="checkin-enter text-balance text-center text-2xl font-bold tracking-[-0.035em] text-[color:var(--pub-text)]">
+          {isDuplicate ? "Tu visita de hoy ya está contada" : `¡Hola, ${firstName}!`}
         </h1>
-        <p className="checkin-enter mt-2 flex items-center gap-1.5 rounded-full bg-[color:var(--pub-surface)] px-3 py-1.5 text-center text-xs font-semibold text-[color:var(--pub-text-muted)]">
-          <Check className="h-3.5 w-3.5 stroke-[2.5]" aria-hidden="true" />
-          {checkinStatus === "duplicate"
-            ? "Tu visita de hoy ya estaba guardada"
-            : "¡Tu visita quedó guardada!"}
+        <p className="checkin-enter mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-sm text-[color:var(--pub-text-muted)]">
+          <span className="font-semibold">
+            {isDuplicate ? `Hola, ${firstName}` : "Tu visita quedó guardada"}
+          </span>
+          <span aria-hidden="true" className="opacity-50">
+            ·
+          </span>
+          <span className="inline-flex items-center gap-1.5">
+            <Footprints className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {personal.visits.total}{" "}
+            {personal.visits.total === 1 ? "visita" : "visitas"}
+          </span>
         </p>
 
-        <div className="mt-4 grid w-full grid-cols-1 gap-3">
+        <div className="mt-5 grid w-full grid-cols-1 gap-3">
           {/*
-            Un dato de contexto, no una tarjeta: sin fondo, sin borde y sin
-            sombra a propósito, para que la jerarquía quede clara — la tarjeta
-            de sellos de abajo es el elemento principal de la pantalla. El
-            color sale de `--pub-text-muted`, la misma variable que el resto
-            de los textos secundarios de la experiencia pública, así el
-            contraste sigue siendo correcto sobre cualquier fondo que el
-            negocio haya elegido.
+            ── 2. El premio, cuando acaba de desbloquearse ───────────────────
+            Pasa a ser el elemento principal de la pantalla. NO se dibuja una
+            tarjeta nueva 0/N debajo: el ciclo siguiente todavía no existe
+            (ACTIVE → UNLOCKED → REDEEMED → próxima Visit → nueva ACTIVE), y
+            mostrarlo sería prometer un progreso que el backend no tiene.
           */}
-          <div className="checkin-enter flex w-full items-center justify-center gap-1.5 text-[color:var(--pub-text-muted)]">
-            <Footprints className="h-4 w-4 shrink-0" aria-hidden="true" />
-            <span className="text-sm font-semibold">
-              {personal.visits.total}{" "}
-              {personal.visits.total === 1 ? "visita" : "visitas"}
-            </span>
-          </div>
-
-          {personal.returnChallengeCompleted ? (
-            <ReturnChallengeDone
-              bonusApplied={Boolean(personal.returnChallengeBonusApplied)}
+          {unlockedReward ? (
+            <RewardUnlockedHero
+              reward={unlockedReward}
+              brand={brand}
+              onReveal={onBenefitReveal}
             />
           ) : null}
 
-          <RewardGoalCard
-            rewardGoal={personal.rewardGoal}
-            brand={brand}
-            landing={landing}
-          />
-
-          {personal.benefit && (
+          {/* Beneficios que ya puede usar hoy (bienvenida, promo,
+              reactivación). Se omite el que ya viene mostrado arriba como
+              premio recién desbloqueado — es la misma emisión. */}
+          {personal.benefit && !isUnlockedRewardBenefit(personal.benefit) && (
             <BenefitRewardCard
               benefit={personal.benefit}
               brand={brand}
@@ -1173,32 +1069,114 @@ function PersonalScreen({
             />
           ))}
 
+          {/*
+            ── 3. La tarjeta activa ──────────────────────────────────────────
+            El mismo `LoyaltyCard` de siempre, con la configuración real del
+            negocio. En `duplicate` se muestra igual pero atenuada y con una
+            línea que aclara que hoy no cambió: el progreso no es la noticia.
+          */}
+          {activeGoal ? (
+            <div className={isDuplicate ? "opacity-90" : undefined}>
+              <LoyaltyCard
+                rewardName={activeGoal.incentiveName}
+                progress={activeGoal.progressVisits}
+                target={activeGoal.targetAdditionalVisits}
+                bonusStamps={activeGoal.bonusStamps ?? 0}
+                appearance={{
+                  cardColor: landing.business.loyaltyCardColor ?? brand,
+                  textColor: landing.business.loyaltyCardTextColor,
+                  backgroundImage: landing.business.loyaltyCardBackgroundImage,
+                  stampAreaColor: landing.business.loyaltyStampAreaColor,
+                  stampColor: landing.business.loyaltyStampColor,
+                  stampIcon: landing.business.loyaltyStampIcon,
+                  logoUrl: landing.business.logoUrl,
+                  businessName: landing.business.businessName,
+                  showBusinessName: landing.business.loyaltyShowBusinessName,
+                  stampBackgroundPattern:
+                    landing.business.loyaltyStampBackgroundPattern,
+                  stampBackgroundOpacity:
+                    landing.business.loyaltyStampBackgroundOpacity,
+                }}
+              />
+              {isDuplicate ? (
+                <p className="mt-2 text-center text-xs text-[color:var(--pub-text-muted)]">
+                  Tu tarjeta no cambió con esta visita.
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+
+          {/*
+            ── 4. Desafíos ───────────────────────────────────────────────────
+            Solo los que existen de verdad. Primero el desafío de vuelta que
+            ESTA visita completó (es un hecho recién ocurrido), después las
+            misiones vivas. Van DESPUÉS de la tarjeta: el progreso real se lee
+            primero y el aviso del sello extra lo explica a continuación.
+          */}
+          {personal.returnChallengeCompleted ? (
+            <ChallengeRow
+              kind="return_challenge"
+              variant="card"
+              status="completed"
+              title={
+                personal.returnChallengeBonusApplied
+                  ? "Volviste a tiempo"
+                  : "¡Completaste tu desafío de vuelta!"
+              }
+              // El sello solo se promete cuando REALMENTE sumó progreso: la
+              // visita normal, sola, puede haber alcanzado el target y dejado
+              // el bonus como excedente.
+              subtitle={
+                personal.returnChallengeBonusApplied
+                  ? "Ganaste +1 sello extra por tu desafío."
+                  : null
+              }
+            />
+          ) : null}
+
           {(personal.missions ?? []).map((mission) => (
-            <MissionCard
+            <ChallengeRow
               key={mission.missionId}
-              mission={mission}
+              kind="mission"
+              variant="card"
+              title={mission.name}
+              progress={mission.progress}
+              subtitle={
+                mission.progress.complete
+                  ? "¡Completaste el desafío!"
+                  : `${mission.progress.current} de ${mission.progress.target} visitas`
+              }
+              status={mission.progress.complete ? "completed" : "active"}
+              reward={missionReward(mission)}
               // Solo cuando además hay tarjeta de sellos: sin ella la frase no
               // tendría a qué referirse con "también".
-              hasStampCard={Boolean(personal.rewardGoal?.goal)}
+              footnote={
+                activeGoal
+                  ? "Tus visitas también cuentan para este desafío"
+                  : null
+              }
             />
           ))}
         </div>
 
+        {/* ── 5. Feedback ─────────────────────────────────────────────────── */}
         {showReview && (
-          <div className="mt-5 w-full">
+          <div className="mt-4 w-full">
             <CheckinFeedbackCard
-              hasActiveGoal={Boolean(personal.rewardGoal?.goal)}
-              brand={brand}
-              accentBg={palette.accent}
-              accentText={palette.accentText}
+              hasActiveGoal={Boolean(activeGoal)}
               onReviewLinkClicked={onReviewLinkClicked}
             />
           </div>
         )}
 
+        {/* ── 6. Navegación secundaria ───────────────────────────────────── */}
         <Link
           href="/mi-flikker"
-          className="checkin-enter-delay mt-3 inline-flex w-full items-center justify-center gap-2 rounded-[14px] bg-white py-3 text-sm font-semibold text-[#24283A] shadow-[0_8px_18px_rgba(12,16,30,0.12)] transition-colors hover:bg-white/90"
+          className="checkin-enter-delay mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[14px] py-3 text-sm font-bold"
+          style={{
+            backgroundColor: "var(--pub-accent)",
+            color: "var(--pub-on-accent)",
+          }}
         >
           Mis lugares y premios
         </Link>
@@ -1232,269 +1210,112 @@ export function BenefitRewardCard({
   onReveal?: () => void;
 }) {
   return (
-    <div
-      className="checkin-enter-delay relative overflow-hidden rounded-[24px] border border-[color:var(--pub-surface-border)] bg-black/20 p-5 text-left text-[color:var(--pub-text)] shadow-[0_10px_24px_rgba(12,16,30,0.16)]"
-      style={{
-        backgroundColor: "rgba(14, 17, 29, 0.24)",
-      }}
-    >
-      <div className="relative flex items-start gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[color:var(--pub-surface-border)] bg-[color:var(--pub-surface)] backdrop-blur-sm">
-          <BenefitIcon type={benefit.type} />
-        </span>
-        <div className="min-w-0 pt-0.5">
-          {/* "Beneficio disponible", no "Un regalo para vos": esta card
-              vive SIEMPRE separada de la tarjeta de sellos (ver
-              PersonalScreen, es otro <div> del grid) — pero el rótulo
-              tiene que dejarlo inequívoco incluso si algún negocio elige
-              colores donde ambas cards se parecen. Nunca es "el premio de
-              la tarjeta de sellos": es cualquier otro beneficio disponible
-              (bienvenida, reactivación, promo). */}
-          <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[color:var(--pub-text-muted)]">
-            Beneficio disponible
-          </p>
-          <p className="mt-1 text-lg font-bold leading-tight text-[color:var(--pub-text)]">
-            {benefit.title}
-          </p>
-        </div>
-      </div>
-      {benefit.description && (
-        <p className="relative mt-3 text-sm leading-5 text-[color:var(--pub-text-muted)]">
-          {benefit.description}
-        </p>
-      )}
-      {benefit.terms && (
-        <p className="relative mt-2 text-[11px] leading-relaxed text-[color:var(--pub-text-soft)]">
-          <span className="font-bold text-[color:var(--pub-text-muted)]">Condiciones:</span>{" "}
-          {benefit.terms}
-        </p>
-      )}
-
-      {benefit.redemption &&
-        (benefit.redemption.redeemed ? (
-          <div className="relative mt-4 flex items-center gap-2 rounded-[15px] border border-[color:var(--pub-surface-border)] bg-[color:var(--pub-surface)] px-3.5 py-3 text-xs font-bold text-[color:var(--pub-text-muted)]">
-            <CheckCircle2 className="h-4 w-4" /> Ya disfrutaste este beneficio
-          </div>
-        ) : (
-          <div className="relative mt-5">
-            <SlideToReveal
-              code={benefit.redemption.code}
-              brand={brand}
-              onReveal={onReveal ?? (() => undefined)}
-            />
-          </div>
-        ))}
-
-      {!benefit.redemption && benefit.type === "raffle" && (
-        <div className="relative mt-4 flex items-center gap-2 rounded-[15px] border border-[color:var(--pub-surface-border)] bg-[color:var(--pub-surface)] px-3.5 py-3 text-xs font-bold text-[color:var(--pub-text-muted)]">
-          <Ticket className="h-4 w-4" aria-hidden="true" />
-          Ya estás participando. ¡Mucha suerte!
-        </div>
-      )}
+    <div className="checkin-enter-delay">
+      <BenefitCard
+        title={benefit.title}
+        description={benefit.description}
+        terms={benefit.terms}
+        icon={benefitIconFor(benefit.type)}
+        code={benefit.redemption?.code ?? null}
+        redeemed={benefit.redemption?.redeemed ?? false}
+        reveal="slide"
+        brand={brand}
+        onReveal={onReveal}
+        footer={
+          !benefit.redemption && benefit.type === "raffle"
+            ? "Ya estás participando. ¡Mucha suerte!"
+            : undefined
+        }
+      />
     </div>
   );
 }
 
 /**
- * El aviso de que ESTA visita completó un desafío de vuelta.
+ * El premio de una misión, traducido a la forma que espera `ChallengeRow`.
  *
- * Chico y arriba de la tarjeta, para que lo siguiente que se lea sea el
- * progreso REAL ya actualizado — con el sello normal y el bonus ya contados.
- * No es un modal ni tiene confeti: la persona está parada en el local con el
- * teléfono en la mano.
- *
- * Dice "sello extra", nunca "dos visitas". La visita fue una sola; el sello
- * normal y el bonus son dos premios de esa misma visita, y presentarlos como
- * dos visitas sería mentir sobre lo que pasó.
- *
- * `bonusApplied` es lo que decide la segunda línea. El desafío SIEMPRE se
- * completó (volvió a tiempo, eso es un hecho), pero el sello puede haber
- * quedado como excedente si la visita normal, sola, ya alcanzaba el target de
- * la tarjeta — en ese caso no se promete "+1 sello extra" por algo que no
- * avanzó nada.
+ * `rewardHidden` es una decisión del negocio: el premio existe pero no se
+ * nombra hasta completar la misión. Sin premio configurado no se inventa
+ * ninguna fila.
  */
-function ReturnChallengeDone({ bonusApplied }: { bonusApplied: boolean }) {
-  return (
-    <div className="checkin-enter flex w-full items-start gap-2.5 rounded-[18px] bg-white/95 px-4 py-3 shadow-[0_6px_18px_rgba(12,16,30,0.10)]">
-      <span className="text-base leading-none" aria-hidden="true">
-        {bonusApplied ? "✓" : "🎉"}
-      </span>
-      <span className="flex flex-col gap-0.5">
-        <span className="text-sm font-bold text-[#171A2B]">
-          {bonusApplied
-            ? "Volviste a tiempo"
-            : "¡Completaste tu desafío de vuelta!"}
-        </span>
-        {bonusApplied ? (
-          <span className="text-xs text-[#5B6076]">
-            Ganaste +1 sello extra por tu desafío.
-          </span>
-        ) : null}
-      </span>
-    </div>
-  );
-}
-
-/**
- * Una misión en curso, en la pantalla de check-in.
- *
- * `hasStampCard` resuelve una confusión concreta: cuando el negocio tiene
- * tarjeta de sellos Y misiones, una sola visita mueve los dos contadores, y
- * dos números subiendo a la vez se leen como dos visitas. La línea al pie lo
- * aclara en una frase, sin modal ni explicación larga.
- *
- * El copy es deliberadamente general ("tus visitas") y no "esta visita": la
- * respuesta del check-in no trae deltas por evento, así que el componente
- * sabe que hay una tarjeta activa pero NO que esta visita puntual haya
- * avanzado las dos cosas. Además esta pantalla también se renderiza en
- * lecturas, sin ninguna visita recién ocurrida. Afirmar "esta visita" sería
- * decir algo que acá no se puede saber; para eso habría que mandar el delta
- * desde la API, que es otro cambio.
- */
-function MissionCard({
-  mission,
-  hasStampCard,
-}: {
-  mission: MissionView;
-  hasStampCard: boolean;
-}) {
-  const { current, target, remaining, complete } = mission.progress;
-
-  return (
-    <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[24px] bg-white p-5 shadow-[0_10px_24px_rgba(12,16,30,0.14)]">
-      <div className="flex items-center gap-2.5">
-        <span className="text-base leading-none" aria-hidden="true">
-          🎯
-        </span>
-        <p className="font-display text-[15px] font-bold text-[#171A2B]">
-          {mission.name}
-        </p>
-      </div>
-
-      {target <= 10 ? (
-        <div
-          className="mt-3 flex flex-wrap gap-1.5"
-          role="img"
-          aria-label={`${current} de ${target} visitas`}
-        >
-          {Array.from({ length: target }, (_, index) => (
-            <span
-              key={index}
-              className={`h-2.5 w-2.5 rounded-full ${
-                index < current ? "bg-[#5C6BC0]" : "bg-[#E2E4EF]"
-              }`}
-            />
-          ))}
-        </div>
-      ) : null}
-
-      <p className="mt-2 text-sm text-[#5B6076]">
-        {complete ? "¡Completaste el desafío!" : `${current} de ${target} visitas`}
-      </p>
-
-      {mission.rewardHidden ? (
-        <p className="mt-3 rounded-[14px] bg-[#F5F5FA] px-3.5 py-3 text-sm text-[#5B6076]">
-          🎁 Premio secreto —{" "}
-          {remaining === 1
-            ? "te falta 1 visita"
-            : `te faltan ${remaining} visitas`}{" "}
-          para descubrirlo.
-        </p>
-      ) : mission.rewardName ? (
-        <p className="mt-3 rounded-[14px] bg-[#F5F5FA] px-3.5 py-3 text-sm text-[#5B6076]">
-          {complete ? "🎉 Desbloqueaste: " : "Premio: "}
-          <span className="font-semibold text-[#171A2B]">
-            {mission.rewardName}
-          </span>
-          {mission.rewardCode ? ` — código ${mission.rewardCode}` : ""}
-        </p>
-      ) : null}
-
-      {hasStampCard ? (
-        <p className="mt-3 text-xs text-[color:var(--pub-text-muted)]">
-          Tus visitas también cuentan para este desafío 🎯
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-/**
- * Fase E §14/§15: the reason to scan is the customer's own progress, never
- * "for our metrics". Three states: unlocked just now, still in progress, or
- * nothing active — the last one still explains what scanning is for.
- */
-function RewardGoalCard({
-  rewardGoal,
-  brand,
-  landing,
-}: {
-  rewardGoal: RewardGoalView | null | undefined;
-  brand: string;
-  landing: CheckinLanding;
-}) {
-  if (!rewardGoal) return null;
-
-  if (rewardGoal.unlockedNow && rewardGoal.benefit) {
-    return (
-      <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[24px] bg-white p-5 shadow-[0_10px_24px_rgba(12,16,30,0.14)]">
-        <div className="flex items-center gap-2.5">
-          <span
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
-            style={{
-              backgroundColor: `color-mix(in srgb, ${brand} 12%, white)`,
-              color: brand,
-            }}
-          >
-            <PartyPopper className="h-4 w-4" aria-hidden="true" />
-          </span>
-          <p className="text-sm font-bold" style={{ color: brand }}>
-            ¡Recompensa desbloqueada!
-          </p>
-        </div>
-        <p className="mt-3 text-[20px] font-bold leading-tight text-[#171A2B]">
-          {rewardGoal.benefit.name}
-        </p>
-        <p className="mt-1.5 text-xs text-[#8A91A3]">
-          Ya la tenés disponible en tu cuenta Flikker.
-        </p>
-      </div>
-    );
+function missionReward(mission: MissionView) {
+  const { remaining, complete } = mission.progress;
+  if (mission.rewardHidden) {
+    return {
+      label: "Premio secreto",
+      detail:
+        remaining === 1
+          ? "te falta 1 visita para descubrirlo"
+          : `te faltan ${remaining} visitas para descubrirlo`,
+    };
   }
+  if (!mission.rewardName) return null;
+  return {
+    label: complete
+      ? `Desbloqueaste: ${mission.rewardName}`
+      : mission.rewardName,
+    detail: mission.rewardCode ? `código ${mission.rewardCode}` : null,
+  };
+}
 
-  if (rewardGoal.goal) {
-    const {
-      progressVisits,
-      targetAdditionalVisits,
-      incentiveName,
-      bonusStamps,
-    } = rewardGoal.goal;
-    return (
-      <div className="checkin-enter checkin-hover-lift">
-        <LoyaltyCard
-          rewardName={incentiveName}
-          progress={progressVisits}
-          target={targetAdditionalVisits}
-          bonusStamps={bonusStamps ?? 0}
-          appearance={{
-            cardColor: landing.business.loyaltyCardColor ?? brand,
-            textColor: landing.business.loyaltyCardTextColor,
-            backgroundImage: landing.business.loyaltyCardBackgroundImage,
-            stampAreaColor: landing.business.loyaltyStampAreaColor,
-            stampColor: landing.business.loyaltyStampColor,
-            stampIcon: landing.business.loyaltyStampIcon,
-            logoUrl: landing.business.logoUrl,
-            businessName: landing.business.businessName,
-            showBusinessName: landing.business.loyaltyShowBusinessName,
-            stampBackgroundPattern: landing.business.loyaltyStampBackgroundPattern,
-            stampBackgroundOpacity: landing.business.loyaltyStampBackgroundOpacity,
+/**
+ * El premio que ESTA visita acaba de desbloquear — el elemento principal de
+ * la pantalla cuando ocurre.
+ *
+ * Trae su propio canje (`SlideToReveal` con el código real de la emisión),
+ * así el cliente puede usarlo ahí mismo en el mostrador en vez de tener que
+ * ir a buscarlo a Mi Flikker.
+ *
+ * Lo que deliberadamente NO hace: dibujar la tarjeta siguiente en 0/N. El
+ * ciclo nuevo no existe todavía — nace recién con la próxima Visit válida
+ * (ACTIVE → UNLOCKED → REDEEMED → próxima Visit → nueva ACTIVE) — y
+ * anticiparlo sería mostrar un progreso que el backend no tiene.
+ */
+function RewardUnlockedHero({
+  reward,
+  brand,
+  onReveal,
+}: {
+  reward: NonNullable<RewardGoalView["benefit"]>;
+  brand: string;
+  onReveal?: () => void;
+}) {
+  return (
+    <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[24px] border border-[color:var(--pub-surface-border)] bg-[color:var(--pub-surface)] p-5 text-[color:var(--pub-text)]">
+      <div className="flex items-center gap-2.5">
+        <span
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
+          style={{
+            backgroundColor: "var(--pub-accent)",
+            color: "var(--pub-on-accent)",
           }}
+        >
+          <PartyPopper className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <p className="text-xs font-bold uppercase tracking-[0.1em] text-[color:var(--pub-text-muted)]">
+          Completaste la tarjeta
+        </p>
+      </div>
+
+      <p className="mt-3 text-[22px] font-bold leading-tight tracking-[-0.02em]">
+        {reward.name}
+      </p>
+      {reward.expiresAt ? (
+        <p className="mt-1.5 text-xs text-[color:var(--pub-text-muted)]">
+          Válido hasta{" "}
+          {new Date(reward.expiresAt).toLocaleDateString("es-UY")}
+        </p>
+      ) : null}
+
+      <div className="mt-5">
+        <SlideToReveal
+          code={reward.code}
+          brand={brand}
+          onReveal={onReveal ?? (() => undefined)}
         />
       </div>
-    );
-  }
-
-  return null;
+    </div>
+  );
 }
 
 // ── Layout primitives ────────────────────────────────────────────────────────
@@ -1539,7 +1360,7 @@ export function Shell({
 
   return (
     <div
-      className={`relative flex w-full flex-col overflow-hidden ${
+      className={`flk-customer relative flex w-full flex-col overflow-hidden ${
         fill ? "min-h-[100dvh]" : "h-full min-h-full"
       }`}
       style={

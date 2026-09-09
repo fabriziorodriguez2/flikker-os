@@ -90,11 +90,14 @@ describe("ChallengesTab — solo muestra desafíos reales", () => {
 
   it("dibuja un punto por visita, llenos hasta el progreso actual", () => {
     const html = render([challenge()]);
-    const llenos = html.match(/bg-\[#5C6BC0\]/g) ?? [];
-    const vacíos = html.match(/bg-\[#E2E4EF\]/g) ?? [];
+    // Se cuentan los puntitos, no las apariciones del color: el acento lo
+    // usan también el icono de la fila y el del premio.
+    const dots = html.match(/class="h-2\.5 w-2\.5 rounded-full"/g) ?? [];
+    const vacíos = html.match(/var\(--pub-surface-border, #E2E4EF\)/g) ?? [];
 
-    expect(llenos).toHaveLength(2);
+    expect(dots).toHaveLength(3);
     expect(vacíos).toHaveLength(1);
+    expect(html).toContain('aria-label="2 de 3"');
   });
 
   it("no dibuja puntitos cuando el objetivo es muy grande", () => {
@@ -116,7 +119,7 @@ describe("ChallengesTab — premio secreto", () => {
     ]);
 
     expect(html).toContain("Premio secreto");
-    expect(html).toContain("Te falta 1 visita para descubrirlo");
+    expect(html).toContain("te falta 1 visita para descubrirlo");
     expect(html).not.toContain("1 café gratis");
   });
 
@@ -129,7 +132,7 @@ describe("ChallengesTab — premio secreto", () => {
       }),
     ]);
 
-    expect(html).toContain("Te faltan 2 visitas para descubrirlo");
+    expect(html).toContain("te faltan 2 visitas para descubrirlo");
   });
 
   it("lo revela al completar, junto con el código de canje", () => {
@@ -231,7 +234,7 @@ describe("ChallengesTab — racha", () => {
   it("AT_RISK muestra las semanas y la fecha para mantenerla", () => {
     const html = render([streak()]);
 
-    expect(html).toContain("Racha actual");
+    expect(html).toContain("Racha de 3 semanas");
     expect(html).toContain("3");
     expect(html).toContain("semanas");
     expect(html).toContain("Volvé antes del 27 de setiembre para mantenerla");
@@ -246,12 +249,12 @@ describe("ChallengesTab — racha", () => {
 
   it("pluraliza bien", () => {
     const dos = render([streak({ currentWeeks: 2 })]);
-    expect(dos).toMatch(/2\s*<span[^>]*>semanas<\/span>/);
+    expect(dos).toMatch(/Racha de 2 semanas/);
 
     // La regla de UX no deja llegar una racha de 1, pero si llegara, el
     // singular tiene que estar bien igual.
     const una = render([streak({ currentWeeks: 1 })]);
-    expect(una).toMatch(/1\s*<span[^>]*>semana<\/span>/);
+    expect(una).toMatch(/Racha de 1 semana(?!s)/);
   });
 
   it("nunca muestra una racha de 0 — el backend no la manda", () => {
@@ -259,7 +262,7 @@ describe("ChallengesTab — racha", () => {
     // la pantalla no recibe ninguna. Sin tarjetas, el estado vacío normal.
     const html = render([]);
 
-    expect(html).not.toContain("Racha actual");
+    expect(html).not.toContain("Racha de 3 semanas");
     expect(html).toContain("Todavía no tenés desafíos");
   });
 
@@ -283,7 +286,7 @@ describe("ChallengesTab — racha", () => {
     const html = render([challenge(), streak()]);
 
     expect(html).toContain("Vení 3 veces este mes");
-    expect(html).toContain("Racha actual");
+    expect(html).toContain("Racha de 3 semanas");
     expect(html).toContain("2 de 3 visitas");
   });
 
@@ -346,7 +349,7 @@ describe("ChallengesTab — desafío de vuelta", () => {
 
     expect(html).toContain("Desafío de vuelta");
     expect(html).toContain("Vení 3 veces este mes");
-    expect(html).toContain("Racha actual");
+    expect(html).toContain("Racha de 3 semanas");
   });
 
   it("el desafío de vuelta se renderiza primero", () => {
@@ -357,7 +360,7 @@ describe("ChallengesTab — desafío de vuelta", () => {
       html.indexOf("Vení 3 veces este mes"),
     );
     expect(html.indexOf("Vení 3 veces este mes")).toBeLessThan(
-      html.indexOf("Racha actual"),
+      html.indexOf("Racha de 3 semanas"),
     );
   });
 });

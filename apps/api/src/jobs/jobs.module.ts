@@ -9,6 +9,7 @@ import { BenefitsModule } from '../modules/benefits/benefits.module';
 import { FeedbackRepository } from '../modules/feedback/feedback.repository';
 import { MissionsModule } from '../modules/missions/missions.module';
 import { ReturnChallengesModule } from '../modules/return-challenges/return-challenges.module';
+import { PublicModule } from '../modules/public/public.module';
 import { InsightsRepository } from '../modules/insights/insights.repository';
 import { OwnerLifecycleAiSummaryService } from '../modules/insights/owner-lifecycle-ai-summary.service';
 import { BusinessImpactService } from '../modules/insights/business-impact.service';
@@ -79,6 +80,11 @@ import { OwnerMilestoneWhatsAppService } from './owner-milestone-whatsapp.servic
     // `ReturnChallengeSweepService`, en el mismo tick diario. Solo depende de
     // `PrismaModule` — tampoco cierra ciclo.
     ReturnChallengesModule,
+    // `CustomerPublicUrlService` para el link de `/r/{token}` del
+    // recordatorio de reseña — misma fuente de verdad que el resto de los
+    // links customer-facing. No cierra ciclo: `PublicModule` no importa
+    // `JobsModule`.
+    PublicModule,
   ],
   providers: [
     ReviewRequestQueue,

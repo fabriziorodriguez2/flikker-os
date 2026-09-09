@@ -62,6 +62,25 @@ export interface MyFlikkerPlace {
    * con un progreso inventado.
    */
   missions: CustomerMissionView[];
+  /**
+   * La racha de visitas en ESTE negocio, o `null` si no vale la pena
+   * mostrarla — misma regla `isWorthShowing` que ya usa `listChallenges`
+   * (dos semanas consecutivas mínimo, nunca una racha rota).
+   */
+  streak: PlaceStreak | null;
+  /** El desafío de vuelta vivo en ESTE negocio, o `null` si no hay uno. */
+  returnChallenge: PlaceReturnChallenge | null;
+}
+
+export interface PlaceStreak {
+  currentWeeks: number;
+  state: 'ACTIVE' | 'AT_RISK';
+  deadlineDayKey: string;
+}
+
+export interface PlaceReturnChallenge {
+  challengeId: string;
+  deadlineDayKey: string;
 }
 
 /**
@@ -274,6 +293,9 @@ export class MyFlikkerService {
             name: true,
             logoUrl: true,
             primaryColor: true,
+            // Para la racha y el desafío de vuelta: los dos leen "hoy" con
+            // el reloj del NEGOCIO, no el del servidor.
+            timezone: true,
             // Mismo color que el recorrido de check-in: Mi Flikker es su
             // continuación, no una pantalla aparte de Flikker.
             checkinBackgroundColor: true,
@@ -315,6 +337,9 @@ export class MyFlikkerService {
             name: true,
             logoUrl: true,
             primaryColor: true,
+            // Para la racha y el desafío de vuelta: los dos leen "hoy" con
+            // el reloj del NEGOCIO, no el del servidor.
+            timezone: true,
             // Mismo color que el recorrido de check-in: Mi Flikker es su
             // continuación, no una pantalla aparte de Flikker.
             checkinBackgroundColor: true,
@@ -351,6 +376,7 @@ export class MyFlikkerService {
       name: string;
       logoUrl: string | null;
       primaryColor: string | null;
+      timezone: string;
       checkinBackgroundColor: string | null;
       loyaltyCardColor: string | null;
       loyaltyCardTextColor: string | null;
@@ -364,32 +390,45 @@ export class MyFlikkerService {
       loyaltyStampBackgroundOpacity: number | null;
     },
   ): Promise<MyFlikkerPlace> {
-    const [visitsTotal, lastVisit, rewardView, unclaimedBenefit, missions] =
-      await Promise.all([
-        this.prisma.visit.count({ where: { businessId, customerId } }),
-        this.prisma.visit.findFirst({
-          where: { businessId, customerId },
-          orderBy: { occurredAt: 'desc' },
-          select: { occurredAt: true },
-        }),
-        this.rewardGoals.currentView(businessId, customerId),
-        this.prisma.customerRewardGoal.findFirst({
-          where: { businessId, customerId, status: RewardGoalStatus.UNLOCKED },
-          select: {
-            incentiveDefinition: { select: { name: true } },
-            benefitParticipation: {
-              select: {
-                benefitId: true,
-                redemptionCode: true,
-                expiresAt: true,
-              },
+    const [
+      visitsTotal,
+      lastVisit,
+      rewardView,
+      unclaimedBenefit,
+      missions,
+      streak,
+      returnChallenge,
+    ] = await Promise.all([
+      this.prisma.visit.count({ where: { businessId, customerId } }),
+      this.prisma.visit.findFirst({
+        where: { businessId, customerId },
+        orderBy: { occurredAt: 'desc' },
+        select: { occurredAt: true },
+      }),
+      this.rewardGoals.currentView(businessId, customerId),
+      this.prisma.customerRewardGoal.findFirst({
+        where: { businessId, customerId, status: RewardGoalStatus.UNLOCKED },
+        select: {
+          incentiveDefinition: { select: { name: true } },
+          benefitParticipation: {
+            select: {
+              benefitId: true,
+              redemptionCode: true,
+              expiresAt: true,
             },
           },
-        }),
-        // Lectura pura: abrir Mi Flikker nunca completa una misión ni emite
-        // un premio — eso solo lo hace una visita real.
-        this.missions.currentView(businessId, customerId),
-      ]);
+        },
+      }),
+      // Lectura pura: abrir Mi Flikker nunca completa una misión ni emite
+      // un premio — eso solo lo hace una visita real.
+      this.missions.currentView(businessId, customerId),
+      this.streaks.getCurrentStreak({
+        businessId,
+        customerId,
+        timezone: business.timezone,
+      }),
+      this.returnChallenges.currentView(businessId, customerId),
+    ]);
 
     const benefitAvailable = unclaimedBenefit?.benefitParticipation
       ?.redemptionCode
@@ -441,6 +480,19 @@ export class MyFlikkerService {
         expiresAt: b.expiresAt?.toISOString() ?? null,
       })),
       missions,
+      streak: isWorthShowing(streak)
+        ? {
+            currentWeeks: streak.currentWeeks,
+            state: streak.state === 'ACTIVE' ? 'ACTIVE' : 'AT_RISK',
+            deadlineDayKey: streak.deadlineDayKey,
+          }
+        : null,
+      returnChallenge: returnChallenge
+        ? {
+            challengeId: returnChallenge.id,
+            deadlineDayKey: returnChallenge.deadlineDayKey,
+          }
+        : null,
     };
   }
 }

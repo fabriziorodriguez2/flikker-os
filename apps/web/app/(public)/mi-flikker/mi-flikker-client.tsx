@@ -3,9 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
-import { ChevronRight, Loader2, MapPin, Sparkles } from "lucide-react";
+import { ChevronRight, Loader2, MapPin, QrCode, Sparkles } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
 import LoyaltyCard from "@/components/public/loyalty-card";
+import PublicState from "@/components/public/public-state";
 import PhoneInput, { isValidNationalPhone } from "@/components/ui/phone-input";
 import OtpInput from "@/components/ui/otp-input";
 import ChallengesTab, {
@@ -49,7 +50,7 @@ function MiFlikkerTitle() {
       className="flex items-center justify-center gap-2.5"
       aria-label="Mi Flikker"
     >
-      <span className="font-display text-[24px] font-bold tracking-[-0.04em] text-[#171A2B]">
+      <span className="text-[24px] font-bold tracking-[-0.04em] text-[#171A2B]">
         MI
       </span>
       <Image
@@ -88,6 +89,7 @@ export default function MiFlikkerClient({
   const [challenges, setChallenges] = useState<MyFlikkerChallenge[]>([]);
   const [challengesLoading, setChallengesLoading] = useState(false);
   const [challengesLoaded, setChallengesLoaded] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     if (!hasSession) return;
@@ -208,6 +210,25 @@ export default function MiFlikkerClient({
     }
   }
 
+  /**
+   * Endpoint ya existía (`POST /api/mi-flikker/logout`) pero no tenía ningún
+   * botón que lo llamara. Vuelve a la verificación por WhatsApp — no a
+   * `/mi-flikker` de nuevo, que con la cookie ya borrada mostraría lo mismo
+   * de una forma menos directa.
+   */
+  async function logout() {
+    setLoggingOut(true);
+    try {
+      await fetch("/api/mi-flikker/logout", { method: "POST" });
+    } finally {
+      setPlaces([]);
+      setChallenges([]);
+      setChallengesLoaded(false);
+      setLoggingOut(false);
+      setStatus("verify");
+    }
+  }
+
   if (status === "verify") {
     return <VerifyScreen onVerified={load} />;
   }
@@ -266,17 +287,32 @@ export default function MiFlikkerClient({
         </button>
       </div>
 
+      <div className="mt-2 flex justify-center">
+        <button
+          type="button"
+          onClick={() => void logout()}
+          disabled={loggingOut}
+          className="rounded-full px-4 py-1.5 text-xs font-semibold text-[#8A91A3] transition-colors hover:bg-[#ECEEF4] hover:text-[#5F6375] disabled:opacity-60"
+        >
+          {loggingOut ? "Cerrando…" : "Cerrar sesión"}
+        </button>
+      </div>
+
       {view === "desafios" ? (
         <ChallengesTab challenges={challenges} loading={challengesLoading} />
       ) : loadError ? (
         <p className="mt-6 text-center text-sm text-[#C0392B]">{loadError}</p>
       ) : places.length === 0 ? (
-        <p className="mt-6 text-center text-sm text-[#8A91A3]">
-          No encontramos lugares para este número. Si ya tenés una tarjeta en
-          algún negocio, verificá acá el mismo WhatsApp que usaste al
-          registrarte ahí — si escaneás un QR por primera vez, va a aparecer
-          apenas hagas tu primer check-in.
-        </p>
+        /*
+          Sin "ver locales cerca de mí": no existe discovery de negocios en el
+          producto, y ofrecerlo sería mandar al cliente a una pantalla que no
+          está. La única acción real acá es escanear el QR de un local.
+        */
+        <PublicState
+          icon={QrCode}
+          title="Todavía no tenés ningún lugar"
+          description="Escaneá el QR de un local Flikker y tu tarjeta aparece acá sola. Si ya tenés una en algún negocio, verificá el mismo WhatsApp que usaste al registrarte ahí."
+        />
       ) : (
         <div ref={walletRef} className="mi-wallet mt-12 w-full pb-16">
           {places.map((place, index) => (
@@ -494,7 +530,7 @@ function VerifyScreen({ onVerified }: { onVerified: () => void }) {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex min-h-[100dvh] w-full flex-col items-center bg-[#F5F6FB] px-4 py-8 sm:px-5 sm:py-10">
+    <div className="flk-customer flex min-h-[100dvh] w-full flex-col items-center bg-[#F5F6FB] px-4 py-8 sm:px-5 sm:py-10">
       <div className="w-full max-w-md">{children}</div>
     </div>
   );

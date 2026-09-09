@@ -78,7 +78,10 @@ function makeDeps(
       },
     ),
   };
-  return { prisma, unlock, orchestrator };
+  const ownerNotifications = {
+    enqueueLowFeedback: jest.fn().mockResolvedValue({}),
+  };
+  return { prisma, unlock, orchestrator, ownerNotifications };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
@@ -86,6 +89,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.prisma as never,
     deps.unlock as never,
     deps.orchestrator as never,
+    deps.ownerNotifications as never,
   );
 }
 
@@ -335,6 +339,62 @@ describe('RewardGoalFeedbackService — idempotencia (repetir/reabrir no duplica
     );
 
     expect(result.bonusGranted).toBe(false);
+  });
+});
+
+/**
+ * Fuente de verdad única (pedido explícito): `CheckinFeedback` es la ÚNICA
+ * fila que representa la opinión del cliente en Check-in V2. El aviso al
+ * dueño de "feedback bajo" se dispara desde ACÁ — el único punto por el que
+ * pasan tanto `/r/{token}` como la card dentro del check-in — nunca desde
+ * cada caller por separado, y nunca creando una `FeedbackResponse` (esa
+ * tabla es exclusivamente LEGACY).
+ */
+describe('RewardGoalFeedbackService — aviso de feedback bajo al dueño (fuente única)', () => {
+  it('score bajo (<4): encola el aviso referenciando la fila de CheckinFeedback recién creada', async () => {
+    const deps = makeDeps();
+    const service = makeService(deps);
+
+    await service.submit('biz-1', 'cust-1', 'visit-1', 2, 'no me gustó', NOW);
+
+    expect(deps.ownerNotifications.enqueueLowFeedback).toHaveBeenCalledWith({
+      source: 'checkin_v2',
+      businessId: 'biz-1',
+      checkinFeedbackId: 'feedback-1',
+    });
+  });
+
+  it.each([4, 5])(
+    'score alto (%i): nunca encola el aviso de feedback bajo',
+    async (score) => {
+      const deps = makeDeps();
+      const service = makeService(deps);
+
+      await service.submit('biz-1', 'cust-1', 'visit-1', score, undefined, NOW);
+
+      expect(deps.ownerNotifications.enqueueLowFeedback).not.toHaveBeenCalled();
+    },
+  );
+
+  it('replay (misma visita, ya tiene feedback): nunca vuelve a encolar el aviso', async () => {
+    const deps = makeDeps({ existingFeedback: { score: 2 } });
+    const service = makeService(deps);
+
+    await service.submit('biz-1', 'cust-1', 'visit-1', 1, undefined, NOW);
+
+    expect(deps.ownerNotifications.enqueueLowFeedback).not.toHaveBeenCalled();
+  });
+
+  it('un fallo al encolar nunca rompe el submit (best-effort)', async () => {
+    const deps = makeDeps();
+    deps.ownerNotifications.enqueueLowFeedback.mockRejectedValue(
+      new Error('redis down'),
+    );
+    const service = makeService(deps);
+
+    await expect(
+      service.submit('biz-1', 'cust-1', 'visit-1', 1, undefined, NOW),
+    ).resolves.toEqual(expect.objectContaining({ alreadySubmitted: false }));
   });
 });
 

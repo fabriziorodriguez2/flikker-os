@@ -17,6 +17,9 @@ import { AutomationCooldownService } from '../../jobs/automation-cooldown.servic
 import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 import { EmailService } from '../../jobs/email.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { CustomerPublicUrlService } from '../public/customer-public-url.service';
+import { VisitSourcesService } from '../visit-sources/visit-sources.service';
+import { VisitSourcesRepository } from '../visit-sources/visit-sources.repository';
 import {
   createTestBusiness,
   makeTestSuffix,
@@ -75,6 +78,9 @@ describe('Reward Goals — sellos OFF con un ciclo vivo (integration)', () => {
         LifecycleEmailsService,
         EmailService,
         WhatsAppBspService,
+        CustomerPublicUrlService,
+        VisitSourcesService,
+        VisitSourcesRepository,
       ],
     }).compile();
 

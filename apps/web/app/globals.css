@@ -123,6 +123,27 @@ h6 {
   letter-spacing: 0;
 }
 
+/*
+ * Superficies customer-facing de Check-in V2 y Mi Flikker: Montserrat sola.
+ *
+ * El `h1` de arriba usa Syne, que es la voz del PANEL. Del lado del cliente la
+ * decisión es la contraria — una sola familia en toda la experiencia — así que
+ * en vez de ir h1 por h1 (y olvidarse en la próxima pantalla) se marca la raíz
+ * de cada superficie con esta clase y la regla la cubre entera.
+ *
+ * Deliberadamente NO se aplica al panel ni a las pantallas LEGACY (`/qr`,
+ * `/l/{slug}`, `/qr/{id}/review`): ahí la tipografía queda como estaba.
+ */
+.flk-customer,
+.flk-customer h1,
+.flk-customer h2,
+.flk-customer h3,
+.flk-customer h4,
+.flk-customer h5,
+.flk-customer h6 {
+  font-family: var(--font-montserrat), sans-serif;
+}
+
 a,
 button,
 input,

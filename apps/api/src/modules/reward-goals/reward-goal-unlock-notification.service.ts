@@ -4,6 +4,7 @@ import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 import { rewardGoalUnlockedWhatsAppText } from '../../jobs/email-templates';
 import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
 import { AutomationCooldownService } from '../../jobs/automation-cooldown.service';
+import { CustomerPublicUrlService } from '../public/customer-public-url.service';
 
 /**
  * Aviso único de "completaste tu tarjeta" (ACTIVE → UNLOCKED) — mismo patrón
@@ -28,6 +29,7 @@ export class RewardGoalUnlockNotificationService {
     private readonly lifecycleEmails: LifecycleEmailsService,
     private readonly retentionSettings: RetentionSettingsService,
     private readonly cooldown: AutomationCooldownService,
+    private readonly publicUrls: CustomerPublicUrlService,
   ) {}
 
   async notify(input: {
@@ -71,11 +73,9 @@ export class RewardGoalUnlockNotificationService {
     });
     if (!customer) return;
 
-    const base = (process.env.WEB_BASE_URL ?? 'http://localhost:3001').replace(
-      /\/$/,
-      '',
+    const benefitLink = this.publicUrls.benefitIssuanceUrl(
+      input.participationId,
     );
-    const benefitLink = `${base}/beneficio/${input.participationId}`;
 
     const text = rewardGoalUnlockedWhatsAppText({
       customerName: customer.name,

@@ -1,6 +1,8 @@
 "use client";
 
 import { Loader2, Target } from "lucide-react";
+import ChallengeRow from "@/components/public/challenge-row";
+import PublicState from "@/components/public/public-state";
 
 /**
  * Espejo de `MyFlikkerChallenge` en la API — unión discriminada por `kind`.
@@ -63,12 +65,13 @@ export interface MissionChallenge extends ChallengeBase {
 /**
  * Mi Flikker → Desafíos.
  *
- * Solo muestra lo que el cliente REALMENTE tiene. Sin misiones no hay
- * tarjetas decorativas ni un "0 de 3" inventado: hay una frase que explica
- * qué son los desafíos y por qué esta pantalla está vacía.
+ * Solo muestra lo que el cliente REALMENTE tiene: sin desafíos no hay
+ * tarjetas decorativas ni un "0 de 3" inventado, hay un estado vacío.
  *
- * Hoy la lista trae solo misiones. Cuando existan rachas y desafíos de vuelta
- * se suman a la misma lista y esta pantalla no cambia de forma.
+ * El markup de cada fila vive en `ChallengeRow`, compartido con el detalle de
+ * lugar y con el check-in. Acá queda únicamente lo propio de esta pantalla:
+ * el orden de la lista y que cada fila diga de qué negocio es, porque esta es
+ * la única vista que mezcla varios locales.
  */
 export default function ChallengesTab({
   challenges,
@@ -88,228 +91,104 @@ export default function ChallengesTab({
 
   if (challenges.length === 0) {
     return (
-      <div className="mt-10 px-2 text-center">
-        <span
-          className="mx-auto flex h-12 w-12 items-center justify-center rounded-[15px] bg-[#EEF0FB] text-[#5C6BC0]"
-          aria-hidden="true"
-        >
-          <Target className="h-5 w-5" strokeWidth={1.8} />
-        </span>
-        <p className="mt-4 font-display text-base font-bold text-[#171A2B]">
-          Todavía no tenés desafíos
-        </p>
-        <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-[#8A91A3]">
-          Cuando alguno de tus lugares proponga un objetivo — como venir 3
-          veces en el mes — te va a aparecer acá, con tu progreso.
-        </p>
-      </div>
+      <PublicState
+        icon={Target}
+        title="Todavía no tenés desafíos"
+        description="Cuando alguno de tus lugares proponga un objetivo — como venir 3 veces en el mes — te va a aparecer acá, con tu progreso."
+      />
     );
   }
 
   return (
     <ul className="mt-8 flex w-full flex-col gap-3 pb-16">
-      {challenges.map((challenge) =>
-        challenge.kind === "return_challenge" ? (
-          <ReturnChallengeRow
-            key={`rc:${challenge.challengeId}`}
-            challenge={challenge}
-          />
-        ) : challenge.kind === "streak" ? (
-          <StreakCard
-            key={`streak:${challenge.businessId}`}
-            challenge={challenge}
-          />
-        ) : (
-          <MissionRow
-            key={`mission:${challenge.businessId}:${challenge.missionId}`}
-            challenge={challenge}
-          />
-        ),
-      )}
+      {challenges.map((challenge) => (
+        <ChallengeRow
+          key={challengeKey(challenge)}
+          showBusiness
+          business={{ name: challenge.businessName }}
+          // Solo acá: la lista cruza varios locales, así que cada fila tiene
+          // que poder llevar hasta el suyo.
+          href={`/mi-flikker/${challenge.businessId}`}
+          {...toRow(challenge)}
+        />
+      ))}
     </ul>
   );
 }
 
-/**
- * Desafío de vuelta. Va primero en la lista: tiene plazo corto y un premio
- * concreto en juego.
- *
- * Solo llegan acá los ACTIVE y sin vencer — el backend filtra por estado y
- * fecha, así que un desafío vencido o cancelado nunca se muestra. Un
- * cancelado, en particular, no es algo que haya que explicarle al cliente:
- * pasó del otro lado.
- */
-function ReturnChallengeRow({
-  challenge,
-}: {
-  challenge: ReturnChallengeCard;
-}) {
-  return (
-    <li className="rounded-[20px] bg-white p-5 shadow-[0_2px_14px_rgba(23,26,43,0.06)]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8A91A3]">
-        {challenge.businessName}
-      </p>
-
-      <h3 className="mt-2 flex items-center gap-2 font-display text-[17px] font-bold leading-tight text-[#171A2B]">
-        <span aria-hidden="true">⏳</span>
-        Desafío de vuelta
-      </h3>
-
-      <p className="mt-2 text-sm text-[#5B6076]">
-        Volvé antes del {formatDeadline(challenge.deadlineDayKey)}
-      </p>
-
-      <p className="mt-4 rounded-[14px] bg-[#EEF0FB] px-3.5 py-3 text-sm font-semibold text-[#4A56A6]">
-        +1 sello extra
-      </p>
-
-      <a
-        href={`/mi-flikker/${challenge.businessId}`}
-        className="mt-3 inline-block text-sm font-semibold text-[#5C6BC0] underline underline-offset-2"
-      >
-        Ver mi tarjeta
-      </a>
-    </li>
-  );
+function challengeKey(challenge: MyFlikkerChallenge): string {
+  if (challenge.kind === "return_challenge") {
+    return `rc:${challenge.challengeId}`;
+  }
+  if (challenge.kind === "streak") return `streak:${challenge.businessId}`;
+  return `mission:${challenge.businessId}:${challenge.missionId}`;
 }
 
 /**
- * La tarjeta de racha. Misma caja blanca que el resto de Desafíos: la
- * gamificación acá es el progreso, no la estética — sin gradientes, sin
- * confeti, sin puntajes.
+ * Traduce cada mecánica a las props de `ChallengeRow`. Es el único lugar del
+ * front donde se decide qué texto le corresponde a cada tipo de desafío — el
+ * detalle de lugar reusa esta misma función.
  */
-function StreakCard({ challenge }: { challenge: StreakChallenge }) {
-  return (
-    <li className="rounded-[20px] bg-white p-5 shadow-[0_2px_14px_rgba(23,26,43,0.06)]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8A91A3]">
-        {challenge.businessName}
-      </p>
+export function toRow(challenge: MyFlikkerChallenge) {
+  if (challenge.kind === "return_challenge") {
+    return {
+      kind: "return_challenge" as const,
+      title: "Desafío de vuelta",
+      subtitle: `Volvé antes del ${formatDeadline(challenge.deadlineDayKey)}`,
+      reward: { label: "+1 sello extra" },
+    };
+  }
 
-      <h3 className="mt-2 flex items-center gap-2 font-display text-[17px] font-bold leading-tight text-[#171A2B]">
-        <span aria-hidden="true">🔥</span>
-        Racha actual
-      </h3>
-
-      <p className="mt-1 font-display text-[26px] font-bold leading-none text-[#5C6BC0]">
-        {challenge.currentWeeks}{" "}
-        <span className="text-[17px]">
-          {challenge.currentWeeks === 1 ? "semana" : "semanas"}
-        </span>
-      </p>
-
-      <p className="mt-3 text-sm text-[#5B6076]">
-        {challenge.state === "ACTIVE"
+  if (challenge.kind === "streak") {
+    return {
+      kind: "streak" as const,
+      title: `Racha de ${challenge.currentWeeks} ${
+        challenge.currentWeeks === 1 ? "semana" : "semanas"
+      }`,
+      subtitle:
+        challenge.state === "ACTIVE"
           ? "Ya mantuviste tu racha esta semana."
-          : `Volvé antes del ${formatDeadline(challenge.deadlineDayKey)} para mantenerla.`}
-      </p>
-    </li>
-  );
+          : `Volvé antes del ${formatDeadline(challenge.deadlineDayKey)} para mantenerla.`,
+    };
+  }
+
+  const { current, target, complete, remaining } = challenge.progress;
+  return {
+    kind: "mission" as const,
+    title: challenge.name,
+    subtitle: complete ? "¡Completado!" : `${current} de ${target} visitas`,
+    progress: { current, target },
+    status: complete ? ("completed" as const) : ("active" as const),
+    deadline: complete
+      ? null
+      : `Hasta el ${formatDeadline(challenge.lastDayKey)}`,
+    reward: missionReward(challenge, remaining, complete),
+  };
 }
 
-function MissionRow({ challenge }: { challenge: MissionChallenge }) {
-  return (
-    <li className="rounded-[20px] bg-white p-5 shadow-[0_2px_14px_rgba(23,26,43,0.06)]">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8A91A3]">
-        {challenge.businessName}
-      </p>
-
-      <h3 className="mt-2 font-display text-[17px] font-bold leading-tight text-[#171A2B]">
-        {challenge.name}
-      </h3>
-
-      <ProgressDots
-        current={challenge.progress.current}
-        target={challenge.progress.target}
-      />
-
-      <p className="mt-2 text-sm text-[#5B6076]">
-        {challenge.progress.complete
-          ? "¡Completado!"
-          : `${challenge.progress.current} de ${challenge.progress.target} visitas`}
-      </p>
-
-      {challenge.rewardHidden ? (
-        <RewardRow
-          icon="🎁"
-          title="Premio secreto"
-          detail={
-            challenge.progress.remaining === 1
-              ? "Te falta 1 visita para descubrirlo."
-              : `Te faltan ${challenge.progress.remaining} visitas para descubrirlo.`
-          }
-        />
-      ) : challenge.rewardName ? (
-        <RewardRow
-          icon="🎉"
-          title={
-            challenge.progress.complete
-              ? `Desbloqueaste: ${challenge.rewardName}`
-              : challenge.rewardName
-          }
-          detail={
-            challenge.rewardCode
-              ? `Mostrá el código ${challenge.rewardCode} en el local.`
-              : "Tu premio al completarlo."
-          }
-        />
-      ) : null}
-
-      {!challenge.progress.complete ? (
-        <p className="mt-3 text-xs text-[#8A91A3]">
-          Hasta el {formatDeadline(challenge.lastDayKey)}
-        </p>
-      ) : null}
-    </li>
-  );
-}
-
-/** Los puntitos del progreso. Hasta 10; más allá se muestra solo el número. */
-function ProgressDots({
-  current,
-  target,
-}: {
-  current: number;
-  target: number;
-}) {
-  if (target > 10) return null;
-  return (
-    <div
-      className="mt-3 flex flex-wrap gap-1.5"
-      role="img"
-      aria-label={`${current} de ${target} visitas`}
-    >
-      {Array.from({ length: target }, (_, index) => (
-        <span
-          key={index}
-          className={`h-2.5 w-2.5 rounded-full ${
-            index < current ? "bg-[#5C6BC0]" : "bg-[#E2E4EF]"
-          }`}
-        />
-      ))}
-    </div>
-  );
-}
-
-function RewardRow({
-  icon,
-  title,
-  detail,
-}: {
-  icon: string;
-  title: string;
-  detail: string;
-}) {
-  return (
-    <div className="mt-4 flex items-start gap-2.5 rounded-[14px] bg-[#F5F5FA] px-3.5 py-3">
-      <span className="text-base leading-none" aria-hidden="true">
-        {icon}
-      </span>
-      <span className="flex min-w-0 flex-col gap-0.5">
-        <span className="text-sm font-semibold text-[#171A2B]">{title}</span>
-        <span className="text-xs leading-snug text-[#8A91A3]">{detail}</span>
-      </span>
-    </div>
-  );
+function missionReward(
+  challenge: MissionChallenge,
+  remaining: number,
+  complete: boolean,
+) {
+  if (challenge.rewardHidden) {
+    return {
+      label: "Premio secreto",
+      detail:
+        remaining === 1
+          ? "te falta 1 visita para descubrirlo"
+          : `te faltan ${remaining} visitas para descubrirlo`,
+    };
+  }
+  if (!challenge.rewardName) return null;
+  return {
+    label: complete
+      ? `Desbloqueaste: ${challenge.rewardName}`
+      : challenge.rewardName,
+    detail: challenge.rewardCode
+      ? `mostrá el código ${challenge.rewardCode} en el local`
+      : null,
+  };
 }
 
 /**
@@ -320,7 +199,7 @@ function RewardRow({
  * los dos bordes— solo para poder pedirle el nombre del mes a `Intl`, y se
  * formatea en UTC para que ese mediodía no se mueva de día.
  */
-function formatDeadline(lastDayKey: string): string {
+export function formatDeadline(lastDayKey: string): string {
   const [year, month, day] = lastDayKey.split("-").map(Number);
   return new Intl.DateTimeFormat("es-UY", {
     day: "numeric",

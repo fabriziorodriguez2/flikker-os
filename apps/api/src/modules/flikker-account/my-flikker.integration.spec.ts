@@ -153,13 +153,24 @@ describe('MyFlikkerService — cross-business aggregation is real (integration)'
       // visitas y reward goals.
       const streaksStub = {
         getStreaksForCustomers: () => Promise.resolve(new Map()),
+        getCurrentStreak: () =>
+          Promise.resolve({
+            currentWeeks: 0,
+            state: 'BROKEN',
+            currentWeekStart: '2026-09-01',
+            deadlineDayKey: '2026-09-07',
+          }),
+      };
+      const returnChallengesStub = {
+        currentViewForCustomers: () => Promise.resolve(new Map()),
+        currentView: () => Promise.resolve(null),
       };
       service = new MyFlikkerService(
         prisma,
         orchestrator,
         missionsStub as never,
         streaksStub as never,
-        { currentViewForCustomers: () => Promise.resolve(new Map()) } as never,
+        returnChallengesStub as never,
         benefitsStub as never,
       );
 

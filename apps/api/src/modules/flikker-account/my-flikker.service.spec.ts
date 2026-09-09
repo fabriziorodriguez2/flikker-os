@@ -10,10 +10,19 @@ function customerRow(overrides: Record<string, unknown> = {}) {
       logoUrl: null,
       primaryColor: '#5C6BC0',
       welcomeBenefitId: null,
+      timezone: 'America/Montevideo',
     },
     ...overrides,
   };
 }
+
+/** Ninguna racha/desafío vivo — el "no hay nada" que la mayoría de los tests asume. */
+const NO_STREAK = {
+  currentWeeks: 0,
+  state: 'BROKEN' as const,
+  currentWeekStart: '2026-09-01',
+  deadlineDayKey: '2026-09-07',
+};
 
 function makeDeps(
   options: {
@@ -64,9 +73,11 @@ function makeDeps(
   const missions = { currentView: jest.fn().mockResolvedValue([]) };
   const streaks = {
     getStreaksForCustomers: jest.fn().mockResolvedValue(new Map()),
+    getCurrentStreak: jest.fn().mockResolvedValue(NO_STREAK),
   };
   const returnChallenges = {
     currentViewForCustomers: jest.fn().mockResolvedValue(new Map()),
+    currentView: jest.fn().mockResolvedValue(null),
   };
   return { prisma, rewardGoals, missions, streaks, returnChallenges, benefits };
 }
@@ -227,7 +238,65 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
       // pantalla de check-in. Nunca lleva participantes de otros clientes ni
       // nada de lo que §20 prohíbe.
       'missions',
+      // Racha y desafío de vuelta: mismo criterio, cara-al-cliente por
+      // definición — el cliente ya los ve en Desafíos, esto es el mismo dato
+      // pero para ESTE lugar puntual.
+      'streak',
+      'returnChallenge',
     ]);
+  });
+
+  it('incluye la racha y el desafío de vuelta de ESTE negocio (no solo en la pestaña Desafíos)', async () => {
+    const deps = makeDeps();
+    deps.streaks.getCurrentStreak.mockResolvedValue({
+      currentWeeks: 3,
+      state: 'AT_RISK',
+      currentWeekStart: '2026-08-31',
+      deadlineDayKey: '2026-09-06',
+    });
+    deps.returnChallenges.currentView.mockResolvedValue({
+      id: 'challenge-1',
+      businessId: 'biz-a',
+      expiresAt: '2026-09-10T03:00:00.000Z',
+      deadlineDayKey: '2026-09-09',
+    });
+    const service = makeService(deps);
+
+    const place = await service.placeDetail('account-1', 'biz-a');
+
+    expect(deps.streaks.getCurrentStreak).toHaveBeenCalledWith({
+      businessId: 'biz-a',
+      customerId: 'cust-a',
+      timezone: 'America/Montevideo',
+    });
+    expect(deps.returnChallenges.currentView).toHaveBeenCalledWith(
+      'biz-a',
+      'cust-a',
+    );
+    expect(place.streak).toEqual({
+      currentWeeks: 3,
+      state: 'AT_RISK',
+      deadlineDayKey: '2026-09-06',
+    });
+    expect(place.returnChallenge).toEqual({
+      challengeId: 'challenge-1',
+      deadlineDayKey: '2026-09-09',
+    });
+  });
+
+  it('una racha de una sola semana no aparece en el detalle del lugar (misma regla que Desafíos)', async () => {
+    const deps = makeDeps();
+    deps.streaks.getCurrentStreak.mockResolvedValue({
+      currentWeeks: 1,
+      state: 'ACTIVE',
+      currentWeekStart: '2026-08-31',
+      deadlineDayKey: '2026-09-06',
+    });
+    const service = makeService(deps);
+
+    const place = await service.placeDetail('account-1', 'biz-a');
+
+    expect(place.streak).toBeNull();
   });
 
   it('surfaces an UNLOCKED, not-yet-redeemed benefit as available', async () => {

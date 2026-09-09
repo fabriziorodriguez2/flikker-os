@@ -9,6 +9,7 @@ import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.queue';
 import { PlansService } from '../plans/plans.service';
+import { CustomerPublicUrlService } from '../public/customer-public-url.service';
 
 const mockRepo = {
   findAllBusinesses: jest.fn(),
@@ -39,6 +40,10 @@ const mockPrisma = {};
 const mockPlansService = {
   ensureProSelfServicePlan: jest.fn(),
 };
+// Ninguna prueba de esta suite pasa por `sendOnboardingTestMessage` — stub vacío.
+const mockPublicUrls = {
+  feedbackUrl: jest.fn(),
+};
 
 describe('PlatformService', () => {
   let service: PlatformService;
@@ -60,6 +65,7 @@ describe('PlatformService', () => {
         },
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PlansService, useValue: mockPlansService },
+        { provide: CustomerPublicUrlService, useValue: mockPublicUrls },
       ],
     }).compile();
     service = module.get<PlatformService>(PlatformService);

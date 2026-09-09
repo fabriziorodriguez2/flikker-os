@@ -10,6 +10,10 @@ import { RewardGoalFeedbackService } from '../reward-goals/reward-goal-feedback.
 import { SubmitFeedbackDto } from './dto/submit-feedback.dto';
 import { FeedbackRepository } from './feedback.repository';
 
+type FeedbackMessage = NonNullable<
+  Awaited<ReturnType<FeedbackRepository['findMessageByToken']>>
+>;
+
 @Injectable()
 export class FeedbackService {
   constructor(
@@ -41,12 +45,23 @@ export class FeedbackService {
 
     const isCheckinV2 =
       message.business.experienceVersion === ExperienceVersion.CHECKIN_V2;
-    const alreadySubmitted = message.feedbackResponses.length > 0;
     const googleReviewUrl =
       message.business.defaultReviewRedirectUrl ??
       message.business.googleBusinessProfileUrl;
 
-    if (!isCheckinV2) {
+    let alreadySubmitted: boolean;
+    if (isCheckinV2) {
+      // Única fuente de verdad para V2: `CheckinFeedback` — la MISMA tabla
+      // que llena `CheckinFeedbackCard` dentro del check-in. Nunca
+      // `FeedbackResponse` (esa es la tabla LEGACY): si ya contestó adentro
+      // del check-in y después abre este recordatorio, tiene que ver
+      // "ya respondiste", no un formulario nuevo.
+      const visitId = await this.resolveVisitId(message);
+      alreadySubmitted = visitId
+        ? await this.feedbackRepository.hasFeedbackForVisit(visitId)
+        : false;
+    } else {
+      alreadySubmitted = message.feedbackResponses.length > 0;
       if (alreadySubmitted || !googleReviewUrl) throw new NotFoundException();
     }
 
@@ -70,12 +85,15 @@ export class FeedbackService {
 
     const message = await this.feedbackRepository.findMessageByToken(token);
     if (!message) throw new NotFoundException();
-    if (message.feedbackResponses.length > 0) {
-      throw new ConflictException('Feedback already submitted');
-    }
 
     const isCheckinV2 =
       message.business.experienceVersion === ExperienceVersion.CHECKIN_V2;
+
+    if (isCheckinV2) return this.submitCheckinV2(message, dto);
+
+    if (message.feedbackResponses.length > 0) {
+      throw new ConflictException('Feedback already submitted');
+    }
 
     const feedback = await this.feedbackRepository.createFeedback({
       businessId: message.businessId,
@@ -83,82 +101,95 @@ export class FeedbackService {
       customerId: message.customerId,
       score: dto.score,
       comment: dto.comment?.trim() || undefined,
-      // En V2 este campo deja de significar "le ofrecimos Google": Google se
-      // ofrece SIEMPRE, con cualquier puntaje (nada de selective
-      // solicitation). LEGACY conserva su semántica anterior intacta.
-      redirectedToGoogle: isCheckinV2 ? false : dto.score >= 4,
+      redirectedToGoogle: dto.score >= 4,
     });
-
-    // El sello extra es por completar el FEEDBACK, nunca por ir a Google, y
-    // se persiste ACÁ — antes de que el cliente navegue a ningún lado. Si
-    // cierra Google o no publica nada, el sello ya quedó. Es el mismo
-    // servicio (y la misma idempotencia por `feedbackId`) que usa la card
-    // del check-in, así que no hay dos formas de otorgarlo.
-    let bonusGranted = false;
-    if (isCheckinV2) {
-      bonusGranted = await this.grantStampForFeedback(
-        message.businessId,
-        message.customerId,
-        dto.score,
-        dto.comment,
-      );
-    }
 
     if (dto.score < 4) {
       void this.ownerNotificationsQueue
         .enqueueLowFeedback({
+          source: 'legacy',
           businessId: message.businessId,
           feedbackResponseId: feedback.id,
         })
         .catch(() => undefined);
     }
 
-    const googleReviewUrl =
-      message.business.defaultReviewRedirectUrl ??
-      message.business.googleBusinessProfileUrl;
-
     return {
       ok: true,
       redirectedToGoogle: feedback.redirectedToGoogle,
-      bonusGranted,
-      // Se ofrece con CUALQUIER puntaje; lo único que lo apaga es que el
-      // negocio no tenga Google conectado.
-      offerGoogle: isCheckinV2 ? Boolean(googleReviewUrl) : undefined,
+      bonusGranted: false,
+      offerGoogle: undefined,
     };
   }
 
   /**
-   * Traduce el feedback del recordatorio al mundo de Check-in V2: lo ata a
-   * la última visita real del cliente y deja que `RewardGoalFeedbackService`
-   * decida el sello con sus reglas de siempre (independiente del puntaje,
-   * solo si el negocio lo tiene activo, una sola vez por visita).
-   *
-   * Best-effort: si no hay visita a la que atarlo, el feedback igual quedó
-   * guardado — nunca se pierde la opinión por no poder dar el sello.
+   * V2 delega ENTERO a `RewardGoalFeedbackService` — el mismo servicio (y la
+   * misma idempotencia por `visitId`) que usa `CheckinFeedbackCard` dentro
+   * del check-in. `/r/{token}` deja de llevar su propia copia del feedback:
+   * si el cliente ya contestó adentro del check-in, esto devuelve
+   * `alreadySubmitted` sin crear nada nuevo, nunca un segundo registro
+   * desconectado.
    */
-  private async grantStampForFeedback(
-    businessId: string,
-    customerId: string,
-    score: number,
-    comment?: string,
-  ): Promise<boolean> {
-    try {
-      const lastVisit = await this.feedbackRepository.findLastVisit(
-        businessId,
-        customerId,
-      );
-      if (!lastVisit) return false;
-
-      const result = await this.rewardGoalFeedback.submit(
-        businessId,
-        customerId,
-        lastVisit.id,
-        score,
-        comment?.trim() || undefined,
-      );
-      return result.bonusGranted;
-    } catch {
-      return false;
+  private async submitCheckinV2(
+    message: FeedbackMessage,
+    dto: SubmitFeedbackDto,
+  ) {
+    const visitId = await this.resolveVisitId(message);
+    if (!visitId) {
+      // Sin ninguna visita a la que atar el feedback (mensaje viejo, de
+      // antes de `originatingVisitId`, y el cliente tampoco volvió después)
+      // no hay dónde guardarlo en el read-model V2.
+      throw new NotFoundException();
     }
+
+    const result = await this.rewardGoalFeedback.submit(
+      message.businessId,
+      message.customerId,
+      visitId,
+      dto.score,
+      dto.comment?.trim() || undefined,
+    );
+
+    // `result.offerGoogle` del servicio de reward goals es SIEMPRE `true`
+    // (Google se ofrece con cualquier puntaje, esa parte no depende del
+    // negocio) — pero acá, igual que antes de este cambio, se lo apaga si el
+    // negocio ni siquiera tiene Google conectado. Mismo criterio que
+    // `getByToken`, para que la pantalla nunca ofrezca un link roto.
+    const googleReviewUrl =
+      message.business.defaultReviewRedirectUrl ??
+      message.business.googleBusinessProfileUrl;
+    const offerGoogle = result.offerGoogle && Boolean(googleReviewUrl);
+
+    // El aviso de "feedback bajo" al dueño ya no se dispara desde acá: lo
+    // hace `RewardGoalFeedbackService.submit` (arriba), en el mismo momento
+    // en que crea la fila de `CheckinFeedback` — el único punto por el que
+    // pasan TANTO este link (`/r/{token}`) COMO la card dentro del check-in
+    // (`CheckinService.submitFeedback`), así que un único disparo cubre los
+    // dos caminos sin depender de que cada caller se acuerde de hacerlo. Acá
+    // ya no se crea ninguna `FeedbackResponse`: para Check-in V2,
+    // `CheckinFeedback` es la única fuente de verdad de principio a fin.
+    return {
+      ok: true,
+      redirectedToGoogle: false,
+      bonusGranted: result.bonusGranted,
+      offerGoogle,
+    };
+  }
+
+  /**
+   * La visita a la que atar el feedback V2: la que ORIGINÓ este mensaje
+   * (`originatingVisitId`) y, si el mensaje es de antes de que esa columna
+   * existiera, la última visita real del cliente — mismo fallback que ya
+   * usaba `grantStampForFeedback` antes de este cambio.
+   */
+  private async resolveVisitId(
+    message: FeedbackMessage,
+  ): Promise<string | null> {
+    if (message.originatingVisitId) return message.originatingVisitId;
+    const lastVisit = await this.feedbackRepository.findLastVisit(
+      message.businessId,
+      message.customerId,
+    );
+    return lastVisit?.id ?? null;
   }
 }

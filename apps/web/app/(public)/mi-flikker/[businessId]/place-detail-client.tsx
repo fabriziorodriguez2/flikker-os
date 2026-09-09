@@ -2,11 +2,42 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Gift, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowLeft, Gift, Loader2, Lock } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
 import { buildPublicExperienceTheme } from "@/lib/public-experience-theme";
 import LoyaltyCard from "@/components/public/loyalty-card";
-import RedemptionReveal from "@/components/public/redemption-reveal";
+import BenefitCard from "@/components/public/benefit-card";
+import ChallengeRow from "@/components/public/challenge-row";
+import PublicState from "@/components/public/public-state";
+import { toRow, type MyFlikkerChallenge } from "../challenges-tab";
+
+interface PlaceMission {
+  missionId: string;
+  name: string;
+  status: "ACTIVE" | "COMPLETED" | "EXPIRED";
+  progress: {
+    current: number;
+    target: number;
+    remaining: number;
+    complete: boolean;
+  };
+  /** Ya resuelto por el backend en el timezone del negocio — ver `formatDeadline`. */
+  lastDayKey: string;
+  rewardName: string | null;
+  rewardHidden: boolean;
+  rewardCode: string | null;
+}
+
+interface PlaceStreak {
+  currentWeeks: number;
+  state: "ACTIVE" | "AT_RISK";
+  deadlineDayKey: string;
+}
+
+interface PlaceReturnChallenge {
+  challengeId: string;
+  deadlineDayKey: string;
+}
 
 interface MyFlikkerPlace {
   businessId: string;
@@ -49,6 +80,12 @@ interface MyFlikkerPlace {
     code: string;
     expiresAt: string | null;
   }[];
+  /** Misiones vivas o recién completadas de ESTE negocio. */
+  missions: PlaceMission[];
+  /** La racha de visitas en ESTE negocio, o `null` si no vale la pena mostrarla. */
+  streak: PlaceStreak | null;
+  /** El desafío de vuelta vivo en ESTE negocio, o `null` si no hay uno. */
+  returnChallenge: PlaceReturnChallenge | null;
 }
 
 /**
@@ -94,13 +131,12 @@ export default function PlaceDetailClient({
   if (status === "unauthorized") {
     return (
       <Shell>
-        <p className="text-center text-sm text-[#8A91A3]">
-          Tu sesión venció.{" "}
-          <Link href="/mi-flikker" className="font-semibold text-[#5C6BC0]">
-            Volvé a ingresar
-          </Link>
-          .
-        </p>
+        <PublicState
+          icon={Lock}
+          title="Tu sesión se cerró"
+          description="Confirmá tu número y volvés justo a donde estabas. No perdés ni sellos ni premios."
+          action={{ label: "Entrar a Mi Flikker", href: "/mi-flikker" }}
+        />
       </Shell>
     );
   }
@@ -119,24 +155,87 @@ export default function PlaceDetailClient({
   if (status === "error" || !place) {
     return (
       <Shell>
-        <p className="text-center text-sm text-[#C0392B]">
-          No pudimos cargar este lugar.
-        </p>
+        <PublicState
+          icon={AlertTriangle}
+          tone="warning"
+          title="No pudimos cargar este lugar"
+          description="Puede ser algo momentáneo. Probá de nuevo o volvé a tus lugares."
+          action={{ label: "Ver mis lugares", href: "/mi-flikker" }}
+        />
       </Shell>
     );
   }
 
   const brand = palette.primary;
+  const challenges = placeChallenges(place);
 
   return (
     <Shell brand={brand} backgroundColor={place.checkinBackgroundColor}>
+      {/* 1. El negocio */}
       <Link
         href="/mi-flikker"
-        className="mb-5 inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-2 text-xs font-semibold text-[#5F6375] shadow-sm transition-colors hover:bg-white"
+        className="mb-5 inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold"
+        style={{
+          backgroundColor: "var(--pub-surface, #FFFFFFB3)",
+          color: "var(--pub-text-muted, #5F6375)",
+        }}
       >
         <ArrowLeft className="h-3.5 w-3.5" /> Mis lugares
       </Link>
 
+      {/* 2. Beneficios disponibles — lo accionable primero. Cada emisión es
+             una card propia: dos beneficios con el mismo título y códigos
+             distintos son dos cosas distintas y las dos se muestran. */}
+      {place.benefitAvailable ? (
+        <div className="mb-4">
+          <BenefitCard
+            title={place.benefitAvailable.name}
+            code={place.benefitAvailable.code}
+            reveal="tap"
+            brand={brand}
+            meta={
+              place.benefitAvailable.expiresAt
+                ? [
+                    {
+                      label: "Vence",
+                      value: new Date(
+                        place.benefitAvailable.expiresAt,
+                      ).toLocaleDateString("es-UY"),
+                    },
+                  ]
+                : undefined
+            }
+          />
+        </div>
+      ) : null}
+
+      {place.otherBenefits.map((benefit, i) => (
+        <div className="mb-4" key={`${benefit.code}-${i}`}>
+          <BenefitCard
+            title={benefit.title}
+            description={benefit.description}
+            terms={benefit.terms}
+            code={benefit.code}
+            reveal="tap"
+            brand={brand}
+            meta={
+              benefit.expiresAt
+                ? [
+                    {
+                      label: "Vence",
+                      value: new Date(benefit.expiresAt).toLocaleDateString(
+                        "es-UY",
+                      ),
+                    },
+                  ]
+                : undefined
+            }
+          />
+        </div>
+      ))}
+
+      {/* 3. La tarjeta activa, si existe. Sin RewardGoal no se dibuja
+             ninguna tarjeta decorativa. */}
       {place.rewardGoal ? (
         <LoyaltyCard
           rewardName={place.rewardGoal.incentiveName}
@@ -159,121 +258,94 @@ export default function PlaceDetailClient({
         />
       ) : null}
 
-      {place.benefitAvailable ? (
-        <GiftReveal benefit={place.benefitAvailable} brand={brand} />
+      {/* 4. Desafíos de este lugar — sin encabezado de negocio: ya se sabe
+             en cuál estamos. */}
+      {challenges.length > 0 ? (
+        <ul className="mt-4 flex flex-col gap-3">
+          {challenges.map((challenge) => (
+            <ChallengeRow key={challengeKey(challenge)} {...toRow(challenge)} />
+          ))}
+        </ul>
       ) : null}
 
-      {/* Otros beneficios (ej. por promoción manual) — independientes de
-          `benefitAvailable`, que es solo la recompensa de la tarjeta.
-          Pueden coexistir con ella o aparecer solos. */}
-      {place.otherBenefits.map((benefit, i) => (
-        <GiftReveal
-          key={`${benefit.title}-${i}`}
-          benefit={{
-            name: benefit.title,
-            code: benefit.code,
-            expiresAt: benefit.expiresAt,
-          }}
-          brand={brand}
+      {/* 5. Estado vacío real: ni tarjeta, ni beneficios, ni desafíos. */}
+      {!place.rewardGoal &&
+      !place.benefitAvailable &&
+      place.otherBenefits.length === 0 &&
+      challenges.length === 0 ? (
+        <PublicState
+          icon={Gift}
+          title="Todavía no hay nada activo acá"
+          description="Cuando este local active una tarjeta de sellos, un beneficio o un desafío, te aparece en esta pantalla."
+          compact
         />
-      ))}
-
-      {!place.benefitAvailable && place.otherBenefits.length === 0 ? (
-        place.rewardGoal ? (
-          <p className="mt-4 text-center text-sm font-semibold text-[#697084]">
-            Tu próximo regalo: {place.rewardGoal.incentiveName}
-          </p>
-        ) : (
-          <section className="mt-5 rounded-[28px] bg-white/80 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
-            <span className="flex h-11 w-11 items-center justify-center rounded-full" style={{ backgroundColor: `color-mix(in srgb, ${brand} 12%, white)`, color: brand }}>
-              <Gift className="h-5 w-5" aria-hidden="true" />
-            </span>
-            <h2 className="mt-4 text-xl font-bold text-[#202333]">Próximo premio en camino</h2>
-            <p className="mt-2 text-sm leading-6 text-[#7B8295]">
-              Todavía no hay una recompensa activa. Escaneá el QR en tu próxima visita para descubrir novedades.
-            </p>
-          </section>
-        )
       ) : null}
     </Shell>
   );
 }
 
 /**
- * Un beneficio disponible (bienvenida, reactivación, promo, o la recompensa
- * de una tarjeta de sellos que ya se completó) — nunca la tarjeta de sellos
- * en curso. Vive SIEMPRE dentro de esta misma card blanca/opaca, en los dos
- * estados (antes y después de revelar), para que jamás se lea como si
- * formara parte visualmente de la tarjeta de sellos incompleta que está
- * arriba: esa tarjeta (`RewardGoalStamps`, en el hero de más arriba) nunca
- * tiene QR, y este bloque nunca comparte fondo/color con ella.
+ * Los desafíos de este negocio, en el mismo orden de prioridad que usa la
+ * lista global (rank() en my-flikker.service.ts): primero el desafío de
+ * vuelta, después las misiones, después la racha.
+ *
+ * Se arman con la MISMA forma que la lista cruzada para poder pasar por
+ * `toRow`, que es donde vive el copy de cada mecánica.
  */
-function GiftReveal({
-  benefit,
-  brand,
-}: {
-  benefit: NonNullable<MyFlikkerPlace["benefitAvailable"]>;
-  brand: string;
-}) {
-  const [revealed, setRevealed] = useState(false);
+function placeChallenges(place: MyFlikkerPlace): MyFlikkerChallenge[] {
+  const base = {
+    businessId: place.businessId,
+    businessName: place.businessName,
+    logoUrl: place.logoUrl,
+  };
+  const out: MyFlikkerChallenge[] = [];
 
-  return (
-    <section className="mt-5 overflow-hidden rounded-[28px] bg-white/90 p-6 shadow-[0_16px_38px_rgba(31,35,58,0.1)] backdrop-blur-xl">
-      <p className="text-center text-xs font-bold uppercase tracking-[0.12em] text-[#8A91A3]">
-        Beneficio disponible
-      </p>
+  if (place.returnChallenge) {
+    out.push({
+      ...base,
+      kind: "return_challenge",
+      challengeId: place.returnChallenge.challengeId,
+      deadlineDayKey: place.returnChallenge.deadlineDayKey,
+    });
+  }
 
-      {!revealed ? (
-        <div className="mt-4 flex flex-col items-center text-center">
-          <span
-            className="flex h-12 w-12 items-center justify-center rounded-[16px] text-white"
-            style={{ backgroundColor: brand }}
-          >
-            <Gift className="h-6 w-6" aria-hidden="true" />
-          </span>
-          <h2 className="mt-3 text-[22px] font-bold leading-tight tracking-[-0.03em] text-[#171A2B]">
-            {benefit.name}
-          </h2>
-          <button
-            type="button"
-            onClick={() => setRevealed(true)}
-            className="group mt-5 flex h-20 w-20 items-center justify-center rounded-[24px] text-white shadow-[0_16px_34px_rgba(31,35,58,0.2)] transition-transform hover:-translate-y-1 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white focus-visible:ring-offset-2 active:scale-95"
-            style={{
-              background: `linear-gradient(145deg, ${brand}, color-mix(in srgb, ${brand} 70%, black))`,
-            }}
-            aria-label={`Mostrar el código de canje de ${benefit.name}`}
-          >
-            <Gift
-              className="h-9 w-9 transition-transform group-hover:rotate-6"
-              strokeWidth={1.8}
-              aria-hidden="true"
-            />
-          </button>
-          <p className="mt-3 text-xs text-[#8A91A3]">Tocá para ver tu código</p>
-        </div>
-      ) : (
-        <div className="mt-4 text-center text-[#171A2B]">
-          <h2 className="text-[24px] font-bold leading-tight tracking-[-0.03em]">
-            {benefit.name}
-          </h2>
+  for (const mission of place.missions) {
+    out.push({
+      ...base,
+      kind: "mission",
+      missionId: mission.missionId,
+      name: mission.name,
+      description: null,
+      status: mission.status,
+      progress: mission.progress,
+      endsAt: "",
+      timezone: "",
+      lastDayKey: mission.lastDayKey,
+      rewardName: mission.rewardName,
+      rewardHidden: mission.rewardHidden,
+      rewardCode: mission.rewardCode,
+    });
+  }
 
-          <div className="mt-5">
-            <RedemptionReveal
-              code={benefit.code}
-              redeemPath={`/redeem/${benefit.code}`}
-            />
-          </div>
+  if (place.streak) {
+    out.push({
+      ...base,
+      kind: "streak",
+      currentWeeks: place.streak.currentWeeks,
+      state: place.streak.state,
+      deadlineDayKey: place.streak.deadlineDayKey,
+    });
+  }
 
-          {benefit.expiresAt ? (
-            <p className="mt-2 text-center text-xs text-[#8A91A3]">
-              Válido hasta{" "}
-              {new Date(benefit.expiresAt).toLocaleDateString("es-UY")}
-            </p>
-          ) : null}
-        </div>
-      )}
-    </section>
-  );
+  return out;
+}
+
+function challengeKey(challenge: MyFlikkerChallenge): string {
+  if (challenge.kind === "return_challenge") {
+    return `rc:${challenge.challengeId}`;
+  }
+  if (challenge.kind === "streak") return `streak:${challenge.businessId}`;
+  return `mission:${challenge.missionId}`;
 }
 
 /**
@@ -297,7 +369,7 @@ function Shell({
 
   return (
     <div
-      className="flex min-h-screen flex-col items-center px-5 py-8"
+      className="flk-customer flex min-h-screen flex-col items-center px-5 py-8"
       style={
         backgroundColor
           ? ({
@@ -308,6 +380,12 @@ function Shell({
               "--pub-text-soft": theme.textSoft,
               "--pub-surface": theme.surface,
               "--pub-surface-border": theme.surfaceBorder,
+              // Faltaban: sin ellos los CTAs dentro de la experiencia de un
+              // negocio caían al violeta de Flikker, que es el chrome del
+              // producto y no la identidad del local. El check-in ya los
+              // define; esta pantalla es su continuación.
+              "--pub-accent": theme.accent,
+              "--pub-on-accent": theme.onAccent,
             } as React.CSSProperties)
           : {
               backgroundColor: "#F5F6FB",

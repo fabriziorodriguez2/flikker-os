@@ -7,10 +7,15 @@ export const OWNER_NOTIFICATIONS_QUEUE = 'owner-notifications';
 export const LOW_FEEDBACK_NOTIFICATION_JOB = 'low-feedback-notification';
 export const WEEKLY_KPI_SUMMARY_JOB = 'weekly-kpi-summary';
 
-export interface LowFeedbackNotificationJobData {
-  businessId: string;
-  feedbackResponseId: string;
-}
+/**
+ * Discriminada por `source`: LEGACY sigue viviendo en `FeedbackResponse`,
+ * Check-in V2 en `CheckinFeedback` — son dos tablas reales distintas, así
+ * que el worker necesita saber cuál leer. Nunca las dos a la vez: cada
+ * feedback tiene una única fuente según de qué negocio vino.
+ */
+export type LowFeedbackNotificationJobData =
+  | { source: 'legacy'; businessId: string; feedbackResponseId: string }
+  | { source: 'checkin_v2'; businessId: string; checkinFeedbackId: string };
 
 export interface WeeklyKpiSummaryJobData {
   businessId: string;

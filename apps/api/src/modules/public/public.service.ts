@@ -8,7 +8,9 @@ import { BenefitType } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BenefitsService } from '../benefits/benefits.service';
 import { PublicMessagingService } from './public-messaging.service';
+import { CustomerPublicUrlService } from './customer-public-url.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
+import { isCheckinV2 } from '../../common/experience/experience.util';
 
 @Injectable()
 export class PublicService {
@@ -18,8 +20,18 @@ export class PublicService {
     private readonly prisma: PrismaService,
     private readonly benefits: BenefitsService,
     private readonly messaging: PublicMessagingService,
+    private readonly publicUrls: CustomerPublicUrlService,
   ) {}
 
+  /**
+   * QR histórico del mostrador. Un negocio que ya pasó a Check-in V2 nunca
+   * debe seguir corriendo la captación legacy con este QR viejo — así que
+   * acá se corta ANTES de devolver nada que la pantalla legacy pueda
+   * renderizar: se devuelve solo la ruta a la que redirigir
+   * (`/check-in/{token}` de su VisitSource default, la MISMA experiencia real
+   * de V2, sin crear ni tocar Customer ni Visit). El Server Component de
+   * `/qr/[businessId]` hace ese `redirect()` antes de montar el formulario.
+   */
   async getQrInfo(businessId: string, userAgent?: string) {
     const business = await this.prisma.business.findUnique({
       where: { id: businessId, isActive: true },
@@ -29,6 +41,7 @@ export class PublicService {
         logoUrl: true,
         primaryColor: true,
         googleBusinessProfileUrl: true,
+        experienceVersion: true,
         campaigns: {
           where: { status: 'ACTIVE', templateKind: 'qr_capture' },
           select: { id: true, offerText: true },
@@ -39,6 +52,12 @@ export class PublicService {
     });
 
     if (!business) throw new NotFoundException('Business not found');
+
+    if (isCheckinV2(business)) {
+      return {
+        redirectPath: await this.publicUrls.resolveCheckinPath(business),
+      };
+    }
 
     // Record scan in background — never throw
     void this.tryRecordScan(
@@ -125,6 +144,7 @@ export class PublicService {
         name: true,
         phone: true,
         googleBusinessProfileUrl: true,
+        experienceVersion: true,
         campaigns: {
           where: { status: 'ACTIVE', templateKind: 'qr_capture' },
           select: { id: true, offerText: true },
@@ -134,6 +154,13 @@ export class PublicService {
       },
     });
     if (!business) throw new NotFoundException('Business not found');
+    // Defensa en profundidad: la pantalla legacy nunca debería llegar a
+    // postear esto para un negocio V2 (el Server Component redirige antes),
+    // pero un bundle viejo cacheado en un teléfono sí podría intentarlo — y
+    // esto NO debe crear un Customer sin Visit por fuera del flujo V2 real.
+    if (isCheckinV2(business)) {
+      throw new NotFoundException('Business not found');
+    }
 
     let phoneE164: string;
     try {

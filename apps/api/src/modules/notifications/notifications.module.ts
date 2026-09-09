@@ -5,7 +5,7 @@ import { CampaignsModule } from '../campaigns/campaigns.module';
 import { CustomersModule } from '../customers/customers.module';
 import { RetentionV2Module } from '../retention-v2/retention-v2.module';
 import { ProgramAuditModule } from '../program-audit/program-audit.module';
-import { VisitSourcesModule } from '../visit-sources/visit-sources.module';
+import { PublicModule } from '../public/public.module';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { EmailService } from '../../jobs/email.service';
 import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
@@ -33,8 +33,9 @@ import { PlansModule } from '../plans/plans.module';
     CampaignsModule,
     BenefitsModule,
     // Para el link del acceso: la promoción con beneficio manda al MISMO
-    // destino que el QR del mostrador, no a uno propio.
-    VisitSourcesModule,
+    // destino que el QR del mostrador (V2 o LEGACY, según corresponda), no a
+    // uno propio — `CustomerPublicUrlService` es quien decide cuál.
+    PublicModule,
     // Historial de "cambiaste el límite mensual de beneficios automáticos".
     ProgramAuditModule,
     PlansModule,

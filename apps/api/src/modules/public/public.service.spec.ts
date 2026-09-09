@@ -3,6 +3,7 @@ import { PublicService } from './public.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { BenefitsService } from '../benefits/benefits.service';
 import type { PublicMessagingService } from './public-messaging.service';
+import type { CustomerPublicUrlService } from './customer-public-url.service';
 
 /**
  * Pantalla del cliente para UNA emisión de Benefit (`/beneficio/{id}`, el
@@ -24,6 +25,7 @@ function makeService(prisma: ReturnType<typeof makePrisma>) {
     prisma as unknown as PrismaService,
     {} as unknown as BenefitsService,
     {} as unknown as PublicMessagingService,
+    {} as unknown as CustomerPublicUrlService,
   );
 }
 
@@ -104,5 +106,100 @@ describe('PublicService.getBenefitIssuance', () => {
     expect(prisma.benefitParticipation.findUnique).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 'part-1' } }),
     );
+  });
+});
+
+/**
+ * Caso crítico del pedido: un QR histórico `/qr/{businessId}` sobre un
+ * negocio que ya pasó a Check-in V2 nunca debe ejecutar el flujo legacy —
+ * ni `getQrInfo` (que armaría el formulario legacy) ni `captureContact` (que
+ * crearía un Customer sin Visit por fuera del flujo V2 real).
+ */
+describe('PublicService — QR histórico en un negocio Check-in V2', () => {
+  function makeQrHarness(experienceVersion: 'LEGACY' | 'CHECKIN_V2') {
+    const prisma = {
+      business: {
+        findUnique: jest.fn().mockResolvedValue({
+          id: 'biz-1',
+          name: 'Café Test',
+          logoUrl: null,
+          primaryColor: null,
+          googleBusinessProfileUrl: null,
+          phone: null,
+          experienceVersion,
+          campaigns: [],
+        }),
+      },
+      qrCode: { findFirst: jest.fn().mockResolvedValue({ id: 'qr-1' }) },
+      customer: {
+        findFirst: jest.fn().mockResolvedValue(null),
+        create: jest.fn().mockResolvedValue({ id: 'cust-1' }),
+      },
+    };
+    const benefits = {
+      resolveActiveBenefit: jest.fn().mockResolvedValue(null),
+    };
+    const messaging = {
+      sendWelcome: jest.fn().mockResolvedValue(true),
+      sendOwnerNotification: jest.fn().mockResolvedValue(undefined),
+      enqueueReviewRequest: jest.fn().mockResolvedValue('msg-1'),
+    };
+    const publicUrls = {
+      resolveCheckinPath: jest
+        .fn()
+        .mockResolvedValue('/check-in/tok-principal'),
+    };
+    const service = new PublicService(
+      prisma as unknown as PrismaService,
+      benefits as unknown as BenefitsService,
+      messaging as unknown as PublicMessagingService,
+      publicUrls as unknown as CustomerPublicUrlService,
+    );
+    return { prisma, benefits, messaging, publicUrls, service };
+  }
+
+  it('V2: getQrInfo devuelve solo la ruta de redirect, nunca los campos de la pantalla legacy', async () => {
+    const { service, publicUrls, benefits } = makeQrHarness('CHECKIN_V2');
+
+    const result = await service.getQrInfo('biz-1');
+
+    expect(result).toEqual({ redirectPath: '/check-in/tok-principal' });
+    expect(publicUrls.resolveCheckinPath).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'biz-1', experienceVersion: 'CHECKIN_V2' }),
+    );
+    // Nunca resuelve el beneficio activo — eso es trabajo de la pantalla
+    // legacy, que en V2 no se ejecuta.
+    expect(benefits.resolveActiveBenefit).not.toHaveBeenCalled();
+  });
+
+  it('LEGACY: getQrInfo sigue devolviendo la info de la pantalla de siempre', async () => {
+    const { service } = makeQrHarness('LEGACY');
+
+    const result = await service.getQrInfo('biz-1');
+
+    expect(result).toEqual(
+      expect.objectContaining({ businessName: 'Café Test' }),
+    );
+    expect('redirectPath' in result).toBe(false);
+  });
+
+  it('V2: captureContact rechaza con 404, nunca crea un Customer sin Visit', async () => {
+    const { service, prisma, messaging } = makeQrHarness('CHECKIN_V2');
+
+    await expect(
+      service.captureContact('biz-1', 'Ana', '+59891111111'),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(prisma.customer.findFirst).not.toHaveBeenCalled();
+    expect(messaging.sendWelcome).not.toHaveBeenCalled();
+  });
+
+  it('LEGACY: captureContact sigue funcionando igual', async () => {
+    const { service, messaging } = makeQrHarness('LEGACY');
+
+    const result = await service.captureContact('biz-1', 'Ana', '+59891111111');
+
+    expect(result).toEqual({ ok: true });
+    expect(messaging.sendWelcome).toHaveBeenCalled();
   });
 });

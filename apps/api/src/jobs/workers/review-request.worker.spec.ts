@@ -51,10 +51,20 @@ function buildHarness(overrides: MessageOverrides = {}) {
   const feedbackRepository = {
     hasFeedbackForVisit: jest.fn().mockResolvedValue(false),
   };
+  // Mismo comportamiento que `CustomerPublicUrlService.feedbackUrl` real —
+  // lee `APP_PUBLIC_URL` en el momento del llamado, no al construir el
+  // harness, para que los tests que lo pisan a mitad de test sigan valiendo.
+  const publicUrls = {
+    feedbackUrl: jest.fn((trackingToken: string) => {
+      const base = process.env.APP_PUBLIC_URL ?? 'https://app.flikker.com';
+      return `${base.replace(/\/$/, '')}/r/${trackingToken}`;
+    }),
+  };
   const worker = new ReviewRequestWorker(
     prisma as never,
     bsp as never,
     feedbackRepository as never,
+    publicUrls as never,
   );
 
   const run = () =>
@@ -64,7 +74,7 @@ function buildHarness(overrides: MessageOverrides = {}) {
       businessId: 'business-1',
     });
 
-  return { prisma, bsp, feedbackRepository, update, run };
+  return { prisma, bsp, feedbackRepository, publicUrls, update, run };
 }
 
 describe('ReviewRequestWorker', () => {

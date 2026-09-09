@@ -69,10 +69,20 @@ export class OwnerNotificationsWorker implements OnModuleInit, OnModuleDestroy {
   }
 
   async processLowFeedback(data: LowFeedbackNotificationJobData) {
-    const feedback = await this.prisma.feedbackResponse.findFirst({
-      where: { id: data.feedbackResponseId, businessId: data.businessId },
-      include: { business: true, customer: true, message: true },
-    });
+    // LEGACY sigue leyendo `FeedbackResponse`, exactamente como siempre.
+    // Check-in V2 lee `CheckinFeedback` — la única fuente de verdad de
+    // feedback para esos negocios, la MISMA fila que ya otorgó (o no) el
+    // sello bonus. Nunca se lee la tabla del otro lado.
+    const feedback =
+      data.source === 'checkin_v2'
+        ? await this.prisma.checkinFeedback.findFirst({
+            where: { id: data.checkinFeedbackId, businessId: data.businessId },
+            include: { business: true, customer: true },
+          })
+        : await this.prisma.feedbackResponse.findFirst({
+            where: { id: data.feedbackResponseId, businessId: data.businessId },
+            include: { business: true, customer: true, message: true },
+          });
 
     if (!feedback) return;
     const recipients = await this.findOwnerContacts(data.businessId);

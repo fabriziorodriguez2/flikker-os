@@ -7,6 +7,10 @@ import {
   viewFromUnlockResult,
   type RewardGoalPublicView,
 } from './reward-goal-orchestrator.service';
+import { OwnerNotificationsQueue } from '../../jobs/owner-notifications.queue';
+
+/** Igual que `SubmitFeedbackDto` — feedback bajo es lo que amerita avisarle al dueño. */
+const LOW_SCORE_THRESHOLD = 4;
 
 const NOTHING: RewardGoalPublicView = {
   goal: null,
@@ -55,6 +59,7 @@ export class RewardGoalFeedbackService {
     private readonly prisma: PrismaService,
     private readonly unlock: RewardGoalUnlockService,
     private readonly orchestrator: RewardGoalOrchestratorService,
+    private readonly ownerNotifications: OwnerNotificationsQueue,
   ) {}
 
   async submit(
@@ -97,6 +102,24 @@ export class RewardGoalFeedbackService {
       },
       select: { id: true },
     });
+
+    // El aviso de "feedback bajo" al dueño se dispara ACÁ — el único momento
+    // en que esta fila de `CheckinFeedback` nace — en vez de en cada
+    // caller (`FeedbackService` para `/r/{token}`, `CheckinService` para la
+    // card dentro del check-in). Los dos entran a este mismo `submit`, así
+    // que un único punto de disparo es lo que garantiza "nunca duplicar" sin
+    // depender de que cada caller se acuerde de hacerlo — y como esto corre
+    // ANTES del `return` de arriba (el de `alreadySubmitted`), un reintento
+    // sobre la misma visita nunca vuelve a pasar por acá.
+    if (score < LOW_SCORE_THRESHOLD) {
+      void this.ownerNotifications
+        .enqueueLowFeedback({
+          source: 'checkin_v2',
+          businessId,
+          checkinFeedbackId: feedback.id,
+        })
+        .catch(() => undefined);
+    }
 
     // Only an ACTIVE goal can receive a bonus stamp — there is nothing to
     // add progress toward otherwise, and this must never manufacture one.

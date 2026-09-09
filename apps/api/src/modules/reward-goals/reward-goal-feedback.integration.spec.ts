@@ -20,6 +20,10 @@ import { AutomationCooldownService } from '../../jobs/automation-cooldown.servic
 import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 import { EmailService } from '../../jobs/email.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { CustomerPublicUrlService } from '../public/customer-public-url.service';
+import { VisitSourcesService } from '../visit-sources/visit-sources.service';
+import { VisitSourcesRepository } from '../visit-sources/visit-sources.repository';
+import { OwnerNotificationsQueue } from '../../jobs/owner-notifications.queue';
 
 /**
  * §9 pilot ask — contra DB real, sin mocks: prueba que el sello de feedback
@@ -50,6 +54,10 @@ describe('Reward Goals — feedback bonus (integration)', () => {
         LifecycleEmailsService,
         EmailService,
         WhatsAppBspService,
+        CustomerPublicUrlService,
+        VisitSourcesService,
+        VisitSourcesRepository,
+        OwnerNotificationsQueue,
       ],
     }).compile();
 

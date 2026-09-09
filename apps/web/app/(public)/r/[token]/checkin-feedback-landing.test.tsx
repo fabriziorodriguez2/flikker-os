@@ -39,7 +39,7 @@ describe("CheckinFeedbackLanding", () => {
     );
     expect(googleLinks(html)).toHaveLength(0);
     // Y la pantalla sigue siendo útil: agradece igual.
-    expect(html).toContain("Gracias por contarnos");
+    expect(html).toContain("Gracias, ya recibimos tu opinión");
   });
 
   it("ofrece exactamente un enlace a Google cuando está conectado", () => {
@@ -52,7 +52,22 @@ describe("CheckinFeedbackLanding", () => {
       />,
     );
     expect(googleLinks(html)).toEqual([GOOGLE_URL]);
-    expect(html).toContain("Compartir tambi");
+    expect(html).toContain("Dejar una reseña en Google");
+  });
+
+  /**
+   * La encuesta es UNA sola para las dos entradas: este landing y la card
+   * dentro del check-in son wrappers de contexto sobre `FeedbackForm`. Si
+   * alguien vuelve a escribir estrellas/comentario/envío acá, esto lo caza.
+   */
+  it("delega el cuerpo de la encuesta en el FeedbackForm compartido", () => {
+    expect(source).toContain(
+      'from "@/components/public/feedback-form"',
+    );
+    expect(source).toContain("<FeedbackForm");
+    // El wrapper ya no dibuja la encuesta por su cuenta.
+    expect(source).not.toMatch(/<textarea/);
+    expect(source).not.toMatch(/StarIcon|<svg/);
   });
 
   it("deja claro que Google es opcional y no afecta la recompensa", () => {
