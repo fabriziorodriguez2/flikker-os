@@ -2960,6 +2960,19 @@ model BenefitParticipation {
   @@map("benefit_participations")
 }
 
+// benefit_participations_one_open_per_source — índice único parcial
+// (business_id, benefit_id, customer_id, source) WHERE redeemed_at IS NULL
+// AND source IN ('WELCOME', 'CHECKIN_ACTIVE'), escrito a mano en la
+// migración. Prisma no tiene "unique where", igual que con
+// `customer_reward_goals_one_active_per_customer` y
+// `return_challenges_one_active_per_customer`. Es el backstop de DB para "a
+// lo sumo una participación ABIERTA por origen que reusa mientras esté
+// vigente" que `BenefitsRepository.ensureRedemptionCode` también aplica en
+// código. PROMOTION queda afuera a propósito: cada envío manual es una
+// emisión nueva e independiente, nunca idempotente (ver
+// `NotificationsPromotionsService`) — el índice solo cubre los dos orígenes
+// que sí tienen semántica de "reusar la abierta".
+
 // ---------------------------------------------------------------------------
 // ProgramAuditEvent (Programa → Historial)
 // ---------------------------------------------------------------------------

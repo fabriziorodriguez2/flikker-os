@@ -291,7 +291,6 @@ export class CheckinService {
     const personal = await this.buildPersonalSpace(business, customer.id, {
       // First visit always asks for the review — it's the primary action.
       forceReviewPrompt: true,
-      ensureCode: true,
       justVisited: result.created,
       visitOccurredAt: result.created ? result.visit.occurredAt : undefined,
     });
@@ -346,7 +345,6 @@ export class CheckinService {
     await this.emitVisitOutcome(business.id, customer.id, source.id, result);
 
     const personal = await this.buildPersonalSpace(business, customer.id, {
-      ensureCode: true,
       justVisited: result.created,
       visitOccurredAt: result.created ? result.visit.occurredAt : undefined,
     });
@@ -524,7 +522,6 @@ export class CheckinService {
     await this.emitVisitOutcome(business.id, customer.id, source.id, result);
 
     const personal = await this.buildPersonalSpace(business, customer.id, {
-      ensureCode: true,
       justVisited: result.created,
       visitOccurredAt: result.created ? result.visit.occurredAt : undefined,
     });
@@ -730,11 +727,20 @@ export class CheckinService {
     customerId: string,
     opts: {
       forceReviewPrompt?: boolean;
-      ensureCode?: boolean;
       /**
        * True only right after a real, newly-created Visit — the Reward Goal
        * engine only ever evaluates unlock/creation from here, never from a
        * plain read (`me`) or a dedup-prevented duplicate scan (Fase E §27).
+       *
+       * También gatea la emisión CHECKIN_ACTIVE (`ensureRedemptionCode` más
+       * abajo). Hasta acá había un flag `ensureCode` separado que los tres
+       * call sites pasaban siempre en `true` — o sea, "emití/reusá un
+       * código" corría en CUALQUIER llamada, incluida una visita duplicada o
+       * rechazada por `min_hours`. Si esa emisión ya estaba canjeada,
+       * `ensureRedemptionCode` no encontraba ninguna abierta para reusar y
+       * creaba una nueva — un beneficio nuevo sin ninguna visita nueva detrás.
+       * Con un solo flag, "hubo Visit válida" es la única puerta para las dos
+       * cosas que dependen de eso.
        */
       justVisited?: boolean;
       /**
@@ -811,11 +817,16 @@ export class CheckinService {
       ],
     );
 
-    // For redeemable benefits (not raffle/none), issue the code on write paths
-    // and always surface its current state. `me` (read-only) never issues.
+    // For redeemable benefits (not raffle/none), issue/reuse the code ONLY
+    // right after a real, newly-created Visit — never on a plain read (`me`),
+    // a dedup-prevented duplicate, or a check-in rejected by `min_hours`. This
+    // is the CHECKIN_ACTIVE policy: "este beneficio se habilita como
+    // consecuencia de una visita válida", nada más lo dispara. Siempre se
+    // surfacea el estado vigente (la fila `findRedemption` de abajo), esté o
+    // no recién emitida.
     let redemption: { code: string; redeemed: boolean } | null = null;
     if (benefit && this.benefits.isRedeemable(benefit.type)) {
-      if (opts.ensureCode) {
+      if (opts.justVisited) {
         await this.benefits.ensureRedemptionCode(
           business.id,
           benefit.id,

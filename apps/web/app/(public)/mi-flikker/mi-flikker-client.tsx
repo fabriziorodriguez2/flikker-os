@@ -2,18 +2,19 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { ChevronRight, Loader2, MapPin, QrCode, Sparkles } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ChevronRight, Gift, Loader2, MapPin, QrCode } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
-import LoyaltyCard from "@/components/public/loyalty-card";
 import PublicState from "@/components/public/public-state";
+import CustomerShell from "@/components/public/customer-shell";
+import AccountMenu from "@/components/public/account-menu";
 import PhoneInput, { isValidNationalPhone } from "@/components/ui/phone-input";
 import OtpInput from "@/components/ui/otp-input";
 import ChallengesTab, {
   type MyFlikkerChallenge,
 } from "./challenges-tab";
 
-interface MyFlikkerPlace {
+export interface MyFlikkerPlace {
   businessId: string;
   businessName: string;
   logoUrl: string | null;
@@ -42,6 +43,13 @@ interface MyFlikkerPlace {
     code: string;
     expiresAt: string | null;
   } | null;
+  /**
+   * Otras emisiones sin canjear (promo manual, bienvenida, reactivación).
+   * El endpoint de la lista ya las devuelve — `placeSummary` es el mismo para
+   * lista y detalle — así que el resumen puede contar TODOS los premios que
+   * el cliente tiene disponibles ahí, no solo el de la tarjeta.
+   */
+  otherBenefits?: { title: string; code: string }[];
 }
 
 function MiFlikkerTitle() {
@@ -84,7 +92,6 @@ export default function MiFlikkerClient({
   );
   const [places, setPlaces] = useState<MyFlikkerPlace[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const walletRef = useRef<HTMLDivElement>(null);
   const [view, setView] = useState<"lugares" | "desafios">("lugares");
   const [challenges, setChallenges] = useState<MyFlikkerChallenge[]>([]);
   const [challengesLoading, setChallengesLoading] = useState(false);
@@ -96,79 +103,12 @@ export default function MiFlikkerClient({
     void load();
   }, [hasSession]);
 
-  useEffect(() => {
-    const wallet = walletRef.current;
-    if (!wallet || places.length === 0) return;
-
-    let frame = 0;
-    let activeIndex = 0;
-    const updateDepth = () => {
-      frame = 0;
-      const cards = Array.from(
-        wallet.querySelectorAll<HTMLElement>("[data-wallet-card]"),
-      );
-      const rects = cards.map((card) => card.getBoundingClientRect());
-      if (rects.length === 0) return;
-
-      const focusLine = window.innerHeight * 0.46;
-      let candidateIndex = activeIndex;
-      let closestDistance = Number.POSITIVE_INFINITY;
-      let activeDistance = Number.POSITIVE_INFINITY;
-      rects.forEach((rect, index) => {
-        if (rect.bottom < 0 || rect.top > window.innerHeight) return;
-        const currentOffset = Number.parseFloat(
-          cards[index].style.getPropertyValue("--mi-card-offset") || "0",
-        );
-        const distance = Math.abs(
-          rect.top + rect.height / 2 - currentOffset - focusLine,
-        );
-        if (index === activeIndex) activeDistance = distance;
-        if (distance < closestDistance) {
-          closestDistance = distance;
-          candidateIndex = index;
-        }
-      });
-
-      // Keep the current card until its neighbour is clearly closer to the
-      // focus line. This hysteresis prevents two cards from flickering when
-      // the user scrolls slowly around their midpoint.
-      if (
-        candidateIndex !== activeIndex &&
-        (activeDistance === Number.POSITIVE_INFINITY ||
-          closestDistance + 34 < activeDistance)
-      ) {
-        activeIndex = candidateIndex;
-      }
-
-      cards.forEach((card, index) => {
-        const distance = Math.abs(activeIndex - index);
-        const scale =
-          index === activeIndex
-            ? 1.065
-            : Math.max(0.925, 0.975 - distance * 0.016);
-        const offset = index < activeIndex ? -58 : index > activeIndex ? 58 : 0;
-
-        card.style.setProperty("--mi-card-scale", scale.toFixed(4));
-        card.style.setProperty("--mi-card-offset", `${offset}px`);
-        card.style.zIndex = index === activeIndex ? "100" : `${index + 1}`;
-        card.dataset.active = index === activeIndex ? "true" : "false";
-      });
-    };
-
-    const scheduleUpdate = () => {
-      if (frame) return;
-      frame = window.requestAnimationFrame(updateDepth);
-    };
-
-    updateDepth();
-    window.addEventListener("scroll", scheduleUpdate, { passive: true });
-    window.addEventListener("resize", scheduleUpdate);
-    return () => {
-      if (frame) window.cancelAnimationFrame(frame);
-      window.removeEventListener("scroll", scheduleUpdate);
-      window.removeEventListener("resize", scheduleUpdate);
-    };
-  }, [places.length]);
+  /*
+    Acá vivía el efecto que manejaba la billetera apilada: medía cada card
+    contra una línea de foco, elegía la "activa" y les escribía scale/offset
+    en cada scroll. Se fue junto con el deck — Lugares ahora es una lista
+    vertical común, sin solapamiento, y no necesita ningún listener de scroll.
+  */
 
   async function load() {
     setStatus("loading");
@@ -246,7 +186,19 @@ export default function MiFlikkerClient({
 
   return (
     <Shell>
-      <MiFlikkerTitle />
+      {/*
+        El avatar de cuenta vive en su propia fila, arriba de todo — no
+        compite con el wordmark ni con los tabs. `w-9` a la izquierda es un
+        spacer del mismo ancho que el botón, así el título queda centrado de
+        verdad en vez de corrido hacia la izquierda.
+      */}
+      <div className="flex w-full items-center justify-between">
+        <span className="h-9 w-9" aria-hidden="true" />
+        <div className="flex-1">
+          <MiFlikkerTitle />
+        </div>
+        <AccountMenu onLogout={() => void logout()} loggingOut={loggingOut} />
+      </div>
       <p className="mt-1 text-center text-sm text-[#8A91A3]">
         Todas tus recompensas Flikker en un solo lugar.
       </p>
@@ -287,17 +239,6 @@ export default function MiFlikkerClient({
         </button>
       </div>
 
-      <div className="mt-2 flex justify-center">
-        <button
-          type="button"
-          onClick={() => void logout()}
-          disabled={loggingOut}
-          className="rounded-full px-4 py-1.5 text-xs font-semibold text-[#8A91A3] transition-colors hover:bg-[#ECEEF4] hover:text-[#5F6375] disabled:opacity-60"
-        >
-          {loggingOut ? "Cerrando…" : "Cerrar sesión"}
-        </button>
-      </div>
-
       {view === "desafios" ? (
         <ChallengesTab challenges={challenges} loading={challengesLoading} />
       ) : loadError ? (
@@ -314,128 +255,159 @@ export default function MiFlikkerClient({
           description="Escaneá el QR de un local Flikker y tu tarjeta aparece acá sola. Si ya tenés una en algún negocio, verificá el mismo WhatsApp que usaste al registrarte ahí."
         />
       ) : (
-        <div ref={walletRef} className="mi-wallet mt-12 w-full pb-16">
-          {places.map((place, index) => (
-            <PlaceCard key={place.businessId} place={place} index={index} />
+        <ul className="mt-6 flex w-full flex-col gap-3 pb-12">
+          {places.map((place) => (
+            <li key={place.businessId}>
+              <PlaceCard place={place} />
+            </li>
           ))}
-        </div>
+        </ul>
       )}
     </Shell>
   );
 }
 
-function PlaceCard({ place, index }: { place: MyFlikkerPlace; index: number }) {
+/**
+ * Una fila de la lista de Lugares.
+ *
+ * Deliberadamente NO es la tarjeta de sellos. Antes esta lista era una
+ * billetera de cupones apilados: la card con RewardGoal montaba el
+ * `LoyaltyCard` completo y las demás se pintaban enteras con el gradiente del
+ * negocio, solapadas entre sí. Con diez lugares eso era un mazo imposible de
+ * escanear, y cada fila se veía de un producto distinto.
+ *
+ * Ahora es una lista vertical común: superficie Flikker, una card por lugar,
+ * y del negocio solo su logo, el aro y un riel de 5px. La tarjeta completa —
+ * sellos, colores, patrón, premio — vive en el detalle del lugar, que es
+ * donde el cliente entra a mirarla.
+ *
+ * Toda la card es el tap target hacia `/mi-flikker/{businessId}`.
+ */
+function PlaceCard({ place }: { place: MyFlikkerPlace }) {
   const palette = useLogoPalette(
     place.businessId,
     place.logoUrl,
     place.primaryColor,
   );
-  if (place.rewardGoal) {
-    return (
-      <Link
-        href={`/mi-flikker/${place.businessId}`}
-        data-wallet-card
-        className="mi-wallet-card sticky block rounded-[20px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5C6BC0] focus-visible:ring-offset-2"
-        style={{ top: 88 + Math.min(index, 8) * 10, zIndex: index + 1 }}
-      >
-        <LoyaltyCard
-          rewardName={place.rewardGoal.incentiveName}
-          progress={place.rewardGoal.progressVisits}
-          target={place.rewardGoal.targetAdditionalVisits}
-          bonusStamps={place.rewardGoal.bonusStamps ?? 0}
-          appearance={{
-            cardColor: place.loyaltyCardColor ?? palette.primary,
-            textColor: place.loyaltyCardTextColor,
-            backgroundImage: place.loyaltyCardBackgroundImage,
-            stampAreaColor: place.loyaltyStampAreaColor,
-            stampColor: place.loyaltyStampColor,
-            stampIcon: place.loyaltyStampIcon,
-            logoUrl: place.logoUrl,
-            businessName: place.businessName,
-            showBusinessName: place.loyaltyShowBusinessName,
-            stampBackgroundPattern: place.loyaltyStampBackgroundPattern,
-            stampBackgroundOpacity: place.loyaltyStampBackgroundOpacity,
-          }}
-        />
-        {/* Un Benefit independiente (bienvenida/promo/reactivación) puede
-            coexistir con una tarjeta ACTIVE — se muestra acá, separado de la
-            tarjeta, nunca como parte de ella. */}
-        {place.benefitAvailable ? (
-          <p className="mt-2 flex items-center gap-1.5 px-1 text-[13px] font-semibold text-[#4A56A6]">
-            <Sparkles className="h-3.5 w-3.5" aria-hidden="true" />
-            <span className="truncate">
-              Tenés disponible: {place.benefitAvailable.name}
-            </span>
-          </p>
-        ) : null}
-      </Link>
-    );
-  }
+  const brand = palette.primary;
+  const summary = placeSummary(place);
 
   return (
     <Link
       href={`/mi-flikker/${place.businessId}`}
-      data-wallet-card
-      className="mi-coupon mi-wallet-card sticky block min-h-[176px] overflow-hidden rounded-[26px] p-6 text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-      style={{
-        top: 112 + Math.min(index, 8) * 10,
-        zIndex: index + 1,
-        background: `linear-gradient(135deg, ${palette.primary} 0%, ${palette.secondary} 115%)`,
-      }}
+      className="relative flex items-center gap-3.5 overflow-hidden rounded-[16px] border border-[#E7E8F1] bg-white py-4 pl-5 pr-4 transition-colors hover:bg-[#FCFCFE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5B5BD6] focus-visible:ring-offset-2"
     >
+      {/* Único rastro cromático del negocio, junto con el aro del logo. */}
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-y-0 left-0 w-[5px]"
+        style={{ backgroundColor: brand }}
+      />
+
       {place.logoUrl ? (
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -inset-full rotate-45 opacity-[0.045] mix-blend-screen"
-          style={{
-            backgroundImage: `url("/api/mi-flikker/places/${encodeURIComponent(place.businessId)}/logo")`,
-            backgroundPosition: "14px 12px",
-            backgroundRepeat: "repeat",
-            backgroundSize: "72px 72px",
-            filter: "grayscale(1) contrast(0.8)",
-          }}
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={place.logoUrl}
+          alt=""
+          className="h-11 w-11 shrink-0 rounded-full border-2 bg-white object-contain p-1"
+          style={{ borderColor: brand }}
         />
-      ) : null}
-      <div className="relative flex items-center gap-3.5">
-        {place.logoUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={place.logoUrl}
-            alt=""
-            className="h-[72px] w-[72px] shrink-0 object-contain"
-          />
-        ) : (
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[15px] bg-white/12">
-            <MapPin className="h-5 w-5" aria-hidden="true" />
-          </span>
-        )}
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[17px] font-bold tracking-[-0.02em]">
-            {place.businessName}
+      ) : (
+        <span
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 bg-white"
+          style={{ borderColor: brand, color: brand }}
+        >
+          <MapPin className="h-[18px] w-[18px]" aria-hidden="true" />
+        </span>
+      )}
+
+      <div className="min-w-0 flex-1">
+        {/*
+          `break-words` en vez de `truncate`: un nombre largo se parte en dos
+          líneas y la card crece. Cortarlo con puntos suspensivos deja al
+          cliente sin saber en qué local está, que es lo único que esta fila
+          tiene que responder.
+        */}
+        <p className="break-words text-[16px] font-extrabold leading-tight tracking-[-0.02em] text-[#14151F]">
+          {place.businessName}
+        </p>
+        <p className="mt-1 text-[13px] font-medium text-[#5A5F76]">
+          {summary.primary}
+        </p>
+        {summary.reward ? (
+          <p className="mt-1.5 flex items-center gap-1.5 text-[13px] font-bold text-[#4A56A6]">
+            <Gift className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />
+            <span className="min-w-0 break-words">{summary.reward}</span>
           </p>
-          <p className="mt-0.5 text-[13px] font-medium text-white/70">
-            {place.visitsTotal} {place.visitsTotal === 1 ? "visita" : "visitas"}
+        ) : summary.secondary ? (
+          <p className="mt-1 text-[13px] font-medium text-[#8A90A6]">
+            {summary.secondary}
           </p>
-        </div>
-        <ChevronRight className="h-5 w-5 shrink-0 text-white/70" />
+        ) : null}
       </div>
 
-      <div className="relative mt-4 pt-3">
-        {place.benefitAvailable ? (
-          <p className="flex items-center gap-2 text-[14px] font-semibold">
-            <Sparkles className="h-4 w-4 text-[#FFE08A]" aria-hidden="true" />
-            <span className="truncate">
-              Tenés disponible: {place.benefitAvailable.name}
-            </span>
-          </p>
-        ) : (
-          <p className="text-[13px] font-medium text-white/65">
-            Todavía no hay un premio activo
-          </p>
-        )}
-      </div>
+      <ChevronRight
+        className="h-5 w-5 shrink-0 self-center text-[#8A90A6]"
+        aria-hidden="true"
+      />
     </Link>
   );
+}
+
+/**
+ * Las dos o tres líneas que resumen un lugar, sin inventar ninguna.
+ *
+ * Reglas:
+ *
+ *  - Con tarjeta activa, el progreso es la línea principal, con la MISMA
+ *    cuenta que muestra `LoyaltyCard` en el detalle (`min(progress, target)`);
+ *    si las dos pantallas contaran distinto sería un bug visible.
+ *  - Los premios disponibles son lo accionable, así que se llevan la línea
+ *    destacada. Se cuentan TODAS las emisiones sin canjear, no solo la de la
+ *    tarjeta, y no se deduplica por título: dos emisiones con el mismo nombre
+ *    son dos premios distintos.
+ *  - Sin premio, la segunda línea es cuánto falta para el próximo — solo si
+ *    el backend efectivamente dice que falta algo.
+ *  - Sin ninguna mecánica no se dibuja un 0/N inventado: se dice lo único
+ *    que se sabe, que son las visitas.
+ */
+export function placeSummary(place: MyFlikkerPlace): {
+  primary: string;
+  secondary: string | null;
+  reward: string | null;
+} {
+  const goal = place.rewardGoal;
+  const rewardCount =
+    (place.benefitAvailable ? 1 : 0) + (place.otherBenefits?.length ?? 0);
+  const reward =
+    rewardCount === 0
+      ? null
+      : rewardCount === 1
+        ? "1 premio disponible"
+        : `${rewardCount} premios disponibles`;
+
+  if (!goal) {
+    return {
+      primary:
+        place.visitsTotal === 0
+          ? "Todavía no registraste visitas"
+          : `${place.visitsTotal} ${place.visitsTotal === 1 ? "visita" : "visitas"}`,
+      secondary: null,
+      reward,
+    };
+  }
+
+  const stamps = Math.min(goal.progressVisits, goal.targetAdditionalVisits);
+  const remaining = goal.remainingVisits;
+
+  return {
+    primary: `${stamps} de ${goal.targetAdditionalVisits} sellos`,
+    secondary:
+      remaining > 0
+        ? `Te ${remaining === 1 ? "falta" : "faltan"} ${remaining} para tu premio`
+        : null,
+    reward,
+  };
 }
 
 function VerifyScreen({ onVerified }: { onVerified: () => void }) {
@@ -528,10 +500,13 @@ function VerifyScreen({ onVerified }: { onVerified: () => void }) {
   );
 }
 
+/**
+ * Mi Flikker es la casa del cliente: acá no hay un negocio dueño de la
+ * pantalla, así que el shell va sin header de negocio. Es el mismo
+ * `CustomerShell` que el resto de la experiencia — misma paleta, mismo aire,
+ * mismos tokens — para que moverse entre Mi Flikker, un local y un beneficio
+ * no se sienta como cambiar de app.
+ */
 function Shell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="flk-customer flex min-h-[100dvh] w-full flex-col items-center bg-[#F5F6FB] px-4 py-8 sm:px-5 sm:py-10">
-      <div className="w-full max-w-md">{children}</div>
-    </div>
-  );
+  return <CustomerShell footer={false}>{children}</CustomerShell>;
 }

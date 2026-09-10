@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { Loader2, UserPlus } from "lucide-react";
 import { RegisterScreenContent } from "@/app/(public)/check-in/[token]/checkin-client";
@@ -21,9 +22,21 @@ const MAX_LEN = 160;
  * además no recibe `onSubmit`; conserva el diseño sin permitir escritura,
  * clics ni requests reales.
  *
- * Se editan el encabezado (`checkinWelcomeMessage`) y el fondo propio de esta
- * pantalla (`checkinBackgroundColor`). El resto se arma solo a partir de
- * Tarjeta digital y del beneficio activo.
+ * Acá se edita SOLO el encabezado (`checkinWelcomeMessage`). El resto se arma
+ * solo a partir de Tarjeta digital y del beneficio activo.
+ *
+ * ## Por qué ya no hay selector de color
+ *
+ * Había un control de `checkinBackgroundColor` que pintaba el fondo de toda
+ * la experiencia del cliente. Con el criterio de identidad nuevo — Flikker es
+ * el marco, el negocio es el contenido — ese fondo pasó a ser constante, así
+ * que el control quedó configurando algo que no se ve en ninguna pantalla.
+ * Un control inerte es peor que ninguno: el dueño elige un color, guarda, y
+ * nada cambia.
+ *
+ * La columna `Business.checkinBackgroundColor` NO se borra ni se migra: sigue
+ * existiendo con los valores que cada negocio ya había elegido. Lo único que
+ * cambia es que este formulario dejó de escribirla.
  */
 export default function ProgramRegistrationSection({
   appearance,
@@ -38,9 +51,6 @@ export default function ProgramRegistrationSection({
 }) {
   const [message, setMessage] = useState(
     appearance.checkinWelcomeMessage ?? "",
-  );
-  const [backgroundColor, setBackgroundColor] = useState(
-    appearance.checkinBackgroundColor ?? "",
   );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -58,10 +68,9 @@ export default function ProgramRegistrationSection({
     setSaving(true);
     setError(null);
     try {
-      await onSave({
-        checkinWelcomeMessage: message.trim(),
-        checkinBackgroundColor: backgroundColor || null,
-      });
+      // Sin `checkinBackgroundColor`: se dejó de escribir junto con el
+      // control. El valor viejo de cada negocio queda como estaba.
+      await onSave({ checkinWelcomeMessage: message.trim() });
     } catch (e) {
       setError(e instanceof Error ? e.message : "No pudimos guardar.");
     } finally {
@@ -75,7 +84,8 @@ export default function ProgramRegistrationSection({
       businessName: businessName || "Tu negocio",
       logoUrl: appearance.logoUrl,
       primaryColor: appearance.primaryColor,
-      checkinBackgroundColor: backgroundColor || null,
+      // Ya no pinta nada en la experiencia real; la preview tampoco lo usa.
+      checkinBackgroundColor: null,
       googleBusinessProfileUrl: null,
       loyaltyCardColor: appearance.loyaltyCardColor,
       loyaltyCardTextColor: appearance.loyaltyCardTextColor,
@@ -97,7 +107,7 @@ export default function ProgramRegistrationSection({
         <ProgramSectionHeading
           icon={UserPlus}
           title="Página de inscripción"
-          description="Lo primero que ve un cliente nuevo al escanear tu QR. El color se aplica a todo el recorrido: registro, check-in, tarjeta de sellos, beneficios y Mi Flikker."
+          description="Lo primero que ve un cliente nuevo al escanear tu QR. Personalizás tu logo, tu color de marca, tu tarjeta y tus sellos; el marco de la pantalla es siempre el de Flikker."
         />
 
         <div className="mt-5 space-y-5">
@@ -120,61 +130,43 @@ export default function ProgramRegistrationSection({
             </p>
           </label>
 
+          {/*
+            Read-only a propósito: el color de marca se edita en un solo lugar
+            (Configuración → Marca), no en cada pantalla que lo usa. Acá se
+            muestra para que el dueño sepa cuál es el color que efectivamente
+            aparece en su experiencia, sin abrir una segunda forma de editarlo.
+          */}
           <div>
             <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-              Color de la experiencia
+              Color de marca
             </span>
-            <div className="mt-2 flex min-h-12 items-center justify-between gap-3 rounded-[10px] border border-[#E8EAF0] bg-white px-3 py-2">
-              <label
-                className={`flex min-w-0 items-center gap-3 ${
-                  canMutate ? "cursor-pointer" : "cursor-default"
-                }`}
-              >
+            <div className="mt-2 flex min-h-12 items-center justify-between gap-3 rounded-[10px] border border-[#E8EAF0] bg-[#FAFBFD] px-3 py-2">
+              <div className="flex min-w-0 items-center gap-3">
                 <span
                   className="h-7 w-7 shrink-0 rounded-full border-2 border-white shadow-[0_0_0_1px_#D7DBE7]"
                   style={{
-                    backgroundColor:
-                      backgroundColor || appearance.primaryColor || "#5C6BC0",
+                    backgroundColor: appearance.primaryColor || "#5C6BC0",
                   }}
                 />
                 <span
                   className="truncate text-sm font-medium text-[#1A202C]"
                   style={{ fontFamily: "var(--font-montserrat), sans-serif" }}
                 >
-                  {backgroundColor.toUpperCase() || "Automático"}
+                  {(appearance.primaryColor || "#5C6BC0").toUpperCase()}
                 </span>
-                <input
-                  type="color"
-                  value={
-                    /^#[0-9A-F]{6}$/i.test(
-                      backgroundColor || appearance.primaryColor || "",
-                    )
-                      ? backgroundColor || appearance.primaryColor || "#5C6BC0"
-                      : "#5C6BC0"
-                  }
-                  disabled={!canMutate}
-                  onChange={(event) =>
-                    setBackgroundColor(event.target.value.toUpperCase())
-                  }
-                  aria-label="Elegir color de fondo"
-                  className="sr-only"
-                />
-              </label>
-              {backgroundColor ? (
-                <button
-                  type="button"
-                  disabled={!canMutate}
-                  onClick={() => setBackgroundColor("")}
-                  className="shrink-0 rounded-[8px] px-3 py-1.5 text-xs font-semibold text-[#5C6BC0] transition-colors hover:bg-[#F0F2FF] disabled:opacity-50"
-                >
-                  Usar automático
-                </button>
-              ) : null}
+              </div>
+              <Link
+                href="/dashboard/settings"
+                className="shrink-0 rounded-[8px] px-3 py-1.5 text-xs font-semibold text-[#5C6BC0] transition-colors hover:bg-[#F0F2FF]"
+              >
+                Cambiar
+              </Link>
             </div>
             <p className="mt-1 text-xs text-[#8891A4]">
-              Tocá el círculo para elegir un color. En automático se usa la
-              paleta de tu marca. Los textos y botones ajustan su contraste
-              solos, así que ningún color deja la pantalla ilegible.
+              Tu color de marca se usa como detalle: el aro de tu logo y los
+              acentos de tus premios. El fondo, los botones y la tipografía son
+              siempre los de Flikker, así que tu pantalla se ve consistente y
+              legible en cualquier celular.
             </p>
           </div>
         </div>

@@ -547,7 +547,7 @@ describe('BenefitsRepository.ensureRedemptionCode — reusa mientras esté abier
     expect(benefitParticipation.update).not.toHaveBeenCalled();
   });
 
-  it('busca solo entre filas SIN canjear (redeemedAt: null) de ese source', async () => {
+  it('busca solo entre filas SIN canjear (redeemedAt: null) de ese source, con businessId explícito', async () => {
     const { prisma, benefitParticipation } = makePrisma();
     benefitParticipation.findFirst.mockResolvedValue(null);
     const repo = new BenefitsRepository(prisma as never);
@@ -559,9 +559,12 @@ describe('BenefitsRepository.ensureRedemptionCode — reusa mientras esté abier
       BenefitIssuanceSource.WELCOME,
     );
 
+    // `businessId` explícito en el lookup, no solo implícito vía `benefitId`
+    // — mismo criterio de tenant scope que ya aplica `findRedemption`.
     expect(benefitParticipation.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
+          businessId: 'biz-1',
           benefitId: 'ben-1',
           customerId: 'cus-1',
           source: BenefitIssuanceSource.WELCOME,

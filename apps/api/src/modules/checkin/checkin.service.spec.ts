@@ -31,6 +31,12 @@ function makeDeps() {
     getWelcomeGiftState: jest.fn().mockResolvedValue(null),
     getOtherAvailableBenefits: jest.fn().mockResolvedValue([]),
     registerParticipation: jest.fn().mockResolvedValue(undefined),
+    // Por default no hay benefit activo (`resolveActiveBenefit` → null), así
+    // que estos tres nunca se llegan a invocar salvo que un test los ponga a
+    // andar explícitamente pisando `resolveActiveBenefit`.
+    isRedeemable: jest.fn().mockReturnValue(true),
+    ensureRedemptionCode: jest.fn().mockResolvedValue(undefined),
+    findRedemption: jest.fn().mockResolvedValue(null),
   };
   const messaging = {
     sendWelcome: jest.fn(),
@@ -306,6 +312,193 @@ describe('CheckinService', () => {
       UnauthorizedException,
     );
     expect(deps.visits.registerVisit).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Política CHECKIN_ACTIVE: "este beneficio se habilita como consecuencia
+   * de una VISITA VÁLIDA" — ni más, ni menos. Antes, `ensureRedemptionCode`
+   * corría en TODA llamada (duplicada, rechazada por `min_hours`, o incluso
+   * `me()`) porque el flag que lo gateaba (`ensureCode`) se pasaba siempre
+   * en `true` desde los tres call sites, sin mirar si hubo Visit real. Si la
+   * última emisión ya estaba canjeada, eso emitía una nueva SIN ninguna
+   * visita detrás. Ahora la única puerta es `justVisited` (= `result.created`).
+   */
+  describe('CHECKIN_ACTIVE: emitir/reusar el código depende SOLO de una Visit válida', () => {
+    function withRedeemableBenefit(deps: ReturnType<typeof makeDeps>) {
+      deps.benefits.resolveActiveBenefit.mockResolvedValue({
+        id: 'benefit-1',
+        type: 'gift',
+        title: 'Café gratis',
+        description: null,
+        terms: null,
+      });
+      deps.benefits.findRedemption.mockResolvedValue({
+        redemptionCode: 'ABC123',
+        redeemedAt: null,
+      });
+    }
+
+    it('1. checkin con Visit válida (created:true) → ensureRedemptionCode SÍ se llama', async () => {
+      const deps = makeDeps();
+      deps.sources.findByToken.mockResolvedValue(activeSource);
+      deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+      deps.sessions.resolveLive.mockResolvedValue({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+      });
+      deps.prisma.customer.findFirst.mockResolvedValue({
+        id: 'cust-1',
+        name: 'Ana',
+      });
+      withRedeemableBenefit(deps);
+      deps.visits.registerVisit.mockResolvedValue({
+        created: true,
+        isReturn: true,
+        visit: {
+          id: 'v-2',
+          attributionType: VisitAttributionType.organic,
+          occurredAt: new Date('2026-09-01T10:00:00Z'),
+        },
+      });
+      const service = makeService(deps);
+
+      await service.checkin('tok', 'session-token');
+
+      expect(deps.benefits.ensureRedemptionCode).toHaveBeenCalledWith(
+        'biz-1',
+        'benefit-1',
+        'cust-1',
+        'CHECKIN_ACTIVE',
+      );
+    });
+
+    it('2. checkin duplicado (min_hours, created:false) → ensureRedemptionCode NO se llama, pero el estado vigente se sigue mostrando', async () => {
+      const deps = makeDeps();
+      deps.sources.findByToken.mockResolvedValue(activeSource);
+      deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+      deps.sessions.resolveLive.mockResolvedValue({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+      });
+      deps.prisma.customer.findFirst.mockResolvedValue({
+        id: 'cust-1',
+        name: 'Ana',
+      });
+      withRedeemableBenefit(deps);
+      deps.visits.registerVisit.mockResolvedValue({
+        created: false,
+        reason: 'min_hours',
+        lastVisitAt: new Date('2026-08-01T12:00:00Z'),
+      });
+      const service = makeService(deps);
+
+      const result = await service.checkin('tok', 'session-token');
+
+      expect(deps.benefits.ensureRedemptionCode).not.toHaveBeenCalled();
+      expect(deps.benefits.findRedemption).toHaveBeenCalledWith(
+        'biz-1',
+        'benefit-1',
+        'cust-1',
+        'CHECKIN_ACTIVE',
+      );
+      // El código vigente (de una emisión anterior, si existe) igual se
+      // muestra — solo no se emite/reusa uno nuevo.
+      expect(result.personal.benefit?.redemption).toEqual({
+        code: 'ABC123',
+        redeemed: false,
+      });
+    });
+
+    it('4. re-scan no válido DESPUÉS de canjear → NO emite otra (findRedemption ya muestra canjeado, sin ensureRedemptionCode)', async () => {
+      const deps = makeDeps();
+      deps.sources.findByToken.mockResolvedValue(activeSource);
+      deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+      deps.sessions.resolveLive.mockResolvedValue({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+      });
+      deps.prisma.customer.findFirst.mockResolvedValue({
+        id: 'cust-1',
+        name: 'Ana',
+      });
+      withRedeemableBenefit(deps);
+      deps.benefits.findRedemption.mockResolvedValue({
+        redemptionCode: 'ABC123',
+        redeemedAt: new Date('2026-08-31T00:00:00Z'),
+      });
+      deps.visits.registerVisit.mockResolvedValue({
+        created: false,
+        reason: 'min_hours',
+        lastVisitAt: new Date('2026-09-01T09:00:00Z'),
+      });
+      const service = makeService(deps);
+
+      const result = await service.checkin('tok', 'session-token');
+
+      expect(deps.benefits.ensureRedemptionCode).not.toHaveBeenCalled();
+      expect(result.personal.benefit?.redemption).toEqual({
+        code: 'ABC123',
+        redeemed: true,
+      });
+    });
+
+    it('5. próxima Visit válida (created:true) tras el canje → ensureRedemptionCode SÍ se llama de nuevo', async () => {
+      const deps = makeDeps();
+      deps.sources.findByToken.mockResolvedValue(activeSource);
+      deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+      deps.sessions.resolveLive.mockResolvedValue({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+      });
+      deps.prisma.customer.findFirst.mockResolvedValue({
+        id: 'cust-1',
+        name: 'Ana',
+      });
+      withRedeemableBenefit(deps);
+      // El estado leído DESPUÉS de `ensureRedemptionCode` ya es la fila nueva.
+      deps.benefits.findRedemption.mockResolvedValue({
+        redemptionCode: 'XYZ999',
+        redeemedAt: null,
+      });
+      deps.visits.registerVisit.mockResolvedValue({
+        created: true,
+        isReturn: true,
+        visit: {
+          id: 'v-3',
+          attributionType: VisitAttributionType.organic,
+          occurredAt: new Date('2026-09-05T10:00:00Z'),
+        },
+      });
+      const service = makeService(deps);
+
+      const result = await service.checkin('tok', 'session-token');
+
+      expect(deps.benefits.ensureRedemptionCode).toHaveBeenCalledTimes(1);
+      expect(result.personal.benefit?.redemption).toEqual({
+        code: 'XYZ999',
+        redeemed: false,
+      });
+    });
+
+    it('me() (refresh) NUNCA emite ni reusa — solo lee', async () => {
+      const deps = makeDeps();
+      deps.sessions.resolveLive.mockResolvedValue({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+      });
+      deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+      deps.prisma.customer.findFirst.mockResolvedValue({
+        id: 'cust-1',
+        name: 'Ana',
+      });
+      withRedeemableBenefit(deps);
+      const service = makeService(deps);
+
+      await service.me('session-token');
+
+      expect(deps.benefits.ensureRedemptionCode).not.toHaveBeenCalled();
+      expect(deps.benefits.findRedemption).toHaveBeenCalled();
+    });
   });
 
   it('recoverStart: unknown phone still responds sent:true but sends no code', async () => {

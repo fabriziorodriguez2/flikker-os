@@ -22,6 +22,19 @@ const LIVE_REWARD_GOAL_STATUSES: RewardGoalStatus[] = [
 const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
 const CODE_LENGTH = 8;
 
+/**
+ * Los únicos dos orígenes cubiertos por el índice único parcial
+ * `benefit_participations_one_open_per_source` (ver migración y el
+ * comentario del modelo en schema.prisma). PROMOTION y el resto quedan
+ * afuera a propósito — ver esos comentarios para el motivo — así que un
+ * P2002 en `issueBenefit` para esos orígenes es SIEMPRE una colisión de
+ * código, nunca una carrera de "abierta duplicada".
+ */
+const ONE_OPEN_PER_SOURCE: ReadonlySet<BenefitIssuanceSource> = new Set([
+  BenefitIssuanceSource.WELCOME,
+  BenefitIssuanceSource.CHECKIN_ACTIVE,
+]);
+
 function generateRedemptionCode(): string {
   let code = '';
   for (let i = 0; i < CODE_LENGTH; i++) {
@@ -571,6 +584,30 @@ export class BenefitsRepository {
           error instanceof Prisma.PrismaClientKnownRequestError &&
           error.code === 'P2002'
         ) {
+          // Dos causas posibles y no se puede diferenciar por la forma del
+          // error: colisión de `redemptionCode` (aleatorio, rarísima) o dos
+          // requests concurrentes chocando contra
+          // `benefit_participations_one_open_per_source`. Para WELCOME y
+          // CHECKIN_ACTIVE — los únicos que ese índice restringe — se busca
+          // directamente si ya existe una abierta para esta tupla exacta: si
+          // aparece, es la carrera, y es la fila que hay que REUTILIZAR, no
+          // reintentar contra el mismo choque. Si no aparece, era la colisión
+          // de código y el loop reintenta con uno nuevo. No depender solo del
+          // `findFirst` que hizo el caller ANTES de esta transacción — ese es
+          // justo el hueco donde dos requests simultáneos pasaban los dos.
+          if (ONE_OPEN_PER_SOURCE.has(params.source)) {
+            const raced = await client.benefitParticipation.findFirst({
+              where: {
+                businessId: params.businessId,
+                benefitId: params.benefitId,
+                customerId: params.customerId,
+                source: params.source,
+                redeemedAt: null,
+              },
+              orderBy: { createdAt: 'desc' },
+            });
+            if (raced) return raced;
+          }
           continue; // code collision → regenerate
         }
         throw error;
@@ -581,12 +618,20 @@ export class BenefitsRepository {
 
   /**
    * Asegura una emisión ABIERTA (sin canjear) de este `source` para
-   * (benefit, customer): si ya hay una vigente, la reusa — reenviar/releer
-   * no invalida un código que el cliente ya puede tener a mano. Si la
-   * última de ese origen ya se canjeó (o nunca hubo ninguna), emite una
-   * nueva. Usado por WELCOME y CHECKIN_ACTIVE — los dos orígenes donde "la
-   * misma promesa sigue vigente" tiene sentido reusar mientras esté
-   * abierta, pero cada ciclo de canje es su propia fila para siempre.
+   * (business, benefit, customer): si ya hay una vigente, la reusa —
+   * reenviar/releer no invalida un código que el cliente ya puede tener a
+   * mano. Si la última de ese origen ya se canjeó (o nunca hubo ninguna),
+   * emite una nueva. Usado por WELCOME y CHECKIN_ACTIVE — los dos orígenes
+   * donde "la misma promesa sigue vigente" tiene sentido reusar mientras
+   * esté abierta, pero cada ciclo de canje es su propia fila para siempre.
+   *
+   * Este `findFirst` es una lectura optimista, no la garantía: dos llamadas
+   * concurrentes pueden pasar las dos por acá con `existing == null` y las
+   * dos entrar a `issueBenefit`. La garantía real es el índice único parcial
+   * `benefit_participations_one_open_per_source` — `issueBenefit` sabe
+   * resolver ese choque (ver su comentario). Sin ese backstop de DB, dos
+   * requests casi simultáneos (dos scans del mismo QR, un doble submit)
+   * podían terminar con dos participaciones abiertas para la misma promesa.
    */
   async ensureRedemptionCode(
     businessId: string,
@@ -595,7 +640,7 @@ export class BenefitsRepository {
     source: BenefitIssuanceSource,
   ) {
     const existing = await this.prisma.benefitParticipation.findFirst({
-      where: { benefitId, customerId, source, redeemedAt: null },
+      where: { businessId, benefitId, customerId, source, redeemedAt: null },
       orderBy: { createdAt: 'desc' },
     });
     if (existing?.redemptionCode) return existing;

@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AlertTriangle, ArrowLeft, Gift, Loader2, Lock } from "lucide-react";
+import { AlertTriangle, Gift, Loader2, Lock } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
-import { buildPublicExperienceTheme } from "@/lib/public-experience-theme";
+import CustomerShell from "@/components/public/customer-shell";
 import LoyaltyCard from "@/components/public/loyalty-card";
 import BenefitCard from "@/components/public/benefit-card";
 import ChallengeRow from "@/components/public/challenge-row";
@@ -170,19 +169,12 @@ export default function PlaceDetailClient({
   const challenges = placeChallenges(place);
 
   return (
-    <Shell brand={brand} backgroundColor={place.checkinBackgroundColor}>
-      {/* 1. El negocio */}
-      <Link
-        href="/mi-flikker"
-        className="mb-5 inline-flex items-center gap-2 rounded-full px-3 py-2 text-xs font-semibold"
-        style={{
-          backgroundColor: "var(--pub-surface, #FFFFFFB3)",
-          color: "var(--pub-text-muted, #5F6375)",
-        }}
-      >
-        <ArrowLeft className="h-3.5 w-3.5" /> Mis lugares
-      </Link>
-
+    // 1. El negocio: avatar + nombre en el header del shell, no como fondo.
+    <Shell
+      brand={brand}
+      business={{ name: place.businessName, logoUrl: place.logoUrl }}
+      back={{ href: "/mi-flikker", label: "Mis lugares" }}
+    >
       {/* 2. Beneficios disponibles — lo accionable primero. Cada emisión es
              una card propia: dos beneficios con el mismo título y códigos
              distintos son dos cosas distintas y las dos se muestran. */}
@@ -349,51 +341,31 @@ function challengeKey(challenge: MyFlikkerChallenge): string {
 }
 
 /**
- * El detalle del negocio en Mi Flikker es la continuación del recorrido que
- * arrancó en el QR, así que usa el MISMO color de experiencia pública
- * (`checkinBackgroundColor`) que el check-in — antes volvía al fondo
- * genérico de Flikker en cuanto el cliente salía de la pantalla de registro.
- * Sin color configurado se conserva el fondo claro de siempre: ningún
- * negocio que no tocó nada cambia de aspecto.
+ * El detalle de un lugar es la continuación del recorrido que arrancó en el
+ * QR, así que comparte el MISMO marco que el check-in: `CustomerShell`, con
+ * identidad Flikker. El negocio queda donde tiene que estar — su avatar, su
+ * nombre y su tarjeta — en vez de teñir la pantalla entera, que era lo que
+ * hacía que la app pareciera otra en cada local.
  */
 function Shell({
   children,
-  brand = "#5C6BC0",
-  backgroundColor,
+  brand,
+  business,
+  back,
 }: {
   children: React.ReactNode;
-  brand?: string;
-  backgroundColor?: string | null;
+  brand?: string | null;
+  business?: { name: string; logoUrl?: string | null } | null;
+  back?: { href: string; label: string } | null;
 }) {
-  const theme = buildPublicExperienceTheme(backgroundColor, brand);
-
   return (
-    <div
-      className="flk-customer flex min-h-screen flex-col items-center px-5 py-8"
-      style={
-        backgroundColor
-          ? ({
-              ...theme.background,
-              color: theme.text,
-              "--pub-text": theme.text,
-              "--pub-text-muted": theme.textMuted,
-              "--pub-text-soft": theme.textSoft,
-              "--pub-surface": theme.surface,
-              "--pub-surface-border": theme.surfaceBorder,
-              // Faltaban: sin ellos los CTAs dentro de la experiencia de un
-              // negocio caían al violeta de Flikker, que es el chrome del
-              // producto y no la identidad del local. El check-in ya los
-              // define; esta pantalla es su continuación.
-              "--pub-accent": theme.accent,
-              "--pub-on-accent": theme.onAccent,
-            } as React.CSSProperties)
-          : {
-              backgroundColor: "#F5F6FB",
-              backgroundImage: `radial-gradient(circle at 90% 0%, color-mix(in srgb, ${brand} 20%, transparent), transparent 38%), linear-gradient(160deg, #FAFAFE 0%, #F1F2F8 100%)`,
-            }
-      }
+    <CustomerShell
+      business={business}
+      eyebrow="Tu tarjeta en Flikker"
+      brand={brand}
+      back={back}
     >
-      <div className="w-full max-w-md">{children}</div>
-    </div>
+      {children}
+    </CustomerShell>
   );
 }

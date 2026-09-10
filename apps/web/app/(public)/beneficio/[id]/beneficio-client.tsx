@@ -1,7 +1,7 @@
 "use client";
 
 import BenefitCard from "@/components/public/benefit-card";
-import PoweredByFlikker from "@/components/ui/powered-by-flikker";
+import CustomerShell from "@/components/public/customer-shell";
 import type { BenefitIssuanceView } from "./page";
 
 /**
@@ -26,12 +26,11 @@ export default function BeneficioClient({
   issuance: BenefitIssuanceView;
 }) {
   return (
-    <div className="flk-customer flex min-h-dvh flex-col items-center justify-center bg-[#F5F6FA] px-4 py-8">
-      <div className="w-full max-w-sm">
-        <p className="mb-3 text-center text-xs font-bold uppercase tracking-[0.12em] text-[#8891A4]">
-          {issuance.businessName}
-        </p>
-
+    <CustomerShell
+      business={{ name: issuance.businessName }}
+      showWordmark
+    >
+      <div className="w-full">
         <BenefitCard
           title={issuance.benefitTitle}
           description={issuance.description}
@@ -39,16 +38,20 @@ export default function BeneficioClient({
           code={issuance.redeemed ? null : issuance.redemptionCode}
           redeemed={issuance.redeemed}
           reveal="none"
+          /*
+            Sin `footer` en el caso disponible: `BenefitCard` ya escribe
+            "Mostralo al personal para canjearlo" debajo del código, y repetirlo
+            acá dejaba la misma instrucción dos veces seguidas. El caso canjeado
+            sí lleva pie propio, porque ahí no hay código y la salida del
+            cliente es otra.
+          */
           footer={
             issuance.redeemed
               ? "Si creés que es un error, mostrale este link al personal del local."
-              : "Mostralo al personal del local para canjearlo."
+              : undefined
           }
         />
       </div>
-      <p className="mt-8 text-xs text-[#A0A8B8]">
-        <PoweredByFlikker />
-      </p>
-    </div>
+    </CustomerShell>
   );
 }

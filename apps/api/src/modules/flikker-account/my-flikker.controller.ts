@@ -37,6 +37,16 @@ export class MyFlikkerController {
     return this.myFlikker.listChallenges(account.flikkerAccountId);
   }
 
+  /**
+   * El teléfono de esta cuenta — para el menú "Mi cuenta" del header. Misma
+   * razón que `challenges`: ruta literal ANTES de `:businessId`.
+   */
+  @Get('account')
+  async account(@Headers('x-flikker-account-session') session?: string) {
+    const account = await this.requireAccount(session);
+    return this.myFlikker.getAccountPhone(account.flikkerAccountId);
+  }
+
   @Get(':businessId')
   async detail(
     @Param('businessId') businessId: string,

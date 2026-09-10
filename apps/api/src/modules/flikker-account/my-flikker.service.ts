@@ -278,6 +278,24 @@ export class MyFlikkerService {
   }
 
   /**
+   * El teléfono de ESTA cuenta, para el menú "Mi cuenta" — confirma con qué
+   * número está identificado antes de cerrar sesión. Nada más se expone acá:
+   * ni nombre, ni negocios, ni ningún otro dato — esto no es una pantalla de
+   * settings, es una sola línea de confirmación.
+   */
+  async getAccountPhone(flikkerAccountId: string): Promise<{ phone: string }> {
+    const account = await this.prisma.flikkerAccount.findUnique({
+      where: { id: flikkerAccountId },
+      select: { phoneE164: true },
+    });
+    // No debería pasar: `flikkerAccountId` ya vino de una sesión viva
+    // resuelta por el controller. Si la cuenta desapareciera entre medio,
+    // mejor un 404 explícito que una pantalla rota mostrando "undefined".
+    if (!account) throw new NotFoundException('Account not found');
+    return { phone: account.phoneE164 };
+  }
+
+  /**
    * Every business where this account has a real, tenant-scoped Customer —
    * a Customer row only ever exists after an actual registration/visit, so
    * no extra "has interacted" filter is needed on top of it (Fase E §19).

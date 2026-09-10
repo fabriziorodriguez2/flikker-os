@@ -1,5 +1,6 @@
 import { MapPin } from "lucide-react";
 import PublicState from "@/components/public/public-state";
+import CustomerShell from "@/components/public/customer-shell";
 
 /**
  * El lugar no está en la cuenta de quien lo abrió.
@@ -11,15 +12,13 @@ import PublicState from "@/components/public/public-state";
  */
 export default function PlaceNotFound() {
   return (
-    <main className="flk-customer flex min-h-dvh flex-col items-center justify-center bg-[#F5F6FB] px-5 py-10">
-      <div className="w-full max-w-sm">
-        <PublicState
-          icon={MapPin}
-          title="No encontramos ese lugar"
-          description="Puede que el link no sea el correcto. Estos son los lugares donde tenés tarjetas y premios."
-          action={{ label: "Ver mis lugares", href: "/mi-flikker" }}
-        />
-      </div>
-    </main>
+    <CustomerShell showWordmark>
+      <PublicState
+        icon={MapPin}
+        title="No encontramos ese lugar"
+        description="Puede que el link no sea el correcto. Estos son los lugares donde tenés tarjetas y premios."
+        action={{ label: "Ver mis lugares", href: "/mi-flikker" }}
+      />
+    </CustomerShell>
   );
 }

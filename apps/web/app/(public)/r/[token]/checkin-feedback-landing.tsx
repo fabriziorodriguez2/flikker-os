@@ -1,7 +1,6 @@
 "use client";
 
-import BusinessLogo from "@/components/business/business-logo";
-import PoweredByFlikker from "@/components/ui/powered-by-flikker";
+import CustomerShell from "@/components/public/customer-shell";
 import FeedbackForm, {
   type FeedbackOutcome,
 } from "@/components/public/feedback-form";
@@ -82,33 +81,22 @@ export default function CheckinFeedbackLanding({
   }
 
   return (
-    <main className="flk-customer min-h-dvh bg-[#f8fafc] px-4 py-5 text-[#101828]">
-      <section className="mx-auto flex min-h-[calc(100dvh-40px)] max-w-md flex-col justify-center">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <BusinessLogo
-            logoUrl={businessLogo}
-            name={businessName}
-            size="lg"
-            className="bg-white"
-          />
-          <p className="mt-3 text-sm font-semibold text-[#5C6BC0]">
-            {businessName}
-          </p>
-          <h1 className="mt-3 text-2xl font-bold leading-tight tracking-[-0.03em]">
-            ¿Cómo fue tu experiencia?
-          </h1>
-        </div>
+    <CustomerShell
+      business={{ name: businessName, logoUrl: businessLogo }}
+      showWordmark
+    >
+      <h1
+        className="mb-4 text-[26px] font-extrabold leading-tight tracking-[-0.035em]"
+        style={{ color: "var(--pub-text)" }}
+      >
+        ¿Cómo fue tu experiencia?
+      </h1>
 
-        <FeedbackForm
-          submit={submit}
-          alreadySubmitted={alreadySubmitted}
-          googleUrl={googleReviewUrl}
-        />
-
-        <footer className="mt-8 flex items-center justify-center text-xs text-[color:var(--text-soft)]">
-          <PoweredByFlikker />
-        </footer>
-      </section>
-    </main>
+      <FeedbackForm
+        submit={submit}
+        alreadySubmitted={alreadySubmitted}
+        googleUrl={googleReviewUrl}
+      />
+    </CustomerShell>
   );
 }

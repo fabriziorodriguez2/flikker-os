@@ -14,11 +14,10 @@ import {
   Ticket,
   type LucideIcon,
 } from "lucide-react";
-import PoweredByFlikker from "@/components/ui/powered-by-flikker";
 import { normalizeUruguayNationalPhone } from "@/components/ui/phone-input";
 import OtpInput from "@/components/ui/otp-input";
 import { useImagePalette } from "@/lib/use-logo-palette";
-import { buildPublicExperienceTheme } from "@/lib/public-experience-theme";
+import CustomerShell from "@/components/public/customer-shell";
 import LoyaltyCard from "@/components/public/loyalty-card";
 import CheckinFeedbackCard from "@/components/public/checkin-feedback-card";
 import BenefitCard from "@/components/public/benefit-card";
@@ -354,8 +353,8 @@ function PresenceScreen({
           type="submit"
           disabled={clean.length !== 6}
           style={{
-            backgroundColor: palette.accent,
-            color: palette.accentText,
+            backgroundColor: "var(--pub-accent)",
+            color: "var(--pub-on-accent)",
           }}
           className="mt-4 w-full rounded-2xl py-4 text-base font-semibold disabled:opacity-50"
         >
@@ -424,7 +423,6 @@ function buildBirthdateIso(
  */
 export function RegisterFormFields({
   benefit,
-  palette,
   submitLabel,
   savingLabel,
   onSubmit,
@@ -432,7 +430,6 @@ export function RegisterFormFields({
   preview = false,
 }: {
   benefit: CheckinLanding["benefit"];
-  palette: { accent: string; accentText: string };
   submitLabel: string;
   savingLabel?: string;
   onSubmit?: (values: {
@@ -581,8 +578,11 @@ export function RegisterFormFields({
         <button
           type="submit"
           disabled={saving || !name.trim() || phone.length < 8}
-          className="w-full rounded-2xl py-4 text-base font-bold shadow-[0_10px_24px_rgba(12,16,30,0.2)] transition-all hover:-translate-y-0.5 disabled:translate-y-0 disabled:opacity-45"
-          style={{ backgroundColor: palette.accent, color: palette.accentText }}
+          className="w-full rounded-[14px] py-4 text-base font-bold transition-opacity disabled:opacity-45"
+          style={{
+            backgroundColor: "var(--pub-accent)",
+            color: "var(--pub-on-accent)",
+          }}
         >
           {saving ? (savingLabel ?? "Guardando…") : submitLabel}
         </button>
@@ -653,14 +653,24 @@ export function RegisterScreenContent({
       backgroundColor={landing.business.checkinBackgroundColor}
       fill={fill}
     >
-      <h1 className="text-center text-2xl font-bold leading-tight text-[color:var(--pub-text)]">
+      {/*
+        Onboarding de Flikker, no landing del local. El negocio ya está
+        identificado arriba (avatar + nombre en el shell); acá manda lo que
+        la persona tiene que hacer, alineado a la izquierda y con jerarquía
+        clara en vez de un bloque centrado sobre un fondo de color.
+      */}
+      <h1
+        className="text-[27px] font-extrabold leading-[1.12] tracking-[-0.035em]"
+        style={{ color: "var(--pub-text)" }}
+      >
         {title}
       </h1>
-      <p className="mt-3 text-center text-sm text-[color:var(--pub-text-muted)]">{subtitle}</p>
+      <p className="mt-2 text-[15px] leading-6" style={{ color: "var(--pub-text-muted)" }}>
+        {subtitle}
+      </p>
 
       <RegisterFormFields
         benefit={landing.benefit}
-        palette={palette}
         submitLabel={btnLabel}
         savingLabel="Registrando…"
         onSubmit={onSubmit}
@@ -838,8 +848,8 @@ function RecoverScreen({
               onClick={() => void sendCode(phone)}
               className="w-full rounded-2xl py-4 text-base font-bold shadow-[0_10px_24px_rgba(12,16,30,0.2)] transition-opacity disabled:opacity-45"
               style={{
-                backgroundColor: palette.accent,
-                color: palette.accentText,
+                backgroundColor: "var(--pub-accent)",
+                color: "var(--pub-on-accent)",
               }}
             >
               {busy ? "Enviando…" : "Enviar código"}
@@ -854,8 +864,8 @@ function RecoverScreen({
               onClick={() => void verify()}
               className="w-full rounded-2xl py-4 text-base font-bold shadow-[0_10px_24px_rgba(12,16,30,0.2)] transition-opacity disabled:opacity-45"
               style={{
-                backgroundColor: palette.accent,
-                color: palette.accentText,
+                backgroundColor: "var(--pub-accent)",
+                color: "var(--pub-on-accent)",
               }}
             >
               {busy ? "Verificando…" : "Confirmar"}
@@ -1060,14 +1070,26 @@ function PersonalScreen({
             />
           )}
 
-          {(personal.otherBenefits ?? []).map((benefit, i) => (
-            <BenefitRewardCard
-              key={`${benefit.title}-${i}`}
-              benefit={benefit}
-              brand={brand}
-              onReveal={onBenefitReveal}
-            />
-          ))}
+          {/*
+            Mismo filtro que arriba, y por el mismo motivo: cuando la visita
+            desbloquea la tarjeta, el backend devuelve esa emisión DOS veces —
+            como `rewardGoal.benefit` (el premio recién ganado) y otra vez
+            dentro de `otherBenefits` (los beneficios sin canjear). Sin este
+            filtro el cliente ve el mismo premio dos veces en la misma
+            pantalla. No se deduplica por título — dos beneficios distintos
+            pueden llamarse igual — sino por código de canje, que es lo único
+            que identifica una emisión concreta.
+          */}
+          {(personal.otherBenefits ?? [])
+            .filter((benefit) => !isUnlockedRewardBenefit(benefit))
+            .map((benefit, i) => (
+              <BenefitRewardCard
+                key={`${benefit.redemption?.code ?? benefit.title}-${i}`}
+                benefit={benefit}
+                brand={brand}
+                onReveal={onBenefitReveal}
+              />
+            ))}
 
           {/*
             ── 3. La tarjeta activa ──────────────────────────────────────────
@@ -1342,80 +1364,37 @@ export function Shell({
 }: {
   landing: CheckinLanding;
   brandOverride?: { primary: string; secondary: string };
+  /**
+   * `Business.checkinBackgroundColor` — ya NO pinta nada. Se mantiene en la
+   * firma porque el panel lo sigue pasando desde su preview en vivo, pero
+   * deliberadamente se ignora: era el campo que teñía la pantalla entera y
+   * hacía que la app se viera distinta en cada local. La identidad del
+   * negocio ahora entra por su color de marca, no por un fondo elegido.
+   */
   backgroundColor?: string | null;
   fill?: boolean;
   compact?: boolean;
   children: React.ReactNode;
 }) {
+  void backgroundColor;
   const brand = brandOverride?.primary ?? brandOf(landing);
-  const secondary =
-    brandOverride?.secondary ?? `color-mix(in srgb, ${brand} 58%, #20233D)`;
-  // Si el caller no pasó fondo, se usa el configurado por el negocio. Así
-  // ninguna pantalla del recorrido puede "olvidarse" del branding y volver
-  // al degradado genérico de Flikker — que es exactamente lo que pasaba con
-  // recuperación y el espacio personal.
-  const surfaceColor =
-    backgroundColor ?? landing.business.checkinBackgroundColor;
-  const theme = buildPublicExperienceTheme(surfaceColor, brand);
 
   return (
-    <div
-      className={`flk-customer relative flex w-full flex-col overflow-hidden ${
-        fill ? "min-h-[100dvh]" : "h-full min-h-full"
-      }`}
-      style={
-        {
-          ...(surfaceColor
-            ? theme.background
-            : {
-                backgroundImage: `linear-gradient(145deg, ${brand} 0%, ${secondary} 100%)`,
-              }),
-          color: theme.text,
-          // Tokens de contraste: todo el texto y los velos del recorrido los
-          // usan en vez de blanco fijo, así un fondo claro sigue siendo
-          // legible. El dueño elige su color; no puede volver ilegible su
-          // propia pantalla.
-          "--pub-text": theme.text,
-          "--pub-text-muted": theme.textMuted,
-          "--pub-text-soft": theme.textSoft,
-          "--pub-surface": theme.surface,
-          "--pub-surface-border": theme.surfaceBorder,
-          "--pub-accent": theme.accent,
-          "--pub-on-accent": theme.onAccent,
-        } as React.CSSProperties
-      }
+    <CustomerShell
+      business={{
+        name: landing.business.businessName,
+        logoUrl: landing.business.logoUrl,
+      }}
+      eyebrow="Tu tarjeta en Flikker"
+      brand={brand}
+      fill={fill}
+      compact={compact}
     >
-      <div
-        className={`relative flex flex-1 flex-col items-center justify-start ${
-          compact ? "px-4 py-4" : "px-5 py-8 sm:px-6 sm:py-10"
-        }`}
-      >
-        {landing.business.logoUrl && (
-          <div className={compact ? "relative mb-3" : "relative mb-6"}>
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={landing.business.logoUrl}
-              alt={landing.business.businessName}
-              className={
-                compact
-                  ? "h-16 w-16 object-contain"
-                  : "h-28 w-28 object-contain sm:h-32 sm:w-32"
-              }
-            />
-          </div>
-        )}
-        {children}
-      </div>
-      <p
-        className={`relative text-center text-xs text-[color:var(--pub-text-soft)] ${
-          compact ? "pb-3" : "pb-5"
-        }`}
-      >
-        <PoweredByFlikker />
-      </p>
-    </div>
+      {children}
+    </CustomerShell>
   );
 }
+
 
 function CenteredSpinner() {
   return (
