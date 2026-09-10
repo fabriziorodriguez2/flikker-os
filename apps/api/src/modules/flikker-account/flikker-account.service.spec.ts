@@ -170,6 +170,57 @@ describe('FlikkerAccountService.verifyAndIssueSession — the core safety rule',
 });
 
 /**
+ * `issueSessionForVerifiedPhone` — la puerta de entrada para un caller que
+ * YA probó el teléfono por SU PROPIO OTP (hoy: `CheckinService.recoverVerify`,
+ * punto 5 del pedido: "que pueda entrar a Mi Flikker sin pedir otro código").
+ * Mismos 3 pasos que `verifyAndIssueSession`, pero sin código de por medio —
+ * eso es exactamente lo que se está probando: que YA NO vuelve a verificar
+ * nada, confía en que el caller lo hizo.
+ */
+describe('FlikkerAccountService.issueSessionForVerifiedPhone — mismo teléfono probado, sin segundo OTP', () => {
+  it('nunca toca `verifications` — no vuelve a pedir ni comprobar ningún código', async () => {
+    const deps = makeDeps();
+    const service = makeService(deps);
+
+    await service.issueSessionForVerifiedPhone('+59899123456');
+
+    expect(deps.verifications.verify).not.toHaveBeenCalled();
+    expect(deps.verifications.start).not.toHaveBeenCalled();
+  });
+
+  it('get-or-crea la cuenta y linkea los Customer de ese teléfono exacto', async () => {
+    const deps = makeDeps();
+    const service = makeService(deps);
+
+    await service.issueSessionForVerifiedPhone('+59899123456');
+
+    expect(deps.prisma.flikkerAccount.create).toHaveBeenCalledWith(
+      expect.objectContaining({ data: { phoneE164: '+59899123456' } }),
+    );
+    expect(deps.prisma.customer.updateMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { phoneE164: '+59899123456', flikkerAccountId: null },
+      }),
+    );
+  });
+
+  it('reusa la cuenta existente en vez de crear una duplicada', async () => {
+    const deps = makeDeps({ account: { id: 'account-existing' } });
+    const service = makeService(deps);
+
+    const result = await service.issueSessionForVerifiedPhone(
+      '+59899123456',
+      'ua',
+    );
+
+    expect(deps.prisma.flikkerAccount.create).not.toHaveBeenCalled();
+    expect(deps.sessions.issue).toHaveBeenCalledWith('account-existing', 'ua');
+    expect(result.flikkerAccountId).toBe('account-existing');
+    expect(result.rawToken).toBe('raw-token');
+  });
+});
+
+/**
  * Reemplaza a los tests de `sendWelcomeLinkOnce`, que ya no existe: ese
  * método mandaba un SEGUNDO WhatsApp (el que competía con el welcome del
  * check-in y volvía rechazado por rate limit). Ahora el link viaja dentro

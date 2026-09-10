@@ -9,10 +9,25 @@ import {
 import { PlansService } from '../plans/plans.service';
 import { decideRewardGoal, type RewardGoalDecision } from './reward-goal-rules';
 
-/** Goals that still represent a live promise — not yet redeemed or closed out. */
+/**
+ * Goals that still represent a live promise — not yet redeemed or closed
+ * out. Usado SOLO para el tope de capacidad por incentivo
+ * (`findEligibleIncentiveIds`'s `maxPromisedRewardGoalsPerIncentive`): eso es
+ * "cuántos premios de ESTE incentivo hay prometidos en total, contando todos
+ * los clientes", un límite de INVENTARIO del negocio — un concepto distinto
+ * de "¿puede ESTE cliente empezar un ciclo nuevo?" (`hasActiveGoal`, que ya
+ * no usa esto — ver su comentario).
+ */
 const PROMISED_STATUSES: RewardGoalStatus[] = [
   RewardGoalStatus.ACTIVE,
   RewardGoalStatus.UNLOCKED,
+];
+
+/** Terminal — el ciclo ya no puede volver a moverse. Ver `isCooldownActive`. */
+const CLOSED_STATUSES: RewardGoalStatus[] = [
+  RewardGoalStatus.REDEEMED,
+  RewardGoalStatus.EXPIRED,
+  RewardGoalStatus.CANCELLED,
 ];
 
 export interface RewardGoalEvaluationContext {
@@ -186,10 +201,37 @@ export class RewardGoalEngineService {
   }
 
   /**
-   * `PROMISED_STATUSES` (ACTIVE + UNLOCKED), no solo ACTIVE: un goal
-   * UNLOCKED todavía tiene un premio real esperando canje — permitir un
-   * ciclo nuevo mientras ese premio sigue sin canjearse dejaría dos
-   * promesas abiertas para el mismo cliente al mismo tiempo.
+   * Solo ACTIVE — no `PROMISED_STATUSES` (ACTIVE + UNLOCKED).
+   *
+   * ## Causa raíz del bug real que esto cierra (auditoría de producto)
+   *
+   * Antes miraba ACTIVE + UNLOCKED a propósito: "un goal UNLOCKED todavía
+   * tiene un premio real esperando canje — permitir un ciclo nuevo mientras
+   * ese premio sigue sin canjearse dejaría dos promesas abiertas para el
+   * mismo cliente al mismo tiempo." Era una decisión de producto deliberada,
+   * no un descuido — pero tenía una consecuencia que nadie había atado: un
+   * goal UNLOCKED no tiene NINGÚN camino de salida que dependa del cliente.
+   * `REDEEMED` solo lo escribe el negocio al canjear (`redemption.service.ts`),
+   * y el barrido diario de vencimiento (`RewardGoalSweepService.expireOverdue`)
+   * SOLO mira `status: ACTIVE` — un goal UNLOCKED nunca vencía por sí solo.
+   * Resultado real: un cliente que ganaba un premio y no volvía a canjearlo
+   * (o el negocio nunca lo marcaba canjeado) quedaba con la tarjeta
+   * congelada para siempre — sin poder volver a progresar, sin importar
+   * cuántas visitas hiciera después.
+   *
+   * ## Criterio de producto vigente
+   *
+   * Un premio ganado y pendiente de canje (o ya vencido sin canjear) queda
+   * asociado al cliente y visible en Mi Flikker, pero no frena el inicio de
+   * la tarjeta siguiente. Dos promesas pueden convivir: la vieja (UNLOCKED)
+   * y la nueva (ACTIVE). Ver el comentario del índice
+   * `customer_reward_goals_one_active_per_customer` en schema.prisma —
+   * cambia junto con esto, es su backstop de base de datos.
+   *
+   * Consecuencia que SÍ hay que sostener en otro lado: `isCooldownActive`
+   * (abajo) ya NO puede tratar un UNLOCKED como "el último ciclo cerrado" —
+   * un UNLOCKED no está cerrado, y aplicarle cooldown sería reintroducir el
+   * mismo freno que este cambio saca de acá.
    */
   private hasActiveGoal(
     businessId: string,
@@ -197,7 +239,7 @@ export class RewardGoalEngineService {
   ): Promise<boolean> {
     return this.prisma.customerRewardGoal
       .findFirst({
-        where: { businessId, customerId, status: { in: PROMISED_STATUSES } },
+        where: { businessId, customerId, status: RewardGoalStatus.ACTIVE },
         select: { id: true },
       })
       .then((row) => row !== null);
@@ -209,10 +251,19 @@ export class RewardGoalEngineService {
    * completarlo). Un ciclo REDEEMED ya se completó y canjeó de verdad: el
    * siguiente ciclo arranca con la próxima Visit válida, sin cooldown
    * adicional (pedido explícito — auditoría de caso real, Fase E §33
-   * revisado). UNLOCKED nunca llega hasta acá: `hasActiveGoal` ya lo
-   * bloquea antes. `updatedAt` sigue siendo el timestamp de cierre para
+   * revisado). `updatedAt` sigue siendo el timestamp de cierre para
    * EXPIRED/CANCELLED — cada transición terminal es en sí misma una
    * escritura, así que siempre avanza con el cierre real.
+   *
+   * `CLOSED_STATUSES` (no `{ not: ACTIVE }`): antes UNLOCKED nunca llegaba
+   * hasta acá porque `hasActiveGoal` ya bloqueaba la creación entera. Ahora
+   * que `hasActiveGoal` solo mira ACTIVE (ver su comentario), un UNLOCKED
+   * pendiente de canje SÍ puede llegar hasta este punto — y un UNLOCKED NO
+   * ESTÁ CERRADO, todavía es una promesa viva. Si `{ not: ACTIVE }` lo
+   * agarrara como "el último cierre", un cliente con un premio sin canjear
+   * podría quedar retrasado por cooldown para algo que ni siquiera terminó
+   * — reintroduciendo por la puerta de atrás el mismo freno que
+   * `hasActiveGoal` acaba de sacar.
    */
   private async isCooldownActive(
     businessId: string,
@@ -224,7 +275,7 @@ export class RewardGoalEngineService {
       where: {
         businessId,
         customerId,
-        status: { not: RewardGoalStatus.ACTIVE },
+        status: { in: CLOSED_STATUSES },
       },
       orderBy: { updatedAt: 'desc' },
       select: { updatedAt: true, status: true },

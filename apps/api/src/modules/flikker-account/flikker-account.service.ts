@@ -54,12 +54,10 @@ export class FlikkerAccountService {
   }
 
   /**
-   * Verifies the code and, on success:
-   *   1. gets or creates the FlikkerAccount for this now-proven phone;
-   *   2. links every existing Customer row with that EXACT phone that isn't
-   *      linked yet, across every business — safe only because ownership was
-   *      just proven, and only ever matching an exact phone, never a guess;
-   *   3. issues a new global session.
+   * Verifies the code and, on success, issues a session via
+   * `issueSessionForVerifiedPhone` — this is the ONLY place in the app that
+   * turns an unproven phone into a proven one; everything downstream from
+   * here trusts that this OTP already happened.
    */
   async verifyAndIssueSession(
     phone: string,
@@ -69,10 +67,35 @@ export class FlikkerAccountService {
     const phoneE164 = this.parsePhone(phone);
     const ok = await this.verifications.verify(phoneE164, code);
     if (!ok) throw new UnauthorizedException('Código inválido');
+    return this.issueSessionForVerifiedPhone(phoneE164, userAgent);
+  }
 
+  /**
+   * Los mismos 3 pasos que corren después de un OTP correcto — get-or-create
+   * el FlikkerAccount, linkear los `Customer` con ese teléfono, emitir la
+   * sesión — pero SIN volver a pedir el código.
+   *
+   * Existe para un solo caso: un caller que YA probó la propiedad de este
+   * teléfono por SU PROPIA verificación de un solo uso, y no tiene sentido
+   * hacer verificar dos veces la misma cosa. Hoy el único caller es
+   * `CheckinService.recoverVerify` — la recuperación de perfil dentro del
+   * check-in de un negocio, que exige su propio código por WhatsApp antes de
+   * llegar acá (ver `CustomerVerificationsRepository`, un sistema de OTP
+   * distinto al de esta clase, pero de la misma fuerza: un código de un solo
+   * uso mandado al mismo número).
+   *
+   * `phoneE164` YA TIENE QUE VENIR VALIDADO. Este método no vuelve a pedir
+   * ni revisar ningún código — es la responsabilidad exclusiva del caller
+   * haberlo hecho antes. Nunca exponer esto detrás de un teléfono sin
+   * probar: es la única regla que protege toda esta clase (ver el
+   * comentario de arriba).
+   */
+  async issueSessionForVerifiedPhone(
+    phoneE164: string,
+    userAgent?: string | null,
+  ): Promise<IssuedFlikkerAccountSession & { flikkerAccountId: string }> {
     const account = await this.getOrCreateAccount(phoneE164);
     await this.linkExistingCustomers(account.id, phoneE164);
-
     const session = await this.sessions.issue(account.id, userAgent);
     return { ...session, flikkerAccountId: account.id };
   }

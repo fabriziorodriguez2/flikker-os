@@ -112,4 +112,26 @@ describe("placeSummary", () => {
     });
     expect(s.secondary).toBe("Te falta 1 para tu premio");
   });
+
+  /*
+    `progress` alimenta la barra de la card (punto 6 del rediseño). Tiene que
+    usar el MISMO número acotado que ya usa `primary` — sin este campo, la
+    barra podría desbordar el 100% con la misma data que `9 de 8 sellos` ya
+    corrige en texto.
+  */
+  it("progress trae el mismo par acotado que ya usa primary — nunca más que target", () => {
+    const s = placeSummary({
+      ...base,
+      rewardGoal: goal({
+        progressVisits: 9,
+        targetAdditionalVisits: 8,
+        remainingVisits: 0,
+      }),
+    });
+    expect(s.progress).toEqual({ current: 8, target: 8 });
+  });
+
+  it("progress es null sin tarjeta activa — la card no dibuja una barra vacía", () => {
+    expect(placeSummary({ ...base, visitsTotal: 3 }).progress).toBeNull();
+  });
 });

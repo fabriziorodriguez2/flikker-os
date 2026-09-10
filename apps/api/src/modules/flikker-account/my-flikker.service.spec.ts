@@ -230,6 +230,10 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
       'lastVisitAt',
       'rewardGoal',
       'benefitAvailable',
+      // El premio de la tarjeta anterior ya vencido sin canjear — mismo
+      // criterio de §20 que `benefitAvailable`: es la MISMA información,
+      // solo que su ventana de canje ya cerró.
+      'expiredBenefit',
       // Otros beneficios otorgados (ej. por una promoción manual), sin
       // canjear — cara-al-cliente por definición, mismo criterio que
       // `benefitAvailable` arriba.
@@ -318,9 +322,13 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
       code: 'ABCD1234',
       expiresAt: '2026-09-20T00:00:00.000Z',
     });
+    expect(place.expiredBenefit).toBeNull();
     expect(deps.prisma.customerRewardGoal.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ status: RewardGoalStatus.UNLOCKED }),
+        where: expect.objectContaining({
+          status: { in: [RewardGoalStatus.UNLOCKED, RewardGoalStatus.EXPIRED] },
+          benefitParticipationId: { not: null },
+        }),
       }),
     );
   });
@@ -332,6 +340,66 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
     const place = await service.placeDetail('account-1', 'biz-a');
 
     expect(place.benefitAvailable).toBeNull();
+    expect(place.expiredBenefit).toBeNull();
+  });
+
+  /**
+   * Punto 7 de la auditoría: causa raíz exacta del "el beneficio ya venció y
+   * sigue mostrándose el QR". El chequeo es en TIEMPO REAL contra
+   * `expiresAt`, no solo contra el `status` guardado — así no depende de que
+   * el barrido diario (`expireOverdueUnlocked`) ya haya corrido.
+   */
+  it('un premio UNLOCKED con expiresAt ya pasado se muestra como vencido, NO como disponible', async () => {
+    const deps = makeDeps({
+      unlockedGoal: {
+        incentiveDefinition: { name: 'Café gratis' },
+        benefitParticipation: {
+          benefitId: 'benefit-reward-goal',
+          redemptionCode: 'ABCD1234',
+          expiresAt: new Date('2020-01-01T00:00:00.000Z'), // bien en el pasado
+        },
+      },
+    });
+    const service = makeService(deps);
+
+    const place = await service.placeDetail('account-1', 'biz-a');
+
+    expect(place.benefitAvailable).toBeNull();
+    expect(place.expiredBenefit).toEqual({
+      name: 'Café gratis',
+      expiredAt: '2020-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('un ciclo ya EXPIRED (post-barrido) también se muestra como vencido', async () => {
+    const deps = makeDeps({
+      unlockedGoal: {
+        incentiveDefinition: { name: 'Café gratis' },
+        benefitParticipation: {
+          benefitId: 'benefit-reward-goal',
+          redemptionCode: 'ABCD1234',
+          expiresAt: new Date('2020-01-01T00:00:00.000Z'),
+        },
+      },
+    });
+    const service = makeService(deps);
+
+    const place = await service.placeDetail('account-1', 'biz-a');
+
+    // La query ya pide `status IN (UNLOCKED, EXPIRED)` — el mock representa
+    // cualquiera de los dos, lo que importa es el resultado según expiresAt.
+    expect(place.expiredBenefit?.name).toBe('Café gratis');
+    expect(place.benefitAvailable).toBeNull();
+  });
+
+  it('sin ningún premio desbloqueado ni vencido, los dos campos son null', async () => {
+    const deps = makeDeps({ unlockedGoal: null });
+    const service = makeService(deps);
+
+    const place = await service.placeDetail('account-1', 'biz-a');
+
+    expect(place.benefitAvailable).toBeNull();
+    expect(place.expiredBenefit).toBeNull();
   });
 
   it('surfaces a promotion-granted benefit as otherBenefits, independent of the reward-goal one', async () => {

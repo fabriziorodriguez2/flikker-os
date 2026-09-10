@@ -283,6 +283,23 @@ export default function MiFlikkerClient({
  *
  * Toda la card es el tap target hacia `/mi-flikker/{businessId}`.
  */
+/**
+ * Una fila de Lugares.
+ *
+ * Segunda vuelta de diseño sobre la primera versión de esta card (que ya
+ * había reemplazado el deck de cupones solapados). El problema esta vez no
+ * era el solapamiento sino que la card se sentía "de IA": el riel de color
+ * de 5px pegado al borde izquierdo de una card redondeada es exactamente el
+ * patrón que hace que cualquier diseño lea como plantilla genérica, y el
+ * progreso solo en texto ("4 de 6 sellos") no daba ninguna lectura rápida.
+ *
+ * Esta versión saca el riel — el logo (en una tarjeta cuadrada, no un aro
+ * circular) es el único lugar donde el negocio aparece — y agrega una barra
+ * de progreso real para las tarjetas con `rewardGoal`, que es lo que un
+ * producto sólido (tipo Mercado Libre) usa para "cuánto llevás" en vez de
+ * texto solo. El premio disponible pasa a ser un chip, no una línea de texto
+ * en negrita — más legible como estado, no como otro párrafo más.
+ */
 function PlaceCard({ place }: { place: MyFlikkerPlace }) {
   const palette = useLogoPalette(
     place.businessId,
@@ -291,63 +308,93 @@ function PlaceCard({ place }: { place: MyFlikkerPlace }) {
   );
   const brand = palette.primary;
   const summary = placeSummary(place);
+  const pct = summary.progress
+    ? Math.round((summary.progress.current / summary.progress.target) * 100)
+    : 0;
 
   return (
     <Link
       href={`/mi-flikker/${place.businessId}`}
-      className="relative flex items-center gap-3.5 overflow-hidden rounded-[16px] border border-[#E7E8F1] bg-white py-4 pl-5 pr-4 transition-colors hover:bg-[#FCFCFE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5B5BD6] focus-visible:ring-offset-2"
+      className="flex items-center gap-3.5 rounded-[18px] border border-[#E7E8F1] bg-white p-4 transition-colors hover:border-[#DBDDE9] hover:bg-[#FCFCFE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5B5BD6] focus-visible:ring-offset-2"
     >
-      {/* Único rastro cromático del negocio, junto con el aro del logo. */}
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-y-0 left-0 w-[5px]"
-        style={{ backgroundColor: brand }}
-      />
-
+      {/*
+        Tarjeta cuadrada con esquinas suaves, no aro circular — un logo de
+        negocio casi siempre es rectangular, así que forzarlo a un círculo lo
+        recorta. El color de marca queda solo en el borde, muy sutil.
+      */}
       {place.logoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={place.logoUrl}
           alt=""
-          className="h-11 w-11 shrink-0 rounded-full border-2 bg-white object-contain p-1"
-          style={{ borderColor: brand }}
+          className="h-12 w-12 shrink-0 rounded-[12px] border bg-white object-contain p-1.5"
+          style={{ borderColor: "#ECEDF3" }}
         />
       ) : (
         <span
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border-2 bg-white"
-          style={{ borderColor: brand, color: brand }}
+          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px]"
+          style={{
+            backgroundColor: `color-mix(in srgb, ${brand} 10%, #FFFFFF)`,
+            color: brand,
+          }}
         >
-          <MapPin className="h-[18px] w-[18px]" aria-hidden="true" />
+          <MapPin className="h-[19px] w-[19px]" aria-hidden="true" />
         </span>
       )}
 
       <div className="min-w-0 flex-1">
-        {/*
-          `break-words` en vez de `truncate`: un nombre largo se parte en dos
-          líneas y la card crece. Cortarlo con puntos suspensivos deja al
-          cliente sin saber en qué local está, que es lo único que esta fila
-          tiene que responder.
-        */}
-        <p className="break-words text-[16px] font-extrabold leading-tight tracking-[-0.02em] text-[#14151F]">
-          {place.businessName}
-        </p>
-        <p className="mt-1 text-[13px] font-medium text-[#5A5F76]">
-          {summary.primary}
-        </p>
+        <div className="flex items-center gap-2">
+          {/*
+            `break-words` en vez de `truncate`: un nombre largo se parte en
+            dos líneas y la card crece. Cortarlo con puntos suspensivos deja
+            al cliente sin saber en qué local está, que es lo único que esta
+            fila tiene que responder.
+          */}
+          <p className="min-w-0 flex-1 break-words text-[16px] font-bold leading-tight tracking-[-0.01em] text-[#14151F]">
+            {place.businessName}
+          </p>
+        </div>
+
+        {summary.progress ? (
+          <div className="mt-2">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-[13px] font-semibold text-[#3D4053]">
+                {summary.primary}
+              </p>
+            </div>
+            <div
+              className="mt-1.5 h-[5px] w-full overflow-hidden rounded-full"
+              style={{ backgroundColor: "#EDEEF5" }}
+              role="img"
+              aria-label={summary.primary}
+            >
+              <div
+                className="h-full rounded-full"
+                style={{ width: `${pct}%`, backgroundColor: "#5B5BD6" }}
+              />
+            </div>
+            {summary.secondary ? (
+              <p className="mt-1.5 text-[12px] font-medium text-[#8A90A6]">
+                {summary.secondary}
+              </p>
+            ) : null}
+          </div>
+        ) : (
+          <p className="mt-1 text-[13px] font-medium text-[#5A5F76]">
+            {summary.primary}
+          </p>
+        )}
+
         {summary.reward ? (
-          <p className="mt-1.5 flex items-center gap-1.5 text-[13px] font-bold text-[#4A56A6]">
-            <Gift className="h-[15px] w-[15px] shrink-0" aria-hidden="true" />
-            <span className="min-w-0 break-words">{summary.reward}</span>
-          </p>
-        ) : summary.secondary ? (
-          <p className="mt-1 text-[13px] font-medium text-[#8A90A6]">
-            {summary.secondary}
-          </p>
+          <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#F0F0FC] px-2.5 py-1 text-[12px] font-bold text-[#4A46C4]">
+            <Gift className="h-[13px] w-[13px] shrink-0" aria-hidden="true" />
+            {summary.reward}
+          </span>
         ) : null}
       </div>
 
       <ChevronRight
-        className="h-5 w-5 shrink-0 self-center text-[#8A90A6]"
+        className="h-5 w-5 shrink-0 self-center text-[#B7BACB]"
         aria-hidden="true"
       />
     </Link>
@@ -375,6 +422,14 @@ export function placeSummary(place: MyFlikkerPlace): {
   primary: string;
   secondary: string | null;
   reward: string | null;
+  /**
+   * Solo con tarjeta activa — la card usa esto para la barra de progreso,
+   * calculada con el MISMO `min(progress, target)` que ya usan `primary` y
+   * `LoyaltyCard` en el detalle. Nunca se deriva de nuevo en el componente:
+   * un solo lugar decide el número, así que lista y detalle no pueden
+   * mostrar dos cuentas distintas del mismo progreso.
+   */
+  progress: { current: number; target: number } | null;
 } {
   const goal = place.rewardGoal;
   const rewardCount =
@@ -394,6 +449,7 @@ export function placeSummary(place: MyFlikkerPlace): {
           : `${place.visitsTotal} ${place.visitsTotal === 1 ? "visita" : "visitas"}`,
       secondary: null,
       reward,
+      progress: null,
     };
   }
 
@@ -407,6 +463,7 @@ export function placeSummary(place: MyFlikkerPlace): {
         ? `Te ${remaining === 1 ? "falta" : "faltan"} ${remaining} para tu premio`
         : null,
     reward,
+    progress: { current: stamps, target: goal.targetAdditionalVisits },
   };
 }
 
@@ -473,7 +530,12 @@ function VerifyScreen({ onVerified }: { onVerified: () => void }) {
           </>
         ) : (
           <>
-            <OtpInput value={code} onChange={setCode} autoFocus />
+            <OtpInput
+              value={code}
+              onChange={setCode}
+              autoFocus
+              disabled={sending}
+            />
             <button
               type="button"
               disabled={sending || code.length !== 6}

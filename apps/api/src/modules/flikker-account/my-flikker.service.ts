@@ -43,6 +43,23 @@ export interface MyFlikkerPlace {
     expiresAt: string | null;
   } | null;
   /**
+   * El premio de la tarjeta ANTERIOR, ya vencido sin canjear.
+   *
+   * Antes esto no existía como concepto: un premio vencido sin canjear
+   * seguía apareciendo en `benefitAvailable` con su QR activo, como si
+   * siguiera siendo canjeable — el bug real de "el beneficio ya venció y
+   * sigue mostrándose el QR" (punto 7 de la auditoría). Ahora
+   * `benefitAvailable` excluye lo vencido (mismo filtro `expiresAt` que ya
+   * aplicaba `findAvailableParticipations` para `otherBenefits`, que nunca
+   * había llegado a esta consulta específica) y lo vencido pasa acá — visible
+   * pero explícitamente marcado como cerrado, nunca como una acción posible.
+   * `null` si no hay ninguno o si el negocio no tiene reward goals.
+   */
+  expiredBenefit: {
+    name: string;
+    expiredAt: string;
+  } | null;
+  /**
    * Otros beneficios otorgados a este cliente y sin canjear — típicamente
    * por una promoción manual (Notificaciones → Promociones ya puede elegir
    * cualquier Benefit del catálogo, no solo el `active` del check-in).
@@ -412,7 +429,7 @@ export class MyFlikkerService {
       visitsTotal,
       lastVisit,
       rewardView,
-      unclaimedBenefit,
+      lastUnlockedGoal,
       missions,
       streak,
       returnChallenge,
@@ -424,8 +441,23 @@ export class MyFlikkerService {
         select: { occurredAt: true },
       }),
       this.rewardGoals.currentView(businessId, customerId),
+      /**
+       * El premio MÁS RECIENTE que este cliente desbloqueó en este negocio,
+       * canjeado o no. `status IN (UNLOCKED, EXPIRED)` — no solo UNLOCKED —
+       * porque un premio vencido sigue siendo el mismo que había que mostrar,
+       * solo que ya cerrado (`RewardGoalSweepService.expireOverdueUnlocked`
+       * lo transiciona a EXPIRED con el tiempo). `benefitParticipationId` no
+       * nulo excluye ciclos EXPIRED que nunca llegaron a desbloquear nada
+       * (esos vencieron en ACTIVE, sin premio que mostrar acá).
+       */
       this.prisma.customerRewardGoal.findFirst({
-        where: { businessId, customerId, status: RewardGoalStatus.UNLOCKED },
+        where: {
+          businessId,
+          customerId,
+          status: { in: [RewardGoalStatus.UNLOCKED, RewardGoalStatus.EXPIRED] },
+          benefitParticipationId: { not: null },
+        },
+        orderBy: { unlockedAt: 'desc' },
         select: {
           incentiveDefinition: { select: { name: true } },
           benefitParticipation: {
@@ -448,27 +480,45 @@ export class MyFlikkerService {
       this.returnChallenges.currentView(businessId, customerId),
     ]);
 
-    const benefitAvailable = unclaimedBenefit?.benefitParticipation
-      ?.redemptionCode
-      ? {
-          name: unclaimedBenefit.incentiveDefinition.name,
-          code: unclaimedBenefit.benefitParticipation.redemptionCode,
-          expiresAt:
-            unclaimedBenefit.benefitParticipation.expiresAt?.toISOString() ??
-            null,
-        }
-      : null;
+    /**
+     * Disponible vs. vencido se decide EN TIEMPO REAL contra
+     * `BenefitParticipation.expiresAt` — no solo contra el `status` guardado.
+     * `expireOverdueUnlocked` es un barrido diario: en la ventana entre el
+     * vencimiento real y la próxima corrida, la fila puede seguir diciendo
+     * `UNLOCKED` aunque ya venció. Chequear la fecha acá, no solo el status,
+     * es lo que hace que "el beneficio ya venció y sigue mostrándose el QR"
+     * (el bug real reportado) no dependa de la cadencia de ese barrido.
+     */
+    const participation = lastUnlockedGoal?.benefitParticipation;
+    const now = new Date();
+    const isExpired = Boolean(
+      participation?.expiresAt && participation.expiresAt < now,
+    );
+
+    const benefitAvailable =
+      participation?.redemptionCode && !isExpired
+        ? {
+            name: lastUnlockedGoal!.incentiveDefinition.name,
+            code: participation.redemptionCode,
+            expiresAt: participation.expiresAt?.toISOString() ?? null,
+          }
+        : null;
+
+    const expiredBenefit =
+      participation?.redemptionCode && isExpired
+        ? {
+            name: lastUnlockedGoal!.incentiveDefinition.name,
+            expiredAt: participation.expiresAt!.toISOString(),
+          }
+        : null;
 
     // Cualquier otro beneficio otorgado (típicamente por promoción manual),
-    // sin contar el de la recompensa de tarjeta ya cubierta arriba ni el
-    // regalo de bienvenida.
+    // sin contar el de la recompensa de tarjeta ya cubierta arriba (disponible
+    // o vencida) ni el regalo de bienvenida.
     const otherBenefits = await this.benefits.getOtherAvailableBenefits(
       businessId,
       customerId,
-      [
-        unclaimedBenefit?.benefitParticipation?.benefitId,
-        business.welcomeBenefitId,
-      ],
+      [participation?.benefitId, business.welcomeBenefitId],
     );
 
     return {
@@ -490,6 +540,7 @@ export class MyFlikkerService {
       lastVisitAt: lastVisit?.occurredAt.toISOString() ?? null,
       rewardGoal: rewardView.goal,
       benefitAvailable,
+      expiredBenefit,
       otherBenefits: otherBenefits.map((b) => ({
         title: b.title,
         description: b.description,

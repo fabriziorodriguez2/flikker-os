@@ -70,6 +70,11 @@ function makeDeps() {
   const flikkerAccount = {
     claimWelcomeLink: jest.fn().mockResolvedValue(null),
     releaseWelcomeLink: jest.fn().mockResolvedValue(undefined),
+    issueSessionForVerifiedPhone: jest.fn().mockResolvedValue({
+      rawToken: 'flk-account-raw-token',
+      expiresAt: new Date('2027-01-01T00:00:00Z'),
+      flikkerAccountId: 'flk-acc-1',
+    }),
   };
   return {
     prisma,
@@ -531,6 +536,75 @@ describe('CheckinService', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(deps.sessions.issue).not.toHaveBeenCalled();
     expect(deps.visits.registerVisit).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Punto 5 del pedido: el mismo OTP que recupera el perfil dentro del
+   * check-in del negocio también tiene que abrir Mi Flikker, sin un segundo
+   * código. `recoverVerify` YA prueba el teléfono por OTP (línea de arriba:
+   * un código incorrecto ni siquiera llega a emitir una `CustomerSession`),
+   * así que es el único lugar seguro para regalar también la sesión global.
+   */
+  it('recoverVerify con código correcto TAMBIÉN emite sesión de Mi Flikker — un solo OTP para las dos', async () => {
+    const deps = makeDeps();
+    deps.sources.findByToken.mockResolvedValue(activeSource);
+    deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+    deps.prisma.customer.findFirst.mockResolvedValue({
+      id: 'cust-1',
+      name: 'Ana',
+    });
+    deps.verifications.verify.mockResolvedValue(true);
+    deps.sessions.issue.mockResolvedValue({
+      rawToken: 'business-raw-token',
+      expiresAt: new Date('2027-01-01T00:00:00Z'),
+    });
+    deps.visits.registerVisit.mockResolvedValue({
+      created: false,
+      reason: 'min_hours',
+      lastVisitAt: new Date('2026-08-01T12:00:00Z'),
+    });
+    const service = makeService(deps);
+
+    const result = await service.recoverVerify('tok', '099111222', '123456');
+
+    // El MISMO teléfono ya probado por el OTP del negocio, nunca uno
+    // distinto ni sin normalizar.
+    expect(
+      deps.flikkerAccount.issueSessionForVerifiedPhone,
+    ).toHaveBeenCalledWith(expect.stringMatching(/^\+598/), undefined);
+    expect(result.flikkerAccountSessionToken).toBe('flk-account-raw-token');
+    // La sesión del negocio sigue intacta — esto es aditivo, no un reemplazo.
+    expect(result.sessionToken).toBe('business-raw-token');
+  });
+
+  it('recoverVerify: si emitir la sesión de Mi Flikker falla, la recuperación del negocio igual se completa (best-effort)', async () => {
+    const deps = makeDeps();
+    deps.sources.findByToken.mockResolvedValue(activeSource);
+    deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+    deps.prisma.customer.findFirst.mockResolvedValue({
+      id: 'cust-1',
+      name: 'Ana',
+    });
+    deps.verifications.verify.mockResolvedValue(true);
+    deps.sessions.issue.mockResolvedValue({
+      rawToken: 'business-raw-token',
+      expiresAt: new Date('2027-01-01T00:00:00Z'),
+    });
+    deps.visits.registerVisit.mockResolvedValue({
+      created: false,
+      reason: 'min_hours',
+      lastVisitAt: new Date('2026-08-01T12:00:00Z'),
+    });
+    deps.flikkerAccount.issueSessionForVerifiedPhone.mockRejectedValue(
+      new Error('db down'),
+    );
+    const service = makeService(deps);
+
+    const result = await service.recoverVerify('tok', '099111222', '123456');
+
+    expect(result.status).toBe('restored');
+    expect(result.sessionToken).toBe('business-raw-token');
+    expect(result.flikkerAccountSessionToken).toBeNull();
   });
 
   it('emitClientEvent: rejects an event type outside the whitelist', async () => {

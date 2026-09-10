@@ -221,9 +221,12 @@ describe('Reward Goals — feedback bonus (integration)', () => {
       });
       expect(bonusCount).toBe(1); // sigue siendo 1, no 2
 
-      // Segunda visita REAL -> la meta ya está UNLOCKED sin canjear, así que
-      // esta visita no otorga ni desbloquea nada nuevo (un ciclo UNLOCKED
-      // sin canjear bloquea cualquier ciclo nuevo).
+      // Segunda visita REAL -> la meta anterior sigue UNLOCKED sin canjear,
+      // pero eso YA NO frena el ciclo siguiente (punto 7 de la auditoría —
+      // antes de esta tanda, un premio sin canjear dejaba al cliente
+      // congelado para siempre). Esta visita es la FUNDADORA de una tarjeta
+      // nueva: cuenta como su propio primer sello (1/2), igual que la
+      // primera tarjeta.
       const day2 = new Date('2026-09-03T10:00:00.000Z');
       const { result: secondResult } = await visitOn(
         business.id,
@@ -231,10 +234,29 @@ describe('Reward Goals — feedback bonus (integration)', () => {
         day2,
       );
       expect(secondResult).toEqual({
-        goal: null,
+        goal: {
+          incentiveName: 'Capuccino gratis',
+          progressVisits: 1,
+          visitProgress: 1,
+          bonusStamps: 0,
+          targetAdditionalVisits: 2,
+          remainingVisits: 1,
+        },
         unlockedNow: false,
         benefit: null,
       });
+
+      // Dos ciclos: el UNLOCKED de antes (sin tocar) y el ACTIVE nuevo, los
+      // dos del mismo cliente y negocio al mismo tiempo — exactamente lo que
+      // el criterio de producto pide.
+      const cycles = await prisma.customerRewardGoal.findMany({
+        where: { businessId: business.id, customerId: customer.id },
+        select: { status: true },
+      });
+      expect(cycles.map((c) => c.status).sort()).toEqual([
+        'ACTIVE',
+        'UNLOCKED',
+      ]);
 
       // El bonus nunca creó una Visit falsa: solo hay 2 Visit reales, las
       // que efectivamente pasaron por `visitOn`.
@@ -296,15 +318,22 @@ describe('Reward Goals — feedback bonus (integration)', () => {
       expect(lastResult.unlockedNow).toBe(true);
       expect(lastResult.benefit?.name).toBe('Capuccino gratis');
 
-      // La meta ya está UNLOCKED sin canjear: una visita más no otorga nada
-      // nuevo.
+      // La meta anterior sigue UNLOCKED sin canjear, pero ya no frena el
+      // ciclo siguiente: esta visita funda una tarjeta nueva de target=5.
       const { result: finalResult } = await visitOn(
         business.id,
         customer.id,
         new Date('2026-09-05T10:00:00.000Z'),
       );
       expect(finalResult).toEqual({
-        goal: null,
+        goal: {
+          incentiveName: 'Capuccino gratis',
+          progressVisits: 1,
+          visitProgress: 1,
+          bonusStamps: 0,
+          targetAdditionalVisits: 5,
+          remainingVisits: 4,
+        },
         unlockedNow: false,
         benefit: null,
       });
@@ -349,15 +378,26 @@ describe('Reward Goals — feedback bonus (integration)', () => {
       });
       expect(bonusCount).toBe(0);
 
-      // La meta ya está UNLOCKED sin canjear: esta segunda visita REAL no
-      // otorga ni desbloquea nada nuevo.
+      // La meta anterior sigue UNLOCKED sin canjear, pero ya no frena la
+      // tarjeta siguiente: esta segunda visita REAL funda un ciclo nuevo
+      // (target=1 otra vez) y, con la fundadora contando de una, queda en
+      // 1/1 — todavía ACTIVE, no UNLOCKED: el desbloqueo recién ocurre en la
+      // PRÓXIMA visita que reevalúe (Fase E §27, "nunca crea y desbloquea en
+      // la misma llamada").
       const { result: secondResult } = await visitOn(
         business.id,
         customer.id,
         new Date('2026-09-03T10:00:00.000Z'),
       );
       expect(secondResult).toEqual({
-        goal: null,
+        goal: {
+          incentiveName: 'Capuccino gratis',
+          progressVisits: 1,
+          visitProgress: 1,
+          bonusStamps: 0,
+          targetAdditionalVisits: 1,
+          remainingVisits: 0,
+        },
         unlockedNow: false,
         benefit: null,
       });

@@ -32,11 +32,13 @@ function makePrisma(
       findFirst: jest
         .fn()
         .mockImplementation((args: { where: { status?: unknown } }) => {
-          // `hasActiveGoal` queries `status: { in: PROMISED_STATUSES }`;
-          // `isCooldownActive` queries `status: { not: ACTIVE } }` — the
-          // shape of `status` is what tells the two apart here.
-          const status = args.where.status as { in?: unknown[] } | undefined;
-          if (status && typeof status === 'object' && 'in' in status) {
+          // `hasActiveGoal` ahora consulta `status: RewardGoalStatus.ACTIVE`
+          // — un STRING plano. `isCooldownActive` consulta
+          // `status: { in: CLOSED_STATUSES } }` — un OBJETO. Es lo que
+          // distingue acá a una llamada de la otra (mock, no la implementación
+          // real — Prisma de verdad filtraría por el valor, no por la forma).
+          const status = args.where.status;
+          if (typeof status === 'string') {
             return Promise.resolve(options.activeGoal ?? null);
           }
           return Promise.resolve(options.lastClosedGoal ?? null);
@@ -267,12 +269,42 @@ describe('RewardGoalEngineService — gating', () => {
   });
 });
 
-describe('RewardGoalEngineService — no new cycle while UNLOCKED is unredeemed', () => {
-  it('blocks a new goal while the previous one is UNLOCKED and unredeemed', async () => {
-    // `hasActiveGoal`'s query is `status: { in: [ACTIVE, UNLOCKED] } }` —
-    // it can't distinguish which of the two it found, and doesn't need to:
-    // either way there's a live, unredeemed promise for this customer.
-    const prisma = makePrisma({ activeGoal: { id: 'unlocked-goal' } });
+/**
+ * Punto 7 de la auditoría: reversión deliberada de la política anterior
+ * ("no new cycle while UNLOCKED is unredeemed" — este mismo describe block
+ * fijaba ESO antes). Causa raíz encontrada: un goal UNLOCKED no tiene ningún
+ * camino de salida que dependa del cliente (REDEEMED solo lo escribe el
+ * negocio al canjear; el barrido diario viejo solo miraba ACTIVE), así que
+ * bloquear la tarjeta siguiente mientras estuviera UNLOCKED dejaba al
+ * cliente congelado para siempre si no volvía a canjear. Ver el comentario
+ * de `hasActiveGoal` en el service.
+ */
+describe('RewardGoalEngineService — un premio UNLOCKED sin canjear ya NO frena la tarjeta siguiente', () => {
+  it('crea un goal nuevo aunque el cliente tenga un premio UNLOCKED sin canjear (ni bloqueo, ni cooldown)', async () => {
+    // `hasActiveGoal` ahora consulta literal `status: ACTIVE` — un goal
+    // UNLOCKED no matchea esa condición en la base real, así que acá alcanza
+    // con `activeGoal: null`. `isCooldownActive` ahora consulta
+    // `status: { in: CLOSED_STATUSES } }` (REDEEMED/EXPIRED/CANCELLED) — un
+    // UNLOCKED tampoco matchea eso, así que `lastClosedGoal: null` es
+    // correcto también: desde el punto de vista de las DOS queries del
+    // engine, el UNLOCKED es completamente invisible, y por eso ya no frena
+    // nada.
+    const prisma = makePrisma({ activeGoal: null, lastClosedGoal: null });
+    const decisions = makeDecisions();
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      decisions as never,
+      makePlans() as never,
+    );
+
+    const result = await service.evaluate(context());
+
+    expect(result.action).toBe('CREATE_GOAL');
+    expect(prisma.customerRewardGoal.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('SÍ sigue bloqueando mientras la tarjeta en curso está ACTIVE — eso no cambió', async () => {
+    const prisma = makePrisma({ activeGoal: { id: 'active-goal' } });
     const decisions = makeDecisions();
     const service = new RewardGoalEngineService(
       prisma as never,
@@ -291,8 +323,11 @@ describe('RewardGoalEngineService — no new cycle while UNLOCKED is unredeemed'
 
   it('allows a new goal once the previous one is REDEEMED (not just UNLOCKED)', async () => {
     const prisma = makePrisma({
-      activeGoal: null, // no ACTIVE/UNLOCKED row left
-      lastClosedGoal: { updatedAt: new Date('2026-08-01T12:00:00.000Z') }, // long past cooldown
+      activeGoal: null,
+      lastClosedGoal: {
+        status: 'REDEEMED',
+        updatedAt: new Date('2026-08-01T12:00:00.000Z'),
+      },
     });
     const decisions = makeDecisions();
     const service = new RewardGoalEngineService(
@@ -474,18 +509,22 @@ describe('RewardGoalEngineService — concurrency', () => {
     // create); the post-race recovery lookup, called only from inside the
     // catch block, then finds the winner another worker just created.
     // Two different queries both mean "is there a live goal right now?":
-    // the pre-check (`hasActiveGoal`, `status: { in: [...] }`) and the
-    // post-race recovery lookup inside `createGoal`'s catch block (still a
-    // plain `status: ACTIVE`, unchanged by this fix — a goal can only ever
-    // race to create while ACTIVE, never while already UNLOCKED).
+    // the pre-check (`hasActiveGoal`, plain `status: ACTIVE` since this
+    // session's fix) and the post-race recovery lookup inside `createGoal`'s
+    // catch block (also plain `status: ACTIVE`, unchanged — a goal can only
+    // ever race to create while ACTIVE; UNLOCKED no longer participates in
+    // this at all).
     let activeGoalCalls = 0;
     prisma.customerRewardGoal.findFirst.mockImplementation(
       (args: { where: { status?: unknown } }) => {
         const status = args.where.status;
-        const isLiveGoalQuery =
-          status === RewardGoalStatus.ACTIVE ||
-          (typeof status === 'object' && status !== null && 'in' in status);
-        if (isLiveGoalQuery) {
+        // Solo el string plano `ACTIVE` es "¿hay un goal vivo?" — lo consulta
+        // TANTO `hasActiveGoal` (el pre-check, dentro del `Promise.all` de
+        // `evaluate`) como la recuperación post-carrera dentro del catch de
+        // `createGoal`. `isCooldownActive` usa una forma distinta
+        // (`{ in: CLOSED_STATUSES } }`, un objeto) y no participa de esta
+        // carrera — siempre "sin cierre reciente" acá, para no interferir.
+        if (status === RewardGoalStatus.ACTIVE) {
           activeGoalCalls += 1;
           return Promise.resolve(
             activeGoalCalls === 1 ? null : { id: 'winner-goal' },

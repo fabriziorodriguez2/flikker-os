@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -84,6 +85,8 @@ type BusinessForCheckin = Pick<
 
 @Injectable()
 export class CheckinService {
+  private readonly logger = new Logger(CheckinService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly sources: VisitSourcesRepository,
@@ -526,10 +529,45 @@ export class CheckinService {
       visitOccurredAt: result.created ? result.visit.occurredAt : undefined,
     });
 
+    /**
+     * Sesión compartida con Mi Flikker (Fase E §37 — auditoría de sesión).
+     *
+     * Causa raíz del bug que esto cierra: `CustomerSession` (acá, cookie
+     * `flk_cs`) y `FlikkerAccountSession` (Mi Flikker, cookie `flk_account`)
+     * son DOS sistemas de sesión completamente separados — namespaces,
+     * tablas y cookies distintas — y nada los conectaba. Recuperar el perfil
+     * acá YA prueba la propiedad del teléfono por OTP (la misma fuerza de
+     * prueba que exige `/mi-flikker` con SU propio código), así que pedirle
+     * un segundo código para lo mismo era redundante, no más seguro.
+     *
+     * `issueSessionForVerifiedPhone` NO vuelve a pedir nada — get-or-crea el
+     * FlikkerAccount, linkea los `Customer` de este teléfono y emite la
+     * sesión, igual que haría el propio OTP de Mi Flikker si el cliente lo
+     * completara ahora. Best-effort: si esto falla, la recuperación del
+     * negocio (lo que el cliente vino a hacer) queda igual de bien hecha —
+     * el peor caso es que Mi Flikker le vuelva a pedir el código.
+     */
+    let flikkerAccountSessionToken: string | null = null;
+    try {
+      const accountSession =
+        await this.flikkerAccount.issueSessionForVerifiedPhone(
+          phoneE164,
+          userAgent,
+        );
+      flikkerAccountSessionToken = accountSession.rawToken;
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo emitir sesión de Mi Flikker tras recover/verify: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+
     return {
       status: 'restored' as const,
       sessionToken: session.rawToken,
       expiresAt: session.expiresAt.toISOString(),
+      flikkerAccountSessionToken,
       personal,
     };
   }

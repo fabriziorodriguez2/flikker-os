@@ -652,12 +652,14 @@ export function RegisterScreenContent({
       brandOverride={palette}
       backgroundColor={landing.business.checkinBackgroundColor}
       fill={fill}
+      hero
     >
       {/*
-        Onboarding de Flikker, no landing del local. El negocio ya está
-        identificado arriba (avatar + nombre en el shell); acá manda lo que
-        la persona tiene que hacer, alineado a la izquierda y con jerarquía
-        clara en vez de un bloque centrado sobre un fondo de color.
+        Onboarding de Flikker, no landing del local. El logo del negocio va
+        grande y centrado arriba (sin aro, sin "TU TARJETA EN FLIKKER" — el
+        título ya lo dice); el resto manda lo que la persona tiene que hacer,
+        alineado a la izquierda y con jerarquía clara en vez de un bloque
+        centrado sobre un fondo de color.
       */}
       <h1
         className="text-[27px] font-extrabold leading-[1.12] tracking-[-0.035em]"
@@ -857,7 +859,12 @@ function RecoverScreen({
           </>
         ) : (
           <>
-            <OtpInput value={code} onChange={setCode} tone="dark" autoFocus />
+            <OtpInput
+              value={code}
+              onChange={setCode}
+              autoFocus
+              disabled={busy}
+            />
             <button
               type="button"
               disabled={busy || code.length !== 6}
@@ -1360,10 +1367,18 @@ export function Shell({
   backgroundColor,
   fill = true,
   compact = false,
+  hero = false,
   children,
 }: {
   landing: CheckinLanding;
   brandOverride?: { primary: string; secondary: string };
+  /**
+   * `true` solo en el registro: logo grande y centrado, sin aro ni eyebrow —
+   * ver `CustomerShell`'s `businessPresentation="hero"`. En cualquier otra
+   * pantalla del check-in (código de local, personal, recuperar perfil) el
+   * header sigue siendo el chico de siempre.
+   */
+  hero?: boolean;
   /**
    * `Business.checkinBackgroundColor` — ya NO pinta nada. Se mantiene en la
    * firma porque el panel lo sigue pasando desde su preview en vivo, pero
@@ -1385,7 +1400,8 @@ export function Shell({
         name: landing.business.businessName,
         logoUrl: landing.business.logoUrl,
       }}
-      eyebrow="Tu tarjeta en Flikker"
+      businessPresentation={hero ? "hero" : "compact"}
+      eyebrow={hero ? null : "Tu tarjeta en Flikker"}
       brand={brand}
       fill={fill}
       compact={compact}

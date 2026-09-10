@@ -33,6 +33,7 @@ import { normalizeHex } from "@/lib/loyalty-card-theme";
  */
 export default function CustomerShell({
   business,
+  businessPresentation = "compact",
   eyebrow = null,
   back,
   brand,
@@ -45,10 +46,21 @@ export default function CustomerShell({
   /** El negocio, cuando la pantalla pertenece a uno. */
   business?: { name: string; logoUrl?: string | null } | null;
   /**
+   * `"compact"` (default): avatar chico con aro `--biz` + nombre — el
+   * header de "estoy en la tarjeta de este negocio" que usan check-in con
+   * sesión, el detalle de un lugar, etc.
+   *
+   * `"hero"`: SOLO el logo, más grande, centrado, sin aro ni marco — pensado
+   * para el registro, donde el nombre del negocio ya lo dice el título
+   * (`Sumate a {businessName}`) y repetirlo en un avatar chico arriba es
+   * ruido. Sin logo, no se dibuja nada acá — el título alcanza.
+   */
+  businessPresentation?: "compact" | "hero";
+  /**
    * La línea chica debajo del nombre del negocio. Sin default a propósito: en
    * el check-in y en el detalle de un lugar la pantalla ES la tarjeta, pero en
    * feedback o en un beneficio suelto no hay ninguna tarjeta que anunciar y
-   * una etiqueta genérica ahí solo mentiría.
+   * una etiqueta genérica ahí solo mentiría. Ignorado en `businessPresentation="hero"`.
    */
   eyebrow?: string | null;
   back?: { href: string; label: string } | null;
@@ -105,7 +117,9 @@ export default function CustomerShell({
           </Link>
         ) : null}
 
-        {business ? (
+        {business && businessPresentation === "hero" ? (
+          <BusinessLogoHero business={business} />
+        ) : business ? (
           <BusinessHeader business={business} eyebrow={eyebrow} />
         ) : null}
 
@@ -168,6 +182,30 @@ function BusinessHeader({
           </p>
         ) : null}
       </div>
+    </div>
+  );
+}
+
+/**
+ * El logo solo, grande, centrado, sin aro ni fondo — la versión "landing
+ * prolija" del header para el registro. Nada de recuadro circular: si el
+ * negocio no tiene logo, esto no dibuja nada (el título de la pantalla ya
+ * dice el nombre, así que no hace falta inventar un placeholder).
+ */
+function BusinessLogoHero({
+  business,
+}: {
+  business: { name: string; logoUrl?: string | null };
+}) {
+  if (!business.logoUrl) return null;
+  return (
+    <div className="mb-6 flex justify-center">
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={business.logoUrl}
+        alt={business.name}
+        className="h-20 max-w-[220px] object-contain"
+      />
     </div>
   );
 }

@@ -53,14 +53,24 @@ export class RewardGoalWorker implements OnModuleInit, OnModuleDestroy {
       // Same daily cron drives both reconciliations (Fase F §0.1): creation
       // sweep and expiry sweep are independent concerns but need no separate
       // queue/schedule — a failure in one must not skip the other.
-      const [sweep, expiry, missionRewards, missionExpiry, challengeExpiry] =
-        await Promise.allSettled([
-          this.sweep.runDaily(now, false),
-          this.sweep.expireOverdue(now),
-          this.missions.reconcilePendingRewards(),
-          this.missions.expireOverdue(now),
-          this.returnChallenges.expireOverdue(now),
-        ]);
+      const [
+        sweep,
+        expiry,
+        unlockedExpiry,
+        missionRewards,
+        missionExpiry,
+        challengeExpiry,
+      ] = await Promise.allSettled([
+        this.sweep.runDaily(now, false),
+        this.sweep.expireOverdue(now),
+        // Complemento de `expireOverdue`: vence los goals UNLOCKED cuyo
+        // premio quedó sin canjear (ver el comentario del método). No
+        // reemplaza a `expireOverdue` — cubre el otro estado terminal.
+        this.sweep.expireOverdueUnlocked(now),
+        this.missions.reconcilePendingRewards(),
+        this.missions.expireOverdue(now),
+        this.returnChallenges.expireOverdue(now),
+      ]);
       if (sweep.status === 'rejected') {
         this.logger.error(
           `Reward goal creation sweep failed: ${String(sweep.reason)}`,
@@ -69,6 +79,11 @@ export class RewardGoalWorker implements OnModuleInit, OnModuleDestroy {
       if (expiry.status === 'rejected') {
         this.logger.error(
           `Reward goal expiry sweep failed: ${String(expiry.reason)}`,
+        );
+      }
+      if (unlockedExpiry.status === 'rejected') {
+        this.logger.error(
+          `Reward goal (unlocked) expiry sweep failed: ${String(unlockedExpiry.reason)}`,
         );
       }
       if (missionRewards.status === 'rejected') {
@@ -89,6 +104,8 @@ export class RewardGoalWorker implements OnModuleInit, OnModuleDestroy {
       return {
         sweep: sweep.status === 'fulfilled' ? sweep.value : null,
         expiry: expiry.status === 'fulfilled' ? expiry.value : null,
+        unlockedExpiry:
+          unlockedExpiry.status === 'fulfilled' ? unlockedExpiry.value : null,
         missionRewards:
           missionRewards.status === 'fulfilled' ? missionRewards.value : null,
         missionExpiry:

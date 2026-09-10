@@ -114,7 +114,17 @@ export default function ChallengeRow({
             </p>
           ) : null}
 
-          {progress && progress.target > 0 ? (
+          {/*
+            `target > 1`, no `> 0`: con target=1 (una misión "vení una vez
+            este mes", `targetVisits` mínimo permitido en el editor — ver
+            mission-editor-modal.tsx) esto dibujaba UN solo punto suelto
+            debajo del subtítulo. Un dot no representa nada con un solo paso
+            — ya está dicho en texto ("0 de 1 visitas" / "¡Completado!") — y
+            visualmente quedaba como un bullet decorativo huérfano, la causa
+            real del layout roto que se veía en "Volvé antes de..." con
+            target=1.
+          */}
+          {progress && progress.target > 1 ? (
             <ProgressDots
               current={progress.current}
               target={progress.target}

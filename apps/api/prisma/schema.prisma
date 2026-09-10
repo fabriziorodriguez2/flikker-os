@@ -1319,11 +1319,21 @@ model CustomerRewardGoal {
 }
 
 // customer_reward_goals_one_active_per_customer — hand-authored partial
-// unique index (businessId, customerId) WHERE status IN ('ACTIVE',
-// 'UNLOCKED'), see migrations. Prisma has no "unique where" attribute, so
-// it never appears above; it's the DB-level backstop for the same guard
+// unique index (businessId, customerId) WHERE status = 'ACTIVE', see
+// migrations. Prisma has no "unique where" attribute, so it never appears
+// above; it's the DB-level backstop for the same guard
 // `RewardGoalEngineService.hasActiveGoal` applies in application code — a
-// customer never has two live (ACTIVE or UNLOCKED-unredeemed) goals at once.
+// customer never has two IN-PROGRESS (ACTIVE) goals at once.
+//
+// Deliberadamente NO cubre UNLOCKED (ver migración
+// 20260910140000_reward_goal_next_cycle_ignores_unredeemed_unlock, que
+// revierte 20260820150000_reward_goal_unlocked_blocks_new_cycle): un premio
+// ya desbloqueado y sin canjear no bloquea la tarjeta siguiente. Un cliente
+// puede tener a la vez un goal UNLOCKED (premio ganado, pendiente de canje o
+// ya vencido) y otro ACTIVE (la tarjeta en curso) — son dos promesas
+// distintas, y frenar la segunda por la primera dejaba al cliente sin poder
+// volver a progresar mientras no canjeara (o el negocio no marcara canjeado)
+// el premio anterior.
 
 // ---------------------------------------------------------------------------
 // CheckinFeedback — "¿Cómo fue tu experiencia?" shown right after a check-in.

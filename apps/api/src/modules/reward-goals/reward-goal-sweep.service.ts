@@ -110,6 +110,61 @@ export class RewardGoalSweepService {
     return { checked: overdue.length, expired };
   }
 
+  /**
+   * Complemento de `expireOverdue` para el OTRO estado que puede quedar
+   * abandonado: un goal UNLOCKED cuyo premio (`BenefitParticipation`) venció
+   * sin que el cliente lo canjeara. Antes de esto, NINGÚN barrido tocaba un
+   * goal UNLOCKED — se quedaba en ese estado para siempre, lo que además de
+   * ser información incorrecta (un premio vencido no es lo mismo que uno
+   * vigente) hacía que reportes, segmentos y `isCooldownActive` lo trataran
+   * como si todavía fuera una promesa viva.
+   *
+   * Nota importante: esto YA NO es lo que desbloquea la tarjeta siguiente —
+   * eso lo resuelve `RewardGoalEngineService.hasActiveGoal`, que desde este
+   * mismo cambio ignora UNLOCKED por completo. Esto es la otra mitad:
+   * mantener el STATUS del ciclo viejo honesto (`EXPIRED`, no
+   * eternamente `UNLOCKED`) para todo lo que lee ese campo — Mi Flikker
+   * (ver `MyFlikkerService.placeSummary`, que además filtra por `expiresAt`
+   * en tiempo real para no depender de la cadencia de este barrido diario),
+   * insights, `isCooldownActive`.
+   *
+   * `BenefitParticipation` nunca se toca: la fila ya existe, ya tiene su
+   * propio `expiresAt`, y `consumeRedemption` ya rechaza canjearla vencida
+   * (`benefits.repository.ts`). Esto solo mueve el status del `CustomerRewardGoal`
+   * padre para que dejar de reflejar "esperando canje" cuando ya no es cierto.
+   */
+  async expireOverdueUnlocked(now: Date = new Date()) {
+    const overdue = await this.prisma.customerRewardGoal.findMany({
+      where: {
+        status: RewardGoalStatus.UNLOCKED,
+        benefitParticipation: { expiresAt: { not: null, lt: now } },
+      },
+      select: { id: true, businessId: true, customerId: true },
+    });
+
+    let expired = 0;
+    for (const goal of overdue) {
+      const transitioned = await this.prisma.customerRewardGoal.updateMany({
+        where: { id: goal.id, status: RewardGoalStatus.UNLOCKED },
+        data: { status: RewardGoalStatus.EXPIRED },
+      });
+      if (transitioned.count === 0) continue; // ya cerrado por otro run/canje concurrente
+
+      expired += 1;
+      await this.decisions.record({
+        businessId: goal.businessId,
+        customerId: goal.customerId,
+        decisionCode: DECISION_CODES.REWARD_GOAL_EXPIRED,
+        metadata: { goalId: goal.id, wasUnlocked: true },
+      });
+    }
+
+    this.logger.log(
+      `Reward goal (unlocked) expiry checked=${overdue.length} expired=${expired}`,
+    );
+    return { checked: overdue.length, expired };
+  }
+
   /** CHECKIN_V2 only — a LEGACY business must never get a Reward Goal (Fase E §42). */
   private findOwnedBusinesses() {
     return this.prisma.business.findMany({

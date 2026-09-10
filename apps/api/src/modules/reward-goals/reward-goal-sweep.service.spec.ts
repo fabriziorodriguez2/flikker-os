@@ -216,6 +216,87 @@ describe('RewardGoalSweepService — expireOverdue (Fase F §0.1)', () => {
   });
 });
 
+/**
+ * Punto 7 de la auditoría — el complemento que faltaba: un goal UNLOCKED
+ * nunca vencía por sí solo (`expireOverdue`, arriba, solo mira ACTIVE), así
+ * que un premio ganado y nunca canjeado quedaba UNLOCKED para siempre.
+ */
+describe('RewardGoalSweepService — expireOverdueUnlocked (punto 7 de la auditoría)', () => {
+  it('busca goals UNLOCKED cuyo BenefitParticipation ya venció', async () => {
+    const deps = makeDeps({ overdueGoals: [] });
+    const service = makeService(deps);
+
+    await service.expireOverdueUnlocked(NOW);
+
+    expect(deps.prisma.customerRewardGoal.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          status: 'UNLOCKED',
+          benefitParticipation: { expiresAt: { not: null, lt: NOW } },
+        },
+      }),
+    );
+  });
+
+  it('transiciona UNLOCKED → EXPIRED y loguea REWARD_GOAL_EXPIRED con wasUnlocked:true', async () => {
+    const deps = makeDeps({
+      overdueGoals: [
+        { id: 'goal-1', businessId: 'biz-1', customerId: 'cust-1' },
+      ],
+    });
+    const service = makeService(deps);
+
+    const result = await service.expireOverdueUnlocked(NOW);
+
+    expect(deps.prisma.customerRewardGoal.updateMany).toHaveBeenCalledWith({
+      where: { id: 'goal-1', status: 'UNLOCKED' },
+      data: { status: 'EXPIRED' },
+    });
+    expect(deps.decisions.record).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+        decisionCode: 'REWARD_GOAL_EXPIRED',
+        metadata: { goalId: 'goal-1', wasUnlocked: true },
+      }),
+    );
+    expect(result).toEqual({ checked: 1, expired: 1 });
+  });
+
+  it('nunca toca BenefitParticipation — la fila del premio queda intacta, solo cambia el status del goal padre', async () => {
+    const deps = makeDeps({
+      overdueGoals: [
+        { id: 'goal-1', businessId: 'biz-1', customerId: 'cust-1' },
+      ],
+    });
+    const service = makeService(deps);
+
+    await service.expireOverdueUnlocked(NOW);
+
+    expect((deps.prisma as Record<string, unknown>).benefit).toBeUndefined();
+    expect(
+      (deps.prisma as Record<string, unknown>).benefitParticipation,
+    ).toBeUndefined();
+  });
+
+  it('idempotente bajo carrera: un goal ya canjeado (REDEEMED) por un canje concurrente no se pisa ni se loguea dos veces', async () => {
+    const deps = makeDeps({
+      overdueGoals: [
+        { id: 'goal-1', businessId: 'biz-1', customerId: 'cust-1' },
+      ],
+    });
+    deps.prisma.customerRewardGoal.updateMany.mockResolvedValueOnce({
+      count: 0,
+    });
+    const service = makeService(deps);
+
+    const result = await service.expireOverdueUnlocked(NOW);
+
+    expect(deps.decisions.record).not.toHaveBeenCalled();
+    expect(result).toEqual({ checked: 1, expired: 0 });
+  });
+});
+
 describe('RewardGoalSweepService — resilience', () => {
   it('keeps sweeping other businesses when one throws', async () => {
     const deps = makeDeps({

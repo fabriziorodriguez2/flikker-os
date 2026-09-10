@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { AlertTriangle, Gift, Loader2, Lock } from "lucide-react";
+import { AlertTriangle, Gift, History, Loader2, Lock } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
 import CustomerShell from "@/components/public/customer-shell";
 import LoyaltyCard from "@/components/public/loyalty-card";
@@ -66,6 +66,12 @@ interface MyFlikkerPlace {
     remainingVisits: number;
   } | null;
   benefitAvailable: { name: string; code: string; expiresAt: string | null } | null;
+  /**
+   * El premio de la tarjeta anterior, ya vencido sin canjear — punto 7 de la
+   * auditoría. Antes esto no existía como concepto y un premio vencido
+   * seguía apareciendo en `benefitAvailable` como si fuera canjeable.
+   */
+  expiredBenefit: { name: string; expiredAt: string } | null;
   /**
    * Otros beneficios otorgados y sin canjear — típicamente por una
    * promoción manual (Notificaciones → Promociones ya puede elegir
@@ -226,6 +232,35 @@ export default function PlaceDetailClient({
         </div>
       ))}
 
+      {/*
+        2b. El premio ANTERIOR, ya vencido sin canjear — punto 7 de la
+        auditoría. No es accionable (nada que revelar, ningún QR: la ventana
+        de canje ya cerró), así que no es un `BenefitCard` — es una fila
+        chica y silenciosa que deja constancia sin invitar a tocarla.
+        Convive con la tarjeta ACTUAL de abajo: un premio vencido ya NO frena
+        el ciclo siguiente.
+      */}
+      {place.expiredBenefit ? (
+        <div
+          className="mb-4 flex items-center gap-2.5 rounded-[14px] border border-[#EDEEF5] bg-[#FAFAFC] px-4 py-3"
+          role="status"
+        >
+          <History
+            className="h-4 w-4 shrink-0 text-[#ABAFC2]"
+            aria-hidden="true"
+          />
+          <p className="text-[13px] text-[#8A90A6]">
+            <span className="font-semibold text-[#5A5F76]">
+              Beneficio vencido:
+            </span>{" "}
+            {place.expiredBenefit.name} — venció el{" "}
+            {new Date(place.expiredBenefit.expiredAt).toLocaleDateString(
+              "es-UY",
+            )}
+          </p>
+        </div>
+      ) : null}
+
       {/* 3. La tarjeta activa, si existe. Sin RewardGoal no se dibuja
              ninguna tarjeta decorativa. */}
       {place.rewardGoal ? (
@@ -260,9 +295,15 @@ export default function PlaceDetailClient({
         </ul>
       ) : null}
 
-      {/* 5. Estado vacío real: ni tarjeta, ni beneficios, ni desafíos. */}
+      {/*
+        5. Estado vacío real: ni tarjeta, ni beneficios (disponibles O
+        vencidos), ni desafíos. Un beneficio vencido SÍ cuenta como "hay algo
+        que mostrar" — mostrar la fila de arriba Y este estado vacío al mismo
+        tiempo se contradice.
+      */}
       {!place.rewardGoal &&
       !place.benefitAvailable &&
+      !place.expiredBenefit &&
       place.otherBenefits.length === 0 &&
       challenges.length === 0 ? (
         <PublicState
