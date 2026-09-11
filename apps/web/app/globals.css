@@ -61,7 +61,6 @@
   --font-display: var(--font-syne);
 }
 
-
 :root[data-theme="dark"] {
   --background: #090b24;
   --foreground: #f4f6ff;
@@ -212,7 +211,108 @@ select option {
 }
 
 .flikker-app-shell {
-  /* background intentionally absent — body provides the page color */
+  /*
+   * Compatibility aliases for the panel primitives. LEGACY keeps the visual
+   * values it already had; CHECKIN_V2 overrides them in `.flikker-panel-v2`.
+   * Public/customer-facing routes never mount this shell.
+   */
+  --panel-canvas: var(--background);
+  --panel-surface: var(--surface);
+  --panel-surface-subtle: var(--surface-subtle);
+  --panel-surface-muted: var(--surface-muted);
+  --panel-border: var(--border);
+  --panel-border-strong: var(--border-strong);
+  --panel-text: var(--foreground);
+  --panel-text-secondary: var(--foreground);
+  --panel-text-muted: var(--text-muted);
+  --panel-text-disabled: var(--text-soft);
+  --panel-accent: var(--brand-primary);
+  --panel-accent-hover: #4f5eb0;
+  --panel-accent-soft: var(--brand-soft);
+  --panel-focus-ring: rgba(92, 107, 192, 0.18);
+  --panel-success-bg: var(--success-bg);
+  --panel-success-border: rgba(99, 153, 34, 0.24);
+  --panel-success-text: var(--success-text);
+  --panel-warning-bg: var(--warning-bg);
+  --panel-warning-border: rgba(157, 93, 14, 0.24);
+  --panel-warning-text: var(--warning-text);
+  --panel-danger-bg: var(--danger-bg);
+  --panel-danger-border: rgba(192, 57, 43, 0.22);
+  --panel-danger-text: var(--danger-text);
+  --panel-info-bg: var(--brand-soft);
+  --panel-info-border: rgba(92, 107, 192, 0.2);
+  --panel-info-text: var(--brand-primary);
+  --panel-radius-card: 16px;
+  --panel-radius-control: 14px;
+  --panel-card-shadow: var(--shadow-card);
+}
+
+/*
+ * B2B redesign scope. This class is mounted only for CHECKIN_V2 by the panel
+ * layout, so it cannot leak into Mi Flikker, public check-in, onboarding or
+ * the still-supported LEGACY dashboard.
+ */
+.flikker-panel-v2 {
+  --panel-canvas: #f7f7f8;
+  --panel-surface: #ffffff;
+  --panel-surface-subtle: #fafafb;
+  --panel-surface-muted: #f2f3f5;
+  --panel-border: #e5e7eb;
+  --panel-border-strong: #d1d5db;
+  --panel-text: #18181b;
+  --panel-text-secondary: #52525b;
+  --panel-text-muted: #71717a;
+  --panel-text-disabled: #a1a1aa;
+  --panel-accent: #5c5bd6;
+  --panel-accent-hover: #4f4ec4;
+  --panel-accent-soft: #eeeeff;
+  --panel-focus-ring: rgba(92, 91, 214, 0.22);
+  --panel-success-bg: #ecfdf5;
+  --panel-success-border: #a7f3d0;
+  --panel-success-text: #087a55;
+  --panel-warning-bg: #fffbeb;
+  --panel-warning-border: #fde68a;
+  --panel-warning-text: #9a5b13;
+  --panel-danger-bg: #fef2f2;
+  --panel-danger-border: #fecaca;
+  --panel-danger-text: #b42318;
+  --panel-info-bg: #eeeeff;
+  --panel-info-border: #d8d7ff;
+  --panel-info-text: #4947b8;
+  --panel-radius-card: 8px;
+  --panel-radius-control: 6px;
+  --panel-card-shadow: none;
+  background: var(--panel-canvas);
+  color: var(--panel-text);
+  font-family: var(--font-panel-geist), sans-serif;
+}
+
+.panel-page-header {
+  border-color: var(--panel-border);
+}
+
+.flikker-panel-v2 .panel-page-header {
+  align-items: center;
+  padding-bottom: 16px;
+}
+
+.flikker-panel-v2 .panel-page-title {
+  font-size: 24px;
+  line-height: 32px;
+  letter-spacing: -0.02em;
+}
+
+.flikker-panel-v2 h1,
+.flikker-panel-v2 h2,
+.flikker-panel-v2 h3,
+.flikker-panel-v2 h4,
+.flikker-panel-v2 h5,
+.flikker-panel-v2 h6,
+.flikker-panel-v2 button,
+.flikker-panel-v2 input,
+.flikker-panel-v2 select,
+.flikker-panel-v2 textarea {
+  font-family: var(--font-panel-geist), sans-serif;
 }
 
 .flikker-card {
@@ -433,8 +533,7 @@ select option {
   }
   20% {
     opacity: 1;
-    transform: translate(var(--cx, 0), var(--cy, -6px)) scale(1)
-      rotate(120deg);
+    transform: translate(var(--cx, 0), var(--cy, -6px)) scale(1) rotate(120deg);
   }
   100% {
     opacity: 0;
@@ -463,7 +562,6 @@ select option {
   border-radius: 9999px;
   animation: flik-confetti-pop 1.8s ease-out infinite;
 }
-
 
 /* ── Onboarding tour ──────────────────────────────────────────────────── */
 
@@ -874,8 +972,10 @@ select option {
 
 @container (min-width: 620px) {
   .qr-funnel-flow {
-    grid-template-columns:
-      minmax(0, 1fr) 52px minmax(0, 1fr) 52px minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) 52px minmax(0, 1fr) 52px minmax(
+        0,
+        1fr
+      );
   }
 
   .qr-funnel-arrow svg {

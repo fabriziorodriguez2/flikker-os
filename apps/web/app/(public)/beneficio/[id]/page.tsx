@@ -8,6 +8,9 @@ export interface BenefitIssuanceView {
   terms: string | null;
   redemptionCode: string | null;
   redeemed: boolean;
+  /** Vencido sin canjear: no hay código ni nada que mostrar para canjear. */
+  expired: boolean;
+  expiresAt: string | null;
 }
 
 const API_URL = process.env.API_URL ?? "http://localhost:3000";

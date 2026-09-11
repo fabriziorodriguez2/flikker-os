@@ -38,13 +38,24 @@ export class MyFlikkerController {
   }
 
   /**
-   * El teléfono de esta cuenta — para el menú "Mi cuenta" del header. Misma
-   * razón que `challenges`: ruta literal ANTES de `:businessId`.
+   * Premios — todas las emisiones de esta cuenta, de todos sus negocios,
+   * disponibles/canjeadas/vencidas. Misma razón que `challenges`: ruta
+   * literal ANTES de `:businessId`.
+   */
+  @Get('rewards')
+  async rewards(@Headers('x-flikker-account-session') session?: string) {
+    const account = await this.requireAccount(session);
+    return this.myFlikker.listRewards(account.flikkerAccountId);
+  }
+
+  /**
+   * Los datos de esta cuenta — para la pestaña "Cuenta". Misma razón que
+   * `challenges`: ruta literal ANTES de `:businessId`.
    */
   @Get('account')
   async account(@Headers('x-flikker-account-session') session?: string) {
     const account = await this.requireAccount(session);
-    return this.myFlikker.getAccountPhone(account.flikkerAccountId);
+    return this.myFlikker.getAccountProfile(account.flikkerAccountId);
   }
 
   @Get(':businessId')

@@ -210,7 +210,7 @@ function BusinessLogoHero({
   );
 }
 
-const FLIKKER_ACCENT = "#5B5BD6";
+const FLIKKER_ACCENT = "#6A5DF0";
 
 /**
  * La paleta de Flikker para todo lo customer-facing. Clara, con mucho aire y
@@ -222,12 +222,12 @@ const FLIKKER_ACCENT = "#5B5BD6";
  * ven igual de sólidos.
  */
 const TOKENS = {
-  "--pub-bg": "#F4F5FA",
+  "--pub-bg": "#F3F2F8",
   "--pub-surface": "#FFFFFF",
   "--pub-surface-border": "#E7E8F1",
   "--pub-surface-muted": "#F7F8FC",
-  "--pub-text": "#14151F",
-  "--pub-text-muted": "#5A5F76",
+  "--pub-text": "#1A1A24",
+  "--pub-text-muted": "#5A5A6E",
   "--pub-text-soft": "#8A90A6",
   "--pub-accent": FLIKKER_ACCENT,
   "--pub-on-accent": "#FFFFFF",

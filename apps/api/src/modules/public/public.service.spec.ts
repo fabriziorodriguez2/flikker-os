@@ -49,7 +49,58 @@ describe('PublicService.getBenefitIssuance', () => {
       terms: null,
       redemptionCode: 'ABCD1234',
       redeemed: false,
+      expired: false,
+      expiresAt: null,
     });
+  });
+
+  /**
+   * Un premio vencido no lleva código, igual que uno ya canjeado.
+   *
+   * Antes esto solo miraba `redeemedAt`: una emisión pasada de `expiresAt`
+   * devolvía su `redemptionCode` y la pantalla dibujaba un QR escaneable
+   * para algo que `consumeRedemption` ya rechaza — el cliente lo mostraba y
+   * el local se lo rebotaba.
+   */
+  it('vencida: no devuelve código, aunque nunca se haya canjeado', async () => {
+    const prisma = makePrisma({
+      redemptionCode: 'ABCD1234',
+      redeemedAt: null,
+      expiresAt: new Date('2026-09-01T00:00:00.000Z'),
+      benefitTitleSnapshot: '2x1',
+      benefit: { title: '2x1', description: null, terms: null },
+      business: { name: 'Café Test' },
+    });
+    const service = makeService(prisma);
+
+    const result = await service.getBenefitIssuance(
+      'part-1',
+      new Date('2026-09-10T00:00:00.000Z'),
+    );
+
+    expect(result.expired).toBe(true);
+    expect(result.redemptionCode).toBeNull();
+    expect(result.redeemed).toBe(false);
+  });
+
+  it('con vencimiento todavía en el futuro, el código sigue viajando', async () => {
+    const prisma = makePrisma({
+      redemptionCode: 'ABCD1234',
+      redeemedAt: null,
+      expiresAt: new Date('2026-09-20T00:00:00.000Z'),
+      benefitTitleSnapshot: '2x1',
+      benefit: { title: '2x1', description: null, terms: null },
+      business: { name: 'Café Test' },
+    });
+    const service = makeService(prisma);
+
+    const result = await service.getBenefitIssuance(
+      'part-1',
+      new Date('2026-09-10T00:00:00.000Z'),
+    );
+
+    expect(result.expired).toBe(false);
+    expect(result.redemptionCode).toBe('ABCD1234');
   });
 
   it('sin snapshot, usa el título VIGENTE del catálogo', async () => {

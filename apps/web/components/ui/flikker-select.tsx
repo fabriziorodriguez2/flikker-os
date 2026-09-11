@@ -128,19 +128,19 @@ export default function FlikkerSelect({
         aria-controls={`${id}-listbox`}
         onClick={() => (open ? setOpen(false) : openMenu())}
         onKeyDown={onKeyDown}
-        className={`flex h-11 w-full items-center gap-3 rounded-[11px] border bg-white px-3.5 text-left text-sm font-medium outline-none transition ${
+        className={`flex h-10 w-full items-center gap-3 rounded-[var(--panel-radius-control)] border bg-[color:var(--panel-surface)] px-3 text-left text-sm font-medium outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-[color:var(--panel-focus-ring)] ${
           open
-            ? "border-[#5C6BC0] shadow-[0_0_0_3px_rgba(92,107,192,0.10),0_8px_24px_rgba(41,48,93,0.08)]"
-            : "border-[#DDE1EC] hover:border-[#AEB5DC]"
-        } disabled:cursor-not-allowed disabled:bg-[#F5F6F9] disabled:text-[#A0A7B8]`}
+            ? "border-[color:var(--panel-accent)]"
+            : "border-[color:var(--panel-border)] hover:border-[color:var(--panel-border-strong)]"
+        } disabled:cursor-not-allowed disabled:bg-[color:var(--panel-surface-muted)] disabled:text-[color:var(--panel-text-disabled)]`}
       >
         <span
-          className={`min-w-0 flex-1 truncate ${selected ? "text-[#202333]" : "text-[#9AA2B5]"}`}
+          className={`min-w-0 flex-1 truncate ${selected ? "text-[color:var(--panel-text)]" : "text-[color:var(--panel-text-disabled)]"}`}
         >
           {selected?.label ?? placeholder}
         </span>
         <ChevronDown
-          className={`h-4 w-4 shrink-0 text-[#7F879C] transition-transform duration-200 ${open ? "rotate-180 text-[#5C6BC0]" : ""}`}
+          className={`h-4 w-4 shrink-0 text-[color:var(--panel-text-muted)] transition-transform duration-150 ${open ? "rotate-180 text-[color:var(--panel-accent)]" : ""}`}
           aria-hidden="true"
         />
       </button>
@@ -150,7 +150,7 @@ export default function FlikkerSelect({
           id={`${id}-listbox`}
           role="listbox"
           aria-label={ariaLabel}
-          className={`absolute left-0 z-[80] w-full min-w-[220px] overflow-hidden rounded-[14px] border border-[#E1E4EE] bg-white p-1.5 shadow-[0_18px_48px_rgba(27,31,59,0.16)] ${
+          className={`absolute left-0 z-[80] w-full min-w-[220px] overflow-hidden rounded-[var(--panel-radius-card)] border border-[color:var(--panel-border)] bg-[color:var(--panel-surface)] p-1.5 shadow-lg ${
             dropUp ? "bottom-full mb-2" : "top-full mt-2"
           }`}
         >
@@ -170,12 +170,12 @@ export default function FlikkerSelect({
                   disabled={option.disabled}
                   onMouseEnter={() => setActiveIndex(index)}
                   onClick={() => choose(index)}
-                  className={`flex w-full items-center gap-3 rounded-[10px] px-3 py-2.5 text-left transition-colors ${
+                  className={`flex w-full items-center gap-3 rounded-[var(--panel-radius-control)] px-3 py-2 text-left transition-colors ${
                     isSelected
-                      ? "bg-[#EEF0FB] text-[#4F5EB0]"
+                      ? "bg-[color:var(--panel-accent-soft)] text-[color:var(--panel-info-text)]"
                       : isActive
-                        ? "bg-[#F6F7FC] text-[#202333]"
-                        : "text-[#3E4353]"
+                        ? "bg-[color:var(--panel-surface-subtle)] text-[color:var(--panel-text)]"
+                        : "text-[color:var(--panel-text-secondary)]"
                   } disabled:cursor-not-allowed disabled:opacity-45`}
                 >
                   <span className="min-w-0 flex-1">
@@ -183,15 +183,15 @@ export default function FlikkerSelect({
                       {option.label}
                     </span>
                     {option.description ? (
-                      <span className="mt-0.5 block truncate text-[11px] font-medium text-[#8B93A7]">
+                      <span className="mt-0.5 block truncate text-[11px] font-medium text-[color:var(--panel-text-muted)]">
                         {option.description}
                       </span>
                     ) : null}
                   </span>
                   <span
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full ${
+                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded ${
                       isSelected
-                        ? "bg-[#5C6BC0] text-white"
+                        ? "bg-[color:var(--panel-accent)] text-white"
                         : "text-transparent"
                     }`}
                   >

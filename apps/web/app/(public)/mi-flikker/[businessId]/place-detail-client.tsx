@@ -8,6 +8,7 @@ import LoyaltyCard from "@/components/public/loyalty-card";
 import BenefitCard from "@/components/public/benefit-card";
 import ChallengeRow from "@/components/public/challenge-row";
 import PublicState from "@/components/public/public-state";
+import BottomNav from "@/components/public/bottom-nav";
 import { toRow, type MyFlikkerChallenge } from "../challenges-tab";
 
 interface PlaceMission {
@@ -250,7 +251,7 @@ export default function PlaceDetailClient({
             aria-hidden="true"
           />
           <p className="text-[13px] text-[#8A90A6]">
-            <span className="font-semibold text-[#5A5F76]">
+            <span className="font-semibold text-[#5A5A6E]">
               Beneficio vencido:
             </span>{" "}
             {place.expiredBenefit.name} — venció el{" "}
@@ -405,8 +406,16 @@ function Shell({
       eyebrow="Tu tarjeta en Flikker"
       brand={brand}
       back={back}
+      footer={false}
     >
-      {children}
+      {/*
+        La barra de navegación NO se oculta acá: el detalle de un lugar es
+        una pantalla de Mi Flikker como cualquier otra, y esconderla obligaría
+        a volver atrás solo para cambiar de sección. `pb-24` reserva su alto
+        para que la última fila nunca quede tapada.
+      */}
+      <div className="pb-24">{children}</div>
+      <BottomNav active="lugares" />
     </CustomerShell>
   );
 }

@@ -20,6 +20,12 @@ import MobileMenuButton from "./mobile-menu-button";
 import { ToastProvider } from "@/components/ui/toast";
 import BusinessLoadError from "@/components/ui/business-load-error";
 import FlikkerChatbotLauncher from "@/components/panel/flikker-chatbot-launcher";
+import { Geist } from "next/font/google";
+
+const panelGeist = Geist({
+  subsets: ["latin"],
+  variable: "--font-panel-geist",
+});
 
 export default async function PanelLayout({
   children,
@@ -148,7 +154,11 @@ export default async function PanelLayout({
 
   return (
     <>
-      <div className="flikker-app-shell min-h-screen lg:flex lg:h-screen lg:overflow-hidden">
+      <div
+        className={`flikker-app-shell min-h-screen lg:flex lg:h-screen lg:overflow-hidden ${
+          isCheckinV2 ? `${panelGeist.variable} flikker-panel-v2` : ""
+        }`}
+      >
         <SessionExpiryHandler />
         <Sidebar
           memberships={memberships}

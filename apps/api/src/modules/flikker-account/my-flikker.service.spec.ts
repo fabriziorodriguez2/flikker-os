@@ -33,6 +33,8 @@ function makeDeps(
     rewardView?: unknown;
     unlockedGoal?: unknown;
     otherBenefits?: unknown[];
+    participations?: unknown[];
+    account?: unknown;
   } = {},
 ) {
   const prisma = {
@@ -45,6 +47,18 @@ function makeDeps(
         .mockResolvedValue(
           options.customer === undefined ? customerRow() : options.customer,
         ),
+    },
+    flikkerAccount: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue(
+          options.account === undefined
+            ? { phoneE164: '+59891624988' }
+            : options.account,
+        ),
+    },
+    benefitParticipation: {
+      findMany: jest.fn().mockResolvedValue(options.participations ?? []),
     },
     visit: {
       count: jest.fn().mockResolvedValue(options.visitsTotal ?? 4),
@@ -611,5 +625,214 @@ describe('MyFlikkerService.listChallenges — misiones y rachas juntas', () => {
     const deps = makeChallengeDeps();
 
     expect(await makeService(deps).listChallenges('account-1')).toEqual([]);
+  });
+});
+
+/**
+ * Mi Flikker → Premios. Una fila por `BenefitParticipation`, de todos los
+ * negocios de la cuenta, con el estado derivado de los datos reales:
+ * `redeemedAt` manda sobre `expiresAt`, y sin ninguno de los dos el premio
+ * está disponible.
+ */
+describe('MyFlikkerService.listRewards', () => {
+  const NOW = new Date('2026-09-10T12:00:00.000Z');
+
+  function participation(over: Record<string, unknown> = {}) {
+    return {
+      id: 'part-1',
+      businessId: 'biz-a',
+      source: 'REWARD_GOAL',
+      redemptionCode: 'ABCD1234',
+      expiresAt: null,
+      redeemedAt: null,
+      benefitTitleSnapshot: 'Café gratis',
+      benefit: { title: 'Café gratis (renombrado)' },
+      business: { name: 'Café A', logoUrl: null },
+      ...over,
+    };
+  }
+
+  it('AVAILABLE: sin canjear y sin vencer, con su código', async () => {
+    const deps = makeDeps({ participations: [participation()] });
+
+    const [reward] = await makeService(deps).listRewards('account-1', NOW);
+
+    expect(reward).toMatchObject({
+      participationId: 'part-1',
+      status: 'AVAILABLE',
+      redemptionCode: 'ABCD1234',
+      businessName: 'Café A',
+      href: '/beneficio/part-1',
+    });
+  });
+
+  it('REDEEMED: canjeado, y el código NO viaja en el payload', async () => {
+    const deps = makeDeps({
+      participations: [
+        participation({ redeemedAt: new Date('2026-09-08T18:30:00.000Z') }),
+      ],
+    });
+
+    const [reward] = await makeService(deps).listRewards('account-1', NOW);
+
+    expect(reward.status).toBe('REDEEMED');
+    expect(reward.redemptionCode).toBeNull();
+    expect(reward.redeemedAt).toBe('2026-09-08T18:30:00.000Z');
+  });
+
+  it('EXPIRED: vencido sin canjear, y el código NO viaja en el payload', async () => {
+    const deps = makeDeps({
+      participations: [
+        participation({ expiresAt: new Date('2026-09-09T00:00:00.000Z') }),
+      ],
+    });
+
+    const [reward] = await makeService(deps).listRewards('account-1', NOW);
+
+    expect(reward.status).toBe('EXPIRED');
+    expect(reward.redemptionCode).toBeNull();
+    expect(reward.expiresAt).toBe('2026-09-09T00:00:00.000Z');
+  });
+
+  it('canjeado gana sobre vencido: si se canjeó, es REDEEMED aunque la fecha ya pasó', async () => {
+    const deps = makeDeps({
+      participations: [
+        participation({
+          redeemedAt: new Date('2026-09-01T10:00:00.000Z'),
+          expiresAt: new Date('2026-09-05T00:00:00.000Z'),
+        }),
+      ],
+    });
+
+    const [reward] = await makeService(deps).listRewards('account-1', NOW);
+
+    expect(reward.status).toBe('REDEEMED');
+  });
+
+  it('usa el título prometido en ESA emisión, no el actual del catálogo', async () => {
+    const deps = makeDeps({ participations: [participation()] });
+
+    const [reward] = await makeService(deps).listRewards('account-1', NOW);
+
+    expect(reward.benefitTitle).toBe('Café gratis');
+  });
+
+  it('dos emisiones con el MISMO título siguen siendo dos premios distintos', async () => {
+    const deps = makeDeps({
+      participations: [
+        participation({ id: 'part-1', redemptionCode: 'AAA11111' }),
+        participation({ id: 'part-2', redemptionCode: 'BBB22222' }),
+      ],
+    });
+
+    const rewards = await makeService(deps).listRewards('account-1', NOW);
+
+    expect(rewards).toHaveLength(2);
+    expect(rewards.map((r) => r.participationId)).toEqual(['part-1', 'part-2']);
+    expect(rewards.map((r) => r.redemptionCode)).toEqual([
+      'AAA11111',
+      'BBB22222',
+    ]);
+  });
+
+  it('cruza negocios: cada premio lleva el suyo', async () => {
+    const deps = makeDeps({
+      participations: [
+        participation({
+          id: 'p-a',
+          businessId: 'biz-a',
+          business: { name: 'Café A', logoUrl: null },
+        }),
+        participation({
+          id: 'p-b',
+          businessId: 'biz-b',
+          business: { name: 'Bar B', logoUrl: 'https://logo/b.png' },
+        }),
+      ],
+    });
+
+    const rewards = await makeService(deps).listRewards('account-1', NOW);
+
+    expect(rewards.map((r) => r.businessName).sort()).toEqual([
+      'Bar B',
+      'Café A',
+    ]);
+    expect(rewards.find((r) => r.businessId === 'biz-b')?.businessLogo).toBe(
+      'https://logo/b.png',
+    );
+  });
+
+  it('prioriza disponibles, después canjeados, después vencidos', async () => {
+    const deps = makeDeps({
+      participations: [
+        participation({
+          id: 'vencido',
+          expiresAt: new Date('2026-09-09T00:00:00.000Z'),
+        }),
+        participation({
+          id: 'canjeado',
+          redeemedAt: new Date('2026-09-08T00:00:00.000Z'),
+        }),
+        participation({ id: 'disponible' }),
+      ],
+    });
+
+    const rewards = await makeService(deps).listRewards('account-1', NOW);
+
+    expect(rewards.map((r) => r.participationId)).toEqual([
+      'disponible',
+      'canjeado',
+      'vencido',
+    ]);
+  });
+
+  it('solo pide participaciones de los Customer de ESTA cuenta, y con código', async () => {
+    const deps = makeDeps({
+      customers: [{ id: 'cust-a' }, { id: 'cust-b' }],
+      participations: [],
+    });
+
+    await makeService(deps).listRewards('account-1', NOW);
+
+    expect(deps.prisma.customer.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { flikkerAccountId: 'account-1', isActive: true },
+      }),
+    );
+    expect(deps.prisma.benefitParticipation.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          customerId: { in: ['cust-a', 'cust-b'] },
+          redemptionCode: { not: null },
+        },
+      }),
+    );
+  });
+
+  it('una cuenta sin ningún Customer no consulta premios y devuelve vacío', async () => {
+    const deps = makeDeps({ customers: [], participations: [] });
+
+    expect(await makeService(deps).listRewards('account-1', NOW)).toEqual([]);
+    expect(deps.prisma.benefitParticipation.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('MyFlikkerService.getAccountProfile', () => {
+  it('devuelve el teléfono de la cuenta y el nombre del Customer más reciente', async () => {
+    const deps = makeDeps({ customer: { name: 'Fabrizio' } });
+
+    expect(await makeService(deps).getAccountProfile('account-1')).toEqual({
+      phone: '+59891624988',
+      name: 'Fabrizio',
+    });
+  });
+
+  it('sin ningún nombre cargado, `name` es null — no se inventa', async () => {
+    const deps = makeDeps({ customer: null });
+
+    expect(await makeService(deps).getAccountProfile('account-1')).toEqual({
+      phone: '+59891624988',
+      name: null,
+    });
   });
 });

@@ -1,6 +1,7 @@
 "use client";
 
 import type { LucideIcon } from "lucide-react";
+import Button from "./button";
 
 interface EmptyStateProps {
   icon: LucideIcon;
@@ -18,26 +19,29 @@ export default function EmptyState({
   onCta,
 }: EmptyStateProps) {
   return (
-    <div className="flex min-h-36 flex-col items-center justify-center rounded-[16px] border border-dashed border-[#DDE1EC] bg-white px-5 py-10 text-center">
-      <div className="flex h-12 w-12 items-center justify-center rounded-[14px] bg-[#F3F4F8] text-[#7F879C]">
+    <div className="flex min-h-36 flex-col items-center justify-center rounded-[var(--panel-radius-card)] border border-dashed border-[color:var(--panel-border)] bg-[color:var(--panel-surface)] px-5 py-10 text-center">
+      <div className="flex h-10 w-10 items-center justify-center rounded-[var(--panel-radius-control)] bg-[color:var(--panel-surface-muted)] text-[color:var(--panel-text-muted)]">
         <Icon className="h-5 w-5" aria-hidden="true" />
       </div>
       {title ? (
-        <h2 className="mt-4 text-base font-semibold text-[#202333]">{title}</h2>
+        <h2 className="mt-4 text-base font-semibold text-[color:var(--panel-text)]">
+          {title}
+        </h2>
       ) : null}
       <p
-        className={`${title ? "mt-1.5" : "mt-4"} max-w-2xl text-sm leading-6 text-[#8891A4]`}
+        className={`${title ? "mt-1.5" : "mt-4"} max-w-2xl text-sm leading-6 text-[color:var(--panel-text-muted)]`}
       >
         {description}
       </p>
       {ctaLabel && onCta ? (
-        <button
+        <Button
           type="button"
           onClick={onCta}
-          className="mt-5 rounded-lg bg-[color:var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[color:var(--brand-accent)]"
+          variant="primary"
+          className="mt-5"
         >
           {ctaLabel}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

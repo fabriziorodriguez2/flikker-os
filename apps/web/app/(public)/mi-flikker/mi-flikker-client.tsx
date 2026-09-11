@@ -2,17 +2,27 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ChevronRight, Gift, Loader2, MapPin, QrCode } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
 import PublicState from "@/components/public/public-state";
 import CustomerShell from "@/components/public/customer-shell";
-import AccountMenu from "@/components/public/account-menu";
+import BottomNav, { type MiFlikkerTab } from "@/components/public/bottom-nav";
 import PhoneInput, { isValidNationalPhone } from "@/components/ui/phone-input";
 import OtpInput from "@/components/ui/otp-input";
 import ChallengesTab, {
   type MyFlikkerChallenge,
 } from "./challenges-tab";
+import RewardsTab, { type MyFlikkerReward } from "./rewards-tab";
+import AccountTab from "./account-tab";
+
+/** `?tab=` → pestaña. Cualquier valor raro cae en Lugares. */
+function asTab(raw: string | null): MiFlikkerTab {
+  return raw === "desafios" || raw === "premios" || raw === "cuenta"
+    ? raw
+    : "lugares";
+}
 
 export interface MyFlikkerPlace {
   businessId: string;
@@ -82,26 +92,60 @@ async function postJson(url: string, body: unknown) {
   return { ok: res.ok, data: data as Record<string, unknown> };
 }
 
+/** El subtítulo de cada pestaña — dice qué estoy mirando, no qué es Flikker. */
+const TAB_SUBTITLES: Record<MiFlikkerTab, string> = {
+  lugares: "Todas tus recompensas Flikker en un solo lugar.",
+  desafios: "Lo que tenés en curso en tus locales.",
+  premios: "Tus beneficios, de todos tus lugares.",
+  cuenta: "Con qué número estás identificado.",
+};
+
 export default function MiFlikkerClient({
   hasSession,
 }: {
   hasSession: boolean;
 }) {
+  const params = useSearchParams();
+  const view = asTab(params.get("tab"));
   const [status, setStatus] = useState<"loading" | "verify" | "places">(
     hasSession ? "loading" : "verify",
   );
   const [places, setPlaces] = useState<MyFlikkerPlace[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [view, setView] = useState<"lugares" | "desafios">("lugares");
   const [challenges, setChallenges] = useState<MyFlikkerChallenge[]>([]);
   const [challengesLoading, setChallengesLoading] = useState(false);
   const [challengesLoaded, setChallengesLoaded] = useState(false);
+  const [rewards, setRewards] = useState<MyFlikkerReward[]>([]);
+  const [rewardsLoading, setRewardsLoading] = useState(false);
+  const [rewardsLoaded, setRewardsLoaded] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
 
   useEffect(() => {
     if (!hasSession) return;
     void load();
   }, [hasSession]);
+
+  /*
+    La pestaña activa vive en la URL (`?tab=`), no en estado: el bottom nav
+    también se dibuja en el detalle de un lugar, que es otra ruta, y desde
+    ahí tocar "Premios" tiene que llevar a Premios. Ver `BottomNav`.
+  */
+  useEffect(() => {
+    if (view === "desafios") void loadChallenges();
+    if (view === "premios") void loadRewards();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  /*
+    El badge de Premios necesita saber cuántos hay disponibles antes de que
+    el cliente abra esa pestaña, así que la lista se pide también al entrar
+    — una sola vez, igual que los desafíos. Es una consulta por cuenta, no
+    por negocio, así que es barata; y sin polling: se refresca al navegar.
+  */
+  useEffect(() => {
+    if (status === "places") void loadRewards();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   /*
     Acá vivía el efecto que manejaba la billetera apilada: medía cada card
@@ -150,6 +194,25 @@ export default function MiFlikkerClient({
     }
   }
 
+  /** Misma carga perezosa que los desafíos, y también una sola vez. */
+  async function loadRewards() {
+    if (rewardsLoaded || rewardsLoading) return;
+    setRewardsLoading(true);
+    try {
+      const res = await fetch("/api/mi-flikker/rewards");
+      if (res.ok) {
+        setRewards((await res.json()) as MyFlikkerReward[]);
+        setRewardsLoaded(true);
+      }
+    } catch {
+      // Silencioso a propósito: la pestaña muestra su propio estado vacío,
+      // que dice lo mismo que diría un error sin alarmar por algo que se
+      // arregla recargando.
+    } finally {
+      setRewardsLoading(false);
+    }
+  }
+
   /**
    * Endpoint ya existía (`POST /api/mi-flikker/logout`) pero no tenía ningún
    * botón que lo llamara. Vuelve a la verificación por WhatsApp — no a
@@ -161,13 +224,26 @@ export default function MiFlikkerClient({
     try {
       await fetch("/api/mi-flikker/logout", { method: "POST" });
     } finally {
+      // Todo lo cargado se descarta: nada de la cuenta anterior puede
+      // quedar visible detrás de la pantalla de verificación.
       setPlaces([]);
       setChallenges([]);
       setChallengesLoaded(false);
+      setRewards([]);
+      setRewardsLoaded(false);
       setLoggingOut(false);
       setStatus("verify");
     }
   }
+
+  /*
+    §10: el badge sale de la lista que ya se pidió — cero consultas extra,
+    cero polling. Solo cuenta disponibles: canjeados y vencidos no son algo
+    pendiente que el cliente tenga que atender.
+  */
+  const availableRewards = rewards.filter(
+    (reward) => reward.status === "AVAILABLE",
+  ).length;
 
   if (status === "verify") {
     return <VerifyScreen onVerified={load} />;
@@ -185,61 +261,17 @@ export default function MiFlikkerClient({
   }
 
   return (
-    <Shell>
-      {/*
-        El avatar de cuenta vive en su propia fila, arriba de todo — no
-        compite con el wordmark ni con los tabs. `w-9` a la izquierda es un
-        spacer del mismo ancho que el botón, así el título queda centrado de
-        verdad en vez de corrido hacia la izquierda.
-      */}
-      <div className="flex w-full items-center justify-between">
-        <span className="h-9 w-9" aria-hidden="true" />
-        <div className="flex-1">
-          <MiFlikkerTitle />
-        </div>
-        <AccountMenu onLogout={() => void logout()} loggingOut={loggingOut} />
-      </div>
+    <Shell activeTab={view} rewardsBadge={availableRewards}>
+      <MiFlikkerTitle />
       <p className="mt-1 text-center text-sm text-[#8A91A3]">
-        Todas tus recompensas Flikker en un solo lugar.
+        {TAB_SUBTITLES[view]}
       </p>
 
-      <div
-        className="mx-auto mt-6 flex w-fit rounded-[12px] bg-[#ECEEF4] p-1 text-sm font-semibold"
-        role="tablist"
-        aria-label="Secciones de Mi Flikker"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "lugares"}
-          onClick={() => setView("lugares")}
-          className={`rounded-[9px] px-4 py-2 transition-colors ${
-            view === "lugares"
-              ? "bg-white text-[#4A56A6] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
-              : "text-[#7F879C]"
-          }`}
-        >
-          Lugares
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={view === "desafios"}
-          onClick={() => {
-            setView("desafios");
-            void loadChallenges();
-          }}
-          className={`rounded-[9px] px-4 py-2 transition-colors ${
-            view === "desafios"
-              ? "bg-white text-[#4A56A6] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
-              : "text-[#7F879C]"
-          }`}
-        >
-          Desafíos
-        </button>
-      </div>
-
-      {view === "desafios" ? (
+      {view === "cuenta" ? (
+        <AccountTab onLogout={() => void logout()} loggingOut={loggingOut} />
+      ) : view === "premios" ? (
+        <RewardsTab rewards={rewards} loading={rewardsLoading} />
+      ) : view === "desafios" ? (
         <ChallengesTab challenges={challenges} loading={challengesLoading} />
       ) : loadError ? (
         <p className="mt-6 text-center text-sm text-[#C0392B]">{loadError}</p>
@@ -255,7 +287,7 @@ export default function MiFlikkerClient({
           description="Escaneá el QR de un local Flikker y tu tarjeta aparece acá sola. Si ya tenés una en algún negocio, verificá el mismo WhatsApp que usaste al registrarte ahí."
         />
       ) : (
-        <ul className="mt-6 flex w-full flex-col gap-3 pb-12">
+        <ul className="mt-6 flex w-full flex-col gap-3 pb-4">
           {places.map((place) => (
             <li key={place.businessId}>
               <PlaceCard place={place} />
@@ -315,7 +347,7 @@ function PlaceCard({ place }: { place: MyFlikkerPlace }) {
   return (
     <Link
       href={`/mi-flikker/${place.businessId}`}
-      className="flex items-center gap-3.5 rounded-[18px] border border-[#E7E8F1] bg-white p-4 transition-colors hover:border-[#DBDDE9] hover:bg-[#FCFCFE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#5B5BD6] focus-visible:ring-offset-2"
+      className="flex items-center gap-3.5 rounded-[18px] border border-[#E7E8F1] bg-white p-4 transition-colors hover:border-[#DBDDE9] hover:bg-[#FCFCFE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6A5DF0] focus-visible:ring-offset-2"
     >
       {/*
         Tarjeta cuadrada con esquinas suaves, no aro circular — un logo de
@@ -350,7 +382,7 @@ function PlaceCard({ place }: { place: MyFlikkerPlace }) {
             al cliente sin saber en qué local está, que es lo único que esta
             fila tiene que responder.
           */}
-          <p className="min-w-0 flex-1 break-words text-[16px] font-bold leading-tight tracking-[-0.01em] text-[#14151F]">
+          <p className="min-w-0 flex-1 break-words text-[16px] font-bold leading-tight tracking-[-0.01em] text-[#1A1A24]">
             {place.businessName}
           </p>
         </div>
@@ -370,7 +402,7 @@ function PlaceCard({ place }: { place: MyFlikkerPlace }) {
             >
               <div
                 className="h-full rounded-full"
-                style={{ width: `${pct}%`, backgroundColor: "#5B5BD6" }}
+                style={{ width: `${pct}%`, backgroundColor: "#6A5DF0" }}
               />
             </div>
             {summary.secondary ? (
@@ -380,7 +412,7 @@ function PlaceCard({ place }: { place: MyFlikkerPlace }) {
             ) : null}
           </div>
         ) : (
-          <p className="mt-1 text-[13px] font-medium text-[#5A5F76]">
+          <p className="mt-1 text-[13px] font-medium text-[#5A5A6E]">
             {summary.primary}
           </p>
         )}
@@ -569,6 +601,30 @@ function VerifyScreen({ onVerified }: { onVerified: () => void }) {
  * mismos tokens — para que moverse entre Mi Flikker, un local y un beneficio
  * no se sienta como cambiar de app.
  */
-function Shell({ children }: { children: React.ReactNode }) {
-  return <CustomerShell footer={false}>{children}</CustomerShell>;
+/**
+ * El marco de Mi Flikker: el shell de Flikker + la barra de navegación fija.
+ *
+ * `activeTab` ausente = pantalla de verificación (todavía no hay sesión):
+ * ahí no se dibuja la barra, porque no hay a dónde navegar.
+ *
+ * `pb-24` en el contenido deja el aire que ocupa la barra fija, así la
+ * última fila de cualquier lista nunca queda tapada.
+ */
+function Shell({
+  children,
+  activeTab,
+  rewardsBadge = 0,
+}: {
+  children: React.ReactNode;
+  activeTab?: MiFlikkerTab;
+  rewardsBadge?: number;
+}) {
+  return (
+    <CustomerShell footer={false}>
+      <div className={activeTab ? "pb-24" : undefined}>{children}</div>
+      {activeTab ? (
+        <BottomNav active={activeTab} rewardsBadge={rewardsBadge} />
+      ) : null}
+    </CustomerShell>
+  );
 }

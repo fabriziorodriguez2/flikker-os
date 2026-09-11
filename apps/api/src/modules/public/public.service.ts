@@ -105,12 +105,13 @@ export class PublicService {
    * píxeles. El `select` de abajo, a propósito, nunca trae nada de
    * `customer` (nombre/teléfono/email) — cero PII en esta pantalla pública.
    */
-  async getBenefitIssuance(participationId: string) {
+  async getBenefitIssuance(participationId: string, now: Date = new Date()) {
     const participation = await this.prisma.benefitParticipation.findUnique({
       where: { id: participationId },
       select: {
         redemptionCode: true,
         redeemedAt: true,
+        expiresAt: true,
         benefitTitleSnapshot: true,
         benefit: { select: { title: true, description: true, terms: true } },
         business: { select: { name: true } },
@@ -120,14 +121,31 @@ export class PublicService {
       throw new NotFoundException('Emisión no encontrada');
     }
 
+    /**
+     * Un premio vencido no lleva código, igual que uno ya canjeado.
+     *
+     * Antes esto solo miraba `redeemedAt`, así que una emisión pasada de
+     * `expiresAt` seguía devolviendo su `redemptionCode` y la pantalla
+     * dibujaba un QR perfectamente escaneable para algo que
+     * `consumeRedemption` ya rechaza (ese sí chequea `expiresAt` desde el
+     * piloto V2). El cliente veía un código vivo y el local se lo rebotaba.
+     * Es la misma regla que Mi Flikker ya aplica en la lista de premios y en
+     * el detalle del lugar: vencido = sin nada accionable.
+     */
+    const expired = Boolean(
+      participation.expiresAt && participation.expiresAt < now,
+    );
+
     return {
       businessName: participation.business.name,
       benefitTitle:
         participation.benefitTitleSnapshot ?? participation.benefit.title,
       description: participation.benefit.description,
       terms: participation.benefit.terms,
-      redemptionCode: participation.redemptionCode,
+      redemptionCode: expired ? null : participation.redemptionCode,
       redeemed: participation.redeemedAt !== null,
+      expired,
+      expiresAt: participation.expiresAt?.toISOString() ?? null,
     };
   }
 

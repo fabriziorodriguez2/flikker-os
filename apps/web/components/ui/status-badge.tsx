@@ -1,11 +1,13 @@
+import Badge, { type BadgeTone } from "./badge";
+
 type StatusVariant = "activo" | "inactivo" | "pendiente" | "error" | "pausa";
 
-const VARIANT_CLASS: Record<StatusVariant, string> = {
-  activo: "bg-[color:var(--success-bg)] text-[color:var(--success-text)]",
-  inactivo: "bg-[color:var(--surface-muted)] text-[color:var(--text-muted)]",
-  pendiente: "bg-[color:var(--warning-bg)] text-[color:var(--warning-text)]",
-  error: "bg-[color:var(--danger-bg)] text-[color:var(--danger-text)]",
-  pausa: "bg-[color:var(--warning-bg)] text-[color:var(--warning-text)]",
+const VARIANT_TONE: Record<StatusVariant, BadgeTone> = {
+  activo: "success",
+  inactivo: "neutral",
+  pendiente: "warning",
+  error: "danger",
+  pausa: "warning",
 };
 
 interface StatusBadgeProps {
@@ -14,11 +16,5 @@ interface StatusBadgeProps {
 }
 
 export default function StatusBadge({ variant, label }: StatusBadgeProps) {
-  return (
-    <span
-      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${VARIANT_CLASS[variant]}`}
-    >
-      {label}
-    </span>
-  );
+  return <Badge tone={VARIANT_TONE[variant]}>{label}</Badge>;
 }

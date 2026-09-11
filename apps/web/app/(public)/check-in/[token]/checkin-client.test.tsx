@@ -51,7 +51,7 @@ describe("CheckinClient initial render", () => {
   */
   it("no pinta la pantalla con el color del negocio: el fondo es el de Flikker", () => {
     const html = render(false);
-    expect(html).toContain("background-color:#F4F5FA");
+    expect(html).toContain("background-color:#F3F2F8");
     expect(html).not.toContain("background-color:#8A746B");
   });
 
@@ -68,7 +68,7 @@ describe("CheckinClient initial render", () => {
 
   it("el acento accionable es el de Flikker, no el del negocio", () => {
     const html = render(false);
-    expect(html).toContain("--pub-accent:#5B5BD6");
+    expect(html).toContain("--pub-accent:#6A5DF0");
   });
 
   it("el negocio se identifica por nombre en el header, no por el fondo", () => {

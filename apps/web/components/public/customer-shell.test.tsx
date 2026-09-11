@@ -34,8 +34,8 @@ describe("CustomerShell — Flikker primero, negocio después", () => {
 
   it("el fondo y las superficies nunca salen del color del negocio", () => {
     const html = shell("#FF6B00");
-    expect(html).toContain("background-color:#F4F5FA");
-    expect(html).toContain("--pub-bg:#F4F5FA");
+    expect(html).toContain("background-color:#F3F2F8");
+    expect(html).toContain("--pub-bg:#F3F2F8");
     expect(html).toContain("--pub-surface:#FFFFFF");
     // El color del local no toca ningún token de superficie ni de texto.
     expect(html).not.toContain("--pub-bg:#FF6B00");
@@ -45,7 +45,7 @@ describe("CustomerShell — Flikker primero, negocio después", () => {
 
   it("el acento accionable es el de Flikker, no el del negocio", () => {
     const html = shell("#FF6B00");
-    expect(html).toContain("--pub-accent:#5B5BD6");
+    expect(html).toContain("--pub-accent:#6A5DF0");
     expect(html).not.toContain("--pub-accent:#FF6B00");
   });
 
@@ -63,7 +63,7 @@ describe("CustomerShell — Flikker primero, negocio después", () => {
     );
     expect(html).not.toContain("Local X");
     // Y sin marca de negocio, --biz cae al acento de Flikker, no a un color raro.
-    expect(html).toContain("--biz:#5B5BD6");
+    expect(html).toContain("--biz:#6A5DF0");
   });
 
   it("el eyebrow no se inventa: solo aparece si la pantalla lo pasa", () => {

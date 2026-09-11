@@ -1,3 +1,6 @@
+import Card from "./card";
+import Metric from "./metric";
+
 interface MetricCardProps {
   label: string;
   value: string | number;
@@ -13,20 +16,14 @@ export default function MetricCard({
 }: MetricCardProps) {
   const toneClasses =
     tone === "accent"
-      ? "border-[color:rgba(145,136,245,0.18)] bg-[color:rgba(145,136,245,0.06)]"
+      ? "border-[color:var(--panel-info-border)] bg-[color:var(--panel-info-bg)]"
       : tone === "warm"
-        ? "border-[color:rgba(250,171,75,0.2)] bg-[color:rgba(250,171,75,0.08)]"
-        : "flikker-card";
+        ? "border-[color:var(--panel-warning-border)] bg-[color:var(--panel-warning-bg)]"
+        : "";
 
   return (
-    <div className={`rounded-[16px] border p-5 ${toneClasses}`}>
-      <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[color:var(--text-soft)]">
-        {label}
-      </p>
-      <p className="mt-2.5 text-3xl font-semibold text-[color:var(--foreground)]">{value}</p>
-      {hint ? (
-        <p className="mt-2 text-xs leading-5 text-[color:var(--text-muted)]">{hint}</p>
-      ) : null}
-    </div>
+    <Card className={toneClasses}>
+      <Metric label={label} value={value} context={hint} />
+    </Card>
   );
 }

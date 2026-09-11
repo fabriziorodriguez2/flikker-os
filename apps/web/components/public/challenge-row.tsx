@@ -94,7 +94,7 @@ export default function ChallengeRow({
       <div className="flex items-start gap-2.5">
         <Icon
           className="mt-0.5 h-4 w-4 shrink-0"
-          style={{ color: "var(--pub-accent, #5B5BD6)" }}
+          style={{ color: "var(--pub-accent, #6A5DF0)" }}
           aria-hidden="true"
         />
         <div className="min-w-0 flex-1">
@@ -147,7 +147,7 @@ export default function ChallengeRow({
         <div className="mt-3 flex items-start gap-2">
           <Gift
             className="mt-0.5 h-4 w-4 shrink-0"
-            style={{ color: "var(--pub-accent, #5B5BD6)" }}
+            style={{ color: "var(--pub-accent, #6A5DF0)" }}
             aria-hidden="true"
           />
           <p
@@ -178,7 +178,7 @@ export default function ChallengeRow({
         <Link
           href={href}
           className="mt-3 inline-block text-[13px] font-semibold underline underline-offset-2"
-          style={{ color: "var(--pub-accent, #5B5BD6)" }}
+          style={{ color: "var(--pub-accent, #6A5DF0)" }}
         >
           {linkLabel}
         </Link>
@@ -214,7 +214,7 @@ function ProgressDots({
           style={{
             backgroundColor:
               index < current || done
-                ? "var(--pub-accent, #5B5BD6)"
+                ? "var(--pub-accent, #6A5DF0)"
                 : "var(--pub-surface-border, #E2E4EF)",
           }}
         />

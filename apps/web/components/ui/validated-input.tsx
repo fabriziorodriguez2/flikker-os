@@ -1,14 +1,17 @@
 "use client";
 
 import { useState, type InputHTMLAttributes } from "react";
+import { Input } from "./input";
 
 interface ValidationResult {
   valid: boolean;
   message?: string;
 }
 
-interface ValidatedInputProps
-  extends Omit<InputHTMLAttributes<HTMLInputElement>, "onChange"> {
+interface ValidatedInputProps extends Omit<
+  InputHTMLAttributes<HTMLInputElement>,
+  "onChange"
+> {
   value: string;
   onChange: (value: string) => void;
   validate?: (value: string) => ValidationResult;
@@ -34,7 +37,7 @@ export default function ValidatedInput({
   return (
     <div className="grid gap-2">
       <div className="relative">
-        <input
+        <Input
           {...props}
           value={value}
           onChange={(event) => {
@@ -52,14 +55,14 @@ export default function ValidatedInput({
             {result.valid ? (
               <span
                 aria-label="Valor válido"
-                className="text-sm font-bold leading-none text-[color:var(--success-text)]"
+                className="text-sm font-bold leading-none text-[color:var(--panel-success-text)]"
               >
                 ✓
               </span>
             ) : (
               <span
                 aria-label="Valor inválido"
-                className="text-sm font-bold leading-none text-[color:var(--danger-text)]"
+                className="text-sm font-bold leading-none text-[color:var(--panel-danger-text)]"
               >
                 ×
               </span>
@@ -68,7 +71,7 @@ export default function ValidatedInput({
         ) : null}
       </div>
       {shouldShow && !result.valid ? (
-        <p className="text-xs text-[color:var(--danger-text)]">
+        <p className="text-xs text-[color:var(--panel-danger-text)]">
           {invalidMessage}
         </p>
       ) : null}

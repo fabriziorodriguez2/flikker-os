@@ -49,7 +49,7 @@ export default function PublicState({
             ? { backgroundColor: "#FBF0DA", color: "#9A6B08" }
             : {
                 backgroundColor: "var(--pub-surface, #EDEDFB)",
-                color: "var(--pub-accent, #5B5BD6)",
+                color: "var(--pub-accent, #6A5DF0)",
               }
         }
       >
@@ -94,7 +94,7 @@ function Action({
     : "mt-3 text-sm font-semibold underline underline-offset-2";
   const style = primary
     ? {
-        backgroundColor: "var(--pub-accent, #5B5BD6)",
+        backgroundColor: "var(--pub-accent, #6A5DF0)",
         color: "var(--pub-on-accent, #FFFFFF)",
       }
     : { color: "var(--pub-text-muted, #8A91A3)" };

@@ -219,8 +219,16 @@ describe("Mi Flikker — cableado de la pestaña Desafíos", () => {
     "utf8",
   );
 
+  /*
+    La intención no cambió — los desafíos se piden recién al abrir SU
+    pestaña — pero sí el mecanismo: antes lo disparaba el `onClick` del tab
+    superior, que ya no existe; ahora la pestaña activa viene de la URL y la
+    carga la dispara un efecto sobre `view`.
+  */
   it("pide los desafíos recién al abrir la pestaña, no al cargar la pantalla", () => {
-    expect(source).toMatch(/setView\("desafios"\);\s*\n\s*void loadChallenges\(\)/);
+    expect(source).toMatch(
+      /if \(view === "desafios"\) void loadChallenges\(\);/,
+    );
     // El load inicial sigue pidiendo solo lugares.
     expect(source).toContain('fetch("/api/mi-flikker/places")');
   });

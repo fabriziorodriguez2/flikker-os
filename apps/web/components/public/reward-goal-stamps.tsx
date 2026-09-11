@@ -87,15 +87,27 @@ export default function RewardGoalStamps({
         <span
           key={i}
           data-stamp-state={filled ? "completed" : "empty"}
-          className={`flex aspect-square min-w-0 items-center justify-center transition-colors duration-300 ${
-            filled ? "border-0" : "rounded-full border-[1.5px]"
-          }`}
+          /*
+            `rounded-full` en LOS DOS estados: el círculo es el SLOT, no una
+            decoración del sello conseguido. Antes el vacío era circular y el
+            completado perdía el contenedor (`border-0`, sin fondo), así que
+            la grilla mezclaba círculos con íconos sueltos flotando. Ahora
+            cada posición es siempre el mismo círculo y lo único que cambia
+            es qué hay adentro.
+          */
+          className="flex aspect-square min-w-0 items-center justify-center rounded-full transition-colors duration-300"
           style={
             filled
               ? {
-                  color: theme.accent,
+                  // El círculo se pinta con el acento del NEGOCIO y el sello
+                  // va encima en el color legible sobre ese acento. Un solo
+                  // círculo: nunca círculo dentro de círculo.
+                  backgroundColor: theme.accent,
+                  color: theme.onAccent,
                 }
               : {
+                  borderWidth: 1.5,
+                  borderStyle: "solid",
                   borderColor: theme.emptyBorder,
                   backgroundColor: theme.emptyFill,
                   color: theme.emptyContent,
@@ -107,11 +119,18 @@ export default function RewardGoalStamps({
               {String(i + 1).padStart(2, "0")}
             </span>
           ) : customIcon ? (
+            /*
+              Sello propio del negocio (data:image). Mismo renderer de
+              máscara de siempre — no hay un segundo camino de render para
+              esto. Lo único que cambió es el color de la máscara: ahora va
+              en `onAccent`, porque el círculo de abajo es `accent` y pintar
+              la máscara del mismo color la haría desaparecer.
+            */
             <span
-              className="h-[70%] w-[70%]"
+              className="h-[56%] w-[56%]"
               aria-hidden="true"
               style={{
-                backgroundColor: theme.accent,
+                backgroundColor: theme.onAccent,
                 WebkitMaskImage: `url(${JSON.stringify(icon)})`,
                 maskImage: `url(${JSON.stringify(icon)})`,
                 WebkitMaskPosition: "center",
@@ -124,8 +143,8 @@ export default function RewardGoalStamps({
             />
           ) : (
             <Icon
-              className="h-[70%] w-[70%]"
-              strokeWidth={2.6}
+              className="h-[56%] w-[56%]"
+              strokeWidth={2.4}
               aria-hidden="true"
             />
           )}

@@ -11,6 +11,40 @@ import { isWorthShowing } from '../streaks/streak-rules';
 import { ReturnChallengeService } from '../return-challenges/return-challenge.service';
 import { BenefitsService } from '../benefits/benefits.service';
 
+export type RewardStatus = 'AVAILABLE' | 'REDEEMED' | 'EXPIRED';
+
+/**
+ * Una emisión concreta (`BenefitParticipation`) tal como la ve el cliente en
+ * Mi Flikker → Premios. Una fila por emisión, nunca agrupadas por título.
+ */
+export interface MyFlikkerReward {
+  participationId: string;
+  businessId: string;
+  businessName: string;
+  businessLogo: string | null;
+  /** El título prometido en ESA emisión (snapshot), no el actual del catálogo. */
+  benefitTitle: string;
+  status: RewardStatus;
+  /** Solo cuando `status === 'AVAILABLE'`. Nunca para canjeado ni vencido. */
+  redemptionCode: string | null;
+  expiresAt: string | null;
+  redeemedAt: string | null;
+  /** `BenefitIssuanceSource` — de dónde salió (promo, tarjeta, bienvenida…). */
+  source: string;
+  /** El detalle que ya existe para una emisión. */
+  href: string;
+}
+
+/**
+ * Con qué fecha se ordena el historial de un premio ya cerrado: cuándo se
+ * canjeó, o cuándo venció. Los disponibles no llegan a compararse por acá
+ * (van todos antes por `rank`), así que su valor solo desempata entre ellos.
+ */
+function closedAt(reward: MyFlikkerReward): number {
+  const stamp = reward.redeemedAt ?? reward.expiresAt;
+  return stamp ? new Date(stamp).getTime() : 0;
+}
+
 export interface MyFlikkerPlace {
   businessId: string;
   businessName: string;
@@ -295,12 +329,18 @@ export class MyFlikkerService {
   }
 
   /**
-   * El teléfono de ESTA cuenta, para el menú "Mi cuenta" — confirma con qué
-   * número está identificado antes de cerrar sesión. Nada más se expone acá:
-   * ni nombre, ni negocios, ni ningún otro dato — esto no es una pantalla de
-   * settings, es una sola línea de confirmación.
+   * Los datos de ESTA cuenta para la pestaña "Cuenta". Deliberadamente
+   * mínimo: teléfono verificado y, si existe, el nombre.
+   *
+   * `FlikkerAccount` NO tiene columna de nombre — la cuenta es el teléfono
+   * probado por OTP y nada más. El nombre que se muestra sale del `Customer`
+   * que el propio cliente cargó al registrarse en un negocio, tomando el más
+   * reciente: es el dato que YA existe, sin ensanchar el modelo. Puede ser
+   * `null` (nunca dio un nombre) y la pantalla lo tolera.
    */
-  async getAccountPhone(flikkerAccountId: string): Promise<{ phone: string }> {
+  async getAccountProfile(
+    flikkerAccountId: string,
+  ): Promise<{ phone: string; name: string | null }> {
     const account = await this.prisma.flikkerAccount.findUnique({
       where: { id: flikkerAccountId },
       select: { phoneE164: true },
@@ -309,7 +349,111 @@ export class MyFlikkerService {
     // resuelta por el controller. Si la cuenta desapareciera entre medio,
     // mejor un 404 explícito que una pantalla rota mostrando "undefined".
     if (!account) throw new NotFoundException('Account not found');
-    return { phone: account.phoneE164 };
+
+    const customer = await this.prisma.customer.findFirst({
+      where: { flikkerAccountId, isActive: true, name: { not: '' } },
+      orderBy: { updatedAt: 'desc' },
+      select: { name: true },
+    });
+
+    return {
+      phone: account.phoneE164,
+      name: customer?.name?.trim() || null,
+    };
+  }
+
+  /**
+   * Todos los premios del cliente, de TODOS sus negocios, en una sola lista
+   * — Mi Flikker → Premios.
+   *
+   * Cada `BenefitParticipation` es una emisión individual y se lista como
+   * tal: dos emisiones del mismo beneficio, con el mismo título, son dos
+   * filas distintas con códigos distintos. Nunca se agrupan por título (ver
+   * el comentario del modelo: no hay `@@unique([benefitId, customerId])`
+   * justamente porque cada entrega es su propia promesa auditable).
+   *
+   * `redemptionCode: { not: null }` es el mismo filtro que ya usa
+   * `findAvailableParticipations`: una participación sin código no es un
+   * premio que el cliente pueda mostrar (las entradas de sorteo, por
+   * ejemplo, viven en la misma tabla y no son canjeables).
+   *
+   * El scope es la CUENTA: se resuelve por los `Customer` vinculados a este
+   * `flikkerAccountId`, nunca por un `customerId` que venga del cliente.
+   */
+  async listRewards(
+    flikkerAccountId: string,
+    now: Date = new Date(),
+  ): Promise<MyFlikkerReward[]> {
+    const customers = await this.prisma.customer.findMany({
+      where: { flikkerAccountId, isActive: true },
+      select: { id: true },
+    });
+    if (customers.length === 0) return [];
+
+    const participations = await this.prisma.benefitParticipation.findMany({
+      where: {
+        customerId: { in: customers.map((c) => c.id) },
+        redemptionCode: { not: null },
+      },
+      select: {
+        id: true,
+        businessId: true,
+        source: true,
+        redemptionCode: true,
+        expiresAt: true,
+        redeemedAt: true,
+        benefitTitleSnapshot: true,
+        benefit: { select: { title: true } },
+        business: { select: { name: true, logoUrl: true } },
+      },
+      // Tope defensivo: la pantalla es una lista, no un export de historial.
+      // Ordenado por fecha de emisión para que, si alguien superara el tope,
+      // lo que se pierda sea lo más viejo.
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+
+    const rewards = participations.map((p): MyFlikkerReward => {
+      const status: RewardStatus = p.redeemedAt
+        ? 'REDEEMED'
+        : p.expiresAt && p.expiresAt < now
+          ? 'EXPIRED'
+          : 'AVAILABLE';
+
+      return {
+        participationId: p.id,
+        businessId: p.businessId,
+        businessName: p.business.name,
+        businessLogo: p.business.logoUrl,
+        // El snapshot primero: es el título que se le prometió a ESTE
+        // cliente cuando ganó el premio, aunque el negocio haya renombrado
+        // el beneficio después.
+        benefitTitle: p.benefitTitleSnapshot ?? p.benefit.title,
+        status,
+        // El código viaja SOLO cuando todavía se puede canjear. Un premio
+        // vencido o ya usado no lleva nada accionable ni siquiera en el
+        // payload — así la UI no puede mostrarlo por accidente.
+        redemptionCode: status === 'AVAILABLE' ? p.redemptionCode : null,
+        expiresAt: p.expiresAt?.toISOString() ?? null,
+        redeemedAt: p.redeemedAt?.toISOString() ?? null,
+        source: p.source,
+        href: `/beneficio/${p.id}`,
+      };
+    });
+
+    // Prioridad de la pantalla: primero lo que se puede usar, después el
+    // historial reciente. Dentro de cada grupo, lo más nuevo arriba.
+    const rank: Record<RewardStatus, number> = {
+      AVAILABLE: 0,
+      REDEEMED: 1,
+      EXPIRED: 2,
+    };
+    return rewards.sort((a, b) => {
+      if (rank[a.status] !== rank[b.status]) {
+        return rank[a.status] - rank[b.status];
+      }
+      return closedAt(b) - closedAt(a);
+    });
   }
 
   /**

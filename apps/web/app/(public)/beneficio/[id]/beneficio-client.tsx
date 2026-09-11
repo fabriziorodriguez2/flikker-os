@@ -35,8 +35,19 @@ export default function BeneficioClient({
           title={issuance.benefitTitle}
           description={issuance.description}
           terms={issuance.terms}
-          code={issuance.redeemed ? null : issuance.redemptionCode}
+          /*
+            Sin código en los DOS finales posibles: canjeado y vencido. El
+            backend tampoco lo manda en esos casos (ver
+            `PublicService.getBenefitIssuance`), así que acá no habría nada
+            que mostrar aunque se quisiera.
+          */
+          code={
+            issuance.redeemed || issuance.expired
+              ? null
+              : issuance.redemptionCode
+          }
           redeemed={issuance.redeemed}
+          eyebrow={issuance.expired ? "Beneficio vencido" : undefined}
           reveal="none"
           /*
             Sin `footer` en el caso disponible: `BenefitCard` ya escribe
@@ -48,7 +59,15 @@ export default function BeneficioClient({
           footer={
             issuance.redeemed
               ? "Si creés que es un error, mostrale este link al personal del local."
-              : undefined
+              : issuance.expired
+                ? `Este beneficio ya no se puede usar${
+                    issuance.expiresAt
+                      ? ` — venció el ${new Date(
+                          issuance.expiresAt,
+                        ).toLocaleDateString("es-UY")}`
+                      : ""
+                  }. Tus sellos siguen donde estaban.`
+                : undefined
           }
         />
       </div>

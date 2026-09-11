@@ -38,7 +38,7 @@ export default function BenefitCard({
   redeemed = false,
   reveal = "tap",
   meta,
-  brand = "var(--pub-accent, #5B5BD6)",
+  brand = "var(--pub-accent, #6A5DF0)",
   icon: Icon,
   onReveal,
   footer,
@@ -80,7 +80,7 @@ export default function BenefitCard({
           style={{
             backgroundColor: "var(--pub-surface, #F1F1F8)",
             border: "1px solid var(--pub-surface-border, #E6E7F0)",
-            color: "var(--pub-accent, #5B5BD6)",
+            color: "var(--pub-accent, #6A5DF0)",
           }}
         >
           {redeemed ? (
@@ -169,7 +169,7 @@ export default function BenefitCard({
               }}
               className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-[14px] text-sm font-bold"
               style={{
-                backgroundColor: "var(--pub-accent, #5B5BD6)",
+                backgroundColor: "var(--pub-accent, #6A5DF0)",
                 color: "var(--pub-on-accent, #FFFFFF)",
               }}
             >
