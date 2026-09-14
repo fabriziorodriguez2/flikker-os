@@ -489,7 +489,7 @@ export function RegisterFormFields({
 
       <form
         onSubmit={(e) => void handleSubmit(e)}
-        className="mt-8 w-full max-w-sm space-y-3"
+        className={`${preview ? "mt-5 space-y-2.5" : "mt-8 space-y-3"} w-full max-w-sm`}
       >
         <input
           type="text"
@@ -497,7 +497,7 @@ export function RegisterFormFields({
           onChange={(e) => setName(e.target.value)}
           placeholder="Tu nombre"
           required
-          className="w-full rounded-2xl border border-[#d0d5dd] bg-white px-4 py-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0]"
+          className={`w-full rounded-2xl border border-[#d0d5dd] bg-white px-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0] ${preview ? "py-3" : "py-4"}`}
         />
 
         <div className="flex overflow-hidden rounded-2xl border border-[#d0d5dd] bg-white focus-within:border-[#5C6BC0] focus-within:ring-1 focus-within:ring-[#5C6BC0]">
@@ -518,7 +518,7 @@ export function RegisterFormFields({
             }
             placeholder="91624988"
             required
-            className="w-full bg-transparent py-4 pl-3 pr-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:outline-none"
+            className={`w-full bg-transparent pl-3 pr-4 text-sm text-[#101828] placeholder:text-[#9ca3af] focus:outline-none ${preview ? "py-3" : "py-4"}`}
           />
         </div>
 
@@ -531,7 +531,7 @@ export function RegisterFormFields({
               value={birthDay}
               onChange={(e) => setBirthDay(e.target.value)}
               aria-label="Día"
-              className="rounded-2xl border border-[#d0d5dd] bg-white px-3 py-3 text-sm text-[#101828] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0]"
+              className={`rounded-2xl border border-[#d0d5dd] bg-white px-3 text-sm text-[#101828] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0] ${preview ? "py-2.5" : "py-3"}`}
             >
               <option value="">Día</option>
               {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
@@ -544,7 +544,7 @@ export function RegisterFormFields({
               value={birthMonth}
               onChange={(e) => setBirthMonth(e.target.value)}
               aria-label="Mes"
-              className="rounded-2xl border border-[#d0d5dd] bg-white px-3 py-3 text-sm text-[#101828] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0]"
+              className={`rounded-2xl border border-[#d0d5dd] bg-white px-3 text-sm text-[#101828] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0] ${preview ? "py-2.5" : "py-3"}`}
             >
               <option value="">Mes</option>
               {MONTHS_ES.map((label, i) => (
@@ -557,7 +557,7 @@ export function RegisterFormFields({
               value={birthYear}
               onChange={(e) => setBirthYear(e.target.value)}
               aria-label="Año"
-              className="rounded-2xl border border-[#d0d5dd] bg-white px-3 py-3 text-sm text-[#101828] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0]"
+              className={`rounded-2xl border border-[#d0d5dd] bg-white px-3 text-sm text-[#101828] focus:border-[#5C6BC0] focus:outline-none focus:ring-1 focus:ring-[#5C6BC0] ${preview ? "py-2.5" : "py-3"}`}
             >
               <option value="">Año</option>
               {yearRange.map((y) => (
@@ -578,7 +578,7 @@ export function RegisterFormFields({
         <button
           type="submit"
           disabled={saving || !name.trim() || phone.length < 8}
-          className="w-full rounded-[14px] py-4 text-base font-bold transition-opacity disabled:opacity-45"
+          className={`w-full rounded-[14px] text-base font-bold transition-opacity disabled:opacity-45 ${preview ? "py-3" : "py-4"}`}
           style={{
             backgroundColor: "var(--pub-accent)",
             color: "var(--pub-on-accent)",
@@ -592,7 +592,7 @@ export function RegisterFormFields({
         <button
           type="button"
           onClick={() => onRecoverInstead(phone)}
-          className="mt-5 text-xs font-medium text-[color:var(--pub-text-muted)] underline underline-offset-2 hover:text-[color:var(--pub-text)]"
+          className={`${preview ? "mt-3.5" : "mt-5"} text-xs font-medium text-[color:var(--pub-text-muted)] underline underline-offset-2 hover:text-[color:var(--pub-text)]`}
         >
           Ya soy cliente
         </button>
@@ -652,6 +652,7 @@ export function RegisterScreenContent({
       brandOverride={palette}
       backgroundColor={landing.business.checkinBackgroundColor}
       fill={fill}
+      compact={preview}
       hero
     >
       {/*
@@ -662,12 +663,15 @@ export function RegisterScreenContent({
         centrado sobre un fondo de color.
       */}
       <h1
-        className="text-[27px] font-extrabold leading-[1.12] tracking-[-0.035em]"
+        className={`${preview ? "text-[25px]" : "text-[27px]"} font-extrabold leading-[1.12] tracking-[-0.035em]`}
         style={{ color: "var(--pub-text)" }}
       >
         {title}
       </h1>
-      <p className="mt-2 text-[15px] leading-6" style={{ color: "var(--pub-text-muted)" }}>
+      <p
+        className={`${preview ? "text-[14px] leading-5" : "text-[15px] leading-6"} mt-2`}
+        style={{ color: "var(--pub-text-muted)" }}
+      >
         {subtitle}
       </p>
 
@@ -1005,8 +1009,8 @@ function PersonalScreen({
   function isUnlockedRewardBenefit(benefit: PersonalBenefit): boolean {
     return Boolean(
       unlockedReward &&
-        benefit.redemption &&
-        benefit.redemption.code === unlockedReward.code,
+      benefit.redemption &&
+      benefit.redemption.code === unlockedReward.code,
     );
   }
 
@@ -1034,7 +1038,9 @@ function PersonalScreen({
           )}
         </div>
         <h1 className="checkin-enter text-balance text-center text-2xl font-bold tracking-[-0.035em] text-[color:var(--pub-text)]">
-          {isDuplicate ? "Tu visita de hoy ya está contada" : `¡Hola, ${firstName}!`}
+          {isDuplicate
+            ? "Tu visita de hoy ya está contada"
+            : `¡Hola, ${firstName}!`}
         </h1>
         <p className="checkin-enter mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-sm text-[color:var(--pub-text-muted)]">
           <span className="font-semibold">
@@ -1331,8 +1337,7 @@ function RewardUnlockedHero({
       </p>
       {reward.expiresAt ? (
         <p className="mt-1.5 text-xs text-[color:var(--pub-text-muted)]">
-          Válido hasta{" "}
-          {new Date(reward.expiresAt).toLocaleDateString("es-UY")}
+          Válido hasta {new Date(reward.expiresAt).toLocaleDateString("es-UY")}
         </p>
       ) : null}
 
@@ -1410,7 +1415,6 @@ export function Shell({
     </CustomerShell>
   );
 }
-
 
 function CenteredSpinner() {
   return (

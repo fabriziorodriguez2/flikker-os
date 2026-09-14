@@ -33,10 +33,19 @@ function makeDeps(
     },
     visit: {
       count: jest.fn().mockResolvedValue(options.visitCount ?? 0),
+      // Lo lee `resolveCustomerSegment` al armar el contexto del ciclo
+      // siguiente (`ensureNextGoal`).
+      findMany: jest.fn().mockResolvedValue([]),
     },
     rewardGoalBonusStamp: {
       count: jest.fn().mockResolvedValue(options.bonusStampCount ?? 0),
     },
+    business: {
+      findUnique: jest
+        .fn()
+        .mockResolvedValue({ timezone: 'America/Montevideo' }),
+    },
+    retentionAssignment: { findFirst: jest.fn().mockResolvedValue(null) },
   };
   const decisions = { record: jest.fn().mockResolvedValue(undefined) };
   const issuer = {
@@ -47,7 +56,15 @@ function makeDeps(
     }),
   };
   const unlockNotification = { notify: jest.fn().mockResolvedValue(undefined) };
-  return { prisma, decisions, issuer, unlockNotification };
+  // El ciclo siguiente se delega al engine — acá se mockea para poder
+  // afirmar CON QUÉ se lo llama, sin arrastrar sus reglas a este spec.
+  const engine = {
+    evaluate: jest.fn().mockResolvedValue({
+      action: 'NO_GOAL',
+      reasonCode: 'NO_ELIGIBLE_INCENTIVE',
+    }),
+  };
+  return { prisma, decisions, issuer, unlockNotification, engine };
 }
 
 function makeService(deps: ReturnType<typeof makeDeps>) {
@@ -56,6 +73,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.decisions as never,
     deps.issuer as never,
     deps.unlockNotification as never,
+    deps.engine as never,
   );
 }
 
@@ -249,5 +267,116 @@ describe('RewardGoalUnlockService — concurrency (Fase E §12)', () => {
     ).length;
     expect(unlockedCount).toBe(1);
     expect(deps.issuer.issueForGoal).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * La regla de ciclo: al llegar a N/N, el ciclo siguiente nace en el MISMO
+ * flujo, sin esperar al canje, al vencimiento ni a la próxima visita.
+ *
+ * Antes esto no pasaba: `afterVisit` devolvía temprano al desbloquear y
+ * nunca llegaba a crear el goal siguiente, así que el cliente quedaba sin
+ * tarjeta hasta su próxima visita.
+ */
+describe('RewardGoalUnlockService — el ciclo siguiente nace con el unlock', () => {
+  function unlockingDeps() {
+    // 2 visitas contra un target de 2 → cruza y desbloquea.
+    return makeDeps({ visitCount: 2 });
+  }
+
+  it('al desbloquear, pide el ciclo siguiente al engine', async () => {
+    const deps = unlockingDeps();
+
+    const result = await makeService(deps).evaluateUnlock(
+      'biz-1',
+      'cust-1',
+      NOW,
+    );
+
+    expect(result.status).toBe('unlocked');
+    expect(deps.engine.evaluate).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * El punto más delicado: la visita que completó el ciclo anterior ya dejó
+   * su sello ahí. Si contara también para el nuevo, la tarjeta arrancaría
+   * en 1/N en vez de 0/N — el mismo sello dos veces.
+   */
+  it('marca el trigger como `cycle_completed` — esa visita NO cuenta para el ciclo nuevo', async () => {
+    const deps = unlockingDeps();
+
+    await makeService(deps).evaluateUnlock('biz-1', 'cust-1', NOW);
+
+    expect(deps.engine.evaluate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+        // El instante del unlock ES el `occurredAt` de la visita que lo
+        // completó (se lo pasa el check-in), y es la frontera del ciclo nuevo.
+        now: NOW,
+      }),
+      { dryRun: false, trigger: 'cycle_completed' },
+    );
+  });
+
+  it('NO crea ciclo siguiente si el goal no llegó a desbloquear', async () => {
+    const deps = makeDeps({ visitCount: 1 }); // 1 de 2 — sigue en progreso
+
+    const result = await makeService(deps).evaluateUnlock(
+      'biz-1',
+      'cust-1',
+      NOW,
+    );
+
+    expect(result.status).toBe('in_progress');
+    expect(deps.engine.evaluate).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Idempotencia: el `updateMany` guardado por `status: ACTIVE` es lo que
+   * hace que solo UN caller llegue a crear el ciclo siguiente. El segundo
+   * ve `count: 0` y se va.
+   */
+  it('dos unlocks concurrentes: el que pierde la carrera no crea un segundo ciclo', async () => {
+    const deps = makeDeps({ visitCount: 2, transitionedCount: 0 });
+
+    const result = await makeService(deps).evaluateUnlock(
+      'biz-1',
+      'cust-1',
+      NOW,
+    );
+
+    expect(result.status).toBe('already_processed');
+    expect(deps.engine.evaluate).not.toHaveBeenCalled();
+    expect(deps.issuer.issueForGoal).not.toHaveBeenCalled();
+  });
+
+  it('si crear el ciclo siguiente falla, el unlock y el premio siguen siendo válidos', async () => {
+    const deps = unlockingDeps();
+    deps.engine.evaluate.mockRejectedValue(new Error('db down'));
+
+    const result = await makeService(deps).evaluateUnlock(
+      'biz-1',
+      'cust-1',
+      NOW,
+    );
+
+    expect(result.status).toBe('unlocked');
+    if (result.status !== 'unlocked') throw new Error('expected unlocked');
+    expect(result.code).toBe('ABCD1234');
+  });
+
+  it('un negocio que ya no existe no rompe el unlock', async () => {
+    const deps = unlockingDeps();
+    deps.prisma.business.findUnique.mockResolvedValue(null);
+
+    const result = await makeService(deps).evaluateUnlock(
+      'biz-1',
+      'cust-1',
+      NOW,
+    );
+
+    expect(result.status).toBe('unlocked');
+    expect(deps.engine.evaluate).not.toHaveBeenCalled();
   });
 });

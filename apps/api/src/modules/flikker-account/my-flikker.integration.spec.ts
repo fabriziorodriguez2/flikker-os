@@ -133,6 +133,9 @@ describe('MyFlikkerService — cross-business aggregation is real (integration)'
         decisions,
         issuer,
         unlockNotificationStub as never,
+        // El engine lo necesita para crear el ciclo siguiente al desbloquear
+        // uno. Este test nunca desbloquea, pero la dependencia es real.
+        engine,
       );
       const orchestrator = new RewardGoalOrchestratorService(
         prisma,
@@ -284,6 +287,136 @@ describe('MyFlikkerService — cross-business aggregation is real (integration)'
       await prisma.customerRewardGoal.deleteMany({
         where: { businessId: businessAId },
       });
+      await prisma.retentionIncentiveDefinition.deleteMany({
+        where: { businessId: businessAId },
+      });
+      await prisma.retentionSettings.deleteMany({
+        where: { businessId: businessAId },
+      });
+    }
+  });
+
+  /*
+    El caso que se veía roto en producción: el cliente completó su tarjeta,
+    el premio quedó ahí (disponible primero, vencido después) y en la
+    pantalla del negocio no aparecía ninguna tarjeta nueva.
+
+    Acá se prueba lo contrario contra Postgres real: el ciclo desbloqueado y
+    el ciclo siguiente conviven, y `placeDetail` devuelve LOS DOS — el
+    premio por un lado, la tarjeta en 0/N por el otro. El estado del premio
+    (disponible o vencido) no toca la tarjeta.
+  */
+  it('muestra el premio del ciclo anterior Y la tarjeta nueva al mismo tiempo', async () => {
+    if (!available) return;
+
+    await prisma.retentionSettings.create({
+      data: { businessId: businessAId, rewardGoalsEnabled: true },
+    });
+    const incentive = await prisma.retentionIncentiveDefinition.create({
+      data: {
+        businessId: businessAId,
+        name: 'Capuccino gratis',
+        type: 'gift',
+        active: true,
+        rewardGoalEligible: true,
+      },
+      select: { id: true },
+    });
+    const benefit = await prisma.benefit.create({
+      data: {
+        businessId: businessAId,
+        title: 'Capuccino gratis',
+        type: 'gift',
+        active: true,
+      },
+      select: { id: true },
+    });
+
+    try {
+      const inAnHour = new Date(Date.now() + 3_600_000);
+      const participation = await prisma.benefitParticipation.create({
+        data: {
+          businessId: businessAId,
+          customerId: customerAId,
+          benefitId: benefit.id,
+          benefitTitleSnapshot: 'Capuccino gratis',
+          source: 'REWARD_GOAL',
+          redemptionCode: 'ABC12345',
+          expiresAt: inAnHour,
+        },
+        select: { id: true },
+      });
+      // Ciclo A: completado, con su premio emitido.
+      await prisma.customerRewardGoal.create({
+        data: {
+          businessId: businessAId,
+          customerId: customerAId,
+          incentiveDefinitionId: incentive.id,
+          startingVisitCount: 0,
+          targetAdditionalVisits: 6,
+          reasonCode: 'NEW_SECOND_VISIT',
+          segmentAtCreation: 'NEW',
+          status: 'UNLOCKED',
+          unlockedAt: new Date(),
+          benefitParticipationId: participation.id,
+        },
+      });
+      // Ciclo B: el que nace con el desbloqueo. `activatedAt` en el futuro
+      // inmediato garantiza que ninguna visita vieja se le cuelgue — la
+      // misma frontera que usa el motor.
+      await prisma.customerRewardGoal.create({
+        data: {
+          businessId: businessAId,
+          customerId: customerAId,
+          incentiveDefinitionId: incentive.id,
+          startingVisitCount: 6,
+          targetAdditionalVisits: 6,
+          reasonCode: 'NEW_SECOND_VISIT',
+          segmentAtCreation: 'NEW',
+          status: 'ACTIVE',
+          activatedAt: new Date(),
+        },
+      });
+
+      // Premio disponible + tarjeta nueva en blanco, juntos.
+      const withAvailable = await service.placeDetail(
+        flikkerAccountId,
+        businessAId,
+      );
+      expect(withAvailable.benefitAvailable).toMatchObject({
+        name: 'Capuccino gratis',
+        code: 'ABC12345',
+      });
+      expect(withAvailable.expiredBenefit).toBeNull();
+      expect(withAvailable.rewardGoal).toMatchObject({
+        incentiveName: 'Capuccino gratis',
+        progressVisits: 0,
+        targetAdditionalVisits: 6,
+      });
+
+      // El premio vence: cambia de lado, se le cae el código — y la tarjeta
+      // nueva sigue exactamente igual. Esto es lo que antes no pasaba.
+      await prisma.benefitParticipation.update({
+        where: { id: participation.id },
+        data: { expiresAt: new Date(Date.now() - 3_600_000) },
+      });
+      const withExpired = await service.placeDetail(
+        flikkerAccountId,
+        businessAId,
+      );
+      expect(withExpired.benefitAvailable).toBeNull();
+      expect(withExpired.expiredBenefit).toMatchObject({
+        name: 'Capuccino gratis',
+      });
+      expect(withExpired.rewardGoal).toEqual(withAvailable.rewardGoal);
+    } finally {
+      await prisma.customerRewardGoal.deleteMany({
+        where: { businessId: businessAId },
+      });
+      await prisma.benefitParticipation.deleteMany({
+        where: { businessId: businessAId },
+      });
+      await prisma.benefit.deleteMany({ where: { businessId: businessAId } });
       await prisma.retentionIncentiveDefinition.deleteMany({
         where: { businessId: businessAId },
       });

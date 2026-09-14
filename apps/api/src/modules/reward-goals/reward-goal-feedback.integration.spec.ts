@@ -197,9 +197,10 @@ describe('Reward Goals — feedback bonus (integration)', () => {
       expect(feedbackResult.rewardGoal.unlockedNow).toBe(true);
       expect(feedbackResult.rewardGoal.benefit?.name).toBe('Capuccino gratis');
 
-      // Reabrir/repetir el mismo feedback -> nunca un segundo bonus. La
-      // meta ya está UNLOCKED (no ACTIVE), así que la vista actual ya no
-      // tiene una tarjeta en curso que mostrar.
+      // Reabrir/repetir el mismo feedback -> nunca un segundo bonus. Pero la
+      // vista actual YA no está vacía: el desbloqueo de arriba dejó el ciclo
+      // siguiente creado en el acto, así que lo que se ve es la tarjeta
+      // nueva en 0/2 — no el hueco que quedaba antes de esta tanda.
       const repeated = await feedback.submit(
         business.id,
         customer.id,
@@ -211,7 +212,14 @@ describe('Reward Goals — feedback bonus (integration)', () => {
       expect(repeated.alreadySubmitted).toBe(true);
       expect(repeated.bonusGranted).toBe(false);
       expect(repeated.rewardGoal).toEqual({
-        goal: null,
+        goal: {
+          incentiveName: 'Capuccino gratis',
+          progressVisits: 0,
+          visitProgress: 0,
+          bonusStamps: 0,
+          targetAdditionalVisits: 2,
+          remainingVisits: 2,
+        },
         unlockedNow: false,
         benefit: null,
       });
@@ -222,11 +230,10 @@ describe('Reward Goals — feedback bonus (integration)', () => {
       expect(bonusCount).toBe(1); // sigue siendo 1, no 2
 
       // Segunda visita REAL -> la meta anterior sigue UNLOCKED sin canjear,
-      // pero eso YA NO frena el ciclo siguiente (punto 7 de la auditoría —
-      // antes de esta tanda, un premio sin canjear dejaba al cliente
-      // congelado para siempre). Esta visita es la FUNDADORA de una tarjeta
-      // nueva: cuenta como su propio primer sello (1/2), igual que la
-      // primera tarjeta.
+      // y eso no frena nada: el ciclo siguiente ya venía creado desde el
+      // desbloqueo, en 0/2. Esta visita es su PRIMER sello (1/2). Ojo al
+      // número: 1, no 2 — la visita que desbloqueó el ciclo anterior quedó
+      // del otro lado de la frontera y no se cuenta dos veces.
       const day2 = new Date('2026-09-03T10:00:00.000Z');
       const { result: secondResult } = await visitOn(
         business.id,
@@ -378,28 +385,30 @@ describe('Reward Goals — feedback bonus (integration)', () => {
       });
       expect(bonusCount).toBe(0);
 
-      // La meta anterior sigue UNLOCKED sin canjear, pero ya no frena la
-      // tarjeta siguiente: esta segunda visita REAL funda un ciclo nuevo
-      // (target=1 otra vez) y, con la fundadora contando de una, queda en
-      // 1/1 — todavía ACTIVE, no UNLOCKED: el desbloqueo recién ocurre en la
-      // PRÓXIMA visita que reevalúe (Fase E §27, "nunca crea y desbloquea en
-      // la misma llamada").
+      /*
+        El ciclo siguiente (target=1 otra vez) ya nació con el desbloqueo de
+        arriba, en 0/1. Así que esta segunda visita REAL es su primer sello
+        y, con target=1, lo completa y desbloquea EN EL ACTO.
+
+        Esto no contradice "nunca crear y desbloquear en la misma llamada":
+        el ciclo se creó en la llamada anterior (el feedback de las 10:05),
+        no en ésta. Es el efecto directo y esperable de un negocio
+        configurado con objetivo 1 — cada visita a partir de la segunda
+        premia. Con cualquier objetivo >= 2 el patrón es el normal.
+      */
       const { result: secondResult } = await visitOn(
         business.id,
         customer.id,
         new Date('2026-09-03T10:00:00.000Z'),
       );
-      expect(secondResult).toEqual({
-        goal: {
-          incentiveName: 'Capuccino gratis',
-          progressVisits: 1,
-          visitProgress: 1,
-          bonusStamps: 0,
-          targetAdditionalVisits: 1,
-          remainingVisits: 0,
-        },
-        unlockedNow: false,
-        benefit: null,
+      expect(secondResult.unlockedNow).toBe(true);
+      expect(secondResult.benefit?.name).toBe('Capuccino gratis');
+      // Y ese desbloqueo abrió, a su vez, el ciclo tercero — en 0/1.
+      expect(secondResult.goal).toBeNull();
+      const view = await orchestrator.currentView(business.id, customer.id);
+      expect(view.goal).toMatchObject({
+        progressVisits: 0,
+        targetAdditionalVisits: 1,
       });
     } finally {
       await cleanup(business.id);

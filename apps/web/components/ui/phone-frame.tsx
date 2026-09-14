@@ -19,7 +19,7 @@ export default function PhoneFrame({
           aria-hidden="true"
           className="absolute left-1/2 top-0 z-10 h-5 w-28 -translate-x-1/2 rounded-b-[14px] bg-[#14151C]"
         />
-        <div className="relative aspect-[9/19.5] overflow-y-auto overscroll-contain rounded-[32px] bg-white">
+        <div className="relative aspect-[9/19.5] overflow-hidden rounded-[32px] bg-white">
           {children}
         </div>
       </div>

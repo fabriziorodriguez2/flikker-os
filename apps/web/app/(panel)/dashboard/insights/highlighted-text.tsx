@@ -14,7 +14,10 @@ export default function HighlightedText({ text }: { text: string }) {
     const index = match.index ?? 0;
     if (index > lastIndex) parts.push(text.slice(lastIndex, index));
     parts.push(
-      <span key={index} className="text-base font-bold text-[#6D4AFF]">
+      <span
+        key={index}
+        className="font-semibold tabular-nums text-[color:var(--panel-accent)]"
+      >
         {match[0]}
       </span>,
     );

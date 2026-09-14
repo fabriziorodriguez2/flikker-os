@@ -40,6 +40,26 @@ export interface RewardGoalEvaluationContext {
 }
 
 /**
+ * Qué disparó la creación. Cambia DOS cosas, y las dos importan:
+ *
+ * `'visit'` (default) — una visita real trajo al cliente y el engine decide
+ * si le abre una tarjeta. Esa visita fundadora TIENE que contar como el
+ * primer sello, así que `activatedAt` queda un milisegundo ANTES de ella
+ * (todos los consumidores de progreso cuentan `occurredAt > activatedAt`,
+ * estrictamente). También aplica el cooldown entre ciclos.
+ *
+ * `'cycle_completed'` — el ciclo anterior acaba de llegar a N/N y esta es su
+ * continuación inmediata. Acá la visita que completó el ciclo anterior NO
+ * puede contar de nuevo (sería el mismo sello dos veces), así que
+ * `activatedAt` queda EXACTAMENTE en ese instante: no es "estrictamente
+ * posterior" a sí mismo, queda afuera, y la próxima visita válida sí entra.
+ * El cooldown tampoco corre: es una regla para decidir cuándo EMPEZAR a
+ * proponerle una tarjeta a alguien, no para frenar a quien acaba de
+ * completar una.
+ */
+export type GoalCreationTrigger = 'visit' | 'cycle_completed';
+
+/**
  * Decides — and, unless told otherwise, creates — a Reward Goal for one
  * customer (Fase E §8/§9/§10). Split from `decideRewardGoal` (pure) exactly
  * like Retention V2 splits `evaluateEligibility` from its evaluate service:
@@ -64,8 +84,11 @@ export class RewardGoalEngineService {
    */
   async evaluate(
     context: RewardGoalEvaluationContext,
-    options: { dryRun: boolean } = { dryRun: false },
+    options: { dryRun: boolean; trigger?: GoalCreationTrigger } = {
+      dryRun: false,
+    },
   ): Promise<RewardGoalDecision> {
+    const trigger: GoalCreationTrigger = options.trigger ?? 'visit';
     const settings = await this.prisma.retentionSettings.findUnique({
       where: { businessId: context.businessId },
       select: {
@@ -91,12 +114,18 @@ export class RewardGoalEngineService {
     const [hasActiveGoal, cooldownActive, eligibleIncentiveIds] =
       await Promise.all([
         this.hasActiveGoal(context.businessId, context.customerId),
-        this.isCooldownActive(
-          context.businessId,
-          context.customerId,
-          settings.rewardGoalCooldownDays,
-          context.now,
-        ),
+        // El cooldown decide cuándo volver a PROPONER una tarjeta a alguien
+        // que no completó la anterior. No tiene sentido aplicárselo a quien
+        // acaba de completar una: ahí la continuación del ciclo es
+        // inmediata por definición (ver `GoalCreationTrigger`).
+        trigger === 'cycle_completed'
+          ? Promise.resolve(false)
+          : this.isCooldownActive(
+              context.businessId,
+              context.customerId,
+              settings.rewardGoalCooldownDays,
+              context.now,
+            ),
         this.findEligibleIncentiveIds(
           context.businessId,
           context.timezone,
@@ -137,7 +166,7 @@ export class RewardGoalEngineService {
     await this.logDecision(context, decision, effectiveDryRun);
 
     if (decision.action === 'CREATE_GOAL' && !effectiveDryRun) {
-      await this.createGoal(context, decision);
+      await this.createGoal(context, decision, trigger);
     }
 
     return decision;
@@ -157,6 +186,7 @@ export class RewardGoalEngineService {
       targetAdditionalVisits: number;
       reasonCode: string;
     },
+    trigger: GoalCreationTrigger = 'visit',
   ) {
     try {
       return await this.prisma.customerRewardGoal.create({
@@ -169,19 +199,30 @@ export class RewardGoalEngineService {
           reasonCode: decision.reasonCode,
           segmentAtCreation: context.segment,
           createdAt: context.now,
-          // Bug real (auditoría de caso real — primera visita nunca dejaba
-          // el primer sello): TODOS los consumidores de progreso cuentan
-          // visitas con `occurredAt` ESTRICTAMENTE posterior a
-          // `activatedAt` (`RewardGoalUnlockService`, `currentView` acá
-          // mismo, `CustomerLoyaltyService`, `customer-overview.service.ts`,
-          // el recordatorio de "cerca del premio"). Si `activatedAt` fuera
-          // exactamente `context.now` — el mismo instante que la visita que
-          // disparó esta creación — esa visita fundadora quedaría afuera
-          // para siempre (igual o antes, nunca "posterior"). Un milisegundo
-          // antes alcanza para que la visita fundadora SIEMPRE cuente como
-          // el primer sello, sin tocar la regla de "estrictamente después"
-          // en ninguno de esos lugares.
-          activatedAt: new Date(context.now.getTime() - 1),
+          /**
+           * La frontera temporal del ciclo. TODOS los consumidores de
+           * progreso cuentan visitas con `occurredAt` ESTRICTAMENTE
+           * posterior a `activatedAt` (`RewardGoalUnlockService`,
+           * `currentView`, `CustomerLoyaltyService`,
+           * `customer-overview.service.ts`, el recordatorio de "cerca del
+           * premio"), así que mover este instante un milisegundo decide si
+           * la visita del momento entra o no. Los dos casos son opuestos a
+           * propósito:
+           *
+           * `'visit'` — la visita fundadora TIENE que contar (bug real:
+           * antes la primera visita de una tarjeta nunca dejaba su sello).
+           * Un milisegundo antes y entra.
+           *
+           * `'cycle_completed'` — la visita que completó el ciclo anterior
+           * NO puede volver a contar acá: ya dejó su sello en el ciclo que
+           * cerró. Poniendo `activatedAt` exactamente en ese instante queda
+           * excluida (no es estrictamente posterior a sí misma) y la
+           * tarjeta nueva arranca en 0/N, que es lo correcto.
+           */
+          activatedAt:
+            trigger === 'cycle_completed'
+              ? context.now
+              : new Date(context.now.getTime() - 1),
         },
       });
     } catch (error) {

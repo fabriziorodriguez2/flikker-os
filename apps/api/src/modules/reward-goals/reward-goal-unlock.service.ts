@@ -7,6 +7,8 @@ import {
 } from '../retention-v2/retention-decision-log.service';
 import { RewardGoalIssuerService } from './reward-goal-issuer.service';
 import { RewardGoalUnlockNotificationService } from './reward-goal-unlock-notification.service';
+import { RewardGoalEngineService } from './reward-goal-engine.service';
+import { resolveCustomerSegment } from './resolve-customer-segment';
 
 export type UnlockResult =
   | { status: 'no_active_goal' }
@@ -52,6 +54,7 @@ export class RewardGoalUnlockService {
     private readonly decisions: RetentionDecisionLogService,
     private readonly issuer: RewardGoalIssuerService,
     private readonly unlockNotification: RewardGoalUnlockNotificationService,
+    private readonly engine: RewardGoalEngineService,
   ) {}
 
   async evaluateUnlock(
@@ -118,6 +121,29 @@ export class RewardGoalUnlockService {
       return { status: 'already_processed' };
     }
 
+    /**
+     * El ciclo siguiente arranca ACÁ, no en la próxima visita.
+     *
+     * Antes no existía: `RewardGoalOrchestratorService.afterVisit` devuelve
+     * temprano cuando el resultado es `unlocked`, así que nunca llegaba a
+     * `maybeCreateGoal`, y la tarjeta nueva recién nacía cuando el cliente
+     * volvía a visitar. Entre medio el cliente quedaba SIN tarjeta: abría
+     * Mi Flikker y no veía ninguna, aunque acabara de completar una.
+     *
+     * Vive dentro del bloque guardado por el `updateMany` de arriba, así que
+     * solo el caller que REALMENTE transicionó A llega hasta acá: dos
+     * unlocks concurrentes no pueden crear dos ciclos nuevos. Y por si
+     * acaso, abajo hay dos redes más: el `hasActiveGoal` del engine y el
+     * índice único parcial `customer_reward_goals_one_active_per_customer`.
+     *
+     * `await` y no fire-and-forget: la respuesta del check-in y la lectura
+     * inmediata de Mi Flikker tienen que ver el ciclo nuevo ya creado. Los
+     * errores se tragan igual — si esto falla, el unlock y el premio que el
+     * cliente acaba de ganar siguen siendo válidos, y el barrido diario lo
+     * recupera.
+     */
+    await this.ensureNextGoal(businessId, customerId, now);
+
     // Fire-and-forget: el aviso de "completaste tu tarjeta" nunca debe
     // bloquear ni arriesgar la respuesta del check-in. Vive DENTRO de este
     // bloque (solo alcanzable una vez por goal, gracias al `updateMany`
@@ -148,5 +174,63 @@ export class RewardGoalUnlockService {
       code: issued.code,
       expiresAt: issued.expiresAt,
     };
+  }
+
+  /**
+   * Crea el ciclo siguiente inmediatamente después de un unlock.
+   *
+   * Delega en `RewardGoalEngineService.evaluate` en vez de insertar la fila
+   * a mano, y eso es deliberado: el engine es el único lugar que sabe si el
+   * negocio todavía tiene los sellos prendidos (`rewardGoalsEnabled`), si
+   * queda algún incentivo elegible hoy, si el negocio está en dry-run y si
+   * hay cupo de participantes. Duplicar esas reglas acá sería inventar un
+   * segundo motor que se desincroniza. Con `trigger: 'cycle_completed'` el
+   * engine además sabe que esta visita ya dejó su sello en el ciclo
+   * anterior y no debe contarla de nuevo (ver `GoalCreationTrigger`).
+   *
+   * Nunca tira: el premio que el cliente acaba de ganar ya está emitido y
+   * nada de lo que pase acá puede ponerlo en riesgo.
+   */
+  private async ensureNextGoal(
+    businessId: string,
+    customerId: string,
+    now: Date,
+  ): Promise<void> {
+    try {
+      const business = await this.prisma.business.findUnique({
+        where: { id: businessId },
+        select: { timezone: true },
+      });
+      if (!business) return;
+
+      const { segment, visitCount } = await resolveCustomerSegment(
+        this.prisma,
+        businessId,
+        customerId,
+        now,
+      );
+
+      const decision = await this.engine.evaluate(
+        {
+          businessId,
+          customerId,
+          segment,
+          visitCount,
+          timezone: business.timezone,
+          now,
+        },
+        { dryRun: false, trigger: 'cycle_completed' },
+      );
+
+      this.logger.log(
+        `Ciclo siguiente tras unlock (customer ${customerId}): ${decision.action} ${decision.reasonCode}`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `No se pudo crear el ciclo siguiente tras el unlock del cliente ${customerId}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 }

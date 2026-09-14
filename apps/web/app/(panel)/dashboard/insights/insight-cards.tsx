@@ -1,53 +1,98 @@
+import type { LucideIcon } from "lucide-react";
+import {
+  Clock3,
+  Gift,
+  Megaphone,
+  MessageSquareText,
+  Repeat2,
+  Star,
+  TrendingUp,
+  UsersRound,
+} from "lucide-react";
+import Card from "@/components/ui/card";
 import HighlightedText from "./highlighted-text";
+import type { InsightStatement } from "./types";
 
-export interface InsightStatement {
-  id: string;
-  statement: string;
-  kind: "positive" | "warning" | "neutral";
-  hasEnoughData: boolean;
-}
+export type { InsightStatement } from "./types";
 
-const KIND_STYLES: Record<InsightStatement["kind"], string> = {
-  positive: "border-[#1D9E75]/20 bg-[#EFF9F5] text-[#12795A]",
-  warning: "border-[#F5842A]/25 bg-[#FFF6ED] text-[#B5540E]",
-  neutral: "border-[#E5E6EC] bg-white text-[#4A5568]",
+const META: Record<string, { title: string; icon: LucideIcon }> = {
+  "new-vs-returning": { title: "Captación y recurrencia", icon: UsersRound },
+  "stamp-card-overview": { title: "Uso del programa", icon: Gift },
+  reviews: { title: "Reputación", icon: Star },
+  churn: { title: "Retención", icon: Repeat2 },
+  "stamp-card-impact": { title: "Impacto de la tarjeta", icon: TrendingUp },
+  "promotion-performance": { title: "Promociones", icon: Megaphone },
+  "reactivation-funnel": { title: "Reactivación", icon: Repeat2 },
+  "reactivation-by-arm": { title: "Mensajes", icon: MessageSquareText },
+  "busiest-timing": { title: "Momentos de mayor actividad", icon: Clock3 },
+  "visit-frequency": { title: "Frecuencia de visita", icon: TrendingUp },
+  feedback: { title: "Experiencia del cliente", icon: MessageSquareText },
 };
 
-/**
- * Afirmaciones ya narradas por el backend (`insights-narrator.ts`) — nunca
- * un gráfico sin explicación. Cuando `hasEnoughData` es `false`, la
- * afirmación lo dice explícitamente en vez de mostrar un número dudoso.
- */
+const TONE: Record<InsightStatement["kind"], string> = {
+  positive:
+    "bg-[color:var(--panel-success-bg)] text-[color:var(--panel-success-text)]",
+  warning:
+    "bg-[color:var(--panel-warning-bg)] text-[color:var(--panel-warning-text)]",
+  neutral:
+    "bg-[color:var(--panel-surface-muted)] text-[color:var(--panel-text-muted)]",
+};
+
 export default function InsightCards({
   insights,
 }: {
   insights: InsightStatement[];
 }) {
-  if (insights.length === 0) {
-    return (
-      <div className="rounded-[16px] border border-[#E5E6EC] bg-white p-6 text-sm text-[#8891A4]">
-        Todavía no hay suficiente actividad registrada para mostrar insights.
-      </div>
-    );
-  }
-
   return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      {insights.map((insight) => (
-        <div
-          key={insight.id}
-          className={`rounded-[14px] border p-4 text-sm leading-relaxed ${KIND_STYLES[insight.kind]} ${
-            insight.hasEnoughData ? "" : "opacity-80"
-          }`}
-        >
-          {!insight.hasEnoughData && (
-            <span className="mb-1.5 block text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8891A4]">
-              Todavía no hay suficiente información
-            </span>
-          )}
-          <HighlightedText text={insight.statement} />
-        </div>
-      ))}
-    </div>
+    <Card padding="none">
+      <div className="border-b border-[color:var(--panel-border)] px-5 py-4 sm:px-6">
+        <h2 className="text-base font-semibold text-[color:var(--panel-text)]">
+          Lo más importante ahora
+        </h2>
+        <p className="mt-1 text-xs text-[color:var(--panel-text-muted)]">
+          Señales priorizadas a partir de la actividad real.
+        </p>
+      </div>
+
+      {insights.length === 0 ? (
+        <p className="px-5 py-8 text-sm text-[color:var(--panel-text-muted)] sm:px-6">
+          Los insights aparecerán cuando haya más actividad.
+        </p>
+      ) : (
+        <ul className="divide-y divide-[color:var(--panel-border)]">
+          {insights.slice(0, 4).map((insight) => {
+            const meta = META[insight.id] ?? {
+              title: "Señal del negocio",
+              icon: TrendingUp,
+            };
+            const Icon = meta.icon;
+            return (
+              <li key={insight.id} className="flex gap-3.5 px-5 py-4 sm:px-6">
+                <span
+                  className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--panel-radius-control)] ${TONE[insight.kind]}`}
+                >
+                  <Icon className="h-4 w-4" aria-hidden="true" />
+                </span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h3 className="text-sm font-semibold text-[color:var(--panel-text)]">
+                      {meta.title}
+                    </h3>
+                    {!insight.hasEnoughData ? (
+                      <span className="text-[10px] font-medium uppercase tracking-[0.07em] text-[color:var(--panel-text-muted)]">
+                        Muestra inicial
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-sm leading-5 text-[color:var(--panel-text-secondary)]">
+                    <HighlightedText text={insight.statement} />
+                  </p>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </Card>
   );
 }

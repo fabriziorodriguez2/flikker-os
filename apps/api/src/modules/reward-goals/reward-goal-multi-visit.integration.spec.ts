@@ -267,23 +267,29 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
       const v2 = await visitOn(business.id, customer.id, day(1));
       expect(v2.unlockedNow).toBe(true);
       expect(v2.benefit?.name).toBe('Capuccino gratis');
-      goal = await dumpGoal(business.id, customer.id);
-      expect(goal?.status).toBe(RewardGoalStatus.UNLOCKED);
-      expect(goal?.benefitParticipationId).not.toBeNull();
+      const unlockedGoal = await prisma.customerRewardGoal.findFirst({
+        where: { businessId: business.id, customerId: customer.id },
+        orderBy: { createdAt: 'asc' },
+      });
+      expect(unlockedGoal?.status).toBe(RewardGoalStatus.UNLOCKED);
+      expect(unlockedGoal?.benefitParticipationId).not.toBeNull();
+      // Dos goals: la que se acaba de completar y la siguiente, que nace en
+      // el mismo acto. El cliente nunca se queda sin tarjeta.
       const goalsAfterV2 = await prisma.customerRewardGoal.count({
         where: { businessId: business.id, customerId: customer.id },
       });
-      expect(goalsAfterV2).toBe(1); // todavía solo una goal — nada nuevo se creó al desbloquear.
+      expect(goalsAfterV2).toBe(2);
+      goal = await dumpGoal(business.id, customer.id);
+      expect(goal?.status).toBe(RewardGoalStatus.ACTIVE);
 
       // El cliente canjea el premio — recién ahí el ciclo queda CERRADO.
       await redeemGoal(business.id, customer.id, day(1));
 
-      // Visita 3 — al día siguiente: el ciclo anterior YA está REDEEMED
-      // (no UNLOCKED sin canjear), así que el cooldown de 3 días NO aplica
-      // — auditoría de caso real: "si está REDEEMED, la próxima Visit
-      // válida debe crear inmediatamente un nuevo goal ACTIVE, sin esperar
-      // ningún cooldown adicional". visitCount=3 en este punto → REPEAT
-      // (entre NEW y FREQUENT), objetivo=2. La fundadora ya cuenta 1/2.
+      // Visita 3 — el ciclo que ya estaba abierto suma su primer sello. El
+      // cooldown de 3 días no aparece por ningún lado: la continuación de un
+      // ciclo completado no es una meta "nueva" que haya que espaciar.
+      // Segmento al momento de crearla (v2, visitCount=2) → REPEAT,
+      // objetivo=2.
       const v3 = await visitOn(business.id, customer.id, day(2));
       expect(v3.unlockedNow).toBe(false);
       expect(v3.goal).toMatchObject({
@@ -293,7 +299,10 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
       goal = await dumpGoal(business.id, customer.id);
       expect(goal).toMatchObject({
         status: RewardGoalStatus.ACTIVE,
-        startingVisitCount: 3,
+        // 2, no 3: la meta nació en v2 (el desbloqueo), no en v3. Es un
+        // dato de diagnóstico — el progreso nunca sale de esta resta, sale
+        // de contar Visit posteriores a `activatedAt`.
+        startingVisitCount: 2,
         targetAdditionalVisits: 2,
         segmentAtCreation: 'REPEAT',
       });
@@ -310,9 +319,9 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
       expect(v4.unlockedNow).toBe(true);
       await redeemGoal(business.id, customer.id, day(3));
 
-      // Visita 5 — de nuevo sin esperar cooldown (REDEEMED). visitCount=5 en
-      // este punto → FREQUENT, así que el objetivo escala a 3. La fundadora
-      // ya cuenta 1/3.
+      // Visita 5 — primer sello del ciclo que nació en v4. En ese momento
+      // visitCount=4 → FREQUENT, así que el objetivo escaló a 3: la meta se
+      // sigue endureciendo a medida que el cliente se vuelve habitual.
       const v5 = await visitOn(business.id, customer.id, day(4));
       expect(v5.unlockedNow).toBe(false);
       expect(v5.goal).toMatchObject({
@@ -322,7 +331,7 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
       goal = await dumpGoal(business.id, customer.id);
       expect(goal).toMatchObject({
         status: RewardGoalStatus.ACTIVE,
-        startingVisitCount: 5,
+        startingVisitCount: 4,
         targetAdditionalVisits: 3,
         segmentAtCreation: 'FREQUENT',
       });
@@ -340,8 +349,8 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
       expect(v7.unlockedNow).toBe(true);
       await redeemGoal(business.id, customer.id, day(6));
 
-      // Visita 8 — arranca un cuarto ciclo (sigue FREQUENT, objetivo 3), sin
-      // esperar cooldown (REDEEMED). La fundadora ya cuenta 1/3.
+      // Visita 8 — primer sello del cuarto ciclo, abierto en v7 (sigue
+      // FREQUENT, objetivo 3).
       const v8 = await visitOn(business.id, customer.id, day(7));
       expect(v8.unlockedNow).toBe(false);
       expect(v8.goal).toMatchObject({
@@ -351,7 +360,7 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
       goal = await dumpGoal(business.id, customer.id);
       expect(goal).toMatchObject({
         status: RewardGoalStatus.ACTIVE,
-        startingVisitCount: 8,
+        startingVisitCount: 7,
         targetAdditionalVisits: 3,
         segmentAtCreation: 'FREQUENT',
       });
@@ -372,7 +381,19 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
     }
   });
 
-  it('B. Mal configurado (cooldown=0 + min=max=1): premia cada 2 visitas — nunca en la misma visita que crea la goal', async () => {
+  /*
+    Objetivo 1 es una config degenerada, y con la regla de continuidad de
+    ciclo lo es todavía más: como el ciclo siguiente ya está abierto cuando
+    el cliente vuelve, su primera visita lo completa. Resultado: premio en
+    cada visita a partir de la segunda.
+
+    Se testea justamente para dejarlo documentado y visible. No es un bug de
+    la continuidad — es lo que "necesito 1 sello" significa cuando el
+    cliente nunca se queda sin tarjeta. La regla "nunca crear y desbloquear
+    en la misma llamada" se sigue respetando: cada ciclo se crea en una
+    llamada y se desbloquea en la siguiente.
+  */
+  it('B. Mal configurado (cooldown=0 + min=max=1): premia en cada visita salvo la primera — nunca en la misma llamada que crea la goal', async () => {
     const day = (n: number) => new Date(Date.UTC(2026, 1, 1 + n, 12, 0, 0));
     const { business, customer } = await setupBusiness({
       rewardGoalCooldownDays: 0,
@@ -384,23 +405,31 @@ describe('Reward Goals — múltiples visitas consecutivas (integration)', () =>
       for (let i = 0; i < 6; i++) {
         const v = await visitOn(business.id, customer.id, day(i));
         results.push(v.unlockedNow);
-        // Canjea apenas desbloquea — con cooldown=0, nada más lo frena
-        // salvo la regla nueva de "no un ciclo nuevo mientras el anterior
-        // siga UNLOCKED sin canjear"; sin este canje, el patrón se
-        // trunca en un solo ciclo para siempre.
+        // El canje ya no hace falta para destrabar nada — se deja igual
+        // para probar precisamente eso: el estado del premio anterior no
+        // influye en el ciclo siguiente.
         if (v.unlockedNow) {
           await redeemGoal(business.id, customer.id, day(i));
         }
       }
-      // Patrón exacto con esta config: crea, desbloquea, crea, desbloquea...
-      // — nunca "cada visita" literal (eso violaría "never create and
-      // unlock in the same call"), sino cada 2 visitas, indefinidamente.
-      expect(results).toEqual([false, true, false, true, false, true]);
+      // La primera visita funda el ciclo y no lo desbloquea. De ahí en más
+      // cada visita cae sobre un ciclo ya abierto de 1 sello y lo completa.
+      expect(results).toEqual([false, true, true, true, true, true]);
 
       const totalGoals = await prisma.customerRewardGoal.count({
         where: { businessId: business.id, customerId: customer.id },
       });
-      expect(totalGoals).toBe(3); // una goal creada por cada ciclo de 2 visitas.
+      // 6 ciclos: el fundado en la visita 1 y uno abierto por cada uno de
+      // los 5 desbloqueos. El último queda ACTIVE, esperando la visita 7.
+      expect(totalGoals).toBe(6);
+      const active = await prisma.customerRewardGoal.count({
+        where: {
+          businessId: business.id,
+          customerId: customer.id,
+          status: RewardGoalStatus.ACTIVE,
+        },
+      });
+      expect(active).toBe(1);
     } finally {
       await cleanup(business.id);
     }

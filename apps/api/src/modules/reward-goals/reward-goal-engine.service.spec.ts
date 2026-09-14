@@ -601,3 +601,194 @@ describe('RewardGoalEngineService — tope self-service de 50 clientes (Fase FRE
     expect(plans.canAddParticipant).not.toHaveBeenCalled();
   });
 });
+
+/**
+ * La frontera temporal de cada ciclo (`activatedAt`), que es lo único que
+ * decide si la visita del momento cuenta o no.
+ *
+ * Todos los consumidores de progreso cuentan `occurredAt > activatedAt`,
+ * ESTRICTAMENTE. Por eso un milisegundo acá cambia el resultado, y por eso
+ * los dos casos tienen que estar fijados por separado: son opuestos.
+ */
+describe('RewardGoalEngineService — activatedAt: qué visita cuenta y cuál no', () => {
+  function creatingPrisma() {
+    return makePrisma({ activeGoal: null, lastClosedGoal: null });
+  }
+
+  it('trigger `visit` (default): la visita fundadora SÍ cuenta — activatedAt queda 1ms ANTES', async () => {
+    const prisma = creatingPrisma();
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      makeDecisions() as never,
+      makePlans() as never,
+    );
+
+    await service.evaluate(context());
+
+    const created = prisma.customerRewardGoal.create.mock.calls[0][0];
+    expect(created.data.activatedAt).toEqual(new Date(NOW.getTime() - 1));
+    // Una visita en `NOW` es estrictamente posterior → entra: 1/N.
+    expect(NOW > created.data.activatedAt).toBe(true);
+  });
+
+  it('trigger `cycle_completed`: la visita que completó el ciclo anterior NO cuenta — activatedAt queda EN ese instante', async () => {
+    const prisma = creatingPrisma();
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      makeDecisions() as never,
+      makePlans() as never,
+    );
+
+    await service.evaluate(context(), {
+      dryRun: false,
+      trigger: 'cycle_completed',
+    });
+
+    const created = prisma.customerRewardGoal.create.mock.calls[0][0];
+    expect(created.data.activatedAt).toEqual(NOW);
+    // La visita que completó el ciclo ocurrió EN `NOW`: no es estrictamente
+    // posterior a sí misma, así que queda afuera → la tarjeta arranca 0/N.
+    expect(NOW > created.data.activatedAt).toBe(false);
+    // Y la próxima visita válida sí entra.
+    expect(new Date(NOW.getTime() + 1) > created.data.activatedAt).toBe(true);
+  });
+
+  it('`cycle_completed` ignora el cooldown — completar una tarjeta nunca frena la siguiente', async () => {
+    const prisma = makePrisma({
+      activeGoal: null,
+      lastClosedGoal: {
+        status: 'EXPIRED',
+        updatedAt: new Date(NOW.getTime() - 3600_000), // hace una hora
+      },
+    });
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      makeDecisions() as never,
+      makePlans() as never,
+    );
+
+    const result = await service.evaluate(context(), {
+      dryRun: false,
+      trigger: 'cycle_completed',
+    });
+
+    expect(result.action).toBe('CREATE_GOAL');
+  });
+
+  it('con trigger `visit`, ese mismo cooldown SÍ frena — la regla no se aflojó para todos', async () => {
+    const prisma = makePrisma({
+      activeGoal: null,
+      lastClosedGoal: {
+        status: 'EXPIRED',
+        updatedAt: new Date(NOW.getTime() - 3600_000),
+      },
+    });
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      makeDecisions() as never,
+      makePlans() as never,
+    );
+
+    expect((await service.evaluate(context())).reasonCode).toBe(
+      'COOLDOWN_ACTIVE',
+    );
+  });
+
+  /*
+    §8: el ciclo siguiente sigue pasando por TODAS las reglas del engine. Si
+    el dueño apagó los sellos, no se crea uno vacío — la regla vigente no se
+    toca ni se inventa una excepción.
+  */
+  it('con los sellos apagados NO crea el ciclo siguiente, ni siquiera tras un unlock', async () => {
+    const prisma = makePrisma({
+      settings: {
+        rewardGoalsEnabled: false,
+        rewardGoalCooldownDays: 3,
+        rewardGoalMinVisits: null,
+        rewardGoalMaxVisits: null,
+        maxPromisedRewardGoalsPerIncentive: null,
+      },
+    });
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      makeDecisions() as never,
+      makePlans() as never,
+    );
+
+    const result = await service.evaluate(context(), {
+      dryRun: false,
+      trigger: 'cycle_completed',
+    });
+
+    expect(result).toEqual({
+      action: 'NO_GOAL',
+      reasonCode: 'REWARD_GOALS_DISABLED',
+    });
+    expect(prisma.customerRewardGoal.create).not.toHaveBeenCalled();
+  });
+
+  it('sin incentivo elegible tampoco crea un ciclo vacío', async () => {
+    const prisma = makePrisma({ activeGoal: null, incentives: [] });
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      makeDecisions() as never,
+      makePlans() as never,
+    );
+
+    const result = await service.evaluate(context(), {
+      dryRun: false,
+      trigger: 'cycle_completed',
+    });
+
+    expect(result.reasonCode).toBe('NO_ELIGIBLE_INCENTIVE');
+    expect(prisma.customerRewardGoal.create).not.toHaveBeenCalled();
+  });
+
+  /*
+    §3: el target se congela al crear. Si el dueño después pasa de 6 a 8, el
+    ciclo ya creado conserva su 6 — `targetAdditionalVisits` es una columna,
+    no una lectura viva de la configuración.
+  */
+  it('snapshotea el target al crearse — un cambio posterior de config no lo mueve', async () => {
+    const prisma = makePrisma({
+      activeGoal: null,
+      settings: {
+        rewardGoalsEnabled: true,
+        rewardGoalCooldownDays: 3,
+        rewardGoalMinVisits: 6,
+        rewardGoalMaxVisits: 6,
+        maxPromisedRewardGoalsPerIncentive: null,
+      },
+    });
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      makeDecisions() as never,
+      makePlans() as never,
+    );
+
+    await service.evaluate(context(), {
+      dryRun: false,
+      trigger: 'cycle_completed',
+    });
+
+    const created = prisma.customerRewardGoal.create.mock.calls[0][0];
+    expect(created.data.targetAdditionalVisits).toBe(6);
+  });
+
+  it('un ciclo ACTIVE ya existente sigue bloqueando — nunca dos tarjetas en curso', async () => {
+    const prisma = makePrisma({ activeGoal: { id: 'ya-hay-uno' } });
+    const service = new RewardGoalEngineService(
+      prisma as never,
+      makeDecisions() as never,
+      makePlans() as never,
+    );
+
+    const result = await service.evaluate(context(), {
+      dryRun: false,
+      trigger: 'cycle_completed',
+    });
+
+    expect(result.reasonCode).toBe('ALREADY_HAS_ACTIVE_GOAL');
+    expect(prisma.customerRewardGoal.create).not.toHaveBeenCalled();
+  });
+});
