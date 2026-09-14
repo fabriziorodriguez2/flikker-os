@@ -34,8 +34,14 @@ async function readJson(res: Response) {
 }
 
 /**
- * "Incentivos" — reglas especiales y bonus más allá del programa base:
- * "10% los martes", "2x1 los primeros 5 días del mes", etc.
+ * "Reglas y bonos" (antes "Incentivos") — reglas especiales más allá del
+ * programa base: "10% los martes", "2x1 los primeros 5 días del mes", etc.
+ *
+ * El renombre es solo de etiqueta. Lo que separa esta pantalla de
+ * Beneficios es conceptual: allá se define QUÉ recibe el cliente (el
+ * objeto), acá CUÁNDO Flikker lo entrega o cuándo el cliente avanza más
+ * rápido (la regla). El callout de arriba de todo existe para que esa
+ * diferencia se lea sin tener que abrir las dos.
  *
  * Auditado antes de construir esto: `retention-v2/incentives` YA es este
  * catálogo — ya scopeado a `businessId`, ya `@Roles(OWNER, ADMIN)` en las
@@ -92,7 +98,7 @@ export default function ProgramIncentivesSection({
       setIncentives(data.filter((incentive) => incentive.benefitId === null));
     } catch (e) {
       setLoadError(
-        e instanceof Error ? e.message : "No pudimos cargar los incentivos.",
+        e instanceof Error ? e.message : "No pudimos cargar las reglas.",
       );
     }
   }, []);
@@ -176,7 +182,7 @@ export default function ProgramIncentivesSection({
         });
         if (!res.ok && res.status !== 204) await readJson(res);
       },
-      "Incentivo eliminado",
+      "Regla eliminada",
     );
   }
 
@@ -194,7 +200,7 @@ export default function ProgramIncentivesSection({
         );
         await readJson(res);
       },
-      incentive.active ? "Incentivo desactivado" : "Incentivo activado",
+      incentive.active ? "Regla desactivada" : "Regla activada",
     );
   }
 
@@ -213,18 +219,35 @@ export default function ProgramIncentivesSection({
   return (
     <div className="space-y-5">
       {/*
-        Presupuesto de reactivación automática — mueve acá lo que antes
-        vivía en Notificaciones. Reusa `retention-v2/settings`, que ya
-        validaba esto (`RetentionSettingsService.assertBudgetReadyToAuthorize`,
-        llamado también desde `BenefitsService#setRetentionBridge` cuando el
-        dueño autoriza un beneficio para reactivación en Programa → Beneficios).
+        La aclaración que desambigua toda la pantalla. Deliberadamente chica
+        y secundaria: no es un onboarding ni un banner, es una línea que se
+        lee de reojo y se ignora una vez entendida.
+      */}
+      <p className="rounded-[12px] border border-[#DDE1F5] bg-[#F4F5FD] px-4 py-3 text-sm leading-6 text-[#5C6478]">
+        <span className="font-semibold text-[#4A56A6]">
+          Los beneficios son los premios.
+        </span>{" "}
+        Las reglas definen cuándo se usan o cuándo un cliente avanza más
+        rápido.
+      </p>
+
+      {/*
+        Límite mensual de reactivación — mueve acá lo que antes vivía en
+        Notificaciones. Reusa `retention-v2/settings`, que ya validaba esto
+        (`RetentionSettingsService.assertBudgetReadyToAuthorize`, llamado
+        también desde `BenefitsService#setRetentionBridge` cuando el dueño
+        autoriza un beneficio para reactivación en Programa → Beneficios).
+
+        Se llamaba "Presupuesto de reactivación automática" y eso hacía
+        pensar en plata: el campo es un tope de CANTIDAD de beneficios, no
+        un monto.
       */}
       <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
         <ProgramSectionHeading
           icon={Percent}
-          title="Presupuesto de reactivación automática"
+          title="Límite mensual de reactivación"
           description={
-            'Cuántos beneficios como máximo puede ofrecer Flikker por mes al reactivar clientes. Sin esto, un beneficio autorizado para reactivación (Beneficios → "Autorizado para reactivar clientes") no se puede activar.'
+            'Máximo de beneficios que Flikker puede entregar automáticamente por mes para recuperar clientes. Sin esto, un beneficio autorizado para reactivación (Beneficios → "Flikker puede ofrecerlo a clientes que dejaron de venir") no se puede activar.'
           }
         />
         {budget?.hasIncentiveBearingVariants && !budget.budgetConfigured ? (
@@ -273,8 +296,8 @@ export default function ProgramIncentivesSection({
       <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
         <ProgramSectionHeading
           icon={Percent}
-          title="Incentivos"
-          description="Reglas especiales y bonus además de tu programa base — ej. un extra los fines de semana."
+          title="Bonos y reglas especiales"
+          description="Ej.: 10% los martes o un 2x1 los fines de semana — condiciones que se suman a tu programa base."
           action={
             canMutate ? (
               <button
@@ -282,7 +305,7 @@ export default function ProgramIncentivesSection({
                 onClick={() => setCreating((v) => !v)}
                 className="flk-glossy inline-flex h-10 items-center gap-2 rounded-[8px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
               >
-                <Plus className="h-4 w-4" /> Nuevo incentivo
+                <Plus className="h-4 w-4" /> Nueva regla
               </button>
             ) : null
           }
@@ -302,7 +325,7 @@ export default function ProgramIncentivesSection({
                   });
                   await readJson(res);
                 },
-                "Incentivo creado",
+                "Regla creada",
               );
               setCreating(false);
             }}
@@ -314,7 +337,7 @@ export default function ProgramIncentivesSection({
 
         {incentives.length === 0 ? (
           <p className="mt-5 text-sm text-[#8891A4]">
-            Todavía no creaste ningún incentivo especial. Tu programa base
+            Todavía no creaste ninguna regla especial. Tu programa base
             (sellos y beneficios) sigue funcionando igual sin esto.
           </p>
         ) : (
@@ -450,7 +473,7 @@ function IncentiveForm({
           <FlikkerSelect
             value={type}
             onChange={setType}
-            ariaLabel="Tipo de incentivo"
+            ariaLabel="Tipo de regla"
             className="mt-1"
             options={CREATABLE_BENEFIT_TYPES}
           />

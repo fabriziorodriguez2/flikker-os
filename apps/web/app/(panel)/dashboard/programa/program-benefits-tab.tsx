@@ -19,7 +19,12 @@ const inputClass =
  *
  *   Recompensa de tarjeta  → RetentionIncentiveDefinition.rewardGoalEligible
  *   Regalo de bienvenida   → Business.welcomeBenefitId
- *   Reactivar clientes     → RetentionIncentiveDefinition.automationEligible
+ *   Reactivación           → RetentionIncentiveDefinition.automationEligible
+ *
+ * Un beneficio es el OBJETO (qué recibe el cliente). Cuándo se entrega lo
+ * decide cada uno de estos checkboxes, o una regla de Programa →
+ * "Reglas y bonos". El encabezado "Dónde se usa este beneficio" existe para
+ * que esa distinción se lea sin explicación.
  *
  * `Benefit.active` es un CUARTO control, pero no es "un uso más": es un slot
  * único por negocio (a lo sumo un Benefit activo a la vez, forzado por el
@@ -28,8 +33,9 @@ const inputClass =
  * exponía un control para esto (solo existía en `/dashboard/benefits`,
  * legacy), así que un Benefit creado acá nunca podía volverse elegible para
  * Promociones ni visible al cliente — no hacía falta un endpoint nuevo, el
- * gap era pura UI. Por eso vive separado de "Se usa para", con su propio
- * texto explicando el slot único.
+ * gap era pura UI. Por eso, aunque ahora se lee DENTRO del grupo de usos,
+ * sigue siendo un botón aparte y no un checkbox más: convertirlo en peer de
+ * los otros tres mentiría sobre el slot único.
  */
 export default function ProgramBenefitsTab({
   benefits,
@@ -137,7 +143,7 @@ export default function ProgramBenefitsTab({
         <ProgramSectionHeading
           icon={Gift}
           title="Beneficios"
-          description="Un beneficio es algo que tu negocio ofrece para darle a un cliente una razón para volver — café gratis, 10% de descuento, 2x1, un upgrade. Cada uno puede usarse para una o varias cosas a la vez: recompensa de la tarjeta, regalo de bienvenida, reactivación o promoción suelta."
+          description="Creá los premios y ofertas de tu negocio. Después decidí en qué momentos puede usarlos Flikker: tarjeta, bienvenida, reactivación o promociones."
           action={
             <div className="flex shrink-0 items-center gap-3">
               {canMutate ? (
@@ -307,10 +313,25 @@ export default function ProgramBenefitsTab({
                     ) : null}
                   </div>
 
+                  {/*
+                    Los cuatro usos, bajo un solo encabezado. Antes "Se usa
+                    para" agrupaba tres y el cuarto ("Activo en el check-in")
+                    colgaba en un bloque aparte, así que el dueño no tenía
+                    forma de ver los momentos de entrega como una sola lista.
+                    Sigue siendo el mismo control por separado, porque es un
+                    slot único por negocio y no un checkbox más — pero ahora
+                    se lee dentro del mismo grupo.
+                  */}
                   <div className="mt-4 space-y-2 border-t border-[#F0F2FA] pt-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
-                      Se usa para
-                    </p>
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
+                        Dónde se usa este beneficio
+                      </p>
+                      <p className="mt-1 text-xs text-[#8891A4]">
+                        Elegí en qué momentos Flikker puede entregar u ofrecer
+                        este beneficio.
+                      </p>
+                    </div>
                     <label className="flex items-start gap-2 text-sm">
                       <input
                         type="checkbox"
@@ -329,6 +350,9 @@ export default function ProgramBenefitsTab({
                       />
                       <span className="text-[#1A202C]">
                         Recompensa de tarjeta
+                        <span className="mt-0.5 block text-xs text-[#8891A4]">
+                          Se entrega al completar la tarjeta.
+                        </span>
                       </span>
                     </label>
                     <label className="flex items-start gap-2 text-sm">
@@ -350,7 +374,7 @@ export default function ProgramBenefitsTab({
                       <span className="text-[#1A202C]">
                         Regalo de bienvenida
                         <span className="mt-0.5 block text-xs text-[#8891A4]">
-                          Se entrega una sola vez, en la primera visita.
+                          Se entrega una sola vez en la primera visita.
                         </span>
                       </span>
                     </label>
@@ -371,41 +395,41 @@ export default function ProgramBenefitsTab({
                         className="mt-0.5 h-4 w-4 accent-[#5C6BC0]"
                       />
                       <span className="text-[#1A202C]">
-                        Autorizado para reactivar clientes
+                        Reactivación
                         <span className="mt-0.5 block text-xs text-[#8891A4]">
-                          Flikker solo puede enviarlo a clientes que dejaron de
-                          venir si está tildado acá.
+                          Flikker puede ofrecerlo a clientes que dejaron de
+                          venir.
                         </span>
                       </span>
                     </label>
-                  </div>
 
-                  <div className="mt-3 flex items-start justify-between gap-3 border-t border-[#F0F2FA] pt-3">
-                    <p className="text-xs leading-5 text-[#8891A4]">
-                      <span className="font-semibold text-[#5C6478]">
-                        Activo en el check-in:
-                      </span>{" "}
-                      es el único beneficio que tus clientes ven al escanear
-                      el QR sin haber recibido nada todavía. Solo uno puede
-                      estar activo a la vez — pero cualquier beneficio del
-                      catálogo, activo o no, se puede ofrecer en una
-                      promoción manual o entregar por otras vías.
-                    </p>
-                    {canMutate ? (
-                      <button
-                        type="button"
-                        disabled={busy}
-                        onClick={() =>
-                          void run(benefit.id, () =>
-                            onSetActive(benefit.id, !benefit.active),
-                          )
-                        }
-                        className={`shrink-0 whitespace-nowrap text-sm font-semibold hover:underline disabled:cursor-default disabled:no-underline ${benefit.active ? "text-[#8891A4]" : "text-[#5C6BC0]"
+                    <div className="flex items-start justify-between gap-3 border-t border-[#F6F7FB] pt-3">
+                      <p className="text-sm text-[#1A202C]">
+                        Activo en el check-in
+                        <span className="mt-0.5 block text-xs leading-5 text-[#8891A4]">
+                          Se muestra como beneficio disponible durante el
+                          check-in. Solo uno puede estarlo a la vez — cualquier
+                          otro del catálogo se sigue pudiendo ofrecer en una
+                          promoción manual.
+                        </span>
+                      </p>
+                      {canMutate ? (
+                        <button
+                          type="button"
+                          disabled={busy}
+                          onClick={() =>
+                            void run(benefit.id, () =>
+                              onSetActive(benefit.id, !benefit.active),
+                            )
+                          }
+                          className={`shrink-0 whitespace-nowrap text-sm font-semibold hover:underline disabled:cursor-default disabled:no-underline ${
+                            benefit.active ? "text-[#8891A4]" : "text-[#5C6BC0]"
                           }`}
-                      >
-                        {benefit.active ? "Desactivar" : "Activar acá"}
-                      </button>
-                    ) : null}
+                        >
+                          {benefit.active ? "Desactivar" : "Activar acá"}
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 </li>
               );

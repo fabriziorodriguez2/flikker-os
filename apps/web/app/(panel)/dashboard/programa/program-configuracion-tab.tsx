@@ -25,12 +25,23 @@ import type { LoyaltyAppearance, LoyaltyProgramOverview, ProgramBenefit } from "
  *     preview en vivo. Todo "cómo es mi tarjeta" en un solo lugar.
  *  2. Página de inscripción — el encabezado de la landing pública de check-in.
  *  3. Términos y condiciones — las bases legales del beneficio elegido.
- *  4. Incentivos — reglas especiales/bonus además del programa base (%/$
- *     time-boxed + presupuesto mensual de reactivación automática).
+ *  4. Reglas y bonos (antes "Incentivos") — reglas especiales además del
+ *     programa base (%/$ time-boxed + tope mensual de reactivación
+ *     automática).
  *  5. Beneficios (antes "Premios", mismo `key` interno por compatibilidad
  *     con deep-links viejos) — el catálogo completo de beneficios, único
  *     lugar donde se administra (incluye elegir regalo de bienvenida y
  *     recompensa de tarjeta por ítem — no hace falta una sección aparte).
+ *
+ * La línea conceptual que separa 4 de 5, y que el copy de ambas sostiene:
+ * un BENEFICIO es el objeto (qué recibe el cliente); una REGLA es el
+ * momento (cuándo Flikker lo entrega o cuándo el cliente avanza más
+ * rápido). Antes las dos secciones se llamaban casi igual y para un dueño
+ * no había forma de saber cuál abrir.
+ *
+ * Los `key` siguen siendo "incentivos" y "premios" a propósito: viajan en
+ * la URL (`?section=`), así que renombrarlos rompería links guardados. El
+ * cambio es de etiqueta visible, no de ruta.
  */
 export type ConfigSection =
   | "tarjeta"
@@ -65,14 +76,14 @@ const SECTIONS: {
   },
   {
     key: "incentivos",
-    label: "Incentivos",
-    description: "Reglas y presupuesto automático",
+    label: "Reglas y bonos",
+    description: "Cuándo Flikker acelera o reactiva",
     icon: Percent,
   },
   {
     key: "premios",
     label: "Beneficios",
-    description: "Catálogo de recompensas y ofertas",
+    description: "Premios y ofertas para clientes",
     icon: Gift,
   },
 ];
