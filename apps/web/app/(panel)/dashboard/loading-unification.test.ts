@@ -72,15 +72,15 @@ describe("Clientes / Programa / Reviews — su carga principal usa RouteProgress
     expect(source).not.toContain("Loader2");
   });
 
-  it("reviews-client.tsx: la carga principal usa RouteProgressBar, pero el sync en curso y el botón Guardar conservan su propio Loader2 (dan contexto puntual)", () => {
+  it("reviews-client.tsx: la carga principal usa RouteProgressBar, pero el sync en curso conserva su propio Loader2 (da contexto puntual)", () => {
     const source = readFileSync(
       join(__dirname, "reviews/reviews-client.tsx"),
       "utf-8",
     );
     expect(source).toContain("<RouteProgressBar />");
-    // A propósito: NO se reemplazan estos dos usos de Loader2.
+    // A propósito: el sync mantiene un Loader2 chico y contextual.
     expect(source).toContain("Sincronizando historial de Google");
-    expect(source.match(/Loader2/g)?.length).toBeGreaterThanOrEqual(2);
+    expect(source.match(/Loader2/g)?.length).toBeGreaterThanOrEqual(1);
   });
 });
 

@@ -1,30 +1,40 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { Check, Copy, ExternalLink, Loader2, MapPin, Search } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AlertCircle,
+  ExternalLink,
+  Loader2,
+  MessageSquareText,
+  Search,
+} from "lucide-react";
+import GoogleLogo from "@/components/icons/google-logo";
+import Card from "@/components/ui/card";
 import PageHeader from "@/components/ui/page-header";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
-import { useToast } from "@/components/ui/toast";
-import GoogleLogo from "@/components/icons/google-logo";
+import { relativeDay, Stars } from "../customers/loyalty-ui";
 import { useIsOwnerOrAdmin } from "../../role-context";
-import { Stars, relativeDay } from "../customers/loyalty-ui";
 import GoogleConnectModal from "./google-connect-modal";
-import ReviewsChart from "./reviews-chart";
 
-/**
- * Reseñas — vista analítica, no una bandeja de comentarios: números,
- * gráfico y el local vinculado. Sin listas de reseñas ni de feedback (ni
- * comentarios de clientes) — eso vive en otro lado del producto; acá solo
- * el pulso de la reputación en Google.
- */
+export interface PrivateFeedback {
+  id: string;
+  customer: { id: string; name: string } | null;
+  score: number;
+  comment: string | null;
+  createdAt: string;
+  gaveBonusStamp?: boolean;
+}
 
-const PERIODS = [
-  { days: 7, label: "7 días" },
-  { days: 30, label: "30 días" },
-  { days: 90, label: "90 días" },
-] as const;
+export interface GoogleReviewItem {
+  id: string;
+  author: string | null;
+  stars: number;
+  text: string | null;
+  postedAt: string | null;
+  linkedToFlikkerActivity: boolean;
+}
 
-interface Overview {
+export interface ReviewsOverview {
   periodDays: number;
   google: {
     connected: boolean;
@@ -34,13 +44,7 @@ interface Overview {
     placeRating: number | null;
     placeUserRatingCount: number | null;
     placeReviewsUri: string | null;
-    /** Cuándo se conectó el Place actual — `null` para conexiones viejas. */
     connectedAt: string | null;
-    /**
-     * Importación histórica completa de Google, en background. Opcional
-     * defensivamente: una respuesta vieja en caché no debe romper la
-     * pantalla, simplemente no muestra el aviso.
-     */
     historySync?: {
       status: "idle" | "running" | "done" | "partial";
       startedAt: string | null;
@@ -48,27 +52,47 @@ interface Overview {
     };
   };
   summary: {
-    /** Promedio de las reseñas IMPORTADAS — no es el que muestra Google. */
     rating: number | null;
-    /** Rating autoritativo del perfil de Google. */
     googleRating: number | null;
-    /** Total REAL que Google informa. `null` si nunca se conectó un Place. */
     googleReviewsTotal: number | null;
-    /** Filas persistidas — NUNCA es "cuántas reseñas tiene en Google". */
     googleReviewsImported: number;
     total: number;
     inPeriod: number;
-    /**
-     * "Reseñas con Flikker" — publicadas desde que se creó la cuenta
-     * (`Business.createdAt`), por fecha real de publicación. Siempre un
-     * número: nunca depende de si Google está conectado desde hace poco.
-     */
     sinceFlikker: number;
     feedbackInPeriod: number;
     ratingDistribution: Record<string, number>;
   };
-  /** Serie diaria de reseñas nuevas, un punto por día del período elegido. */
-  chart: { date: string; count: number }[];
+  reviews: GoogleReviewItem[];
+  feedback: PrivateFeedback[];
+  toReview: PrivateFeedback[];
+}
+
+type InboxTab = "feedback" | "google";
+export type FeedbackFilter = "all" | "attention" | "positive";
+export type GoogleFilter = "all" | "low" | "neutral" | "high";
+
+export function filterPrivateFeedback(
+  feedback: PrivateFeedback[],
+  filter: FeedbackFilter,
+  attentionIds: ReadonlySet<string>,
+) {
+  if (filter === "attention") {
+    return feedback.filter((item) => attentionIds.has(item.id));
+  }
+  if (filter === "positive") {
+    return feedback.filter((item) => item.score >= 4);
+  }
+  return feedback;
+}
+
+export function filterGoogleReviews(
+  reviews: GoogleReviewItem[],
+  filter: GoogleFilter,
+) {
+  if (filter === "low") return reviews.filter((item) => item.stars <= 2);
+  if (filter === "neutral") return reviews.filter((item) => item.stars === 3);
+  if (filter === "high") return reviews.filter((item) => item.stars >= 4);
+  return reviews;
 }
 
 export default function ReviewsClient({
@@ -76,78 +100,43 @@ export default function ReviewsClient({
 }: {
   businessName: string;
 }) {
-  const canConnect = useIsOwnerOrAdmin();
-  const toast = useToast();
-
-  const [days, setDays] = useState<number>(30);
-  const [data, setData] = useState<Overview | null>(null);
+  const canManage = useIsOwnerOrAdmin();
+  const [data, setData] = useState<ReviewsOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [savingUrl, setSavingUrl] = useState(false);
-  const [urlDraft, setUrlDraft] = useState("");
-  const [editingUrl, setEditingUrl] = useState(false);
-  const [showSearchModal, setShowSearchModal] = useState(false);
 
-  const load = useCallback(async (period: number) => {
+  const load = useCallback(async () => {
     setError(null);
     try {
-      const res = await fetch(`/api/proxy/reviews/overview?days=${period}`);
-      if (!res.ok) throw new Error("No pudimos cargar tus reseñas.");
-      setData((await res.json()) as Overview);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error inesperado.");
+      const response = await fetch("/api/proxy/reviews/overview?days=30");
+      if (!response.ok) throw new Error("No pudimos cargar tus reseñas.");
+      setData((await response.json()) as ReviewsOverview);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Error inesperado.");
     }
   }, []);
 
   useEffect(() => {
-    void load(days);
-  }, [days, load]);
+    void load();
+  }, [load]);
 
-  // El backfill histórico corre en background (no bloquea esta pantalla), así
-  // que mientras dice "Sincronizando historial…" hay que volver a preguntar:
-  // sin esto el dueño vería el total parcial hasta recargar a mano. Se apaga
-  // solo cuando el backend deja de reportar `running`.
   const historyRunning = data?.google.historySync?.status === "running";
   useEffect(() => {
     if (!historyRunning) return;
-    const timer = window.setInterval(() => void load(days), 15_000);
+    const timer = window.setInterval(() => void load(), 15_000);
     return () => window.clearInterval(timer);
-  }, [historyRunning, days, load]);
-
-  /** Reusa el mecanismo que ya existe: la URL vive en el perfil del negocio. */
-  async function saveGoogleUrl() {
-    setSavingUrl(true);
-    try {
-      const res = await fetch("/api/proxy/businesses/current/brand", {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ googleBusinessProfileUrl: urlDraft.trim() }),
-      });
-      if (res.ok) {
-        setEditingUrl(false);
-        await load(days);
-        toast.success("Cambios guardados");
-      } else {
-        const detail =
-          "Ese link no se pudo guardar. Revisalo e intentá de nuevo.";
-        setError(detail);
-        toast.error(detail);
-      }
-    } finally {
-      setSavingUrl(false);
-    }
-  }
+  }, [historyRunning, load]);
 
   if (error && !data) {
     return (
       <div className="space-y-3">
         <PageHeader title="Reseñas" />
-        <p className="rounded-[12px] border border-red-200 bg-red-50 px-4 py-3 text-sm text-[#C0392B]">
+        <p className="rounded-[var(--panel-radius-control)] border border-[color:var(--panel-danger-border)] bg-[color:var(--panel-danger-bg)] px-4 py-3 text-sm text-[color:var(--panel-danger-text)]">
           {error}
         </p>
         <button
           type="button"
-          onClick={() => void load(days)}
-          className="flk-glossy-secondary inline-flex h-10 items-center rounded-[10px] border border-[#E3E5F0] bg-white px-4 text-sm font-semibold text-[#202333] hover:border-[#5C6BC0]"
+          onClick={() => void load()}
+          className="inline-flex h-10 items-center rounded-[var(--panel-radius-control)] border border-[color:var(--panel-border)] bg-[color:var(--panel-surface)] px-4 text-sm font-semibold text-[color:var(--panel-text)]"
         >
           Reintentar
         </button>
@@ -155,363 +144,610 @@ export default function ReviewsClient({
     );
   }
 
-  if (!data) {
-    return <RouteProgressBar />;
-  }
-
-  const { google, summary } = data;
-  // El total autoritativo de Google. Se cae a `placeUserRatingCount` (la
-  // misma fuente, expuesta también en el bloque `google`) para respuestas
-  // viejas en caché, y nunca a las importadas: preferimos no afirmar un
-  // total antes que afirmar uno falso.
-  const googleReviewsTotal =
-    summary.googleReviewsTotal ?? google.placeUserRatingCount ?? null;
+  if (!data) return <RouteProgressBar />;
 
   return (
-    <div className="space-y-7">
+    <ReviewsInbox
+      data={data}
+      businessName={businessName}
+      canManage={canManage}
+      onReload={load}
+    />
+  );
+}
+
+export function ReviewsInbox({
+  data,
+  businessName,
+  canManage,
+  onReload,
+  initialTab = "feedback",
+}: {
+  data: ReviewsOverview;
+  businessName: string;
+  canManage: boolean;
+  onReload?: () => void | Promise<void>;
+  initialTab?: InboxTab;
+}) {
+  const [tab, setTab] = useState<InboxTab>(initialTab);
+  const [feedbackFilter, setFeedbackFilter] = useState<FeedbackFilter>("all");
+  const [googleFilter, setGoogleFilter] = useState<GoogleFilter>("all");
+  const [showGoogleManager, setShowGoogleManager] = useState(false);
+  const { google, summary } = data;
+
+  return (
+    <div
+      className="space-y-5 pb-10"
+      style={{ fontFamily: "var(--font-montserrat), sans-serif" }}
+    >
       <PageHeader
         title="Reseñas"
-        subtitle="Seguí lo que dicen tus clientes y fortalecé tu reputación en Google."
+        subtitle="Escuchá a tus clientes y cuidá tu reputación."
         actions={
-          google.connected ? (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EAF7EF] px-3 py-1.5 text-xs font-semibold text-[#147A5B]">
-              <span className="h-1.5 w-1.5 rounded-full bg-[#22A06B]" />
-              Google conectado
-              {google.placeRating != null ? (
-                <span className="font-normal text-[#147A5B]/70">
-                  · {google.placeRating.toFixed(1)}★
-                  {google.placeUserRatingCount != null
-                    ? ` (${google.placeUserRatingCount})`
-                    : ""}
-                </span>
-              ) : null}
-            </span>
-          ) : (
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-[#FFF7EE] px-3 py-1.5 text-xs font-semibold text-[#8A520D]">
-              Google pendiente
-            </span>
-          )
+          <GoogleStatus
+            google={google}
+            summary={summary}
+            periodDays={data.periodDays}
+            businessName={businessName}
+            canManage={canManage}
+            onManage={() => setShowGoogleManager(true)}
+          />
         }
       />
 
-      {/* ── Google sin conectar ───────────────────────────────────────── */}
-      {!google.connected ? (
-        <section className="rounded-[20px] border border-[#E8EAF0] bg-white px-6 py-12 text-center shadow-[0_2px_8px_rgba(17,22,59,0.025)]">
-          <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[#F5F6FA]">
-            <GoogleLogo className="h-7 w-7" />
-          </span>
-          <p className="mt-5 font-display text-lg font-semibold text-[#202333]">
-            Ningún local vinculado
-          </p>
-          <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#7F879C]">
-            Conectá el perfil de Google de tu negocio para ver tus reseñas y
-            permitir que tus clientes compartan su experiencia después de una
-            visita.
-          </p>
-          {canConnect ? (
-            <div className="mx-auto mt-6 max-w-md">
-              <button
-                type="button"
-                onClick={() => setShowSearchModal(true)}
-                className="flk-glossy inline-flex h-11 w-full items-center justify-center gap-2 rounded-[12px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0]"
-              >
-                <Search className="h-4 w-4" aria-hidden="true" />
-                Buscar mi negocio en Google
-              </button>
+      <nav
+        className="flex gap-1 border-b border-[color:var(--panel-border)]"
+        aria-label="Tipo de reseña"
+      >
+        <TabButton
+          active={tab === "feedback"}
+          onClick={() => setTab("feedback")}
+        >
+          Feedback privado
+        </TabButton>
+        <TabButton active={tab === "google"} onClick={() => setTab("google")}>
+          Reseñas de Google
+        </TabButton>
+      </nav>
 
-              {editingUrl ? (
-                <div className="mt-3 flex flex-col gap-2.5 sm:flex-row">
-                  <input
-                    value={urlDraft}
-                    onChange={(e) => setUrlDraft(e.target.value)}
-                    placeholder="https://g.page/tu-negocio"
-                    aria-label="Link de tu ficha en Google"
-                    className="h-11 flex-1 rounded-[11px] border border-[#E3E5F0] bg-white px-4 text-sm text-[#202333] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void saveGoogleUrl()}
-                    disabled={savingUrl || urlDraft.trim().length < 5}
-                    className="flk-glossy-secondary inline-flex h-11 items-center justify-center rounded-[11px] border border-[#E3E5F0] bg-white px-5 text-sm font-semibold text-[#202333] hover:border-[#5C6BC0] disabled:opacity-50"
-                  >
-                    Guardar link
-                  </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setEditingUrl(true)}
-                  className="mt-3 text-xs font-semibold text-[#8891A4] hover:text-[#5C6BC0] hover:underline"
-                >
-                  ¿No lo encontrás? Pegá el link de tu ficha a mano
-                </button>
-              )}
-            </div>
-          ) : (
-            <p className="mt-4 text-xs text-[#8891A4]">
-              Pedile al dueño o a un administrador que lo conecte.
-            </p>
-          )}
-        </section>
-      ) : null}
+      {tab === "feedback" ? (
+        <PrivateFeedbackInbox
+          data={data}
+          filter={feedbackFilter}
+          onFilterChange={setFeedbackFilter}
+        />
+      ) : (
+        <GoogleReviewsInbox
+          data={data}
+          filter={googleFilter}
+          onFilterChange={setGoogleFilter}
+          canManage={canManage}
+          onConnect={() => setShowGoogleManager(true)}
+        />
+      )}
 
-      {showSearchModal ? (
+      {showGoogleManager ? (
         <GoogleConnectModal
           businessName={businessName}
-          onClose={() => setShowSearchModal(false)}
+          onClose={() => setShowGoogleManager(false)}
           onConnected={() => {
-            setShowSearchModal(false);
-            void load(days);
+            setShowGoogleManager(false);
+            void onReload?.();
           }}
         />
       ) : null}
+    </div>
+  );
+}
 
-      {/*
-        ── Métricas + gráfico + local vinculado ─────────────────────────
-        Solo con Google conectado: sin eso no hay nada real que graficar, y
-        mostrar la grilla en "—" justo debajo del CTA de conectar es ruido,
-        no información.
-      */}
-      {google.connected ? (
-        <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex gap-1.5">
-              {PERIODS.map((p) => (
-                <button
-                  key={p.days}
-                  type="button"
-                  onClick={() => setDays(p.days)}
-                  className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-                    days === p.days
-                      ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#4A56A6]"
-                      : "border-[#E3E5F0] bg-white text-[#7F879C] hover:border-[#5C6BC0]"
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-          </div>
+function GoogleStatus({
+  google,
+  summary,
+  periodDays,
+  businessName,
+  canManage,
+  onManage,
+}: {
+  google: ReviewsOverview["google"];
+  summary: ReviewsOverview["summary"];
+  periodDays: number;
+  businessName: string;
+  canManage: boolean;
+  onManage: () => void;
+}) {
+  if (!google.connected) {
+    return (
+      <div className="flex items-center gap-3 rounded-[var(--panel-radius-control)] border border-amber-200 bg-amber-50 px-3 py-2">
+        <GoogleLogo className="h-5 w-5 shrink-0" />
+        <div>
+          <p className="text-xs font-semibold text-amber-900">
+            Google no conectado
+          </p>
+          <p className="text-[11px] text-amber-800/70">
+            Tu reputación pública aún no está vinculada.
+          </p>
+        </div>
+        {canManage ? (
+          <button
+            type="button"
+            onClick={onManage}
+            className="ml-1 rounded-lg bg-[color:var(--panel-accent)] px-3 py-1.5 text-xs font-semibold text-white"
+          >
+            Conectar
+          </button>
+        ) : null}
+      </div>
+    );
+  }
 
-          {google.historySync?.status === "running" ? (
-            <p className="flex items-center gap-2 rounded-[12px] border border-[#DDE1F5] bg-[#F4F5FD] px-4 py-3 text-sm text-[#4A56A6]">
-              <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
-              Sincronizando historial de Google
-              {googleReviewsTotal !== null
-                ? ` (${summary.googleReviewsImported} de ${googleReviewsTotal})`
-                : ""}
-              … El total de arriba ya es el real de tu perfil; lo que se
-              completa es el detalle de cada reseña.
-            </p>
-          ) : null}
+  const rating = summary.googleRating ?? google.placeRating;
+  const total = summary.googleReviewsTotal ?? google.placeUserRatingCount;
 
-          {/*
-            El backfill terminó por debajo del total. No es "listo" ni es un
-            fallo: Google cuenta también las calificaciones de solo estrellas
-            (sin texto), que no se pueden traer. Por eso el aviso explica el
-            motivo en vez de prometer una sincronización futura que casi
-            nunca va a cerrar la brecha.
-          */}
-          {google.historySync?.status === "partial" && googleReviewsTotal ? (
-            <p className="rounded-[12px] border border-[#E3E5F0] bg-[#F7F8FC] px-4 py-3 text-sm text-[#5F6780]">
-              Tenés {googleReviewsTotal} reseñas en Google y pudimos traer el
-              detalle de {summary.googleReviewsImported}. Google no permite
-              descargar las calificaciones que no tienen comentario escrito,
-              así que esa diferencia es normal — tu total y tu calificación
-              de arriba son siempre los reales de tu perfil.
-            </p>
-          ) : null}
-
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            {/*
-              El total del hint es el que GOOGLE informa, no el que
-              alcanzamos a importar. Decía "60 en total en Google" mientras
-              la ficha de arriba, en la misma pantalla, mostraba 194.
-            */}
-            <Kpi
-              label="Reseñas con Flikker"
-              value={String(summary.sinceFlikker)}
-              hint={
-                googleReviewsTotal !== null &&
-                googleReviewsTotal !== summary.sinceFlikker
-                  ? `Desde que te uniste · ${googleReviewsTotal} en total en Google`
-                  : "Desde que te uniste a Flikker"
-              }
-            />
-            <Kpi
-              label="Nuevas"
-              value={String(summary.inPeriod)}
-              hint={`En los últimos ${data.periodDays} días`}
-            />
-            {/*
-              "En Google" tiene que ser el rating de Google, no el promedio
-              de lo que bajamos: con el histórico incompleto no coinciden.
-            */}
-            <Kpi
-              label="Calificación"
-              value={
-                summary.googleRating !== null
-                  ? `${summary.googleRating} ★`
-                  : "—"
-              }
-              hint={
-                summary.googleRating === null
-                  ? "Todavía sin reseñas"
-                  : "En Google"
-              }
-            />
-            <Kpi
-              label="Feedback recibido"
-              value={String(summary.feedbackInPeriod)}
-              hint={`En los últimos ${data.periodDays} días`}
-            />
-          </div>
-
-          <section className="rounded-[18px] border border-[#E8EAF0] bg-white p-5 shadow-[0_2px_8px_rgba(17,22,59,0.025)] sm:p-6">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-              Reseñas — últimos {data.periodDays} días
-            </p>
-            <div className="mt-3">
-              <ReviewsChart data={data.chart} />
-            </div>
-          </section>
-
-          <section>
-            <SectionTitle>Locales vinculados</SectionTitle>
-            <div className="mt-3 rounded-[18px] border border-[#E8EAF0] bg-white p-5 shadow-[0_2px_8px_rgba(17,22,59,0.025)]">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div className="flex min-w-0 items-start gap-3">
-                  <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#F5F6FA]">
-                    <MapPin className="h-4 w-4 text-[#7F879C]" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="truncate font-display text-base font-semibold text-[#202333]">
-                      {google.placeDisplayName ?? businessName}
-                    </p>
-                    <div className="mt-1 flex flex-wrap items-center gap-2">
-                      {google.placeRating != null ? (
-                        <>
-                          <Stars score={Math.round(google.placeRating)} />
-                          <span className="text-sm font-semibold text-[#202333]">
-                            {google.placeRating.toFixed(1)}
-                          </span>
-                        </>
-                      ) : null}
-                      {google.placeUserRatingCount != null ? (
-                        <span className="text-sm text-[#8891A4]">
-                          {google.placeUserRatingCount}{" "}
-                          {google.placeUserRatingCount === 1
-                            ? "reseña"
-                            : "reseñas"}
-                        </span>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-                {canConnect ? (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setUrlDraft(google.profileUrl ?? "");
-                      setEditingUrl((v) => !v);
-                    }}
-                    className="shrink-0 text-xs font-semibold text-[#5C6BC0] hover:underline"
-                  >
-                    Cambiar link
-                  </button>
-                ) : null}
-              </div>
-
-              {google.placeReviewsUri ?? google.profileUrl ? (
-                <div className="mt-4 flex items-center gap-2 rounded-[10px] bg-[#F7F8FC] px-3.5 py-2.5">
-                  <ExternalLink className="h-3.5 w-3.5 shrink-0 text-[#8891A4]" />
-                  <a
-                    href={google.placeReviewsUri ?? google.profileUrl ?? "#"}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="min-w-0 flex-1 truncate text-xs text-[#5F6780] hover:text-[#5C6BC0] hover:underline"
-                  >
-                    {google.placeReviewsUri ?? google.profileUrl}
-                  </a>
-                  <button
-                    type="button"
-                    onClick={() =>
-                      void navigator.clipboard.writeText(
-                        google.placeReviewsUri ?? google.profileUrl ?? "",
-                      )
-                    }
-                    aria-label="Copiar link"
-                    className="shrink-0 text-[#8891A4] hover:text-[#5C6BC0]"
-                  >
-                    <Copy className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ) : null}
-
-              <p className="mt-3 text-xs leading-5 text-[#8891A4]">
-                {google.lastSyncedAt
-                  ? `Última actualización: ${relativeDay(google.lastSyncedAt)}`
-                  : "Todavía no encontramos reseñas nuevas."}
-              </p>
-
-              {editingUrl ? (
-                <div className="mt-3 flex flex-col gap-2.5 sm:flex-row">
-                  <input
-                    value={urlDraft}
-                    onChange={(e) => setUrlDraft(e.target.value)}
-                    aria-label="Link de tu ficha en Google"
-                    className="h-10 flex-1 rounded-[10px] border border-[#E3E5F0] bg-white px-3.5 text-sm text-[#202333] outline-none focus:border-[#5C6BC0]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => void saveGoogleUrl()}
-                    disabled={savingUrl}
-                    className="flk-glossy inline-flex h-10 items-center justify-center gap-1.5 rounded-[10px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-50"
-                  >
-                    {savingUrl ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Check className="h-4 w-4" />
-                    )}
-                    Guardar
-                  </button>
-                </div>
-              ) : null}
-            </div>
-          </section>
-        </>
+  return (
+    <div className="flex max-w-full flex-wrap items-center gap-x-3 gap-y-1.5 rounded-[var(--panel-radius-control)] border border-[color:var(--panel-border)] bg-[color:var(--panel-surface)] px-3 py-2 text-xs">
+      <span className="inline-flex items-center gap-1.5 font-semibold text-[color:var(--panel-success-text)]">
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+        Google conectado
+      </span>
+      <span className="max-w-40 truncate text-[color:var(--panel-text-secondary)]">
+        {google.placeDisplayName ?? businessName}
+      </span>
+      {rating !== null ? <strong>{rating.toFixed(1)} ★</strong> : null}
+      {total !== null ? <span>{total} reseñas</span> : null}
+      <span className="font-semibold text-[color:var(--panel-accent)]">
+        +{summary.inPeriod} últimos {periodDays} días
+      </span>
+      {canManage ? (
+        <button
+          type="button"
+          onClick={onManage}
+          className="font-semibold text-[color:var(--panel-accent)] hover:underline"
+        >
+          Administrar
+        </button>
       ) : null}
     </div>
   );
 }
 
-function Kpi({
-  label,
-  value,
-  hint,
+function PrivateFeedbackInbox({
+  data,
+  filter,
+  onFilterChange,
 }: {
-  label: string;
-  value: string;
-  hint: string;
+  data: ReviewsOverview;
+  filter: FeedbackFilter;
+  onFilterChange: (filter: FeedbackFilter) => void;
+}) {
+  const attentionIds = useMemo(
+    () => new Set(data.toReview.map((item) => item.id)),
+    [data.toReview],
+  );
+  const filtered =
+    filter === "attention"
+      ? data.toReview
+      : filterPrivateFeedback(data.feedback, filter, attentionIds);
+  const attention = data.toReview;
+  const recentWithoutAttention = data.feedback.filter(
+    (item) => !attentionIds.has(item.id),
+  );
+
+  return (
+    <Card padding="none" className="overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-[color:var(--panel-border)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <MessageSquareText className="h-4 w-4 text-[color:var(--panel-accent)]" />
+            <h2 className="text-sm font-semibold text-[color:var(--panel-text)]">
+              Feedback privado
+            </h2>
+            <PrivacyBadge>Privado</PrivacyBadge>
+          </div>
+          <p className="mt-1 text-xs text-[color:var(--panel-text-muted)]">
+            Solo lo ve tu equipo; no se publica en Google.
+          </p>
+        </div>
+        <p className="text-xs text-[color:var(--panel-text-secondary)]">
+          <strong className="text-[color:var(--panel-text)]">
+            {data.summary.feedbackInPeriod}
+          </strong>{" "}
+          recibidos en {data.periodDays} días ·{" "}
+          <strong className="text-[color:var(--panel-danger-text)]">
+            {attention.length === 20 ? "20+" : attention.length}
+          </strong>{" "}
+          para atender
+        </p>
+      </div>
+
+      <FilterBar>
+        <FilterButton
+          active={filter === "all"}
+          onClick={() => onFilterChange("all")}
+        >
+          Todos
+        </FilterButton>
+        <FilterButton
+          active={filter === "attention"}
+          onClick={() => onFilterChange("attention")}
+        >
+          Para atender
+        </FilterButton>
+        <FilterButton
+          active={filter === "positive"}
+          onClick={() => onFilterChange("positive")}
+        >
+          Positivos
+        </FilterButton>
+      </FilterBar>
+
+      {data.feedback.length === 0 ? (
+        <EmptyState
+          title="Todavía no recibiste feedback"
+          description="Cuando tus clientes dejen una opinión privada, aparece acá."
+        />
+      ) : filter === "all" ? (
+        <div>
+          {attention.length > 0 ? (
+            <FeedbackSection title="Feedback para atender" attention>
+              {attention.map((item) => (
+                <FeedbackRow key={item.id} item={item} attention />
+              ))}
+            </FeedbackSection>
+          ) : null}
+          <FeedbackSection title="Feedback reciente">
+            {recentWithoutAttention.length > 0 ? (
+              recentWithoutAttention.map((item) => (
+                <FeedbackRow key={item.id} item={item} />
+              ))
+            ) : (
+              <InlineEmpty>
+                Todo el feedback reciente está en la sección para atender.
+              </InlineEmpty>
+            )}
+          </FeedbackSection>
+        </div>
+      ) : filtered.length > 0 ? (
+        <div className="divide-y divide-[color:var(--panel-border)]">
+          {filtered.map((item) => (
+            <FeedbackRow
+              key={item.id}
+              item={item}
+              attention={attentionIds.has(item.id)}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          title={
+            filter === "attention"
+              ? "No hay feedback para atender"
+              : "No hay feedback positivo todavía"
+          }
+          description={
+            filter === "attention"
+              ? "No encontramos comentarios de baja puntuación pendientes en esta bandeja."
+              : "Los comentarios de 4 y 5 estrellas aparecerán acá."
+          }
+        />
+      )}
+    </Card>
+  );
+}
+
+function GoogleReviewsInbox({
+  data,
+  filter,
+  onFilterChange,
+  canManage,
+  onConnect,
+}: {
+  data: ReviewsOverview;
+  filter: GoogleFilter;
+  onFilterChange: (filter: GoogleFilter) => void;
+  canManage: boolean;
+  onConnect: () => void;
+}) {
+  const reviews = filterGoogleReviews(data.reviews, filter);
+
+  if (!data.google.connected) {
+    return (
+      <Card className="py-12 text-center">
+        <GoogleLogo className="mx-auto h-8 w-8" />
+        <h2 className="mt-4 text-base font-semibold">
+          Conectá tu perfil de Google
+        </h2>
+        <p className="mx-auto mt-2 max-w-md text-sm text-[color:var(--panel-text-secondary)]">
+          Conectá tu perfil de Google para seguir tu reputación y leer las
+          reseñas públicas desde Flikker.
+        </p>
+        {canManage ? (
+          <button
+            type="button"
+            onClick={onConnect}
+            className="mt-5 inline-flex h-10 items-center gap-2 rounded-[var(--panel-radius-control)] bg-[color:var(--panel-accent)] px-4 text-sm font-semibold text-white"
+          >
+            <Search className="h-4 w-4" />
+            Buscar mi negocio
+          </button>
+        ) : null}
+      </Card>
+    );
+  }
+
+  return (
+    <Card padding="none" className="overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-[color:var(--panel-border)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+        <div>
+          <div className="flex items-center gap-2">
+            <GoogleLogo className="h-4 w-4" />
+            <h2 className="text-sm font-semibold">Reseñas de Google</h2>
+            <PrivacyBadge publicLabel>Público en Google</PrivacyBadge>
+          </div>
+          <p className="mt-1 text-xs text-[color:var(--panel-text-muted)]">
+            Opiniones públicas importadas del perfil vinculado.
+          </p>
+        </div>
+        <div className="text-xs text-[color:var(--panel-text-secondary)]">
+          {data.summary.googleRating !== null ? (
+            <strong>{data.summary.googleRating.toFixed(1)} ★</strong>
+          ) : null}
+          {data.summary.googleReviewsTotal !== null
+            ? ` · ${data.summary.googleReviewsTotal} reseñas`
+            : null}
+          <span className="text-[color:var(--panel-text-muted)]">
+            {" "}
+            · {data.summary.sinceFlikker} nuevas desde Flikker
+          </span>
+        </div>
+      </div>
+
+      {data.google.historySync?.status === "running" ? (
+        <p className="flex items-center gap-2 border-b border-[color:var(--panel-border)] bg-[color:var(--panel-surface-subtle)] px-5 py-3 text-xs text-[color:var(--panel-text-secondary)]">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          Sincronizando historial de Google
+        </p>
+      ) : null}
+
+      <FilterBar>
+        <FilterButton
+          active={filter === "all"}
+          onClick={() => onFilterChange("all")}
+        >
+          Todas
+        </FilterButton>
+        <FilterButton
+          active={filter === "low"}
+          onClick={() => onFilterChange("low")}
+        >
+          1–2 estrellas
+        </FilterButton>
+        <FilterButton
+          active={filter === "neutral"}
+          onClick={() => onFilterChange("neutral")}
+        >
+          3 estrellas
+        </FilterButton>
+        <FilterButton
+          active={filter === "high"}
+          onClick={() => onFilterChange("high")}
+        >
+          4–5 estrellas
+        </FilterButton>
+      </FilterBar>
+
+      {reviews.length > 0 ? (
+        <div className="divide-y divide-[color:var(--panel-border)]">
+          {reviews.map((review) => (
+            <GoogleReviewRow
+              key={review.id}
+              review={review}
+              reviewsUrl={data.google.placeReviewsUri}
+            />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          title="No hay reseñas nuevas en este período"
+          description={
+            filter === "all"
+              ? "Cuando Google importe una reseña reciente, aparecerá acá."
+              : "No hay reseñas que coincidan con este filtro."
+          }
+        />
+      )}
+    </Card>
+  );
+}
+
+function FeedbackSection({
+  title,
+  attention = false,
+  children,
+}: {
+  title: string;
+  attention?: boolean;
+  children: React.ReactNode;
 }) {
   return (
-    <div className="rounded-[14px] border border-[#E8EAF0] bg-white px-4 py-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
-        {label}
-      </p>
-      {/* Montserrat (font-sans), no Syne — pedido explícito para los KPIs. */}
-      <p className="mt-1.5 font-sans text-2xl font-semibold tracking-[-0.02em] text-[#202333]">
-        {value}
-      </p>
-      <p className="mt-1 text-[11px] leading-4 text-[#B0B8C9]">{hint}</p>
+    <section>
+      <div
+        className={`flex items-center gap-2 border-b border-[color:var(--panel-border)] px-4 py-2.5 sm:px-5 ${attention ? "bg-red-50/60" : "bg-[color:var(--panel-surface-subtle)]"}`}
+      >
+        {attention ? (
+          <AlertCircle className="h-3.5 w-3.5 text-[color:var(--panel-danger-text)]" />
+        ) : null}
+        <h3 className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[color:var(--panel-text-secondary)]">
+          {title}
+        </h3>
+      </div>
+      <div className="divide-y divide-[color:var(--panel-border)]">
+        {children}
+      </div>
+    </section>
+  );
+}
+
+function FeedbackRow({
+  item,
+  attention = false,
+}: {
+  item: PrivateFeedback;
+  attention?: boolean;
+}) {
+  return (
+    <article
+      className={`grid gap-2 px-4 py-4 sm:grid-cols-[132px_minmax(0,1fr)_auto] sm:items-start sm:px-5 ${attention ? "bg-red-50/25" : ""}`}
+    >
+      <Stars score={item.score} />
+      <div className="min-w-0">
+        <p className="text-sm leading-6 text-[color:var(--panel-text)]">
+          {item.comment?.trim() || "Sin comentario escrito."}
+        </p>
+        {item.customer?.name ? (
+          <p className="mt-1 text-xs text-[color:var(--panel-text-muted)]">
+            {item.customer.name}
+          </p>
+        ) : null}
+      </div>
+      <div className="flex items-center gap-2 sm:flex-col sm:items-end">
+        <time className="whitespace-nowrap text-xs text-[color:var(--panel-text-muted)]">
+          {relativeDay(item.createdAt)}
+        </time>
+        {attention ? (
+          <span className="rounded-full bg-red-50 px-2 py-1 text-[10px] font-semibold text-[color:var(--panel-danger-text)]">
+            Requiere atención
+          </span>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function GoogleReviewRow({
+  review,
+  reviewsUrl,
+}: {
+  review: GoogleReviewItem;
+  reviewsUrl: string | null;
+}) {
+  return (
+    <article className="grid gap-2 px-4 py-4 sm:grid-cols-[132px_minmax(0,1fr)_auto] sm:items-start sm:px-5">
+      <Stars score={review.stars} />
+      <div className="min-w-0">
+        <p className="text-sm leading-6 text-[color:var(--panel-text)]">
+          {review.text?.trim() || "Calificación sin comentario escrito."}
+        </p>
+        <p className="mt-1 text-xs text-[color:var(--panel-text-muted)]">
+          {review.author ?? "Autor no informado"}
+        </p>
+      </div>
+      <div className="flex items-center gap-3 sm:flex-col sm:items-end">
+        <time className="whitespace-nowrap text-xs text-[color:var(--panel-text-muted)]">
+          {relativeDay(review.postedAt)}
+        </time>
+        {reviewsUrl ? (
+          <a
+            href={reviewsUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-semibold text-[color:var(--panel-accent)] hover:underline"
+          >
+            Ver en Google <ExternalLink className="h-3 w-3" />
+          </a>
+        ) : null}
+      </div>
+    </article>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-current={active ? "page" : undefined}
+      className={`relative px-3 pb-3 pt-1 text-sm font-semibold transition-colors ${active ? "text-[color:var(--panel-accent)] after:absolute after:inset-x-0 after:bottom-[-1px] after:h-0.5 after:bg-[color:var(--panel-accent)]" : "text-[color:var(--panel-text-secondary)] hover:text-[color:var(--panel-text)]"}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+function FilterBar({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex flex-wrap gap-1.5 border-b border-[color:var(--panel-border)] px-4 py-3 sm:px-5">
+      {children}
     </div>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function FilterButton({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+}) {
   return (
-    <h2 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#8891A4]">
+    <button
+      type="button"
+      onClick={onClick}
+      className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${active ? "border-[color:var(--panel-accent)] bg-[color:var(--panel-accent-soft)] text-[color:var(--panel-accent)]" : "border-[color:var(--panel-border)] text-[color:var(--panel-text-secondary)] hover:border-[color:var(--panel-border-strong)]"}`}
+    >
       {children}
-    </h2>
+    </button>
+  );
+}
+
+function PrivacyBadge({
+  children,
+  publicLabel = false,
+}: {
+  children: React.ReactNode;
+  publicLabel?: boolean;
+}) {
+  return (
+    <span
+      className={`rounded-full px-2 py-1 text-[10px] font-semibold ${publicLabel ? "bg-blue-50 text-blue-700" : "bg-[color:var(--panel-accent-soft)] text-[color:var(--panel-accent)]"}`}
+    >
+      {children}
+    </span>
+  );
+}
+
+function EmptyState({
+  title,
+  description,
+}: {
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="px-5 py-14 text-center">
+      <p className="text-sm font-semibold text-[color:var(--panel-text)]">
+        {title}
+      </p>
+      <p className="mx-auto mt-1.5 max-w-md text-sm text-[color:var(--panel-text-muted)]">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+function InlineEmpty({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="px-5 py-5 text-sm text-[color:var(--panel-text-muted)]">
+      {children}
+    </p>
   );
 }
