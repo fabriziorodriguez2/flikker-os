@@ -40,17 +40,21 @@ export default function WizardShell({
   const pct = Math.round((step / totalSteps) * 100);
 
   return (
-    <main className="min-h-dvh bg-[#F7F8FC] px-4 py-6 sm:px-6 sm:py-10">
-      <div className="mx-auto w-full max-w-3xl">
-        <header className="mb-7">
+    <main className="min-h-dvh bg-[#F7F8FC] px-4 py-5 sm:px-6 sm:py-8">
+      <div className={`mx-auto w-full ${aside ? "max-w-6xl" : "max-w-4xl"}`}>
+        <header className="mb-8">
           <div className="flex items-center justify-between gap-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/flikker-logotype.svg" alt="Flikker" className="h-6 w-auto" />
-            <span className="font-mono text-xs font-semibold text-[#8891A4]">
+            <img
+              src="/flikker-logotype.svg"
+              alt="Flikker"
+              className="h-6 w-auto"
+            />
+            <span className="text-xs font-semibold text-[#6F7689]">
               Paso {step} de {totalSteps}
             </span>
           </div>
-          <div className="mt-4 h-1.5 w-full overflow-hidden rounded-full bg-[#E8EAF0]">
+          <div className="mt-3 h-1 w-full overflow-hidden rounded-full bg-[#E3E5F0]">
             <div
               className="h-full rounded-full bg-[#5C6BC0] transition-all duration-500"
               style={{ width: `${pct}%` }}
@@ -58,9 +62,15 @@ export default function WizardShell({
           </div>
         </header>
 
-        <div className={aside ? "grid gap-6 lg:grid-cols-[1fr_300px]" : ""}>
+        <div
+          className={
+            aside
+              ? "grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_340px] xl:gap-12"
+              : ""
+          }
+        >
           <div className="min-w-0">
-            <h1 className="font-display text-[28px] font-bold leading-tight tracking-[-0.03em] text-[#171A2B] sm:text-[32px]">
+            <h1 className="font-sans text-[28px] font-bold leading-tight tracking-[-0.03em] text-[#171A2B] sm:text-[34px]">
               {title}
             </h1>
             {subtitle ? (
@@ -110,7 +120,9 @@ export default function WizardShell({
             </div>
           </div>
 
-          {aside ? <aside className="lg:pt-2">{aside}</aside> : null}
+          {aside ? (
+            <aside className="lg:sticky lg:top-8 lg:pt-2">{aside}</aside>
+          ) : null}
         </div>
       </div>
     </main>

@@ -100,10 +100,15 @@ function resolveInitialSection(
   rawSection: string | null,
 ): ConfigSection {
   if (isConfigSection(rawSection)) return rawSection;
-  if (rawSection === "sellos" || rawSection === "diseno" || rawSection === "feedback") {
+  if (
+    rawSection === "sellos" ||
+    rawSection === "diseno" ||
+    rawSection === "feedback"
+  ) {
     return "tarjeta";
   }
-  if (rawSection === "beneficios" || rawSection === "bienvenida") return "premios";
+  if (rawSection === "beneficios" || rawSection === "bienvenida")
+    return "premios";
   if (rawTab === "beneficios") return "premios";
   if (rawTab === "sellos") return "tarjeta";
   return "tarjeta";
@@ -482,8 +487,8 @@ function ProgramaClientContent() {
         />
         <div className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
           <p className="text-sm text-[#8891A4]">
-            El programa de beneficios y sellos funciona con el check-in
-            digital. Escribinos para activarlo en tu negocio.
+            El programa de beneficios y sellos funciona con el check-in digital.
+            Escribinos para activarlo en tu negocio.
           </p>
         </div>
       </div>
@@ -505,11 +510,17 @@ function ProgramaClientContent() {
     );
   }
 
+  const benefitsOnly = !overview.enabled && !overview.reward;
+
   return (
     <div className="mx-auto w-full max-w-[1440px] space-y-5">
       <PageHeader
         title="Programa"
-        subtitle="Todo lo que tu negocio ofrece para que tus clientes vuelvan."
+        subtitle={
+          benefitsOnly
+            ? "Beneficios activos"
+            : "Todo lo que tu negocio ofrece para que tus clientes vuelvan."
+        }
         actions={
           <Link
             href="/dashboard/qr"
@@ -522,46 +533,56 @@ function ProgramaClientContent() {
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E8EAF0] bg-white px-3 py-1.5 text-xs font-semibold text-[#4A56A6]">
-          <Stamp className="h-3.5 w-3.5" aria-hidden="true" />
-          Sellos por visita
-        </span>
+        {benefitsOnly ? (
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#EEF0FB] px-3 py-1.5 text-xs font-semibold text-[#4A56A6]">
+            Solo beneficios
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E8EAF0] bg-white px-3 py-1.5 text-xs font-semibold text-[#4A56A6]">
+            <Stamp className="h-3.5 w-3.5" aria-hidden="true" />
+            Sellos por visita
+          </span>
+        )}
         {overview.stampsRequired ? (
           <span className="inline-flex items-center gap-1.5 rounded-full border border-[#E8EAF0] bg-white px-3 py-1.5 text-xs font-semibold text-[#4A56A6]">
             <Target className="h-3.5 w-3.5" aria-hidden="true" />
             Meta {overview.stampsRequired} sellos
           </span>
         ) : null}
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
-            overview.enabled
-              ? "bg-[#EAF6EE] text-[#1D9E75]"
-              : "bg-[#F0F1F6] text-[#8891A4]"
-          }`}
-        >
+        {!benefitsOnly ? (
           <span
-            className={`h-1.5 w-1.5 rounded-full ${
-              overview.enabled ? "bg-[#1D9E75]" : "bg-[#B0B8C9]"
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
+              overview.enabled
+                ? "bg-[#EAF6EE] text-[#1D9E75]"
+                : "bg-[#F0F1F6] text-[#8891A4]"
             }`}
-            aria-hidden="true"
-          />
-          {overview.enabled ? "Activo" : "Inactivo"}
-        </span>
-        <span
-          className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
-            overview.benefitsEnabled
-              ? "bg-[#EAF6EE] text-[#1D9E75]"
-              : "bg-[#F0F1F6] text-[#8891A4]"
-          }`}
-        >
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                overview.enabled ? "bg-[#1D9E75]" : "bg-[#B0B8C9]"
+              }`}
+              aria-hidden="true"
+            />
+            {overview.enabled ? "Activo" : "Inactivo"}
+          </span>
+        ) : null}
+        {!benefitsOnly ? (
           <span
-            className={`h-1.5 w-1.5 rounded-full ${
-              overview.benefitsEnabled ? "bg-[#1D9E75]" : "bg-[#B0B8C9]"
+            className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold ${
+              overview.benefitsEnabled
+                ? "bg-[#EAF6EE] text-[#1D9E75]"
+                : "bg-[#F0F1F6] text-[#8891A4]"
             }`}
-            aria-hidden="true"
-          />
-          Beneficios {overview.benefitsEnabled ? "visibles" : "ocultos"}
-        </span>
+          >
+            <span
+              className={`h-1.5 w-1.5 rounded-full ${
+                overview.benefitsEnabled ? "bg-[#1D9E75]" : "bg-[#B0B8C9]"
+              }`}
+              aria-hidden="true"
+            />
+            Beneficios {overview.benefitsEnabled ? "visibles" : "ocultos"}
+          </span>
+        ) : null}
       </div>
 
       <div className="flex w-fit rounded-[12px] bg-[#ECEEF4] p-1 text-sm font-semibold">
@@ -574,7 +595,11 @@ function ProgramaClientContent() {
               : "text-[#7F879C] hover:bg-[#F5F3FF] hover:text-[#5C6BC0]"
           }`}
         >
-          <LayoutDashboard className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
+          <LayoutDashboard
+            className="h-4 w-4"
+            strokeWidth={1.8}
+            aria-hidden="true"
+          />
           Resumen
         </button>
         <button

@@ -94,27 +94,40 @@ export default function ProgramCardSection({
 
     return (
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-8 text-center">
-          <span className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#EEF0FB] text-[#5C6BC0]">
-            <Gift className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <h2 className="mt-4 font-display text-base font-bold text-[#1A202C]">
-            Tu programa es de beneficios
-          </h2>
-          <p className="mx-auto mt-2 max-w-sm text-sm text-[#8891A4]">
-            Todavía no configuraste una tarjeta de sellos — tu catálogo de{" "}
+        <section className="overflow-hidden rounded-[16px] border border-[#E8EAF0] bg-white">
+          <div className="border-b border-[#E8EAF0] p-5 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-[11px] bg-[#EEF0FB] text-[#5C6BC0]">
+                  <Gift className="h-5 w-5" aria-hidden="true" />
+                </span>
+                <div>
+                  <h2 className="text-base font-bold text-[#1A202C]">
+                    Tarjeta de sellos
+                  </h2>
+                  <p className="mt-0.5 text-xs font-semibold text-[#8891A4]">
+                    Desactivada
+                  </p>
+                </div>
+              </div>
+              <span className="rounded-full bg-[#F2F3F6] px-3 py-1.5 text-xs font-semibold text-[#666D7E]">
+                Solo beneficios
+              </span>
+            </div>
+            <p className="mt-4 max-w-xl text-sm leading-6 text-[#6F7689]">
+              Tus clientes pueden recibir beneficios sin usar una tarjeta.
+              Activá sellos si también querés premiar visitas frecuentes.
+            </p>
             <button
               type="button"
               onClick={onGoToPremios}
-              className="font-semibold text-[#5C6BC0] hover:underline"
+              className="mt-3 text-xs font-semibold text-[#5C6BC0] hover:underline"
             >
-              Beneficios
-            </button>{" "}
-            es tu programa. Podés sumar sellos más adelante si querés premiar
-            las visitas frecuentes.
-          </p>
+              Ver beneficios activos
+            </button>
+          </div>
           {canMutate ? (
-            <div className="mx-auto mt-5 max-w-sm">
+            <div className="p-5 sm:p-6">
               <ProgramStampsSection
                 overview={overview}
                 benefits={benefits}
@@ -122,6 +135,7 @@ export default function ProgramCardSection({
                 onToggle={onToggle}
                 onSaveConfig={onSaveConfig}
                 onReload={onReload}
+                compactDisabled
               />
             </div>
           ) : null}
@@ -148,8 +162,8 @@ export default function ProgramCardSection({
             </Shell>
           </PhoneFrame>
           <p className="mt-3 text-xs text-[#8891A4]">
-            Así ve tu cliente su beneficio, sin tarjeta de sellos de por medio —
-            con datos de ejemplo.
+            Así ve tu cliente el beneficio disponible, dentro del shell real de
+            Flikker.
           </p>
         </aside>
       </div>

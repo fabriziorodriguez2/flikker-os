@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Stamp } from "lucide-react";
+import { Loader2, Minus, Plus, Stamp } from "lucide-react";
 import FlikkerSelect from "@/components/ui/flikker-select";
 import ProgramSectionHeading from "./program-section-heading";
 import type { LoyaltyProgramOverview, ProgramBenefit } from "./types";
@@ -10,11 +10,36 @@ const inputClass =
   "mt-1 w-full rounded-[8px] border border-[#E8EAF0] bg-white px-3 py-2 text-sm text-[#1A202C] outline-none placeholder:text-[#B0B8C9] focus:border-[#5C6BC0]";
 
 const REWARD_TYPES = [
-  { value: "gift", label: "Regalo" },
-  { value: "discount", label: "Descuento porcentual" },
-  { value: "promotion", label: "2x1" },
-  { value: "upgrade", label: "Upgrade" },
-  { value: "other", label: "Personalizado" },
+  {
+    value: "gift",
+    label: "Regalo",
+    question: "¿Qué recibe el cliente?",
+    placeholder: "1 café gratis",
+  },
+  {
+    value: "discount",
+    label: "Descuento",
+    question: "¿Qué descuento?",
+    placeholder: "10% de descuento",
+  },
+  {
+    value: "promotion",
+    label: "2x1",
+    question: "¿Cuál es la promoción?",
+    placeholder: "2 cafés por el precio de 1",
+  },
+  {
+    value: "upgrade",
+    label: "Upgrade",
+    question: "¿Qué mejora recibe?",
+    placeholder: "Tamaño grande sin costo",
+  },
+  {
+    value: "other",
+    label: "Personalizado",
+    question: "¿Qué gana el cliente?",
+    placeholder: "Escribí la recompensa",
+  },
 ];
 
 /**
@@ -24,9 +49,9 @@ const REWARD_TYPES = [
  * — los beneficios y el resto de Retention siguen funcionando igual, estén
  * activos o no (eso lo garantiza el backend, acá solo se refleja el estado).
  *
- * El diseño y el bonus por feedback se movieron a sus propias secciones — acá
- * solo se decide UNA cosa: cuántos sellos, y qué única recompensa los cierra.
- * No es el catálogo de Beneficios (eso vive aparte).
+ * Cuando la tarjeta ya está activa, diseño y bonus mantienen sus secciones.
+ * En la activación inicial el bonus se muestra acá como extra opcional, junto
+ * a la meta y la única recompensa que cierra la tarjeta.
  */
 export default function ProgramStampsSection({
   overview,
@@ -35,6 +60,7 @@ export default function ProgramStampsSection({
   onToggle,
   onSaveConfig,
   onReload,
+  compactDisabled = false,
 }: {
   overview: LoyaltyProgramOverview;
   benefits: ProgramBenefit[];
@@ -48,6 +74,8 @@ export default function ProgramStampsSection({
     feedbackBonusEnabled?: boolean;
   }) => Promise<void>;
   onReload: () => Promise<void>;
+  /** El estado introductorio ya lo muestra el contenedor de Tarjeta digital. */
+  compactDisabled?: boolean;
 }) {
   const redeemable = benefits.filter((b) => b.type !== "none");
   const [rewardBenefitId, setRewardBenefitId] = useState(
@@ -56,6 +84,9 @@ export default function ProgramStampsSection({
   const [newRewardTitle, setNewRewardTitle] = useState("");
   const [newRewardType, setNewRewardType] = useState("gift");
   const [stamps, setStamps] = useState(overview.stampsRequired ?? 5);
+  const [feedbackBonus, setFeedbackBonus] = useState(
+    overview.feedbackBonusEnabled,
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -83,14 +114,40 @@ export default function ProgramStampsSection({
         ...(rewardBenefitId
           ? { rewardBenefitId }
           : { rewardTitle: newRewardTitle.trim(), rewardType: newRewardType }),
-        // El bonus por feedback ahora se guarda desde su propia sección — acá
-        // se manda el valor actual sin cambiarlo, para no pisarlo.
-        feedbackBonusEnabled: overview.feedbackBonusEnabled,
+        // En una tarjeta activa el bonus se administra en su sección propia;
+        // durante la activación inicial se toma del checkbox de este formulario.
+        feedbackBonusEnabled: overview.enabled
+          ? overview.feedbackBonusEnabled
+          : feedbackBonus,
       }),
     );
   }
 
   if (!overview.enabled) {
+    if (compactDisabled) {
+      return canMutate ? (
+        <ConfigForm
+          redeemable={redeemable}
+          rewardBenefitId={rewardBenefitId}
+          setRewardBenefitId={setRewardBenefitId}
+          newRewardTitle={newRewardTitle}
+          setNewRewardTitle={setNewRewardTitle}
+          newRewardType={newRewardType}
+          setNewRewardType={setNewRewardType}
+          stamps={stamps}
+          setStamps={setStamps}
+          saving={saving}
+          error={error}
+          onSubmit={() => void saveConfig()}
+          submitLabel="Activar tarjeta de sellos"
+          showFeedbackBonus
+          feedbackBonus={feedbackBonus}
+          setFeedbackBonus={setFeedbackBonus}
+          embedded
+        />
+      ) : null;
+    }
+
     return (
       <div className="space-y-5">
         <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-8 text-center">
@@ -122,6 +179,9 @@ export default function ProgramStampsSection({
             error={error}
             onSubmit={() => void saveConfig()}
             submitLabel="Activar tarjeta de sellos"
+            showFeedbackBonus
+            feedbackBonus={feedbackBonus}
+            setFeedbackBonus={setFeedbackBonus}
           />
         ) : null}
       </div>
@@ -193,6 +253,10 @@ function ConfigForm({
   onSubmit,
   submitLabel,
   note,
+  showFeedbackBonus = false,
+  feedbackBonus = false,
+  setFeedbackBonus,
+  embedded = false,
 }: {
   redeemable: ProgramBenefit[];
   rewardBenefitId: string;
@@ -208,9 +272,21 @@ function ConfigForm({
   onSubmit: () => void;
   submitLabel: string;
   note?: string;
+  showFeedbackBonus?: boolean;
+  feedbackBonus?: boolean;
+  setFeedbackBonus?: (value: boolean) => void;
+  embedded?: boolean;
 }) {
+  const newRewardMeta =
+    REWARD_TYPES.find((type) => type.value === newRewardType) ??
+    REWARD_TYPES[0];
+
   return (
-    <section className="rounded-[16px] border border-[#E8EAF0] bg-white p-6">
+    <section
+      className={
+        embedded ? "" : "rounded-[16px] border border-[#E8EAF0] bg-white p-6"
+      }
+    >
       {/* Sección 8 — clarísimo por estructura: es UNA recompensa para la
           tarjeta, no el catálogo completo (eso está en "Beneficios"). */}
       <ProgramSectionHeading
@@ -249,49 +325,92 @@ function ConfigForm({
           />
         </div>
 
-        <label className="block">
+        <div>
           <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
             Sellos necesarios
           </span>
-          <input
-            type="number"
-            min={1}
-            max={20}
-            value={stamps}
-            onChange={(e) =>
-              setStamps(Math.min(20, Math.max(1, Number(e.target.value) || 1)))
-            }
-            className={inputClass}
-          />
-        </label>
+          <div className="mt-1 flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setStamps(Math.max(1, stamps - 1))}
+              aria-label="Quitar un sello"
+              className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#E8EAF0] bg-white text-[#596174]"
+            >
+              <Minus className="h-4 w-4" />
+            </button>
+            <span className="flex h-10 min-w-16 items-center justify-center rounded-[8px] border border-[#E8EAF0] bg-white text-base font-bold text-[#1A202C]">
+              {stamps}
+            </span>
+            <button
+              type="button"
+              onClick={() => setStamps(Math.min(20, stamps + 1))}
+              aria-label="Agregar un sello"
+              className="flex h-10 w-10 items-center justify-center rounded-[8px] border border-[#E8EAF0] bg-white text-[#596174]"
+            >
+              <Plus className="h-4 w-4" />
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-[#8891A4]">
+            Cada visita válida suma 1 sello.
+          </p>
+        </div>
       </div>
 
       {!rewardBenefitId ? (
-        <div className="mt-4 grid gap-4 sm:grid-cols-[160px_1fr]">
+        <div className="mt-4 space-y-4">
           <div>
             <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
               Tipo
             </span>
-            <FlikkerSelect
-              value={newRewardType}
-              onChange={setNewRewardType}
-              ariaLabel="Tipo de recompensa"
-              className="mt-1"
-              options={REWARD_TYPES}
-            />
+            <div className="mt-2 flex flex-wrap gap-2">
+              {REWARD_TYPES.map((type) => (
+                <button
+                  key={type.value}
+                  type="button"
+                  aria-pressed={newRewardType === type.value}
+                  onClick={() => setNewRewardType(type.value)}
+                  className={`rounded-[9px] border px-3 py-2 text-xs font-semibold ${
+                    newRewardType === type.value
+                      ? "border-[#5C6BC0] bg-[#EEF0FB] text-[#4A56A6]"
+                      : "border-[#E8EAF0] bg-white text-[#6F7689]"
+                  }`}
+                >
+                  {type.label}
+                </button>
+              ))}
+            </div>
           </div>
           <label className="block">
             <span className="text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-              ¿Qué se llevan?
+              {newRewardMeta.question}
             </span>
             <input
               value={newRewardTitle}
               onChange={(e) => setNewRewardTitle(e.target.value)}
-              placeholder="3 medialunas gratis"
+              placeholder={newRewardMeta.placeholder}
               className={inputClass}
             />
           </label>
         </div>
+      ) : null}
+
+      {showFeedbackBonus ? (
+        <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-[12px] border border-[#E8EAF0] bg-[#FAFAFC] p-4">
+          <input
+            type="checkbox"
+            checked={feedbackBonus}
+            onChange={(event) => setFeedbackBonus?.(event.target.checked)}
+            className="mt-0.5 h-4 w-4 accent-[#5C6BC0]"
+          />
+          <span>
+            <span className="block text-sm font-semibold text-[#1A202C]">
+              +1 sello por dejar feedback privado
+            </span>
+            <span className="mt-1 block text-xs leading-5 text-[#8891A4]">
+              Se acredita una vez por visita y no depende de la puntuación.
+            </span>
+          </span>
+        </label>
       ) : null}
 
       {/*
