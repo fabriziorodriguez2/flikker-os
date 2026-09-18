@@ -74,6 +74,47 @@ export class PlansRepository {
     return rows.length;
   }
 
+  /**
+   * Cuántas PERSONAS distintas quedaron afuera por el tope del plan desde
+   * `since`.
+   *
+   * No hay tabla nueva ni evento nuevo: esto ya se registra. Cuando
+   * `RewardGoalEngineService` frena un alta por `canAddParticipant`, su
+   * `logDecision` escribe un `RetentionDecisionLog` con
+   * `decisionCode = REWARD_GOAL_SKIPPED` y
+   * `metadata.reasonCode = 'PARTICIPANT_LIMIT_REACHED'`. El dato estaba
+   * todo el tiempo — lo que faltaba era que alguien lo leyera.
+   *
+   * `COUNT(DISTINCT customer_id)` y no `COUNT(*)`: la fila ya trae el
+   * `customerId` real (el `Customer` existe; lo que no pudo arrancar es su
+   * TARJETA), así que la misma persona bloqueada tres semanas seguidas
+   * cuenta una sola vez. Eso es lo que permite decir "personas" en la UI en
+   * vez del vago "intentos".
+   *
+   * Sin PII agregada: la fila ya existía con exactamente estos campos, y
+   * esta query solo devuelve un número — nunca nombres, teléfonos ni ids
+   * hacia arriba.
+   *
+   * Costo: `@@index([businessId, createdAt])` resuelve el rango primero; el
+   * filtro sobre `metadata` corre sobre esas pocas filas. Además solo se
+   * llama cuando el negocio YA está en el tope (ver `getFreePlanUsage`).
+   */
+  async countBlockedParticipants(
+    businessId: string,
+    since: Date,
+  ): Promise<number> {
+    const rows = await this.prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(DISTINCT customer_id) AS count
+      FROM retention_decision_logs
+      WHERE business_id = ${businessId}
+        AND created_at >= ${since}
+        AND decision_code = 'REWARD_GOAL_SKIPPED'
+        AND metadata ->> 'reasonCode' = 'PARTICIPANT_LIMIT_REACHED'
+        AND customer_id IS NOT NULL
+    `;
+    return Number(rows[0]?.count ?? 0);
+  }
+
   async hasAnyRewardGoal(
     businessId: string,
     customerId: string,

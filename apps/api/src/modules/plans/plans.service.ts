@@ -133,6 +133,69 @@ export class PlansService {
     return current < maxCustomers;
   }
 
+  /**
+   * "Llegué al tope y hubo gente que no pudo sumarse" — el dato que el
+   * dueño no tenía forma de saber.
+   *
+   * El bloqueo siempre funcionó bien (`canAddParticipant`), pero era
+   * silencioso hacia arriba: el cliente veía su check-in normal, el negocio
+   * no se enteraba de nada, y la demanda perdida no aparecía en ninguna
+   * pantalla. Esto la lee de donde ya estaba registrada.
+   *
+   * Devuelve `null` cuando no aplica — Pro, o cualquier negocio sin tope
+   * (LEGACY, Platform Admin, o anterior a la feature). Nada que mostrar,
+   * nada que contar.
+   *
+   * Los conteos de bloqueos solo se calculan si el negocio YA está en el
+   * tope. Abajo del tope son necesariamente cero (no se puede bloquear a
+   * nadie mientras haya lugar), así que gastar dos queries para confirmar
+   * un cero conocido en cada carga de Inicio no tendría sentido.
+   */
+  async getFreePlanUsage(
+    businessId: string,
+    now: Date = new Date(),
+  ): Promise<{
+    current: number;
+    limit: number;
+    blockedCustomersLast7Days: number;
+    blockedCustomersThisMonth: number;
+  } | null> {
+    const sub = await this.repository.findActiveSubscription(businessId);
+    if (this.isProSubscription(sub)) return null;
+
+    const limit = sub?.plan.maxCustomers;
+    if (limit == null) return null;
+
+    const current =
+      await this.repository.countParticipatingCustomers(businessId);
+
+    if (current < limit) {
+      return {
+        current,
+        limit,
+        blockedCustomersLast7Days: 0,
+        blockedCustomersThisMonth: 0,
+      };
+    }
+
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 86_400_000);
+    const monthStart = new Date(
+      Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1),
+    );
+    const [blockedCustomersLast7Days, blockedCustomersThisMonth] =
+      await Promise.all([
+        this.repository.countBlockedParticipants(businessId, sevenDaysAgo),
+        this.repository.countBlockedParticipants(businessId, monthStart),
+      ]);
+
+    return {
+      current,
+      limit,
+      blockedCustomersLast7Days,
+      blockedCustomersThisMonth,
+    };
+  }
+
   /** Tier Pro, sin importar cuál de los dos planes Pro es — ver `PRO_PLAN_SLUGS`. */
   private isProSubscription(sub: ActiveSubscription): boolean {
     return Boolean(
@@ -303,14 +366,24 @@ export class PlansService {
    * pero la tarjeta de upgrade siempre anuncia el precio self-service real.
    */
   async getSubscriptionOverview(businessId: string) {
-    const [sub, business, participantsCount, benefitsBlocked, selfServicePro] =
-      await Promise.all([
-        this.repository.findActiveSubscription(businessId),
-        this.repository.findBusinessTrialFields(businessId),
-        this.repository.countParticipatingCustomers(businessId),
-        this.isBenefitsBlocked(businessId),
-        this.repository.ensureProSelfServicePlan(),
-      ]);
+    const [
+      sub,
+      business,
+      participantsCount,
+      benefitsBlocked,
+      selfServicePro,
+      freePlanUsage,
+    ] = await Promise.all([
+      this.repository.findActiveSubscription(businessId),
+      this.repository.findBusinessTrialFields(businessId),
+      this.repository.countParticipatingCustomers(businessId),
+      this.isBenefitsBlocked(businessId),
+      this.repository.ensureProSelfServicePlan(),
+      // `null` para Pro y para cualquier negocio sin tope — ver
+      // `getFreePlanUsage`. Va acá y no en un endpoint aparte porque las dos
+      // pantallas que lo necesitan (Inicio e Insights) ya leen esto.
+      this.getFreePlanUsage(businessId),
+    ]);
 
     const isPro = this.isProSubscription(sub);
     const trialStartedAt = business?.benefitsTrialStartedAt ?? null;
@@ -349,6 +422,13 @@ export class PlansService {
         currency: selfServicePro.currency,
         priceAmount: selfServicePro.priceAmount,
       },
+      /**
+       * Uso del tope + cuánta gente quedó afuera por él. `null` = no aplica
+       * (Pro o sin tope), y entonces ninguna pantalla muestra nada — así es
+       * como el aviso desaparece solo al actualizar el plan, sin borrar el
+       * historial de bloqueos que quedó en `RetentionDecisionLog`.
+       */
+      freePlanUsage,
     };
   }
 }

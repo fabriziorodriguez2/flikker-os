@@ -6,6 +6,12 @@ import PageHeader from "@/components/ui/page-header";
 import SummaryCard, { type InsightsSummaryView } from "./summary-card";
 import InsightCards from "./insight-cards";
 import ImpactCard from "./impact-card";
+import RecoveryOpportunityCard from "./recovery-opportunity-card";
+import PlanLimitSignal from "./plan-limit-signal";
+import {
+  parseFreePlanUsage,
+  type FreePlanUsage,
+} from "@/lib/free-plan-usage";
 import { CustomerCompositionChart, VisitTrendChart } from "./insights-charts";
 import {
   buildRecommendation,
@@ -44,6 +50,24 @@ export default async function InsightsV2Page() {
     if (isUnauthorizedApiError(error)) sessionExpired = true;
   }
   if (sessionExpired) redirect("/session-expired");
+
+  /*
+    Estado de plan, solo para decidir si mostrar la oportunidad de
+    recuperación. Best-effort igual que el resumen: si falla, se asume Pro
+    — el default que NO muestra el paywall. Ante la duda, no vender.
+  */
+  let isPro = true;
+  let freePlanUsage: FreePlanUsage | null = null;
+  try {
+    const subscription = await apiFetch<{
+      isPro?: boolean;
+      freePlanUsage?: unknown;
+    }>("/businesses/current/subscription", accessToken, { businessId });
+    isPro = subscription?.isPro !== false;
+    freePlanUsage = parseFreePlanUsage(subscription?.freePlanUsage);
+  } catch {
+    // Sin dato de plan no se muestra ningún prompt.
+  }
 
   let summary: InsightsSummaryView | null = null;
   try {
@@ -93,6 +117,14 @@ export default async function InsightsV2Page() {
       />
 
       <ImpactCard impact={overview.impact} metrics={overview.metrics} />
+
+      {/* Oportunidad, no resultado — va DESPUÉS del impacto real para que
+          nunca se lea como algo que ya ocurrió. */}
+      <RecoveryOpportunityCard metrics={overview.metrics} isPro={isPro} />
+
+      {/* Capacidad del plan, no performance del negocio. Separado a
+          propósito de `FlikkerPerformance`, que empieza justo abajo. */}
+      <PlanLimitSignal usage={freePlanUsage} />
 
       <FlikkerPerformance metrics={overview.metrics} />
 

@@ -46,6 +46,7 @@ const mockRepo = {
   countActiveMembers: jest.fn(),
   countParticipatingCustomers: jest.fn(),
   hasAnyRewardGoal: jest.fn(),
+  countBlockedParticipants: jest.fn(),
   createFreeSubscriptionIfMissing: jest.fn(),
   findBusinessTrialFields: jest.fn(),
   startBenefitsTrialIfNeeded: jest.fn(),
@@ -564,6 +565,126 @@ describe('PlansService', () => {
       // queda como UYU 1.000, no como el USD 129 del plan histórico.
       const proSelfService = await service.ensureProSelfServicePlan();
       expect(proSelfService).toEqual({ currency: 'UYU', priceAmount: 1000 });
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────────────
+  // getFreePlanUsage — el tope y la demanda que quedó afuera por él
+  // ─────────────────────────────────────────────────────────────────────
+
+  describe('getFreePlanUsage', () => {
+    const NOW = new Date('2026-09-17T15:00:00.000Z');
+
+    function freeSub(maxCustomers: number | null) {
+      return {
+        status: SubscriptionStatus.ACTIVE,
+        plan: { slug: 'free', maxCustomers },
+      };
+    }
+
+    it('bajo el tope: devuelve el uso y NO consulta bloqueos', async () => {
+      mockRepo.findActiveSubscription.mockResolvedValue(freeSub(50));
+      mockRepo.countParticipatingCustomers.mockResolvedValue(37);
+
+      const usage = await service.getFreePlanUsage(BUSINESS_ID, NOW);
+
+      expect(usage).toEqual({
+        current: 37,
+        limit: 50,
+        blockedCustomersLast7Days: 0,
+        blockedCustomersThisMonth: 0,
+      });
+      // Abajo del tope nadie pudo ser bloqueado: gastar dos queries para
+      // confirmar un cero conocido sería costo puro.
+      expect(mockRepo.countBlockedParticipants).not.toHaveBeenCalled();
+    });
+
+    it('en el tope: cuenta personas bloqueadas en 7 días y en el mes', async () => {
+      mockRepo.findActiveSubscription.mockResolvedValue(freeSub(50));
+      mockRepo.countParticipatingCustomers.mockResolvedValue(50);
+      mockRepo.countBlockedParticipants
+        .mockResolvedValueOnce(4)
+        .mockResolvedValueOnce(11);
+
+      const usage = await service.getFreePlanUsage(BUSINESS_ID, NOW);
+
+      expect(usage).toEqual({
+        current: 50,
+        limit: 50,
+        blockedCustomersLast7Days: 4,
+        blockedCustomersThisMonth: 11,
+      });
+    });
+
+    it('las ventanas son 7 días atrás y el 1° del mes', async () => {
+      mockRepo.findActiveSubscription.mockResolvedValue(freeSub(50));
+      mockRepo.countParticipatingCustomers.mockResolvedValue(50);
+      mockRepo.countBlockedParticipants.mockResolvedValue(0);
+
+      await service.getFreePlanUsage(BUSINESS_ID, NOW);
+
+      expect(mockRepo.countBlockedParticipants).toHaveBeenNthCalledWith(
+        1,
+        BUSINESS_ID,
+        new Date('2026-09-10T15:00:00.000Z'),
+      );
+      expect(mockRepo.countBlockedParticipants).toHaveBeenNthCalledWith(
+        2,
+        BUSINESS_ID,
+        new Date('2026-09-01T00:00:00.000Z'),
+      );
+    });
+
+    /*
+      Pro no tiene tope, así que no hay uso que mostrar ni bloqueos que
+      contar. Devolver `null` (y no un objeto con ceros) es lo que hace
+      desaparecer el aviso al actualizar el plan — sin borrar nada.
+    */
+    it('Pro: null, y nunca cuenta bloqueos', async () => {
+      mockRepo.findActiveSubscription.mockResolvedValue({
+        status: SubscriptionStatus.ACTIVE,
+        plan: { slug: 'pro-selfservice', maxCustomers: null },
+      });
+
+      expect(await service.getFreePlanUsage(BUSINESS_ID, NOW)).toBeNull();
+      expect(mockRepo.countBlockedParticipants).not.toHaveBeenCalled();
+    });
+
+    it('negocio sin Subscription (LEGACY / Platform Admin): null', async () => {
+      mockRepo.findActiveSubscription.mockResolvedValue(null);
+
+      expect(await service.getFreePlanUsage(BUSINESS_ID, NOW)).toBeNull();
+    });
+
+    it('plan sin tope declarado: null', async () => {
+      mockRepo.findActiveSubscription.mockResolvedValue(freeSub(null));
+
+      expect(await service.getFreePlanUsage(BUSINESS_ID, NOW)).toBeNull();
+    });
+
+    it('el overview de suscripción lo expone', async () => {
+      mockRepo.findActiveSubscription.mockResolvedValue({
+        status: SubscriptionStatus.ACTIVE,
+        plan: {
+          slug: 'free',
+          name: 'Free',
+          maxCustomers: 50,
+          currency: 'UYU',
+          priceAmount: 0,
+        },
+      });
+      mockRepo.countParticipatingCustomers.mockResolvedValue(50);
+      mockRepo.findBusinessTrialFields.mockResolvedValue(null);
+      mockRepo.countBlockedParticipants.mockResolvedValue(3);
+
+      const overview = await service.getSubscriptionOverview(BUSINESS_ID);
+
+      expect(overview.freePlanUsage).toEqual({
+        current: 50,
+        limit: 50,
+        blockedCustomersLast7Days: 3,
+        blockedCustomersThisMonth: 3,
+      });
     });
   });
 });

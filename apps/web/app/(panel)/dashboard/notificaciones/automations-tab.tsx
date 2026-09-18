@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
 import { useToast } from "@/components/ui/toast";
+import ProUpgradePrompt from "@/components/panel/pro-upgrade-prompt";
 import { useIsOwnerOrAdmin } from "../../role-context";
 
 /**
@@ -119,6 +120,8 @@ export default function AutomationsTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** Paywall de Cumpleaños — se abre por acción del dueño, nunca solo. */
+  const [proModalOpen, setProModalOpen] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -305,9 +308,35 @@ export default function AutomationsTab() {
           example="“¡Feliz cumpleaños de parte de tu negocio! 🎉”"
           enabled={cumpleanos.enabled}
           locked={cumpleanos.locked}
+          onLockedClick={() => setProModalOpen(true)}
           channels={cumpleanos.channels}
           disabled={!canManage || saving}
           onToggle={(value) => void patch({ cumpleanos: value })}
+        />
+      ) : null}
+
+      {/*
+        Paywall contextual de Cumpleaños. Se abre SOLO cuando el dueño toca
+        el CTA de esa fila — nunca al entrar a la pantalla. Los tres
+        beneficios hablan de esta automatización, no del plan entero.
+      */}
+      {proModalOpen ? (
+        <ProUpgradePrompt
+          feature="cumpleanos"
+          variant="modal"
+          title="Cumpleaños"
+          description="Un saludo automático el día del cumpleaños de cada cliente, sin que tengas que acordarte."
+          benefits={[
+            "Saludar automáticamente a cada cliente el día de su cumpleaños.",
+            "Acompañar el saludo con un beneficio, si querés darle una razón para venir.",
+            "Desbloquear el resto de las funciones Pro del plan.",
+          ]}
+          cta="Activar Pro"
+          secondaryAction={{
+            label: "Ahora no",
+            onClick: () => setProModalOpen(false),
+          }}
+          onDismiss={() => setProModalOpen(false)}
         />
       ) : null}
 
@@ -401,6 +430,7 @@ function AutomationCard({
   enabled,
   disabled,
   locked = false,
+  onLockedClick,
   channels = [],
   onToggle,
 }: {
@@ -410,8 +440,10 @@ function AutomationCard({
   example?: string;
   enabled: boolean;
   disabled: boolean;
-  /** Función Pro sin acceso — el toggle se reemplaza por el badge + link. */
+  /** Función Pro sin acceso — el toggle se reemplaza por el badge + CTA. */
   locked?: boolean;
+  /** Qué hacer al tocar el CTA de una fila bloqueada. Abre el paywall. */
+  onLockedClick?: () => void;
   /** Canales reales devueltos por el backend. Nunca Push ni Wallet. */
   channels?: Channel[];
   onToggle: (value: boolean) => void;
@@ -447,12 +479,29 @@ function AutomationCard({
         </div>
 
         {locked ? (
-          <Link
-            href="/dashboard/settings/suscripcion"
-            className="shrink-0 text-xs font-semibold text-[#6D4AFF] hover:underline"
-          >
-            Ver planes
-          </Link>
+          /*
+            Antes esto mandaba directo a la pantalla de planes. Ahora abre el
+            paywall contextual: el dueño acaba de intentar prender ESTA
+            automatización, así que lo primero que tiene que leer es qué hace
+            ESTA función — no una lista de precios sin contexto. El link
+            queda como fallback si nadie pasó el handler.
+          */
+          onLockedClick ? (
+            <button
+              type="button"
+              onClick={onLockedClick}
+              className="shrink-0 text-xs font-semibold text-[#6D4AFF] hover:underline"
+            >
+              Ver qué incluye Pro
+            </button>
+          ) : (
+            <Link
+              href="/dashboard/settings/suscripcion"
+              className="shrink-0 text-xs font-semibold text-[#6D4AFF] hover:underline"
+            >
+              Ver planes
+            </Link>
+          )
         ) : (
           <button
             type="button"
