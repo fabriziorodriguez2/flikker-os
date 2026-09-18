@@ -19,6 +19,13 @@ import {
 } from '../owner-notifications.queue';
 import { WhatsAppBspService } from '../whatsapp-bsp.service';
 import { EmailService } from '../email.service';
+import {
+  emailCallout,
+  emailParagraph,
+  emailStats,
+  escapeHtml as escapeEmailHtml,
+  renderEmailLayout,
+} from '../email-design-system';
 
 type OwnerNotificationJobData =
   | LowFeedbackNotificationJobData
@@ -368,23 +375,33 @@ function buildWeeklyWhatsAppText(
   ].join('\n');
 }
 
-function renderLowFeedbackEmail(input: {
+export function renderLowFeedbackEmail(input: {
   businessName: string;
   customerName: string;
   score: number;
   comment: string | null;
   panelUrl: string;
 }) {
-  return `
-    <div style="font-family:Arial,sans-serif;line-height:1.5;color:#18181b">
-      <h1 style="font-size:20px">Feedback bajo recibido</h1>
-      <p><strong>Negocio:</strong> ${escapeHtml(input.businessName)}</p>
-      <p><strong>Paciente:</strong> ${escapeHtml(input.customerName)}</p>
-      <p><strong>Score:</strong> ${input.score}/5</p>
-      <p><strong>Comentario:</strong> ${escapeHtml(input.comment || 'Sin comentario')}</p>
-      <p><a href="${input.panelUrl}" style="display:inline-block;background:#18181b;color:#fff;padding:10px 14px;border-radius:8px;text-decoration:none">Abrir panel</a></p>
-    </div>
-  `;
+  return renderEmailLayout({
+    preheader: `${input.customerName} dejó una valoración de ${input.score}/5 en ${input.businessName}.`,
+    eyebrow: `Acción requerida · ${input.businessName}`,
+    title: 'Recibiste una opinión para revisar',
+    bodyHtml:
+      emailParagraph(
+        `<strong>${escapeEmailHtml(input.customerName)}</strong> calificó su experiencia con <strong>${input.score}/5</strong>.`,
+      ) +
+      emailCallout({
+        label: 'Comentario del cliente',
+        tone: 'danger',
+        contentHtml: escapeEmailHtml(input.comment || 'Sin comentario'),
+      }) +
+      emailParagraph(
+        'Revisá el caso en el panel y hacé el seguimiento que corresponda.',
+        { muted: true, small: true },
+      ),
+    action: { label: 'Abrir en el panel', url: input.panelUrl },
+    businessName: input.businessName,
+  });
 }
 
 export function renderWeeklySummaryEmail(input: {
@@ -393,112 +410,70 @@ export function renderWeeklySummaryEmail(input: {
   previous: WeeklyKpis;
   panelUrl: string;
 }) {
-  const name = escapeHtml(input.businessName);
   const allZero =
     input.current.reviewsGenerated === 0 && input.current.qrScans === 0;
-  const insight = escapeHtml(renderInsightText(input.current));
   const unsubscribeUrl = `mailto:soporte@flikker.com?subject=${encodeURIComponent('Dar de baja resumen semanal')}`;
+  const metrics = allZero
+    ? emailCallout({
+        tone: 'neutral',
+        label: 'Semana tranquila',
+        contentHtml:
+          'Seguí marcando clientes y Flikker va a seguir trabajando para generar nuevas reseñas.',
+      })
+    : emailStats([
+        {
+          label: 'Reseñas nuevas',
+          value: input.current.reviewsGenerated,
+          detail: comparisonLabel(
+            input.current.reviewsGenerated,
+            input.previous.reviewsGenerated,
+          ),
+        },
+        {
+          label: 'Rating actual',
+          value:
+            input.current.averageRating > 0
+              ? input.current.averageRating.toFixed(1)
+              : '—',
+          detail: comparisonLabel(
+            input.current.averageRating,
+            input.previous.averageRating,
+          ),
+        },
+        {
+          label: 'Escaneos QR',
+          value: input.current.qrScans,
+          detail: comparisonLabel(
+            input.current.qrScans,
+            input.previous.qrScans,
+          ),
+        },
+      ]);
 
-  const metricsSection = allZero
-    ? `<tr>
-         <td style="background:#ffffff;padding:0 32px 32px;font-size:15px;color:#4A5568;line-height:1.7;font-style:italic;font-family:Arial,Helvetica,sans-serif;">
-           Esta semana fue tranquila. Segu&iacute; marcando clientes y las rese&ntilde;as van a llegar solas.
-         </td>
-       </tr>`
-    : `<tr>
-         <td style="background:#ffffff;padding:0 32px 32px;">
-           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-             <tr>
-               ${renderKpiCard('&#11088;', 'Rese&ntilde;as nuevas', input.current.reviewsGenerated, input.previous.reviewsGenerated, false)}
-               ${renderKpiCard('&#128202;', 'Rating actual', input.current.averageRating, input.previous.averageRating, false, true)}
-               ${renderKpiCard('&#128241;', 'Escaneos QR', input.current.qrScans, input.previous.qrScans, true)}
-             </tr>
-           </table>
-         </td>
-       </tr>`;
-
-  return `<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Resumen semanal &mdash; Flikker</title>
-</head>
-<body style="margin:0;padding:0;background:#F4F5F7;font-family:Arial,Helvetica,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:#F4F5F7;">
-    <tr><td align="center" style="padding:40px 16px;">
-      <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;">
-        <tr>
-          <td style="background:#000441;border-radius:16px 16px 0 0;padding:40px;text-align:center;">
-            <div style="font-size:30px;font-weight:900;color:#ffffff;letter-spacing:-0.5px;font-family:Arial,Helvetica,sans-serif;">&#9889; Flikker</div>
-            <div style="font-size:14px;color:rgba(255,255,255,0.75);margin-top:10px;font-family:Arial,Helvetica,sans-serif;">Resumen semanal &middot; ${name}</div>
-          </td>
-        </tr>
-        <tr>
-          <td style="background:#ffffff;padding:32px;">
-            <p style="margin:0;font-size:16px;color:#1a1040;line-height:1.6;font-family:Arial,Helvetica,sans-serif;">Hola, ac&aacute; va lo que pas&oacute; esta semana en <strong>${name}</strong>.</p>
-          </td>
-        </tr>
-        ${metricsSection}
-        <tr>
-          <td style="background:#ffffff;padding:0 32px 32px;">
-            <div style="background:#EEF0FF;border-left:3px solid #9188F5;padding:16px 20px;border-radius:0 8px 8px 0;">
-              <p style="margin:0;font-size:14px;color:#4A5568;line-height:1.6;font-family:Arial,Helvetica,sans-serif;">${insight}</p>
-            </div>
-          </td>
-        </tr>
-        <tr>
-          <td style="background:#ffffff;padding:0 32px 40px;text-align:center;">
-            <a href="${input.panelUrl}" style="display:inline-block;background:#9188F5;color:#ffffff;padding:14px 32px;border-radius:8px;text-decoration:none;font-weight:700;font-size:15px;font-family:Arial,Helvetica,sans-serif;">Ver mi dashboard &rarr;</a>
-          </td>
-        </tr>
-        <tr>
-          <td style="background:#F4F5F7;border-top:1px solid #E5E7EB;border-radius:0 0 16px 16px;padding:20px 32px;text-align:center;">
-            <p style="margin:0;font-size:12px;color:#8891A4;font-family:Arial,Helvetica,sans-serif;">Powered by <strong>Flikker</strong> &middot; flikker.website</p>
-            <p style="margin:8px 0 0;font-size:12px;font-family:Arial,Helvetica,sans-serif;">
-              <a href="${unsubscribeUrl}" style="color:#8891A4;text-decoration:underline;">No quiero recibir m&aacute;s estos emails</a>
-            </p>
-          </td>
-        </tr>
-      </table>
-    </td></tr>
-  </table>
-</body>
-</html>`;
+  return renderEmailLayout({
+    preheader: `Reseñas, rating y escaneos de ${input.businessName} esta semana.`,
+    eyebrow: `Resumen semanal · ${input.businessName}`,
+    title: 'Lo que pasó esta semana',
+    bodyHtml:
+      emailParagraph(
+        `Hola, acá va el resumen operativo de <strong>${escapeEmailHtml(input.businessName)}</strong>.`,
+      ) +
+      metrics +
+      emailCallout({
+        label: 'Próximo paso',
+        tone: 'accent',
+        contentHtml: escapeEmailHtml(renderInsightText(input.current)),
+      }),
+    action: { label: 'Ver mi dashboard', url: input.panelUrl },
+    businessName: input.businessName,
+    unsubscribeUrl,
+  });
 }
 
-function renderKpiCard(
-  icon: string,
-  label: string,
-  current: number,
-  previous: number,
-  isLast: boolean,
-  isDecimal = false,
-) {
+function comparisonLabel(current: number, previous: number): string {
   const delta = Number((current - previous).toFixed(1));
-  const sign = delta > 0 ? '+' : '';
-  const deltaColor = delta > 0 ? '#639922' : delta < 0 ? '#C0392B' : '#8891A4';
-  const deltaText =
-    delta === 0
-      ? 'igual que la semana anterior'
-      : `${sign}${delta} vs semana anterior`;
-  const displayValue = isDecimal
-    ? current > 0
-      ? current.toFixed(1)
-      : '&mdash;'
-    : String(current);
-  const rightPad = isLast ? '0' : '8px';
-
-  return `<td width="${isLast ? '34%' : '33%'}" valign="top" style="padding-right:${rightPad};">
-    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
-      <tr><td style="background:#ffffff;border:1px solid #E5E7EB;border-radius:12px;padding:20px;box-shadow:0 1px 4px rgba(0,0,0,0.06);">
-        <div style="font-size:22px;line-height:1;">${icon}</div>
-        <div style="font-size:10px;font-weight:700;color:#8891A4;text-transform:uppercase;letter-spacing:0.1em;margin-top:10px;font-family:Arial,Helvetica,sans-serif;">${label}</div>
-        <div style="font-size:32px;font-weight:900;color:#1A202C;line-height:1;margin:8px 0;font-family:Arial,Helvetica,sans-serif;">${displayValue}</div>
-        <div style="font-size:11px;color:${deltaColor};font-family:Arial,Helvetica,sans-serif;">${deltaText}</div>
-      </td></tr>
-    </table>
-  </td>`;
+  if (delta === 0) return 'Igual que la semana anterior';
+  return `${delta > 0 ? '+' : ''}${delta} vs. semana anterior`;
 }
 
 function buildWeekWindows(currentStart: Date) {
@@ -601,13 +576,4 @@ function unique(values: Array<string | null | undefined>) {
   return [
     ...new Set(values.filter((value): value is string => Boolean(value))),
   ];
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
 }

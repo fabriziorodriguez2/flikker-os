@@ -21,6 +21,10 @@ import { VerifyEmailDto } from './dto/verify-email.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { EmailService } from '../../jobs/email.service';
+import {
+  buildPasswordResetEmail,
+  buildVerificationEmail,
+} from '../../jobs/auth-email-templates';
 import { normalizeEmail } from '../../common/utils/email.util';
 
 const BCRYPT_ROUNDS = 12;
@@ -489,53 +493,4 @@ function getAppPublicUrl() {
     process.env.WEB_PUBLIC_URL ??
     'https://app.flikker.com'
   ).replace(/\/$/, '');
-}
-
-function buildVerificationEmail(input: {
-  firstName?: string | null;
-  verifyUrl: string;
-  expiresInHours: number;
-}) {
-  const name = input.firstName?.trim() || 'hola';
-  return `
-    <div style="font-family:Arial,sans-serif;background:#F5F6FA;padding:32px;color:#1A202C">
-      <div style="max-width:520px;margin:0 auto;background:#fff;border:1px solid #E8EAF0;border-radius:12px;padding:32px">
-        <h1 style="margin:0 0 12px;font-size:24px">Confirmá tu cuenta</h1>
-        <p style="margin:0 0 20px;color:#8891A4;line-height:1.6">Hola ${escapeHtml(
-          name,
-        )}, te enviamos un enlace para confirmar tu cuenta de Flikker.</p>
-        <a href="${input.verifyUrl}" style="display:inline-block;background:#5C6BC0;color:#fff;text-decoration:none;border-radius:8px;padding:14px 20px;font-weight:700">Confirmar mi cuenta</a>
-        <p style="margin:20px 0 0;color:#8891A4;font-size:14px;line-height:1.6">El link vence en ${input.expiresInHours} horas. Si no creaste esta cuenta, podés ignorar este email.</p>
-      </div>
-    </div>
-  `;
-}
-
-function buildPasswordResetEmail(input: {
-  firstName?: string | null;
-  resetUrl: string;
-  expiresInMinutes: number;
-}) {
-  const name = input.firstName?.trim() || 'hola';
-  return `
-    <div style="font-family:Arial,sans-serif;background:#F5F6FA;padding:32px;color:#1A202C">
-      <div style="max-width:520px;margin:0 auto;background:#fff;border:1px solid #E8EAF0;border-radius:12px;padding:32px">
-        <h1 style="margin:0 0 12px;font-size:24px">Recuperá tu contraseña</h1>
-        <p style="margin:0 0 20px;color:#8891A4;line-height:1.6">Hola ${escapeHtml(
-          name,
-        )}, recibimos un pedido para crear una nueva contraseña en Flikker.</p>
-        <a href="${input.resetUrl}" style="display:inline-block;background:#5C6BC0;color:#fff;text-decoration:none;border-radius:8px;padding:14px 20px;font-weight:700">Crear nueva contraseña</a>
-        <p style="margin:20px 0 0;color:#8891A4;font-size:14px;line-height:1.6">El link vence en ${input.expiresInMinutes} minutos. Si no pediste este cambio, podés ignorar este email.</p>
-      </div>
-    </div>
-  `;
-}
-
-function escapeHtml(value: string) {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#039;');
 }
