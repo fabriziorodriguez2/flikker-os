@@ -3,6 +3,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PlatformController } from './platform.controller';
 import { PlatformService } from './platform.service';
 import { PlatformRepository } from './platform.repository';
+import { BusinessDeletionService } from './business-deletion.service';
+import { BusinessJobPurgeService } from './business-job-purge.service';
 import { AuditService } from '../../common/services/audit.service';
 import { CustomersModule } from '../customers/customers.module';
 import { CampaignsModule } from '../campaigns/campaigns.module';
@@ -24,6 +26,12 @@ import { PublicModule } from '../public/public.module';
     PublicModule,
   ],
   controllers: [PlatformController],
-  providers: [PlatformService, PlatformRepository, AuditService],
+  providers: [
+    PlatformService,
+    PlatformRepository,
+    AuditService,
+    BusinessDeletionService,
+    BusinessJobPurgeService,
+  ],
 })
 export class PlatformModule {}

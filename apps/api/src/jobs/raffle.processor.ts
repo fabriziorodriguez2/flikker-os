@@ -7,6 +7,7 @@ import {
   localPeriodKey,
 } from '../common/utils/timezone.util';
 import { RaffleQueue } from './raffle.queue';
+import { OPERATIONAL_BUSINESS_WHERE } from './business-operational.guard';
 
 const DEFAULT_TIMEZONE = 'America/Montevideo';
 const DRAW_HOUR = 23;
@@ -64,7 +65,15 @@ export class RaffleProcessor {
 
   private findActiveRaffleBenefits(): Promise<ActiveRaffleBenefit[]> {
     return this.prisma.benefit.findMany({
-      where: { type: BenefitType.raffle, active: true },
+      // Un beneficio de tipo rifa sigue `active: true` después de archivar el
+      // negocio. Sin este filtro se sorteaba igual: se creaba un `RaffleDraw`
+      // real y se le avisaba por WhatsApp a un ganador de un negocio que ya
+      // no existe operativamente.
+      where: {
+        type: BenefitType.raffle,
+        active: true,
+        business: OPERATIONAL_BUSINESS_WHERE,
+      },
       select: {
         id: true,
         businessId: true,

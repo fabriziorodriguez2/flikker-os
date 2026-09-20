@@ -37,6 +37,32 @@ const prisma = new PrismaClient({ adapter });
 
 const DEMO_PASSWORD = 'Flikker2026!';
 
+/**
+ * Este seed crea datos de DEMO: negocios de ejemplo (Clínica Dental Ejemplo,
+ * Centro de Estética Ejemplo), usuarios con una contraseña conocida y
+ * publicada acá arriba, campañas, reseñas falsas.
+ *
+ * Nada de eso puede existir en producción. Dos razones distintas, las dos
+ * suficientes: son ruido que contamina las métricas reales del panel, y
+ * `admin@flikker.dev` con `Flikker2026!` es literalmente una cuenta de
+ * plataforma con contraseña pública.
+ *
+ * Esto no era hipotético: los dos negocios de ejemplo ESTABAN en producción
+ * (archivados), y como el seed es idempotente por `upsert`, una corrida
+ * accidental contra la base productiva los recreaba — incluso después de
+ * borrarlos a mano.
+ *
+ * El guard es por entorno y falla ruidosamente, no en silencio: si alguien
+ * apunta el seed a producción, tiene que enterarse.
+ *
+ * `SEED_ALLOW_DEMO=true` existe como escape hatch explícito para el caso
+ * raro de querer poblar un staging que corre con NODE_ENV=production. Hay
+ * que tipearlo a propósito; nunca es el default.
+ */
+const IS_PRODUCTION = process.env.NODE_ENV === 'production';
+const DEMO_SEED_ALLOWED =
+  !IS_PRODUCTION || process.env.SEED_ALLOW_DEMO === 'true';
+
 type SeedCampaignData = {
   businessSlug: string;
   slug: string;
@@ -56,6 +82,20 @@ type SeedCampaignData = {
 };
 
 async function main() {
+  if (!DEMO_SEED_ALLOWED) {
+    console.error(
+      '\n⛔  Este seed crea negocios y usuarios de DEMO (contraseña pública).\n' +
+        '    NODE_ENV=production — no se va a ejecutar.\n\n' +
+        '    Los planes (Free/Pro) NO hacen falta sembrarlos: el runtime los\n' +
+        '    crea solo con `PlansRepository.ensureFreePlan()` y\n' +
+        '    `ensureProSelfServicePlan()` la primera vez que se necesitan.\n\n' +
+        '    Si de verdad querés poblar un staging con NODE_ENV=production,\n' +
+        '    corré con SEED_ALLOW_DEMO=true.\n',
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   console.log('🌱 Seeding Flikker OS demo data...\n');
 
   const passwordHash = await bcrypt.hash(DEMO_PASSWORD, 12);

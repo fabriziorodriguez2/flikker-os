@@ -8,6 +8,7 @@ import {
   RewardGoalStatus,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { OPERATIONAL_BUSINESS_WHERE } from '../../jobs/business-operational.guard';
 import { computeVisitFrequency } from './visit-frequency';
 import { segmentCustomer } from './segmentation';
 import { evaluateEligibility } from './eligibility';
@@ -74,7 +75,10 @@ export class RetentionV2EvaluateService {
   private findOwnedBusinesses() {
     return this.prisma.business.findMany({
       where: {
-        isActive: true,
+        // Los tres campos del archivado, no solo `isActive`. Archivar los
+        // escribe juntos, pero un estado intermedio (una migración, un fix
+        // manual) volvería a habilitar envíos si se mirara uno solo.
+        ...OPERATIONAL_BUSINESS_WHERE,
         experienceVersion: ExperienceVersion.CHECKIN_V2,
         retentionEngineV2Enabled: true,
       },

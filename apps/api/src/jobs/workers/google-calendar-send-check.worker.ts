@@ -13,6 +13,7 @@ import {
   ServiceEventCreatedVia,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { loadOperationalBusiness } from '../business-operational.guard';
 import { createRedisConnection, REDIS_CONFIGURED } from '../redis-connection';
 import {
   GOOGLE_CALENDAR_SEND_CHECK_QUEUE,
@@ -59,6 +60,19 @@ export class GoogleCalendarSendCheckWorker
   }
 
   async process(data: CalendarSendCheckJobData): Promise<void> {
+    /*
+      Antes de cualquier otra cosa: este job llama a Google y manda WhatsApp,
+      y su `businessId` viaja serializado en Redis. Acá solo hay un id, así
+      que el chequeo va contra la base — cubre también el caso de un negocio
+      ya borrado, donde `findUnique` devuelve `null`.
+    */
+    if (!(await loadOperationalBusiness(this.prisma, data.businessId))) {
+      this.logger.log(
+        `Send-check omitido: el negocio ${data.businessId} ya no está operativo.`,
+      );
+      return;
+    }
+
     const calendarEvent = await this.prisma.calendarEvent.findFirst({
       where: {
         id: data.calendarEventId,

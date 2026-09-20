@@ -1,5 +1,6 @@
 import {
   CustomerSegment,
+  BusinessStatus,
   ExperienceVersion,
   RetentionObjective,
   RetentionStrategyType,
@@ -159,7 +160,12 @@ describe('RetentionV2EvaluateService — business selection', () => {
     expect(deps.prisma.business.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {
+          // Los tres campos del archivado, no solo `isActive`: archivar los
+          // escribe juntos, pero un estado intermedio (una migración, un fix
+          // manual) volvería a habilitar envíos si se mirara uno solo.
           isActive: true,
+          archivedAt: null,
+          status: { not: BusinessStatus.ARCHIVED },
           experienceVersion: ExperienceVersion.CHECKIN_V2,
           retentionEngineV2Enabled: true,
         },

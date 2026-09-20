@@ -17,6 +17,7 @@ import {
 } from '../repeats.queue';
 import { RepeatsProcessor } from '../repeats.processor';
 import { WhatsAppBspService } from '../whatsapp-bsp.service';
+import { isBusinessOperational } from '../business-operational.guard';
 
 @Injectable()
 export class RepeatsWorker implements OnModuleInit, OnModuleDestroy {
@@ -68,6 +69,24 @@ export class RepeatsWorker implements OnModuleInit, OnModuleDestroy {
     });
 
     if (!execution || !execution.message) return;
+
+    /*
+      Segunda capa. El barrido diario ya excluye negocios archivados, pero
+      este job vive en Redis con el `executionId` serializado: puede haberse
+      encolado ayer, cuando el negocio todavía estaba vivo, y ejecutarse hoy.
+      El WhatsApp sale unas líneas más abajo — la última oportunidad de no
+      mandarlo es acá.
+
+      SKIP silencioso, sin `markFailed`: la ejecución no falló, simplemente
+      ya no corresponde. Marcarla como fallida ensuciaría las métricas del
+      negocio con un error que nunca ocurrió.
+    */
+    if (!isBusinessOperational(execution.business)) {
+      this.logger.log(
+        `Repeat message omitido: el negocio ${execution.businessId} ya no está operativo.`,
+      );
+      return;
+    }
 
     if (execution.customer.optedOut) {
       await this.markFailed(execution.id, execution.message.id);

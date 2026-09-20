@@ -8,6 +8,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RepeatsQueue } from './repeats.queue';
+import { OPERATIONAL_BUSINESS_WHERE } from './business-operational.guard';
 
 const ANTI_SPAM_DAYS = 14;
 
@@ -81,6 +82,10 @@ export class RepeatsProcessor {
       where: {
         status: 'ACTIVE',
         templateKind: { not: null },
+        // Una campaña puede seguir en ACTIVE mucho después de que el negocio
+        // se archivó: archivar nunca pausó las campañas. Sin este filtro, un
+        // negocio archivado seguía encolando mensajes reales a sus clientes.
+        business: OPERATIONAL_BUSINESS_WHERE,
       },
       select: {
         id: true,

@@ -318,12 +318,23 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
   });
 
   it('surfaces an UNLOCKED, not-yet-redeemed benefit as available', async () => {
+    /*
+      "Disponible" se decide comparando `expiresAt` contra la hora REAL
+      (`new Date()` dentro de `placeDetail`), no contra un reloj inyectado.
+      Con una fecha fija cercana, el test caduca: la que había acá era el
+      2026-09-20 y empezó a fallar ese mismo día, cuando el beneficio pasó a
+      estar vencido y el read-model —correctamente— devolvió `null`.
+
+      Una fecha lejana mantiene el caso que este test quiere cubrir (un
+      beneficio VIGENTE) sin depender del día en que se corra.
+    */
+    const expiresAt = new Date('2099-01-01T00:00:00.000Z');
     const deps = makeDeps({
       unlockedGoal: {
         incentiveDefinition: { name: 'Café gratis' },
         benefitParticipation: {
           redemptionCode: 'ABCD1234',
-          expiresAt: new Date('2026-09-20T00:00:00.000Z'),
+          expiresAt,
         },
       },
     });
@@ -334,7 +345,7 @@ describe('MyFlikkerService — customer-facing fields only (Fase E §20)', () =>
     expect(place.benefitAvailable).toEqual({
       name: 'Café gratis',
       code: 'ABCD1234',
-      expiresAt: '2026-09-20T00:00:00.000Z',
+      expiresAt: expiresAt.toISOString(),
     });
     expect(place.expiredBenefit).toBeNull();
     expect(deps.prisma.customerRewardGoal.findFirst).toHaveBeenCalledWith(

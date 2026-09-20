@@ -32,6 +32,11 @@ function buildHarness(overrides: MessageOverrides = {}) {
         business: {
           id: 'business-1',
           name: 'Bar Fraternidad',
+          // El worker ahora verifica que el negocio siga operativo antes de
+          // mandar nada — ver `business-operational.guard`.
+          isActive: true,
+          archivedAt: null,
+          status: 'ACTIVE',
           messageCountCurrentMonth: 0,
           messageQuotaMonthly: 600,
           reviewRequestsPausedUntil: null,

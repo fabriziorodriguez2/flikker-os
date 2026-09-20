@@ -16,6 +16,10 @@ import {
 } from '../raffle.queue';
 import { RaffleProcessor } from '../raffle.processor';
 import { WhatsAppBspService } from '../whatsapp-bsp.service';
+import {
+  isBusinessOperational,
+  OPERATIONAL_BUSINESS_SELECT,
+} from '../business-operational.guard';
 
 @Injectable()
 export class RaffleWorker implements OnModuleInit, OnModuleDestroy {
@@ -65,12 +69,32 @@ export class RaffleWorker implements OnModuleInit, OnModuleDestroy {
       where: { id: data.drawId },
       include: {
         benefit: { select: { title: true } },
-        business: { select: { name: true, phone: true } },
+        business: {
+          select: {
+            name: true,
+            phone: true,
+            ...OPERATIONAL_BUSINESS_SELECT,
+          },
+        },
         winner: { select: { name: true, phoneE164: true } },
       },
     });
 
     if (!draw || !draw.winner) return;
+
+    /*
+      Segunda capa. Este job manda DOS WhatsApp (al dueño y al ganador) y
+      tiene `attempts: 3`, así que un negocio archivado entre el sorteo y el
+      envío podía generar hasta seis mensajes. Se sale con `return`, no con
+      throw: tirar acá haría que BullMQ reintente un trabajo que nunca va a
+      poder completarse.
+    */
+    if (!isBusinessOperational(draw.business)) {
+      this.logger.log(
+        `Notificación de sorteo omitida: el negocio ${draw.businessId} ya no está operativo.`,
+      );
+      return;
+    }
 
     if (draw.business.phone) {
       await this.whatsAppBspService.sendText({

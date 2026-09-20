@@ -23,6 +23,8 @@ import {
   WidgetType,
 } from '@prisma/client';
 import { SetBusinessPlanDto } from './dto/set-business-plan.dto';
+import { BusinessDeletionService } from './business-deletion.service';
+import { BusinessJobPurgeService } from './business-job-purge.service';
 import { PlatformRepository } from './platform.repository';
 import { AuditService } from '../../common/services/audit.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
@@ -71,6 +73,8 @@ export class PlatformService {
     private readonly prisma: PrismaService,
     private readonly plansService: PlansService,
     private readonly publicUrls: CustomerPublicUrlService,
+    private readonly deletion: BusinessDeletionService,
+    private readonly jobPurge: BusinessJobPurgeService,
   ) {}
 
   async listBusinesses() {
@@ -95,6 +99,23 @@ export class PlatformService {
       // Rollout flags, so the admin table can show and change them.
       experienceVersion: b.experienceVersion,
       retentionEngineV2Enabled: b.retentionEngineV2Enabled,
+    }));
+  }
+
+  /** El archivo, con lo que se perdería si se borra cada uno. */
+  async listArchivedBusinesses() {
+    const rows = await this.repository.findArchivedBusinesses();
+    return rows.map((b) => ({
+      id: b.id,
+      name: b.name,
+      slug: b.slug,
+      archivedAt: b.archivedAt,
+      createdAt: b.createdAt,
+      experienceVersion: b.experienceVersion,
+      customerCount: b._count.customers,
+      visitCount: b._count.visits,
+      reviewCount: b._count.googleReviews,
+      memberCount: b._count.memberships,
     }));
   }
 
@@ -314,6 +335,66 @@ export class PlatformService {
     });
 
     return archived;
+  }
+
+  /** Saca al negocio del archivo y lo vuelve a poner operativo. */
+  async restoreBusiness(adminId: string, businessId: string) {
+    const business = await this.assertBusinessExists(businessId);
+    const restored = await this.repository.restoreBusiness(businessId);
+
+    this.logPlatformWrite(adminId, businessId, 'PLATFORM_BUSINESS_RESTORED', {
+      businessName: business.name,
+      businessSlug: business.slug,
+    });
+
+    return restored;
+  }
+
+  /**
+   * Eliminar definitivamente — irreversible, y por eso pide el nombre
+   * exacto escrito a mano.
+   *
+   * La confirmación se valida ACÁ y no solo en la UI: un `DELETE` a este
+   * endpoint sin el nombre correcto no borra nada, venga de donde venga.
+   * Y solo acepta archivados (lo exige `hardDeleteBusiness`), así que
+   * archivar sigue siendo el paso previo obligatorio.
+   *
+   * El orden importa: primero se purgan las colas y la telemetría de alto
+   * volumen (fuera de transacción), después el borrado transaccional. Si
+   * algo falla en el medio, lo que quedó purgado es trabajo que igual no
+   * debía ejecutarse.
+   */
+  async hardDeleteBusiness(
+    adminId: string,
+    businessId: string,
+    confirmationName: string,
+  ) {
+    const business = await this.assertBusinessExists(businessId);
+
+    if (confirmationName?.trim() !== business.name.trim()) {
+      throw new BadRequestException(
+        `Para confirmar, escribí el nombre exacto del negocio: "${business.name}".`,
+      );
+    }
+
+    // Auditoría ANTES de borrar: después el `businessId` ya no resuelve.
+    this.logPlatformWrite(
+      adminId,
+      businessId,
+      'PLATFORM_BUSINESS_HARD_DELETED',
+      { businessName: business.name, businessSlug: business.slug },
+    );
+
+    const jobs = await this.jobPurge.purgePendingJobs(businessId);
+    const purged = await this.deletion.purgeHighVolumeRows(businessId);
+    const result = await this.deletion.hardDeleteBusiness(businessId);
+
+    return {
+      ...result,
+      deleted: { ...result.deleted, WidgetEvent: purged.widgetEvents },
+      totalDeleted: result.totalDeleted + purged.widgetEvents,
+      pendingJobsRemoved: jobs.removed,
+    };
   }
 
   async getOnboarding(adminId: string, businessId: string) {

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import ArchivedBusinesses from "./archived-businesses";
 import {
   AlertTriangle,
   Building2,
@@ -628,6 +629,8 @@ export default function PlatformPage() {
           </div>
         </div>
       </section>
+
+      <ArchivedBusinesses />
 
       {pendingDelete ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0D1B2A]/40 p-4">

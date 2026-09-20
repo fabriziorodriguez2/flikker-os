@@ -1,4 +1,4 @@
-import { ExperienceVersion } from '@prisma/client';
+import { BusinessStatus, ExperienceVersion } from '@prisma/client';
 import { RetentionProcessor } from '../../jobs/retention.processor';
 import { RetentionV2EvaluateService } from './retention-v2-evaluate.service';
 
@@ -16,6 +16,13 @@ type Flags = {
   isActive: boolean;
   experienceVersion: ExperienceVersion;
   retentionEngineV2Enabled: boolean;
+  /**
+   * Estar archivado ahora es parte de la propiedad: un negocio archivado no
+   * pertenece a NINGÚN motor. Antes el legacy lo reclamaba igual y le seguía
+   * mandando mensajes a sus clientes.
+   */
+  archivedAt: Date | null;
+  status: BusinessStatus;
 };
 
 const ALL_FLAG_COMBINATIONS: Flags[] = [
@@ -23,13 +30,25 @@ const ALL_FLAG_COMBINATIONS: Flags[] = [
   ExperienceVersion.CHECKIN_V2,
 ].flatMap((experienceVersion) =>
   [true, false].flatMap((retentionEngineV2Enabled) =>
-    [true, false].map((isActive) => ({
-      isActive,
-      experienceVersion,
-      retentionEngineV2Enabled,
-    })),
+    [true, false].flatMap((isActive) =>
+      // Los dos estados que importan: vivo, y archivado como lo escribe
+      // `archiveBusiness` (los tres campos juntos).
+      [
+        { archivedAt: null, status: BusinessStatus.ACTIVE },
+        { archivedAt: new Date(), status: BusinessStatus.ARCHIVED },
+      ].map((archival) => ({
+        isActive,
+        experienceVersion,
+        retentionEngineV2Enabled,
+        ...archival,
+      })),
+    ),
   ),
 );
+
+/** Operativo = lo que `business-operational.guard` considera vivo. */
+const isOperational = (f: Flags) =>
+  f.isActive && f.archivedAt === null && f.status !== BusinessStatus.ARCHIVED;
 
 /** Evaluates the subset of Prisma `where` syntax these two filters use. */
 function matches(where: Record<string, unknown>, flags: Flags): boolean {
@@ -39,6 +58,9 @@ function matches(where: Record<string, unknown>, flags: Flags): boolean {
     }
     if (key === 'business') {
       return matches(value as Record<string, unknown>, flags);
+    }
+    if (value !== null && typeof value === 'object' && 'not' in value) {
+      return flags[key as keyof Flags] !== (value as { not: unknown }).not;
     }
     if (key === 'enabled') {
       // The sequence's own enabled flag, not a business flag: assume the
@@ -94,7 +116,7 @@ describe('Retention engine ownership — legacy and V2 never overlap', () => {
     const legacy = await captureLegacyWhere();
     const v2 = await captureV2Where();
 
-    for (const flags of ALL_FLAG_COMBINATIONS.filter((f) => f.isActive)) {
+    for (const flags of ALL_FLAG_COMBINATIONS.filter(isOperational)) {
       const owners = [
         matches(legacy, flags) ? 'legacy' : null,
         matches(v2, flags) ? 'v2' : null,
@@ -116,6 +138,8 @@ describe('Retention engine ownership — legacy and V2 never overlap', () => {
           isActive: true,
           experienceVersion: ExperienceVersion.CHECKIN_V2,
           retentionEngineV2Enabled: true,
+          archivedAt: null,
+          status: BusinessStatus.ACTIVE,
         },
       ],
     );
@@ -128,6 +152,8 @@ describe('Retention engine ownership — legacy and V2 never overlap', () => {
       isActive: true,
       experienceVersion: ExperienceVersion.CHECKIN_V2,
       retentionEngineV2Enabled: false,
+      archivedAt: null,
+      status: BusinessStatus.ACTIVE,
     };
 
     // The dangerous failure is being dropped by *both* engines, which would
@@ -143,6 +169,8 @@ describe('Retention engine ownership — legacy and V2 never overlap', () => {
       isActive: true,
       experienceVersion: ExperienceVersion.LEGACY,
       retentionEngineV2Enabled: true,
+      archivedAt: null,
+      status: BusinessStatus.ACTIVE,
     };
 
     expect(matches(v2, misconfigured)).toBe(false);

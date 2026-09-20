@@ -17,6 +17,7 @@ import {
 } from '../retention.queue';
 import { RetentionProcessor } from '../retention.processor';
 import { WhatsAppBspService } from '../whatsapp-bsp.service';
+import { isBusinessOperational } from '../business-operational.guard';
 
 @Injectable()
 export class RetentionWorker implements OnModuleInit, OnModuleDestroy {
@@ -61,6 +62,19 @@ export class RetentionWorker implements OnModuleInit, OnModuleDestroy {
     });
 
     if (!send || !send.message) return;
+
+    /*
+      Segunda capa, misma razón que en `repeats.worker`: este job llevaba el
+      `retentionSendId` en Redis y el negocio pudo archivarse entre el
+      encolado y el envío. SKIP silencioso, sin `markFailed` — no es un
+      fallo de envío, es un envío que ya no corresponde.
+    */
+    if (!isBusinessOperational(send.business)) {
+      this.logger.log(
+        `Retention message omitido: el negocio ${send.businessId} ya no está operativo.`,
+      );
+      return;
+    }
 
     // Step deleted after queueing → we lost the body; nothing to send.
     if (!send.step) {

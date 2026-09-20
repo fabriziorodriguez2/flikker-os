@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RetentionQueue } from './retention.queue';
+import { OPERATIONAL_BUSINESS_WHERE } from './business-operational.guard';
 
 interface RetentionStepRow {
   id: string;
@@ -74,6 +75,11 @@ export class RetentionProcessor {
     return this.prisma.retentionSequence.findMany({
       where: {
         enabled: true,
+        // Archivar nunca apagó las secuencias: quedan `enabled: true` para
+        // siempre. Sin esto, un negocio archivado seguía contactando a sus
+        // clientes. Va como condición positiva y aparte del `NOT` de abajo
+        // — mezclarlas invertiría el sentido de una de las dos.
+        business: OPERATIONAL_BUSINESS_WHERE,
         NOT: {
           business: {
             experienceVersion: ExperienceVersion.CHECKIN_V2,

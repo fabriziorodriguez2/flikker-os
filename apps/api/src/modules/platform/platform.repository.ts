@@ -33,6 +33,38 @@ export class PlatformRepository {
   constructor(private readonly prisma: PrismaService) {}
 
   /**
+   * El archivo. `findAllBusinesses` los excluye a propósito (son ruido en la
+   * operación diaria), pero sin una vista propia quedaban inalcanzables:
+   * archivar era una puerta de una sola dirección incluso para el admin.
+   *
+   * Trae los conteos que importan para decidir si borrar: cuánto se pierde
+   * y cuántas identidades globales hay del otro lado.
+   */
+  async findArchivedBusinesses() {
+    return this.prisma.business.findMany({
+      where: { status: BusinessStatus.ARCHIVED },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        status: true,
+        archivedAt: true,
+        createdAt: true,
+        experienceVersion: true,
+        _count: {
+          select: {
+            customers: true,
+            visits: true,
+            googleReviews: true,
+            memberships: true,
+          },
+        },
+      },
+      orderBy: { archivedAt: 'desc' },
+    });
+  }
+
+  /**
    * Lists all businesses with aggregated stats for the platform admin panel.
    */
   async findAllBusinesses() {
@@ -333,6 +365,30 @@ export class PlatformRepository {
         status: BusinessStatus.ARCHIVED,
         isActive: false,
         archivedAt: new Date(),
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        status: true,
+        isActive: true,
+        archivedAt: true,
+      },
+    });
+  }
+
+  /**
+   * Deshace `archiveBusiness`: los MISMOS tres campos, en sentido inverso.
+   * Vuelve a ACTIVE y no al status previo porque ese dato no se guarda al
+   * archivar — y ACTIVE es el único estado desde el que un negocio opera.
+   */
+  restoreBusiness(businessId: string) {
+    return this.prisma.business.update({
+      where: { id: businessId },
+      data: {
+        status: BusinessStatus.ACTIVE,
+        isActive: true,
+        archivedAt: null,
       },
       select: {
         id: true,

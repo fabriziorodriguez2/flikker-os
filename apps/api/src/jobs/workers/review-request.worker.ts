@@ -9,6 +9,7 @@ import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { MessageStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
+import { isBusinessOperational } from '../business-operational.guard';
 import { FeedbackRepository } from '../../modules/feedback/feedback.repository';
 import { createRedisConnection, REDIS_CONFIGURED } from '../redis-connection';
 import {
@@ -75,6 +76,18 @@ export class ReviewRequestWorker implements OnModuleInit, OnModuleDestroy {
 
     if (!message) {
       this.logger.warn(`Message ${data.messageId} not found`);
+      return;
+    }
+
+    /*
+      Este job se programa con una demora de horas, así que el negocio puede
+      archivarse entre que se agenda el recordatorio y que le toca salir. El
+      `message.business` ya vino cargado; solo falta mirarlo antes del envío.
+    */
+    if (!isBusinessOperational(message.business)) {
+      this.logger.log(
+        `Review request omitido: el negocio ${message.businessId} ya no está operativo.`,
+      );
       return;
     }
 

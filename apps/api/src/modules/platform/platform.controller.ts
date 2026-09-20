@@ -17,6 +17,7 @@ import type { AuthenticatedRequest } from '../../common/types/request.types';
 import { PlatformService } from './platform.service';
 import { ShopifyConfigService } from '../integrations/shopify/shopify-config.service';
 import { SetBusinessPlanDto } from './dto/set-business-plan.dto';
+import { HardDeleteBusinessDto } from './dto/hard-delete-business.dto';
 import { UpdateExperienceDto } from './dto/update-experience.dto';
 import { ExperienceVersion } from '@prisma/client';
 
@@ -35,6 +36,12 @@ export class PlatformController {
   @Get('businesses')
   listBusinesses() {
     return this.platformService.listBusinesses();
+  }
+
+  /** Ruta literal ANTES de cualquier 'businesses/:businessId'. */
+  @Get('businesses/archived')
+  listArchivedBusinesses() {
+    return this.platformService.listArchivedBusinesses();
   }
 
   @Post('businesses')
@@ -83,6 +90,38 @@ export class PlatformController {
     @Param('businessId') businessId: string,
   ) {
     return this.platformService.archiveBusiness(req.user.id, businessId);
+  }
+
+  @Post('businesses/:businessId/restore')
+  restoreBusiness(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+  ) {
+    return this.platformService.restoreBusiness(req.user.id, businessId);
+  }
+
+  /**
+   * Eliminar definitivamente. Irreversible.
+   *
+   * `POST` y no `DELETE` a propósito: necesita un body con el nombre
+   * escrito por el admin, y un `DELETE` con body es ambiguo en varios
+   * clientes HTTP. Además deja el `DELETE` de arriba —archivar— con su
+   * semántica de siempre, que es la reversible.
+   *
+   * El servicio vuelve a validar el nombre y que el negocio esté archivado:
+   * la UI no es la que decide esto.
+   */
+  @Post('businesses/:businessId/hard-delete')
+  hardDeleteBusiness(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId') businessId: string,
+    @Body() dto: HardDeleteBusinessDto,
+  ) {
+    return this.platformService.hardDeleteBusiness(
+      req.user.id,
+      businessId,
+      dto.confirmationName,
+    );
   }
 
   @Get('businesses/:businessId/onboarding')

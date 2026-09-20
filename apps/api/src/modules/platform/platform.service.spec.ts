@@ -10,6 +10,8 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.queue';
 import { PlansService } from '../plans/plans.service';
 import { CustomerPublicUrlService } from '../public/customer-public-url.service';
+import { BusinessDeletionService } from './business-deletion.service';
+import { BusinessJobPurgeService } from './business-job-purge.service';
 
 const mockRepo = {
   findAllBusinesses: jest.fn(),
@@ -66,6 +68,19 @@ describe('PlatformService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: PlansService, useValue: mockPlansService },
         { provide: CustomerPublicUrlService, useValue: mockPublicUrls },
+        // Solo los usa `hardDeleteBusiness`, que este spec no ejercita —
+        // pero Nest igual necesita poder construir el servicio.
+        {
+          provide: BusinessDeletionService,
+          useValue: {
+            hardDeleteBusiness: jest.fn(),
+            purgeHighVolumeRows: jest.fn(),
+          },
+        },
+        {
+          provide: BusinessJobPurgeService,
+          useValue: { purgePendingJobs: jest.fn() },
+        },
       ],
     }).compile();
     service = module.get<PlatformService>(PlatformService);
