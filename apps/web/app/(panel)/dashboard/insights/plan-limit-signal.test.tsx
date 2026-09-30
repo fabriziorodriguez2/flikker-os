@@ -62,10 +62,17 @@ describe("PlanLimitSignal", () => {
     expect(html).toContain('data-pro-feature="customer_limit"');
   });
 
-  it("el CTA es “Ampliar capacidad” y lleva a Suscripción", () => {
+  /*
+    El CTA ya no navega: abre `UpgradePlanModal`, el único lugar del panel
+    que manda a Mercado Pago. Así el dueño ve mensual y anual antes de
+    pagar, en vez de caer en un checkout ya elegido por nosotros.
+  */
+  it("el CTA es “Ampliar capacidad” y abre el modal, no navega", () => {
     const html = renderToStaticMarkup(<PlanLimitSignal usage={usage()} />);
     expect(html).toContain("Ampliar capacidad");
-    expect(html).toContain('href="/dashboard/settings/suscripcion"');
+    expect(html).toContain("<button");
+    expect(html).not.toContain("href=");
+    expect(html).not.toContain("mpago");
   });
 
   it("singular con una sola persona bloqueada", () => {

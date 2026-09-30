@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
 import { useToast } from "@/components/ui/toast";
-import ProUpgradePrompt from "@/components/panel/pro-upgrade-prompt";
+import { useUpgradeModal } from "@/components/panel/upgrade-modal-provider";
 import { useIsOwnerOrAdmin } from "../../role-context";
 
 /**
@@ -120,8 +120,8 @@ export default function AutomationsTab() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  /** Paywall de Cumpleaños — se abre por acción del dueño, nunca solo. */
-  const [proModalOpen, setProModalOpen] = useState(false);
+  // Un solo modal de upgrade en todo el panel — ver UpgradeModalProvider.
+  const { openUpgradeModal } = useUpgradeModal();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -308,37 +308,16 @@ export default function AutomationsTab() {
           example="“¡Feliz cumpleaños de parte de tu negocio! 🎉”"
           enabled={cumpleanos.enabled}
           locked={cumpleanos.locked}
-          onLockedClick={() => setProModalOpen(true)}
+          onLockedClick={() =>
+            openUpgradeModal({ feature: "birthday", source: "automations" })
+          }
           channels={cumpleanos.channels}
           disabled={!canManage || saving}
           onToggle={(value) => void patch({ cumpleanos: value })}
         />
       ) : null}
 
-      {/*
-        Paywall contextual de Cumpleaños. Se abre SOLO cuando el dueño toca
-        el CTA de esa fila — nunca al entrar a la pantalla. Los tres
-        beneficios hablan de esta automatización, no del plan entero.
-      */}
-      {proModalOpen ? (
-        <ProUpgradePrompt
-          feature="cumpleanos"
-          variant="modal"
-          title="Cumpleaños"
-          description="Un saludo automático el día del cumpleaños de cada cliente, sin que tengas que acordarte."
-          benefits={[
-            "Saludar automáticamente a cada cliente el día de su cumpleaños.",
-            "Acompañar el saludo con un beneficio, si querés darle una razón para venir.",
-            "Desbloquear el resto de las funciones Pro del plan.",
-          ]}
-          cta="Activar Pro"
-          secondaryAction={{
-            label: "Ahora no",
-            onClick: () => setProModalOpen(false),
-          }}
-          onDismiss={() => setProModalOpen(false)}
-        />
-      ) : null}
+
 
       {/*
         ── D. Te extrañamos ─────────────────────────────────────────────

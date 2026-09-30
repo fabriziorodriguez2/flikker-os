@@ -8,7 +8,15 @@ import {
   renderEmailLayout,
 } from './email-design-system';
 
-export const MERCADOPAGO_CHECKOUT_URL = 'https://mpago.la/1Acxajh';
+/**
+ * Re-export por compatibilidad: el valor real vive en `config/checkout`,
+ * única fuente de verdad. Los emails siguen mandando al checkout MENSUAL —
+ * el anual se elige en el modal del panel, que es donde se pueden comparar
+ * las dos opciones; un email no es lugar para esa decisión.
+ */
+import { PRO_MONTHLY_CHECKOUT_URL } from '../config/checkout';
+
+export const MERCADOPAGO_CHECKOUT_URL = PRO_MONTHLY_CHECKOUT_URL;
 
 function insightsUrl(): string {
   return getEmailAppUrl('/dashboard/insights');

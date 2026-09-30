@@ -450,7 +450,7 @@ function GoogleCalendarConfigPanel({
     if (!isConnected) return;
     void loadCalendars();
     void loadEvents();
-  }, [isConnected]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [isConnected]);  
 
   async function loadCalendars() {
     setLoadingCalendars(true);

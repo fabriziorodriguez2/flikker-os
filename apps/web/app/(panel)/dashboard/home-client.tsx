@@ -18,10 +18,7 @@ import { relativeDay } from "./customers/loyalty-ui";
 import QuickActions from "./quick-actions";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
 import PlanUsageMeter from "@/components/panel/plan-usage-meter";
-import {
-  parseFreePlanUsage,
-  type FreePlanUsage,
-} from "@/lib/free-plan-usage";
+import { useUpgradeModal } from "@/components/panel/upgrade-modal-provider";
 
 /**
  * Inicio — la portada del producto. Rediseño (pedido explícito, referencia
@@ -410,50 +407,25 @@ export default function HomeClient({ firstName }: { firstName: string }) {
 /**
  * "Tu plan" — el único lugar de Inicio donde se habla de planes.
  *
- * Carga aparte de `/home/overview` a propósito: el overview de Inicio es
- * caro y compartido, y el estado de suscripción no es un KPI del negocio.
- * Si esta llamada falla, Inicio no muestra nada y sigue funcionando igual
- * — nunca un error de plan puede romper la portada.
+ * El estado del plan ya lo cargó `UpgradeModalProvider` una vez para todo
+ * el panel; acá solo se lee. Antes esto hacía su propio fetch, que era un
+ * round-trip extra por cada visita a la portada para un dato compartido.
  *
- * Los dos números salen enteros del backend (`Plan.maxCustomers` y el conteo
- * de participantes de `PlansService`), nunca se derivan acá: el tope que
- * mostramos tiene que ser exactamente el que aplica `canAddParticipant`.
+ * `freePlanUsage` llega en `null` para Pro, para negocios sin tope, y
+ * también si la lectura del plan falló. Ese mismo `null` es lo que hace
+ * desaparecer el bloque — no hay que apagarlo a mano.
  */
 function HomePlanBlock() {
-  const [usage, setUsage] = useState<FreePlanUsage | null>(null);
+  const { freePlanUsage } = useUpgradeModal();
 
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/proxy/businesses/current/subscription");
-        if (!res.ok) return;
-        const raw: unknown = await res.json();
-        if (cancelled || typeof raw !== "object" || raw === null) return;
-        const parsed = parseFreePlanUsage(
-          (raw as Record<string, unknown>).freePlanUsage,
-        );
-        if (parsed) setUsage(parsed);
-      } catch {
-        // Silencioso por diseño — ver el comentario del componente.
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  // `freePlanUsage` viene en `null` para Pro y para negocios sin tope. Ese
-  // solo hecho es lo que hace desaparecer el bloque al actualizar el plan:
-  // no hay que apagar nada a mano ni borrar el historial de bloqueos.
-  if (!usage) return null;
+  if (!freePlanUsage) return null;
 
   return (
     <section className="rounded-[14px] border border-[#E5E7EF] bg-white px-5 py-4 shadow-[0_1px_4px_rgba(17,22,59,0.035)]">
       <PlanUsageMeter
-        used={usage.current}
-        limit={usage.limit}
-        blockedLast7Days={usage.blockedCustomersLast7Days}
+        used={freePlanUsage.current}
+        limit={freePlanUsage.limit}
+        blockedLast7Days={freePlanUsage.blockedCustomersLast7Days}
       />
     </section>
   );

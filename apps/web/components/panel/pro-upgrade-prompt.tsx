@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect } from "react";
-import Link from "next/link";
-import { Lock, Sparkles, X } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import ProBadge from "./pro-badge";
+import { useUpgradeModal } from "./upgrade-modal-provider";
 
 /**
  * El único paywall del panel. Cuatro variantes de la misma pieza, en vez de
@@ -16,15 +16,18 @@ import { Lock, Sparkles, X } from "lucide-react";
  * evidencia real, se pasa `undefined` y el prompt se muestra sin inventar
  * una — nunca un número estimado, proyectado ni de ejemplo.
  *
- * El CTA lleva a `/dashboard/settings/suscripcion`, no directo al checkout:
- * ahí vive el precio real, el estado del trial y el plan actual. Mandar a
- * pagar sin esa pantalla de por medio sería vender a ciegas.
+ * El CTA abre `UpgradePlanModal` — nunca navega al checkout ni a la pantalla
+ * de Suscripción. Elegir entre mensual y anual es una decisión del dueño, y
+ * saltearla le esconde la opción que más le conviene.
  */
 
-/** A dónde va siempre el CTA primario. Un solo lugar. */
-const SUBSCRIPTION_HREF = "/dashboard/settings/suscripcion";
-
-export type ProUpgradeVariant = "inline" | "card" | "modal" | "compact";
+/**
+ * Sin variante `modal`: ese trabajo es de `UpgradePlanModal`, el único
+ * modal del sistema. Tener dos modales de upgrade llevaba a encadenarlos
+ * (explicación → elección de plan), que es un click de más para el dueño y
+ * dos diseños que se desincronizan.
+ */
+export type ProUpgradeVariant = "inline" | "card" | "compact";
 
 export interface ProUpgradePromptProps {
   /**
@@ -50,34 +53,22 @@ export interface ProUpgradePromptProps {
   benefits?: string[];
   /** Texto del CTA primario. Por defecto "Activar Pro". */
   cta?: string;
-  /**
-   * Acción secundaria. En `modal` es obligatoria en la práctica ("Ahora
-   * no") — un modal sin salida clara es un dark pattern.
-   */
+  /** Acción secundaria opcional ("Ahora no", "Recordármelo después"). */
   secondaryAction?: { label: string; onClick: () => void };
   variant?: ProUpgradeVariant;
-  /** Solo `modal`: cerrar con Escape, backdrop o la X. */
-  onDismiss?: () => void;
-}
-
-function ProBadge() {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-[#F1EDFF] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7258D6]">
-      <Lock className="h-3 w-3" aria-hidden="true" />
-      Pro
-    </span>
-  );
 }
 
 function PrimaryCta({ feature, label }: { feature: string; label: string }) {
+  const { openUpgradeModal } = useUpgradeModal();
   return (
-    <Link
-      href={SUBSCRIPTION_HREF}
+    <button
+      type="button"
+      onClick={() => openUpgradeModal({ feature })}
       data-pro-feature={feature}
-      className="flk-glossy inline-flex h-10 shrink-0 items-center justify-center rounded-[9px] bg-[#6D4AFF] px-4 text-sm font-semibold text-white hover:bg-[#5c3ee0]"
+      className="flk-glossy inline-flex h-10 shrink-0 items-center justify-center rounded-[9px] bg-[#6D4AFF] px-4 text-sm font-semibold text-white hover:bg-[#5c3ee0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6D4AFF] focus-visible:ring-offset-2"
     >
       {label}
-    </Link>
+    </button>
   );
 }
 
@@ -106,6 +97,21 @@ function Evidence({ text }: { text: string }) {
   );
 }
 
+/** Variante de una línea: mismo destino, menos peso visual. */
+function CompactCta({ feature, label }: { feature: string; label: string }) {
+  const { openUpgradeModal } = useUpgradeModal();
+  return (
+    <button
+      type="button"
+      onClick={() => openUpgradeModal({ feature })}
+      data-pro-feature={feature}
+      className="text-sm font-semibold text-[#6D4AFF] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6D4AFF]"
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function ProUpgradePrompt({
   feature,
   title,
@@ -115,24 +121,7 @@ export default function ProUpgradePrompt({
   cta = "Activar Pro",
   secondaryAction,
   variant = "card",
-  onDismiss,
 }: ProUpgradePromptProps) {
-  /*
-    El modal se cierra con Escape. Un paywall del que solo se sale con el
-    mouse, o del que no se sale, es exactamente el patrón que este sistema
-    no quiere tener.
-  */
-  const dismiss = onDismiss ?? secondaryAction?.onClick;
-
-  useEffect(() => {
-    if (variant !== "modal" || !dismiss) return;
-    function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") dismiss?.();
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [variant, dismiss]);
-
   // ── compact ──────────────────────────────────────────────────────────
   // Una línea. Para listas y filas donde una card rompería el ritmo.
   if (variant === "compact") {
@@ -140,13 +129,7 @@ export default function ProUpgradePrompt({
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
         <ProBadge />
         <span className="text-sm text-[#5C6478]">{evidence ?? description}</span>
-        <Link
-          href={SUBSCRIPTION_HREF}
-          data-pro-feature={feature}
-          className="text-sm font-semibold text-[#6D4AFF] hover:underline"
-        >
-          {cta}
-        </Link>
+        <CompactCta feature={feature} label={cta} />
       </div>
     );
   }
@@ -167,74 +150,6 @@ export default function ProUpgradePrompt({
           {benefits?.length ? <BenefitList items={benefits} /> : null}
         </div>
         <PrimaryCta feature={feature} label={cta} />
-      </div>
-    );
-  }
-
-  // ── modal ────────────────────────────────────────────────────────────
-  // Se abre al INTENTAR usar la feature. Nunca al entrar a una pantalla:
-  // un modal que interrumpe sin que el dueño haya pedido nada es ruido.
-  if (variant === "modal") {
-    return (
-      <div
-        className="fixed inset-0 z-50 flex items-end justify-center bg-[#151833]/40 p-4 sm:items-center"
-        role="presentation"
-        onClick={(event) => {
-          if (event.target === event.currentTarget) dismiss?.();
-        }}
-      >
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby={`pro-modal-${feature}`}
-          className="w-full max-w-md rounded-[18px] bg-white p-6 shadow-[0_24px_60px_rgba(17,22,59,0.22)]"
-        >
-          <div className="flex items-start justify-between gap-3">
-            <ProBadge />
-            {dismiss ? (
-              <button
-                type="button"
-                onClick={dismiss}
-                aria-label="Cerrar"
-                className="-mr-1 -mt-1 inline-flex h-8 w-8 items-center justify-center rounded-[8px] text-[#8891A4] hover:bg-[#F5F6FA] hover:text-[#202333]"
-              >
-                <X className="h-4 w-4" aria-hidden="true" />
-              </button>
-            ) : null}
-          </div>
-
-          <h2
-            id={`pro-modal-${feature}`}
-            className="mt-3 font-display text-lg font-bold text-[#1A202C]"
-          >
-            {title}
-          </h2>
-          <p className="mt-1.5 text-sm leading-6 text-[#5C6478]">
-            {description}
-          </p>
-          {evidence ? <Evidence text={evidence} /> : null}
-          {benefits?.length ? (
-            <>
-              <p className="mt-4 text-xs font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
-                Con Pro podés
-              </p>
-              <BenefitList items={benefits} />
-            </>
-          ) : null}
-
-          <div className="mt-6 flex items-center justify-end gap-3">
-            {secondaryAction ? (
-              <button
-                type="button"
-                onClick={secondaryAction.onClick}
-                className="text-sm font-semibold text-[#8891A4] hover:text-[#202333]"
-              >
-                {secondaryAction.label}
-              </button>
-            ) : null}
-            <PrimaryCta feature={feature} label={cta} />
-          </div>
-        </div>
       </div>
     );
   }

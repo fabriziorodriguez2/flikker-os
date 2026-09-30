@@ -1,3 +1,5 @@
+import { readFileSync } from "fs";
+import { join } from "path";
 import { renderToStaticMarkup } from "react-dom/server";
 import ProUpgradePrompt from "./pro-upgrade-prompt";
 import PlanUsageMeter from "./plan-usage-meter";
@@ -49,33 +51,42 @@ describe("ProUpgradePrompt", () => {
     expect(html).toContain("8 clientes hace tiempo que no vuelven.");
   });
 
-  it("el CTA lleva a Suscripción, no directo al checkout de pago", () => {
+  /*
+    Ningún nudge navega por su cuenta. El CTA abre `UpgradePlanModal`, que
+    es el único lugar que manda a pagar — así el dueño siempre ve las dos
+    opciones antes de ir a Mercado Pago.
+  */
+  it("el CTA es un botón que abre el modal, nunca un link al checkout", () => {
     const html = renderToStaticMarkup(<ProUpgradePrompt {...base} />);
-    expect(html).toContain('href="/dashboard/settings/suscripcion"');
     expect(html).not.toContain("mpago");
+    expect(html).not.toContain("href=");
+    expect(html).toContain("<button");
+    expect(html).toContain('data-pro-feature="reactivacion_automatica"');
   });
 
-  it("todas las variantes renderizan el badge PRO y el CTA", () => {
-    for (const variant of ["inline", "card", "modal", "compact"] as const) {
+  it("las tres variantes renderizan el badge PRO y el CTA", () => {
+    for (const variant of ["inline", "card", "compact"] as const) {
       const html = renderToStaticMarkup(
         <ProUpgradePrompt {...base} variant={variant} />,
       );
       expect(html).toContain("Pro");
-      expect(html).toContain("/dashboard/settings/suscripcion");
+      expect(html).toContain("<button");
     }
   });
 
-  it("el modal es un dialog accesible y conserva la salida secundaria", () => {
-    const html = renderToStaticMarkup(
-      <ProUpgradePrompt
-        {...base}
-        variant="modal"
-        secondaryAction={{ label: "Ahora no", onClick: () => {} }}
-      />,
+  /*
+    Ya no existe variante `modal`: ese trabajo es de `UpgradePlanModal`.
+    Tener dos modales de upgrade llevaba a encadenarlos — explicación de la
+    feature y después elección de plan — que es un click de más y dos
+    diseños que se desincronizan.
+  */
+  it("no reintroduce un segundo modal de upgrade", () => {
+    const source = readFileSync(
+      join(__dirname, "pro-upgrade-prompt.tsx"),
+      "utf-8",
     );
-    expect(html).toContain('role="dialog"');
-    expect(html).toContain('aria-modal="true"');
-    expect(html).toContain("Ahora no");
+    expect(source).not.toContain('role="dialog"');
+    expect(source).not.toContain('"modal"');
   });
 
   it("el copy por defecto no usa urgencia ni culpa", () => {
@@ -113,6 +124,8 @@ describe("PlanUsageMeter", () => {
     expect(html).toContain("41 / 50 clientes");
     expect(html).toContain("Te quedan 9 lugares para nuevos clientes.");
     expect(html).toContain("Ver Pro");
+    // Abre el modal; no navega por su cuenta.
+    expect(html).not.toContain("href=");
   });
 
   it("singular cuando queda uno solo — nunca “1 lugares”", () => {

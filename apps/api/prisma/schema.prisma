@@ -390,21 +390,21 @@ model User {
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 
-  memberships             Membership[]          @relation("UserMemberships")
-  invitedMemberships      Membership[]          @relation("InvitedByUser")
+  memberships             Membership[]             @relation("UserMemberships")
+  invitedMemberships      Membership[]             @relation("InvitedByUser")
   sessions                Session[]
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
-  impersonationLogs    ImpersonationLog[]
-  auditLogs            AuditLog[]
-  createdCampaigns     Campaign[]            @relation("CampaignCreator")
-  createdReviews       Review[]              @relation("ReviewCreator")
-  respondedReviews     Review[]              @relation("ReviewResponder")
-  authoredResponses    Response[]            @relation("ResponseAuthor")
-  statusChanges        ReviewStatusHistory[] @relation("StatusChanger")
-  businessPlansCreated BusinessPlan[]        @relation("BusinessPlanCreator")
-  simulationRuns       SimulationRun[]       @relation("SimulationRunCreator")
-  programAuditEvents   ProgramAuditEvent[]
+  impersonationLogs       ImpersonationLog[]
+  auditLogs               AuditLog[]
+  createdCampaigns        Campaign[]               @relation("CampaignCreator")
+  createdReviews          Review[]                 @relation("ReviewCreator")
+  respondedReviews        Review[]                 @relation("ReviewResponder")
+  authoredResponses       Response[]               @relation("ResponseAuthor")
+  statusChanges           ReviewStatusHistory[]    @relation("StatusChanger")
+  businessPlansCreated    BusinessPlan[]           @relation("BusinessPlanCreator")
+  simulationRuns          SimulationRun[]          @relation("SimulationRunCreator")
+  programAuditEvents      ProgramAuditEvent[]
 }
 
 // ---------------------------------------------------------------------------
@@ -433,84 +433,84 @@ model Session {
 // ---------------------------------------------------------------------------
 
 model Business {
-  id                           String            @id @default(uuid())
-  name                         String
-  legalName                    String?
-  slug                         String            @unique
-  status                       BusinessStatus    @default(DRAFT)
-  industry                     String?
-  vertical                     String?
-  description                  String?
-  website                      String?
-  phone                        String?
-  email                        String?
-  country                      String
-  timezone                     String
-  currency                     String
-  logoUrl                      String?
-  primaryColor                 String?
-  secondaryColor               String?
-  toneOfVoice                  String?
-  whatsappUrl                  String?
-  shortBio                     String?
-  signatureText                String?
-  benefitText                  String?           @map("benefit_text")
-  qrA4Title                    String?           @map("qr_a4_title")
-  qrA4Subtitle                 String?           @map("qr_a4_subtitle")
-  qrA4BgColor                  String?           @map("qr_a4_bg_color")
+  id                               String              @id @default(uuid())
+  name                             String
+  legalName                        String?
+  slug                             String              @unique
+  status                           BusinessStatus      @default(DRAFT)
+  industry                         String?
+  vertical                         String?
+  description                      String?
+  website                          String?
+  phone                            String?
+  email                            String?
+  country                          String
+  timezone                         String
+  currency                         String
+  logoUrl                          String?
+  primaryColor                     String?
+  secondaryColor                   String?
+  toneOfVoice                      String?
+  whatsappUrl                      String?
+  shortBio                         String?
+  signatureText                    String?
+  benefitText                      String?             @map("benefit_text")
+  qrA4Title                        String?             @map("qr_a4_title")
+  qrA4Subtitle                     String?             @map("qr_a4_subtitle")
+  qrA4BgColor                      String?             @map("qr_a4_bg_color")
   /// Apariencia de la tarjeta de sellos que ve el cliente (Programa →
   /// Diseño). Los valores opcionales usan null para indicar "automático";
   /// el render final siempre valida contraste antes de aplicar colores.
-  loyaltyCardColor             String?           @map("loyalty_card_color")
-  loyaltyCardTextColor         String?           @map("loyalty_card_text_color")
-  loyaltyCardBackgroundImage   String?           @map("loyalty_card_background_image")
-  loyaltyStampAreaColor        String?           @map("loyalty_stamp_area_color")
-  loyaltyStampColor            String?           @map("loyalty_stamp_color")
-  loyaltyStampIcon             String?           @map("loyalty_stamp_icon")
-  loyaltyShowBusinessName      Boolean           @default(true) @map("loyalty_show_business_name")
+  loyaltyCardColor                 String?             @map("loyalty_card_color")
+  loyaltyCardTextColor             String?             @map("loyalty_card_text_color")
+  loyaltyCardBackgroundImage       String?             @map("loyalty_card_background_image")
+  loyaltyStampAreaColor            String?             @map("loyalty_stamp_area_color")
+  loyaltyStampColor                String?             @map("loyalty_stamp_color")
+  loyaltyStampIcon                 String?             @map("loyalty_stamp_icon")
+  loyaltyShowBusinessName          Boolean             @default(true) @map("loyalty_show_business_name")
   /// Patrón decorativo detrás de los sellos — una de 8 keys fijas
   /// (`waves`/`bubbles`/`arcs`/`curved-lines`/`organic`/`geometric`/
   /// `confetti`, o `none`); null = sin patrón, igual que `none`. Sin
   /// validación de enum a nivel de base (mismo criterio que el resto de los
   /// campos `loyalty*` de acá arriba) — la valida el DTO.
-  loyaltyStampBackgroundPattern String?          @map("loyalty_stamp_background_pattern")
+  loyaltyStampBackgroundPattern    String?             @map("loyalty_stamp_background_pattern")
   /// 0-100. Null = "Automático" (Flikker elige la intensidad según si la
   /// tarjeta es clara u oscura). Nunca se aplica crudo: el render siempre lo
   /// re-mapea a un techo de opacidad seguro para que el patrón nunca
   /// dificulte leer el sello.
-  loyaltyStampBackgroundOpacity Int?             @map("loyalty_stamp_background_opacity")
+  loyaltyStampBackgroundOpacity    Int?                @map("loyalty_stamp_background_opacity")
   /// Programa → Página de inscripción. Encabezado propio, editable, para la
   /// landing pública de check-in (`/check-in/[token]`). Null = seguir usando
   /// el título del beneficio activo como encabezado (comportamiento previo a
   /// esta pantalla) — nunca se confunde con `benefitText`, que además decide
   /// la copia del subtítulo/botón y el mensaje de WhatsApp post-registro.
-  checkinWelcomeMessage        String?           @map("checkin_welcome_message")
+  checkinWelcomeMessage            String?             @map("checkin_welcome_message")
   /// Programa → Página de inscripción. Fondo elegido para el formulario
   /// público. Null = mantener la paleta automática derivada de la marca.
-  checkinBackgroundColor       String?           @map("checkin_background_color")
+  checkinBackgroundColor           String?             @map("checkin_background_color")
   /// Regalo de bienvenida (Programa). Fuente de verdad EXPLÍCITA, separada
   /// de `Benefit.active`: `active` significa "beneficio visible en el
   /// check-in" y se re-asegura en cada visita, así que no puede representar
   /// "se entrega una sola vez, en la primera visita". Null = sin regalo de
   /// bienvenida, que es el comportamiento de todo negocio existente.
-  welcomeBenefitId             String?           @map("welcome_benefit_id")
+  welcomeBenefitId                 String?             @map("welcome_benefit_id")
   /// True cuando el dueño YA decidió sobre el regalo de bienvenida, incluso
   /// si decidió que no. Distingue "todavía no lo preguntamos" de "dijo que
   /// no" — sin esto el wizard volvería a preguntar para siempre al reanudar,
   /// porque  significa las dos cosas.
-  welcomeGiftDecided           Boolean           @default(false) @map("welcome_gift_decided")
+  welcomeGiftDecided               Boolean             @default(false) @map("welcome_gift_decided")
   /// Mismo problema que welcomeGiftDecided, en el paso de Automatizaciones:
   /// "las dejé apagadas a propósito" y "todavía no llegué a ese paso" son
   /// ambos dos flags en false. Sin este campo el wizard manda al dueño de
   /// vuelta al paso 6 cada vez que refresca después de decir que no a todo.
-  notificationsDecided         Boolean           @default(false) @map("notifications_decided")
+  notificationsDecided             Boolean             @default(false) @map("notifications_decided")
   /// Onboarding self-service NUEVO (2 pasos). Igual filosofía que
   /// welcomeGiftDecided/notificationsDecided: distingue "el dueño todavía no
   /// llegó al paso 2" de "eligió Beneficios sin sellos", que en `Business` se
   /// ven idénticos si solo se mirara `rewardGoalsEnabled` (false en ambos
   /// casos). Se marca true al terminar el paso 2, sin importar qué camino
   /// eligió (Beneficios o Beneficios + sellos).
-  retentionProgramDecided      Boolean           @default(false) @map("retention_program_decided")
+  retentionProgramDecided          Boolean             @default(false) @map("retention_program_decided")
   /// Self-service — acceso Pro TEMPORAL a Beneficios (30 días), no una
   /// "modalidad" fija: arranca la primera vez que el negocio prende de
   /// verdad `RetentionSettings.benefitsEnabled` (onboarding "solo
@@ -522,18 +522,18 @@ model Business {
   /// una sola fila por negocio. Null = todavía nunca lo activó (LEGACY,
   /// Platform Admin, o self-service que solo eligió sellos) — nunca
   /// bloqueado. Ver `PlansService#isBenefitsBlocked`.
-  benefitsTrialStartedAt       DateTime?         @map("benefits_trial_started_at")
-  benefitsTrialEndsAt          DateTime?         @map("benefits_trial_ends_at")
+  benefitsTrialStartedAt           DateTime?           @map("benefits_trial_started_at")
+  benefitsTrialEndsAt              DateTime?           @map("benefits_trial_ends_at")
   /// Onboarding self-service: null mientras el dueño lo está completando.
   /// Es el ancla de reanudación — `POST /onboarding/business` reutiliza el
   /// negocio incompleto del usuario en vez de crear otro si refresca o
   /// vuelve atrás. Los negocios creados por Platform Admin nacen con fecha,
   /// así que nunca son candidatos a reanudar.
-  onboardingCompletedAt        DateTime?         @map("onboarding_completed_at")
-  googleBusinessProfileUrl     String?
-  googlePlaceId                String?           @map("google_place_id")
-  googleRefreshToken           String?           @map("google_refresh_token")
-  googleReviewsLastSyncAt      DateTime?         @map("google_reviews_last_sync_at")
+  onboardingCompletedAt            DateTime?           @map("onboarding_completed_at")
+  googleBusinessProfileUrl         String?
+  googlePlaceId                    String?             @map("google_place_id")
+  googleRefreshToken               String?             @map("google_refresh_token")
+  googleReviewsLastSyncAt          DateTime?           @map("google_reviews_last_sync_at")
   /// Estado de la importación histórica completa de reseñas de Google (se
   /// dispara al conectar un Place — ver `enqueueBackfill`). Dos fechas y no
   /// un enum a propósito: lo que la pantalla necesita saber es "¿está
@@ -542,26 +542,26 @@ model Business {
   /// realidad del worker. `started != null && completed == null` =
   /// "Sincronizando historial…". Null en las dos = negocio anterior a esta
   /// columna o que nunca conectó Google — nunca se muestra como "listo".
-  googleReviewsBackfillStartedAt   DateTime? @map("google_reviews_backfill_started_at")
-  googleReviewsBackfillCompletedAt DateTime? @map("google_reviews_backfill_completed_at")
+  googleReviewsBackfillStartedAt   DateTime?           @map("google_reviews_backfill_started_at")
+  googleReviewsBackfillCompletedAt DateTime?           @map("google_reviews_backfill_completed_at")
   /// Google Places API (New) — datos de solo lectura del Place conectado
   /// (Reseñas → Conectar Google). `googlePlaceId` y `googleBusinessProfileUrl`
   /// ya existían y NO se duplican: `googleBusinessProfileUrl`/
   /// `defaultReviewRedirectUrl` pasan a poblarse con el `writeAReviewUri` real
   /// de Google en vez del link armado a mano. Estos cuatro son estrictamente
   /// nuevos — Google no los expone en ningún campo existente.
-  googlePlaceDisplayName       String?           @map("google_place_display_name")
-  googlePlaceFormattedAddress  String?           @map("google_place_formatted_address")
-  googlePlaceRating            Float?            @map("google_place_rating")
-  googlePlaceUserRatingCount   Int?              @map("google_place_user_rating_count")
+  googlePlaceDisplayName           String?             @map("google_place_display_name")
+  googlePlaceFormattedAddress      String?             @map("google_place_formatted_address")
+  googlePlaceRating                Float?              @map("google_place_rating")
+  googlePlaceUserRatingCount       Int?                @map("google_place_user_rating_count")
   /// Link a TODAS las reseñas del local (distinto de `defaultReviewRedirectUrl`,
   /// que abre directamente la pantalla de escribir una reseña).
-  googlePlaceReviewsUri        String?           @map("google_place_reviews_uri")
+  googlePlaceReviewsUri            String?             @map("google_place_reviews_uri")
   /// Cuándo se conectó el Place actual (`connectGooglePlace`) — el ancla real
   /// de "reseñas desde que usás Flikker". Se pisa en cada reconexión: el
   /// conteo "desde que conectaste" siempre habla del Place conectado HOY, no
   /// de uno viejo que el negocio pudo haber desconectado.
-  googlePlaceConnectedAt       DateTime?         @map("google_place_connected_at")
+  googlePlaceConnectedAt           DateTime?           @map("google_place_connected_at")
   /// Última vez que se refrescaron `googlePlaceRating` /
   /// `googlePlaceUserRatingCount` contra Places Details. Es el throttle de
   /// "como máximo una vez cada 24 h por negocio".
@@ -572,19 +572,19 @@ model Business {
   /// reconectar un Place. Reusarlo haría que el throttle se moviera por
   /// corridas que no refrescaron nada, y que un reset de reseñas forzara un
   /// refresh de metadata que no corresponde. Son dos hechos distintos.
-  googlePlaceRefreshedAt       DateTime?         @map("google_place_refreshed_at")
-  whatsappPhoneId              String?           @map("whatsapp_phone_id")
-  messageQuotaMonthly          Int               @default(600) @map("message_quota_monthly")
-  messageCountCurrentMonth     Int               @default(0) @map("message_count_current_month")
-  reviewGoalMonthly            Int               @default(0) @map("review_goal_monthly")
-  reviewRequestsPausedUntil    DateTime?         @map("review_requests_paused_until")
-  defaultReviewRedirectUrl     String?
+  googlePlaceRefreshedAt           DateTime?           @map("google_place_refreshed_at")
+  whatsappPhoneId                  String?             @map("whatsapp_phone_id")
+  messageQuotaMonthly              Int                 @default(600) @map("message_quota_monthly")
+  messageCountCurrentMonth         Int                 @default(0) @map("message_count_current_month")
+  reviewGoalMonthly                Int                 @default(0) @map("review_goal_monthly")
+  reviewRequestsPausedUntil        DateTime?           @map("review_requests_paused_until")
+  defaultReviewRedirectUrl         String?
   // Check-in dedup + review re-prompt policy. Configurable per business (no
   // panel yet — defaults encode the product rules). The 8h rule is enforced
   // transactionally via an advisory lock, not a static index.
-  checkinMinHoursBetweenVisits Int               @default(8) @map("checkin_min_hours_between_visits")
-  checkinMaxVisitsPerDay       Int               @default(1) @map("checkin_max_visits_per_day")
-  checkinReviewPromptEveryDays Int               @default(30) @map("checkin_review_prompt_every_days")
+  checkinMinHoursBetweenVisits     Int                 @default(8) @map("checkin_min_hours_between_visits")
+  checkinMaxVisitsPerDay           Int                 @default(1) @map("checkin_max_visits_per_day")
+  checkinReviewPromptEveryDays     Int                 @default(30) @map("checkin_review_prompt_every_days")
   /// Prueba de presencia del check-in. El QR es FÍSICO y ESTÁTICO (carteles
   /// A4, soportes acrílicos con NFC): no puede rotar solo, así que una URL
   /// guardada en casa sirve para siempre y el dedup de 8 h / 1 por día
@@ -593,17 +593,17 @@ model Business {
   /// en el mostrador — la URL sigue siendo la puerta de entrada pero deja de
   /// alcanzar por sí sola. Default `off`: ningún negocio existente cambia de
   /// comportamiento hasta que su dueño lo prende. Ver `presence-challenge.ts`.
-  checkinPresenceMode          CheckinPresenceMode @default(off) @map("checkin_presence_mode")
+  checkinPresenceMode              CheckinPresenceMode @default(off) @map("checkin_presence_mode")
   // Per-business rollout. Default LEGACY on purpose: every existing business and
   // every new signup stays on the legacy experience unless an admin opts it in.
-  experienceVersion            ExperienceVersion @default(LEGACY) @map("experience_version")
+  experienceVersion                ExperienceVersion   @default(LEGACY) @map("experience_version")
   // Reserved for the future retention engine. Persisted only — nothing reads it
   // yet, so toggling it changes no behaviour.
-  retentionEngineV2Enabled     Boolean           @default(false) @map("retention_engine_v2_enabled")
-  isActive                     Boolean           @default(true)
-  createdAt                    DateTime          @default(now())
-  updatedAt                    DateTime          @updatedAt
-  archivedAt                   DateTime?
+  retentionEngineV2Enabled         Boolean             @default(false) @map("retention_engine_v2_enabled")
+  isActive                         Boolean             @default(true)
+  createdAt                        DateTime            @default(now())
+  updatedAt                        DateTime            @updatedAt
+  archivedAt                       DateTime?
 
   memberships                   Membership[]
   branches                      Branch[]
@@ -664,8 +664,8 @@ model Business {
   emailLogs                     EmailLog[]
   automationContacts            CustomerAutomationContact[]
   insightSummary                BusinessInsightSummary?
-  reactivationFunnelSummary      ReactivationFunnelSummary?
-  ownerLifecycleEmailLogs        OwnerLifecycleEmailLog[]
+  reactivationFunnelSummary     ReactivationFunnelSummary?
+  ownerLifecycleEmailLogs       OwnerLifecycleEmailLog[]
 }
 
 // ---------------------------------------------------------------------------
@@ -680,7 +680,7 @@ model BusinessInsightSummary {
   id         String @id @default(uuid())
   businessId String @unique @map("business_id")
 
-  summaryText String @map("summary_text")
+  summaryText     String @map("summary_text")
   /// string[], máximo 3 — cada una ya pasó la validación de "todo número
   /// mencionado existe en las métricas que se le pasaron a la IA" antes de
   /// guardarse acá (ver `business-insight-summary.service.ts`).
@@ -1373,15 +1373,15 @@ model CheckinFeedback {
 // ---------------------------------------------------------------------------
 
 model RewardGoalBonusStamp {
-  id           String   @id @default(uuid())
-  businessId   String   @map("business_id")
-  customerId   String   @map("customer_id")
-  rewardGoalId String   @map("reward_goal_id")
+  id                String   @id @default(uuid())
+  businessId        String   @map("business_id")
+  customerId        String   @map("customer_id")
+  rewardGoalId      String   @map("reward_goal_id")
   /// LA causa del sello, opción 1: el cliente completó el feedback del
   /// check-in. Nullable desde que existe una segunda causa; una fila con
   /// `feedbackId` tiene `returnChallengeId` en null y viceversa — ver el CHECK
   /// `bonus_stamp_one_cause` en la migración.
-  feedbackId   String?  @unique @map("feedback_id")
+  feedbackId        String?  @unique @map("feedback_id")
   /// LA causa del sello, opción 2: el cliente volvió dentro del plazo de un
   /// desafío de vuelta.
   ///
@@ -1390,12 +1390,12 @@ model RewardGoalBonusStamp {
   /// punteros para el mismo vínculo son dos fuentes de verdad que pueden
   /// discrepar. Y su `@unique` es la garantía real de que un desafío nunca
   /// emite dos sellos, incluso si dos procesos entran a la vez.
-  returnChallengeId String? @unique @map("return_challenge_id")
+  returnChallengeId String?  @unique @map("return_challenge_id")
   /// Stable, extensible reason — same pattern as `CustomerRewardGoal.reasonCode`.
   /// 'feedback_completed' | 'return_challenge_completed'. Es un string (no un
   /// enum) justamente para que un tipo nuevo de bonus no necesite migración.
-  reasonCode   String   @default("feedback_completed") @map("reason_code")
-  createdAt    DateTime @default(now()) @map("created_at")
+  reasonCode        String   @default("feedback_completed") @map("reason_code")
+  createdAt         DateTime @default(now()) @map("created_at")
 
   business        Business           @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer        Customer           @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -1448,7 +1448,7 @@ model ReturnChallenge {
   /// nadie prometió.
   rewardGoalId String @map("reward_goal_id")
 
-  startsAt DateTime @map("starts_at")
+  startsAt  DateTime @map("starts_at")
   /// Instante UTC concreto, resuelto UNA vez con el timezone del negocio al
   /// crear. No se reinterpreta después — mismo criterio que `Mission.endsAt`.
   expiresAt DateTime @map("expires_at")
@@ -1460,12 +1460,12 @@ model ReturnChallenge {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  business   Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  customer   Customer             @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  business   Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer   Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
   /// `Restrict`: borrar una tarjeta que un desafío prometió dejaría la promesa
   /// apuntando al vacío.
-  rewardGoal CustomerRewardGoal   @relation(fields: [rewardGoalId], references: [id], onDelete: Restrict)
-  assignment RetentionAssignment? @relation(fields: [retentionAssignmentId], references: [id], onDelete: SetNull)
+  rewardGoal CustomerRewardGoal    @relation(fields: [rewardGoalId], references: [id], onDelete: Restrict)
+  assignment RetentionAssignment?  @relation(fields: [retentionAssignmentId], references: [id], onDelete: SetNull)
   /// Inverso de `RewardGoalBonusStamp.returnChallengeId`. Sin columna escalar
   /// acá: la FK del otro lado es la única fuente de verdad del vínculo.
   bonusStamp RewardGoalBonusStamp?
@@ -1577,11 +1577,11 @@ model OwnerLifecycleEmailLog {
 /// ordenando CUÁNDO corre cada sweep/dispatcher, no comparando prioridades
 /// acá adentro.
 model CustomerAutomationContact {
-  customerId String @id @map("customer_id")
-  businessId String @map("business_id")
+  customerId  String    @id @map("customer_id")
+  businessId  String    @map("business_id")
   /// Qué automatización tiene el turno — 'birthday' | 'stamps_expiry' |
   /// 'progress_reminder' | 'reactivation'. Prioridad en ese orden.
-  kind       String
+  kind        String
   /// 'pending' (reservado, todavía no mandó nada) | 'confirmed' (ya mandó).
   /// El período de gracia entre reservar y confirmar es lo que le da
   /// tiempo a una automatización de mayor prioridad a robarle el turno
@@ -1935,8 +1935,8 @@ model Customer {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  business                 Business                  @relation(fields: [businessId], references: [id])
-  flikkerAccount           FlikkerAccount?           @relation(fields: [flikkerAccountId], references: [id], onDelete: SetNull)
+  business                 Business                   @relation(fields: [businessId], references: [id])
+  flikkerAccount           FlikkerAccount?            @relation(fields: [flikkerAccountId], references: [id], onDelete: SetNull)
   serviceEvents            ServiceEvent[]
   messages                 Message[]
   campaignExecutions       CampaignExecution[]
@@ -1987,10 +1987,10 @@ model Customer {
 // customer-facing "Mi Flikker" surface, authenticated by its own
 // FlikkerAccountSession — never by a business's CustomerSession.
 model FlikkerAccount {
-  id        String   @id @default(uuid())
-  phoneE164 String   @unique @map("phone_e164")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  id                String    @id @default(uuid())
+  phoneE164         String    @unique @map("phone_e164")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
   /// Cuándo se mandó, por WhatsApp, el mensaje único de bienvenida con el
   /// link a "Mi Flikker" — null significa que todavía nunca se mandó. Se
   /// dispara en el PRIMER registro del cliente en CUALQUIER negocio (no por
@@ -2097,16 +2097,16 @@ model ServiceEvent {
 // ---------------------------------------------------------------------------
 
 model Message {
-  id             String         @id @default(uuid())
-  businessId     String
-  customerId     String
-  campaignId     String?
-  serviceEventId String?
-  channel        MessageChannel
-  trackingToken  String         @unique
-  status         MessageStatus
-  whatsappMsgId  String?        @map("whatsapp_msg_id")
-  costUsd        Decimal?       @map("cost_usd")
+  id                 String         @id @default(uuid())
+  businessId         String
+  customerId         String
+  campaignId         String?
+  serviceEventId     String?
+  channel            MessageChannel
+  trackingToken      String         @unique
+  status             MessageStatus
+  whatsappMsgId      String?        @map("whatsapp_msg_id")
+  costUsd            Decimal?       @map("cost_usd")
   /// The exact composed text this message sends. Nullable because every
   /// other message type here already reconstructs its own text at send time
   /// from a template it fully owns (RetentionSend → RetentionStep, review
@@ -2116,21 +2116,21 @@ model Message {
   /// static template, so it MUST be captured once, here, at creation time —
   /// see RetentionV2SendService.createMessage(). Only Retention V2 populates
   /// this column today.
-  body           String?
-  sentAt         DateTime?
-  deliveredAt    DateTime?
-  readAt         DateTime?
-  clickedAt      DateTime?
-  createdAt      DateTime       @default(now())
+  body               String?
+  sentAt             DateTime?
+  deliveredAt        DateTime?
+  readAt             DateTime?
+  clickedAt          DateTime?
+  createdAt          DateTime       @default(now())
   /// Fase F §18 — how THIS message's body was produced. Null for every
   /// message that predates the AI layer or was never AI-eligible in the
   /// first place (legacy campaigns, review requests, etc.) — only Retention
   /// V2's own AI-eligible sends ever set it.
-  copySource     AiCopySource?  @map("copy_source")
+  copySource         AiCopySource?  @map("copy_source")
   /// The AiUsageEvent this send's generation attempt produced, when AI was
   /// actually invoked (copySource = AI or DETERMINISTIC_FALLBACK). Never set
   /// for DETERMINISTIC_DISABLED, since AI was never called.
-  aiUsageEventId String?        @unique @map("ai_usage_event_id")
+  aiUsageEventId     String?        @unique @map("ai_usage_event_id")
   /// La Visit que ORIGINÓ este mensaje. Hoy solo la usa el recordatorio de
   /// feedback de Check-in V2, para poder preguntar —justo antes de enviar—
   /// si esa visita puntual ya tiene su `CheckinFeedback`.
@@ -2139,7 +2139,7 @@ model Message {
   /// el mensaje es la ATRIBUCIÓN de la visita ("qué mensaje trajo a este
   /// cliente"). Mezclarlas haría que una visita figure como traída por un
   /// mensaje que en realidad se mandó una hora DESPUÉS.
-  originatingVisitId String?    @map("originating_visit_id")
+  originatingVisitId String?        @map("originating_visit_id")
 
   business                Business             @relation(fields: [businessId], references: [id])
   customer                Customer             @relation(fields: [customerId], references: [id])
@@ -2224,10 +2224,10 @@ model FeedbackResponse {
 // ---------------------------------------------------------------------------
 
 model GoogleReview {
-  id                  String   @id @default(uuid())
+  id                  String    @id @default(uuid())
   businessId          String
-  googleReviewId      String   @map("google_review_id")
-  reviewerName        String?  @map("reviewer_name")
+  googleReviewId      String    @map("google_review_id")
+  reviewerName        String?   @map("reviewer_name")
   stars               Int
   text                String?
   /// Fecha REAL de publicación en Google — nunca `detectedAt` (cuándo la
@@ -2238,10 +2238,10 @@ model GoogleReview {
   /// nunca para "Reseñas con Flikker" (`postedAt >= Business.createdAt`)
   /// hasta que se pueda determinar su fecha real.
   postedAt            DateTime? @map("posted_at")
-  detectedAt          DateTime @default(now()) @map("detected_at")
-  attributedMessageId String?  @map("attributed_message_id")
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  detectedAt          DateTime  @default(now()) @map("detected_at")
+  attributedMessageId String?   @map("attributed_message_id")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   business          Business @relation(fields: [businessId], references: [id])
   attributedMessage Message? @relation(fields: [attributedMessageId], references: [id])
@@ -2602,8 +2602,8 @@ model ManualCampaign {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  business Business                @relation(fields: [businessId], references: [id])
-  contacts ManualCampaignContact[]
+  business              Business                @relation(fields: [businessId], references: [id])
+  contacts              ManualCampaignContact[]
   benefitParticipations BenefitParticipation[]
 
   @@index([businessId])
@@ -2699,16 +2699,16 @@ model MessageTemplate {
 // cashback, per-segment / birthday benefits) without reshaping this table.
 
 model Benefit {
-  id          String      @id @default(uuid())
-  businessId  String      @map("business_id")
-  type        BenefitType
-  title       String
-  description String?
-  terms       String?
-  startDate   DateTime?   @map("start_date")
-  endDate     DateTime?   @map("end_date")
-  recurrence  String?
-  active      Boolean     @default(false)
+  id                String      @id @default(uuid())
+  businessId        String      @map("business_id")
+  type              BenefitType
+  title             String
+  description       String?
+  terms             String?
+  startDate         DateTime?   @map("start_date")
+  endDate           DateTime?   @map("end_date")
+  recurrence        String?
+  active            Boolean     @default(false)
   /// Fila INTERNA: un "carrier" que el sistema crea para poder emitir una
   /// recompensa (Reward Goals, Retention V2), no un beneficio que el dueño
   /// haya creado ni pueda administrar.
@@ -2725,9 +2725,9 @@ model Benefit {
   /// Un carrier nunca se lista, edita, activa ni elige en un picker. Sigue
   /// siendo un `Benefit` real para que el historial de canjes tenga a qué
   /// colgarse.
-  isInternalCarrier Boolean @default(false) @map("is_internal_carrier")
-  createdAt   DateTime    @default(now()) @map("created_at")
-  updatedAt   DateTime    @updatedAt @map("updated_at")
+  isInternalCarrier Boolean     @default(false) @map("is_internal_carrier")
+  createdAt         DateTime    @default(now()) @map("created_at")
+  updatedAt         DateTime    @updatedAt @map("updated_at")
 
   business                     Business                      @relation(fields: [businessId], references: [id], onDelete: Cascade)
   /// Negocios que eligieron este beneficio como regalo de bienvenida. En la
@@ -2785,13 +2785,13 @@ enum MissionPeriodPreset {
 }
 
 model Mission {
-  id          String        @id @default(uuid())
-  businessId  String        @map("business_id")
-  name        String
-  description String?
+  id           String  @id @default(uuid())
+  businessId   String  @map("business_id")
+  name         String
+  description  String?
   /// Visitas válidas necesarias para completarla. Congelado apenas hay una
   /// participación — ver `MISSION_LOCKED_FIELDS`.
-  targetVisits Int          @map("target_visits")
+  targetVisits Int     @map("target_visits")
 
   periodPreset MissionPeriodPreset @default(CUSTOM) @map("period_preset")
   /// Solo cuando el preset es NEXT_N_DAYS, y solo para poder mostrar "próximos
@@ -2808,7 +2808,7 @@ model Mission {
   /// El premio: un Benefit REAL del catálogo del dueño, el mismo que ya ve en
   /// Programa → Beneficios. Nullable: una misión sin premio es válida (el
   /// progreso ya es el incentivo). No se crea ningún carrier interno.
-  rewardBenefitId String? @map("reward_benefit_id")
+  rewardBenefitId           String? @map("reward_benefit_id")
   /// Presentación pura: oculta el nombre del premio hasta completarla
   /// ("🎁 Premio secreto — te faltan 2 visitas"). No cambia NADA de la
   /// emisión: el premio ya está decidido desde que se creó la misión. Nada de
@@ -2844,12 +2844,12 @@ model Mission {
 ///   1. `@@unique([missionId, customerId])` — una sola participación.
 ///   2. `rewardParticipationId` único — un solo premio emitido, jamás dos.
 model CustomerMission {
-  id         String              @id @default(uuid())
-  missionId  String              @map("mission_id")
-  customerId String              @map("customer_id")
+  id         String                @id @default(uuid())
+  missionId  String                @map("mission_id")
+  customerId String                @map("customer_id")
   /// Denormalizado desde `Mission.businessId` para poder scopear por tenant
   /// sin un join en cada lectura. Nunca se escribe desde el cliente.
-  businessId String              @map("business_id")
+  businessId String                @map("business_id")
   status     CustomerMissionStatus @default(ACTIVE)
 
   enrolledAt  DateTime  @default(now()) @map("enrolled_at")
@@ -2859,9 +2859,9 @@ model CustomerMission {
   /// emisión, además de la transición guardada ACTIVE→COMPLETED.
   rewardParticipationId String? @unique @map("reward_participation_id")
 
-  mission            Mission               @relation(fields: [missionId], references: [id], onDelete: Cascade)
-  customer           Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  business           Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  mission             Mission               @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  customer            Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  business            Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
   rewardParticipation BenefitParticipation? @relation(fields: [rewardParticipationId], references: [id], onDelete: SetNull)
 
   @@unique([missionId, customerId])
@@ -2901,37 +2901,37 @@ enum BenefitIssuanceSource {
 }
 
 model BenefitParticipation {
-  id               String    @id @default(uuid())
-  benefitId        String    @map("benefit_id")
-  businessId       String    @map("business_id")
-  customerId       String    @map("customer_id")
+  id                   String                @id @default(uuid())
+  benefitId            String                @map("benefit_id")
+  businessId           String                @map("business_id")
+  customerId           String                @map("customer_id")
   /// Origen de ESTA emisión concreta — ver `BenefitIssuanceSource`. No
   /// determina por sí solo el comportamiento de reuso: eso lo decide cada
   /// adaptador (Promociones siempre crea fila nueva; bienvenida/check-in
   /// reabren su propia fila abierta; sorteos reabren por ciclo).
-  source           BenefitIssuanceSource @map("source")
+  source               BenefitIssuanceSource @map("source")
   /// Solo se completa cuando `source = PROMOTION` — la campaña manual
   /// (`ManualCampaign`, Notificaciones → Promociones) que disparó esta
   /// emisión concreta, para trazabilidad ("qué promoción le mandó esto").
   /// `REACTIVATION`/`REWARD_GOAL` ya tienen su propia trazabilidad vía las
   /// relaciones inversas `retentionAssignment`/`rewardGoal` — no se duplica
   /// acá.
-  campaignId       String?   @map("manual_campaign_id")
+  campaignId           String?               @map("manual_campaign_id")
   // Set when this entry is "closed" by a monthly raffle draw. Null means the
   // entry belongs to the currently open (not-yet-drawn) cycle. This is how the
   // participant list resets month to month without deleting any data.
-  raffleDrawId     String?   @map("raffle_draw_id")
+  raffleDrawId         String?               @map("raffle_draw_id")
   // Redemption (non-raffle benefits): a unique opaque code the customer shows to
   // staff. `redeemedAt` != null means it was used — atomically guarded so a
   // benefit can never be redeemed twice.
-  redemptionCode   String?   @unique @map("redemption_code")
-  redeemedAt       DateTime? @map("redeemed_at")
-  redeemedByUserId String?   @map("redeemed_by_user_id")
-  redeemedVisitId  String?   @map("redeemed_visit_id")
+  redemptionCode       String?               @unique @map("redemption_code")
+  redeemedAt           DateTime?             @map("redeemed_at")
+  redeemedByUserId     String?               @map("redeemed_by_user_id")
+  redeemedVisitId      String?               @map("redeemed_visit_id")
   /// Per-issue expiry. The QR flow leaves this null (validity comes from the
   /// Benefit's own window); Retention V2 sets it because each customer's reward
   /// expires a fixed number of days after it was issued to them.
-  expiresAt        DateTime? @map("expires_at")
+  expiresAt            DateTime?             @map("expires_at")
   /// Snapshot de `Benefit.title` en el momento en que se otorgó ESTA
   /// participación — no una referencia viva. Sin esto, editar el título de un
   /// beneficio reescribía silenciosamente lo que el historial dice que un
@@ -2943,8 +2943,8 @@ model BenefitParticipation {
   /// backfillea con el título vigente al migrar (la mejor aproximación
   /// disponible) y todo lo que se crea desde acá en adelante la escribe
   /// siempre.
-  benefitTitleSnapshot String? @map("benefit_title_snapshot")
-  createdAt        DateTime  @default(now()) @map("created_at")
+  benefitTitleSnapshot String?               @map("benefit_title_snapshot")
+  createdAt            DateTime              @default(now()) @map("created_at")
 
   benefit             Benefit              @relation(fields: [benefitId], references: [id], onDelete: Cascade)
   business            Business             @relation(fields: [businessId], references: [id])
@@ -3021,17 +3021,17 @@ enum ProgramAuditEventType {
 }
 
 model ProgramAuditEvent {
-  id         String                @id @default(uuid())
-  businessId String                @map("business_id")
-  type       ProgramAuditEventType
+  id          String                @id @default(uuid())
+  businessId  String                @map("business_id")
+  type        ProgramAuditEventType
   /// Ya redactado en español al momento de escribir el evento — el timeline
   /// no vuelve a interpretar `metadata` para mostrar texto.
-  message    String
+  message     String
   /// Null cuando el actor ya no se puede resolver (cuenta borrada) — el
   /// evento se conserva igual, solo sin atribución.
-  actorUserId String?  @map("actor_user_id")
+  actorUserId String?               @map("actor_user_id")
   metadata    Json?
-  createdAt   DateTime @default(now()) @map("created_at")
+  createdAt   DateTime              @default(now()) @map("created_at")
 
   business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   actor    User?    @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
@@ -3173,17 +3173,17 @@ model VisitSource {
 // calendar day in the business timezone) enables fast same-day counting.
 
 model Visit {
-  id               String                @id @default(uuid())
-  businessId       String                @map("business_id")
-  customerId       String                @map("customer_id")
-  sourceId         String?               @map("source_id")
-  campaignId       String?               @map("campaign_id")
-  messageId        String?               @map("message_id")
-  occurredAt       DateTime              @default(now()) @map("occurred_at")
-  visitDayKey      String                @map("visit_day_key")
-  verificationType VisitVerificationType @map("verification_type")
-  attributionType  VisitAttributionType  @default(organic) @map("attribution_type")
-  isReturn         Boolean               @default(false) @map("is_return")
+  id                  String                @id @default(uuid())
+  businessId          String                @map("business_id")
+  customerId          String                @map("customer_id")
+  sourceId            String?               @map("source_id")
+  campaignId          String?               @map("campaign_id")
+  messageId           String?               @map("message_id")
+  occurredAt          DateTime              @default(now()) @map("occurred_at")
+  visitDayKey         String                @map("visit_day_key")
+  verificationType    VisitVerificationType @map("verification_type")
+  attributionType     VisitAttributionType  @default(organic) @map("attribution_type")
+  isReturn            Boolean               @default(false) @map("is_return")
   /// Identidad de la ventana de presencia que acreditó esta visita (nunca el
   /// código en claro — guardarlo lo volvería reutilizable por quien lea la
   /// fila). Null para negocios en `checkinPresenceMode: off` y para todo lo
@@ -3191,29 +3191,29 @@ model Visit {
   /// un mismo desafío no puede acreditar dos visitas del mismo cliente.
   /// Postgres trata los NULL como distintos, así que las visitas sin prueba
   /// de presencia no se estorban entre sí.
-  presenceChallengeId String?            @map("presence_challenge_id")
-  metadata         Json?
-  createdAt        DateTime              @default(now()) @map("created_at")
+  presenceChallengeId String?               @map("presence_challenge_id")
+  metadata            Json?
+  createdAt           DateTime              @default(now()) @map("created_at")
 
-  business          Business           @relation(fields: [businessId], references: [id])
-  customer          Customer           @relation(fields: [customerId], references: [id])
-  source            VisitSource?       @relation(fields: [sourceId], references: [id], onDelete: SetNull)
-  campaign          Campaign?          @relation(fields: [campaignId], references: [id], onDelete: SetNull)
-  message           Message?           @relation(fields: [messageId], references: [id], onDelete: SetNull)
-  events            CustomerEvent[]
-  retentionOutcomes RetentionOutcome[]
+  business           Business           @relation(fields: [businessId], references: [id])
+  customer           Customer           @relation(fields: [customerId], references: [id])
+  source             VisitSource?       @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  campaign           Campaign?          @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+  message            Message?           @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  events             CustomerEvent[]
+  retentionOutcomes  RetentionOutcome[]
   /// Mensajes que ESTA visita originó (el recordatorio de feedback). Inverso
   /// de `Message.originatingVisitId` — no confundir con `message`, que es la
   /// atribución de la visita.
-  originatedMessages Message[]         @relation("MessageOriginatingVisit")
+  originatedMessages Message[]          @relation("MessageOriginatingVisit")
   /// At most one feedback per visit — see `CheckinFeedback.visitId`.
-  checkinFeedback   CheckinFeedback?
+  checkinFeedback    CheckinFeedback?
 
+  @@unique([businessId, customerId, presenceChallengeId])
   @@index([businessId])
   @@index([businessId, occurredAt])
   @@index([customerId])
   @@index([customerId, occurredAt])
-  @@unique([businessId, customerId, presenceChallengeId])
   @@index([businessId, customerId, visitDayKey])
   @@index([campaignId])
   @@index([sourceId])
@@ -3388,4 +3388,154 @@ model SimulationRun {
   @@index([status])
   @@index([createdAt])
   @@map("simulation_runs")
+}
+
+// ---------------------------------------------------------------------------
+// CheckoutLead (landing pública -> intención de compra)
+// ---------------------------------------------------------------------------
+// Representa UNA cosa y nada más: "esta persona completó el formulario de la
+// landing y quiere empezar a pagar".
+//
+// Deliberadamente NO crea User, Business, Membership, Subscription ni
+// FlikkerAccount. La identidad definitiva se resuelve recién después de que
+// un pago esté aprobado — crear un negocio vacío por cada formulario llenado
+// ensuciaría el panel de platform admin con basura que nadie pidió, y haría
+// que las métricas de "negocios" cuenten intenciones en vez de clientes.
+//
+// Sin FK a nada: un lead existe antes que cualquier entidad del sistema. Esa
+// ausencia de relaciones es la característica, no un olvido.
+//
+// El `id` es un uuid pensado para viajar después como `external_reference` de
+// Mercado Pago: es el hilo que va a unir el formulario con el pago aprobado
+// sin tener que confiar en el email ni en el teléfono para reconciliar.
+
+enum CheckoutPlan {
+  MONTHLY
+  YEARLY
+}
+
+/// Ciclo de vida de una intención de compra. En esta tanda SOLO se escribe
+/// PENDING; el resto queda definido para que la Parte 3 no invente otra
+/// semántica a mitad de camino:
+///   PENDING          formulario recibido, nada más pasó
+///   CHECKOUT_CREATED ya existe una Preference en Mercado Pago
+///   PAID             el webhook verificó un pago aprobado
+///   FAILED           el pago se rechazó o falló
+///   EXPIRED          la intención se abandonó o venció
+enum CheckoutLeadStatus {
+  PENDING
+  /// Estado intermedio de "reclamo en vuelo": un request se adjudicó el
+  /// derecho exclusivo de llamar a Mercado Pago y todavía no volvió. Ver
+  /// el comentario de `checkoutClaimedAt` en `CheckoutLead` — a diferencia
+  /// de la Orders API, `/preapproval` no garantiza deduplicar llamadas
+  /// concurrentes con la misma idempotency key, así que la exclusión mutua
+  /// la tiene que dar la base, no Mercado Pago.
+  CHECKOUT_CREATING
+  /// Incidente 2026-09-30: un timeout/error de red/5xx al llamar a
+  /// `/preapproval` es AMBIGUO — no sabemos si Mercado Pago llegó a crear
+  /// la subscription del otro lado antes de que la respuesta se perdiera.
+  /// Antes de este estado, el código reaccionaba a esa ambigüedad con un
+  /// `GET /preapproval/search` para "reconciliar" solo — ese search no
+  /// filtró de forma confiable y terminó asociando (y después cancelando)
+  /// una subscription real ajena al lead.
+  ///
+  /// Este estado reemplaza esa reconciliación automática: cuando el
+  /// resultado de la llamada a MP es ambiguo, el lead queda ACÁ, no vuelve
+  /// a PENDING ni se reintenta solo. Significa "puede existir una
+  /// subscription en Mercado Pago para este lead, pero Flikker no tiene
+  /// evidencia suficiente para asociarla automáticamente" — requiere
+  /// revisión manual (mirar el email/`external_reference` en el panel de
+  /// Mercado Pago) antes de decidir si hace falta un lead nuevo o no.
+  /// `createCheckout` nunca reintenta el POST desde acá.
+  CHECKOUT_RECONCILIATION_REQUIRED
+  CHECKOUT_CREATED
+  PAID
+  FAILED
+  EXPIRED
+}
+
+model CheckoutLead {
+  id           String             @id @default(uuid())
+  name         String
+  businessName String             @map("business_name")
+  phoneE164    String             @map("phone_e164")
+  email        String
+  plan         CheckoutPlan
+  status       CheckoutLeadStatus @default(PENDING)
+
+  /// Anti doble-click. La landing puede mandar `Idempotency-Key`: dos POST
+  /// con la misma key devuelven el MISMO lead en vez de crear dos filas.
+  /// Nullable porque es opcional — sin key, cada POST es una intención
+  /// nueva, que es lo correcto para alguien que vuelve otro día o cambia de
+  /// plan. El unique es parcial (solo sobre valores no nulos) para que los
+  /// leads sin key no colisionen entre sí.
+  idempotencyKey String? @map("idempotency_key")
+
+  // ── Campos de Mercado Pago (Parte 3) ───────────────────────────────────
+  // A propósito NO se modela el monto: el precio lo decide
+  // `resolveCheckoutPricing` server-side a partir de `plan`, nunca del
+  // request, así que guardarlo acá invitaría a leerlo de un lugar
+  // equivocado — la fuente de verdad sigue siendo el código, no la fila.
+  paymentProvider   String?   @map("payment_provider")
+  externalReference String?   @map("external_reference")
+  checkoutCreatedAt DateTime? @map("checkout_created_at")
+  paidAt            DateTime? @map("paid_at")
+
+  /// El id de la subscription de Mercado Pago (`preapproval.id`, POST
+  /// `/preapproval`). Es lo que un futuro webhook va a usar para
+  /// reconciliar pago -> lead — distinto de `externalReference`, que es
+  /// NUESTRA referencia (`CheckoutLead.id`) mandada a MP. Nunca se
+  /// confunden: uno lo generamos nosotros y viaja HACIA MP, el otro lo
+  /// genera MP y viaja de vuelta.
+  /// Unique cuando no null: dos leads no pueden apuntar a la misma
+  /// subscription.
+  providerSubscriptionId String? @unique @map("provider_subscription_id")
+
+  /// El `status` que devolvió Mercado Pago en la respuesta de creación
+  /// (`"pending"` es lo esperado — ver `MercadoPagoSubscriptionProvider`).
+  /// Solo informativo: esta tanda NO reacciona a este valor ni lo vuelve a
+  /// consultar; existe para debug/soporte y para una futura reconciliación
+  /// por webhook.
+  providerStatus String? @map("provider_status")
+
+  /// La `X-Idempotency-Key` que se manda en el POST a `/preapproval`,
+  /// generada UNA vez y persistida ANTES del primer intento de llamar a MP
+  /// (no en cada intento). A diferencia de la Orders API, Mercado Pago NO
+  /// documenta que `/preapproval` deduplique por esta key — por eso esta
+  /// key es defensa secundaria ("por si acaso"), no la garantía principal.
+  /// La garantía principal es el reclamo atómico vía `CHECKOUT_CREATING` +
+  /// `checkoutClaimedAt`: solo el request que gana ese reclamo llega a
+  /// llamar a Mercado Pago.
+  ///
+  /// Responsabilidad DISTINTA de `idempotencyKey` de arriba: esa es la key
+  /// que la LANDING manda para no duplicar la fila `CheckoutLead`; esta es
+  /// la key que NOSOTROS mandamos a MERCADO PAGO. Nunca se reutilizan una
+  /// por la otra.
+  providerIdempotencyKey String? @unique @map("provider_idempotency_key")
+
+  /// El `init_point` que devuelve el POST de creación de la subscription.
+  /// Se guarda para que pedir el checkout de un lead que ya está en
+  /// CHECKOUT_CREATED (doble click, refresh, reintento) sea un SELECT, no
+  /// una llamada nueva a MP.
+  checkoutUrl String? @map("checkout_url")
+
+  /// Cuándo un request se adjudicó el reclamo `CHECKOUT_CREATING` (ver el
+  /// comentario del enum). Puramente informativo/diagnóstico — a partir
+  /// del incidente 2026-09-30 NO existe ningún mecanismo que reclame
+  /// automáticamente un `CHECKOUT_CREATING` abandonado para reintentar el
+  /// POST: ese "reintento automático sobre una ambigüedad" es el patrón
+  /// que causó el incidente. Si el proceso que ganó el reclamo se cae a
+  /// mitad de la llamada a MP, el lead queda en `CHECKOUT_CREATING` hasta
+  /// revisión manual — este campo sirve para que esa revisión sepa hace
+  /// cuánto quedó colgado, nada más.
+  checkoutClaimedAt DateTime? @map("checkout_claimed_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  /// Para buscar los intentos de una persona sin un unique que le impida
+  /// volver a intentar. Nunca se deduplica permanentemente por email.
+  @@index([email, createdAt])
+  @@index([status, createdAt])
+  @@map("checkout_leads")
 }

@@ -5,6 +5,7 @@ import { Check, Loader2, ExternalLink } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
 import MetricCard from "@/components/ui/metric-card";
 import SettingsFormSection from "@/components/settings/settings-form-section";
+import { PRO_MONTHLY_CHECKOUT_URL } from "@/lib/checkout-urls";
 import { useIsOwnerOrAdmin } from "../../../role-context";
 
 /**
@@ -15,7 +16,9 @@ import { useIsOwnerOrAdmin } from "../../../role-context";
  * cobro a mano desde el dashboard de Mercado Pago — ver
  * `PlatformService#confirmProSubscription`.
  */
-const MERCADOPAGO_CHECKOUT_URL = "https://mpago.la/1Acxajh";
+// La URL vive en un solo lugar — ver `lib/checkout-urls`. Esta pantalla
+// manda al checkout MENSUAL; la elección mensual/anual es del modal.
+const MERCADOPAGO_CHECKOUT_URL = PRO_MONTHLY_CHECKOUT_URL;
 
 interface SubscriptionOverview {
   planSlug: string;

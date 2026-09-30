@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ThrottlerModule } from '@nestjs/throttler';
 import {
   BenefitIssuanceSource,
   BenefitType,
@@ -25,7 +26,13 @@ describe('DashboardOverviewService (integration)', () => {
 
   beforeAll(async () => {
     const moduleRef: TestingModule = await Test.createTestingModule({
-      imports: [DashboardModule],
+      imports: [
+        // `PublicController` usa `@UseGuards(ThrottlerGuard)`. En la app real
+        // `ThrottlerModule` es @Global() desde `AppModule`; un spec que compila
+        // un módulo suelto tiene que traerlo, igual que lo hace la raíz.
+        ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
+        DashboardModule,
+      ],
     }).compile();
     prisma = moduleRef.get(PrismaService);
     service = moduleRef.get(DashboardOverviewService);

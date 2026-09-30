@@ -18,6 +18,7 @@ import ImpersonationBanner from "./impersonation-banner";
 import QueryProvider from "@/components/providers/query-provider";
 import MobileMenuButton from "./mobile-menu-button";
 import { ToastProvider } from "@/components/ui/toast";
+import UpgradeModalProvider from "@/components/panel/upgrade-modal-provider";
 import BusinessLoadError from "@/components/ui/business-load-error";
 import FlikkerChatbotLauncher from "@/components/panel/flikker-chatbot-launcher";
 import { Geist } from "next/font/google";
@@ -214,7 +215,11 @@ export default async function PanelLayout({
                   >
                     {/* Montado UNA sola vez para todo el panel — ninguna
                         pantalla arma su propio cartel de "Guardado ✓". */}
-                    <ToastProvider>{children}</ToastProvider>
+                    <ToastProvider>
+                      {/* Un solo host de modal de upgrade para todo el
+                          panel — ver UpgradeModalProvider. */}
+                      <UpgradeModalProvider>{children}</UpgradeModalProvider>
+                    </ToastProvider>
                   </ExperienceProvider>
                 </RoleProvider>
               </QueryProvider>

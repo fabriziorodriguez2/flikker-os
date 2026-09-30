@@ -14,6 +14,8 @@ import {
 } from "lucide-react";
 import EmptyState from "@/components/ui/empty-state";
 import PageHeader from "@/components/ui/page-header";
+import PlanUsageMeter from "@/components/panel/plan-usage-meter";
+import { useUpgradeModal } from "@/components/panel/upgrade-modal-provider";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
 import CustomerModal from "./customer-modal";
 import { RECURRENCE, relativeDay, type RecurrenceKey } from "./loyalty-ui";
@@ -77,6 +79,21 @@ type FilterKey = (typeof FILTERS)[number]["key"];
  * se sincroniza con `router.replace` (sin agregar entradas al historial por
  * cada clic) mientras el modal está abierto.
  */
+/** El medidor de capacidad, leyendo el plan compartido del provider. */
+function CustomersPlanMeter() {
+  const { freePlanUsage } = useUpgradeModal();
+  if (!freePlanUsage) return null;
+  return (
+    <section className="rounded-[14px] border border-[#E5E7EF] bg-white px-5 py-4">
+      <PlanUsageMeter
+        used={freePlanUsage.current}
+        limit={freePlanUsage.limit}
+        blockedLast7Days={freePlanUsage.blockedCustomersLast7Days}
+      />
+    </section>
+  );
+}
+
 export default function CustomersLoyaltyClient() {
   return (
     <Suspense fallback={null}>

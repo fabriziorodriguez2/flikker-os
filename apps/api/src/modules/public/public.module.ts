@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { PublicController } from './public.controller';
 import { PublicService } from './public.service';
+import { CheckoutLeadsService } from './checkout-leads.service';
+import { MercadoPagoSubscriptionProvider } from './mercado-pago-subscription.provider';
 import { PublicMessagingService } from './public-messaging.service';
 import { CustomerPublicUrlService } from './customer-public-url.service';
 import { PrismaModule } from '../../prisma/prisma.module';
@@ -14,6 +16,8 @@ import { VisitSourcesModule } from '../visit-sources/visit-sources.module';
   controllers: [PublicController],
   providers: [
     PublicService,
+    CheckoutLeadsService,
+    MercadoPagoSubscriptionProvider,
     PublicMessagingService,
     CustomerPublicUrlService,
     WhatsAppBspService,

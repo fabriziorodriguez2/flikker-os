@@ -2,197 +2,218 @@ import { readdirSync, readFileSync } from "fs";
 import { join } from "path";
 
 /**
- * Guarda de cableado del upsell, mismo criterio que el resto de los
- * `*-wiring.test.ts` del repo: lo que se prueba acá es DÓNDE aparece el
- * upsell y dónde no, que no se puede verificar renderizando un componente
- * suelto.
+ * Guarda de cableado del upsell.
  *
- * La regla que protege: el upsell aparece en contexto y en pocos lugares.
- * Un banner permanente en todas las pantallas es un cambio de dos líneas —
- * estos tests lo convierten en un cambio que además hay que justificar
- * borrando un test.
+ * Lo que se prueba acá no se puede verificar renderizando un componente:
+ * DÓNDE aparece el upsell, dónde deliberadamente no, y que haya una sola
+ * puerta al checkout. Un sistema de venta se degrada de a poco — un badge
+ * acá, un banner allá, un link directo a Mercado Pago "para ahorrar un
+ * click" — y cada paso parece razonable por separado.
  */
-describe("Upsell Free → Pro: aparece en contexto, no en todos lados", () => {
+describe("Upsell Free → Pro: en contexto, una sola puerta al checkout", () => {
   const dashboard = __dirname;
+  const webRoot = join(dashboard, "..", "..", "..");
   const read = (...segments: string[]) =>
     readFileSync(join(dashboard, ...segments), "utf-8");
 
-  describe("Inicio", () => {
-    const home = read("home-client.tsx");
+  /** Todos los .ts/.tsx de producción bajo `dir`. */
+  function sourcesUnder(dir: string): { path: string; source: string }[] {
+    const out: { path: string; source: string }[] = [];
+    const walk = (current: string) => {
+      for (const entry of readdirSync(current, { withFileTypes: true })) {
+        const full = join(current, entry.name);
+        if (entry.isDirectory()) {
+          if (entry.name === "node_modules" || entry.name === ".next") continue;
+          walk(full);
+          continue;
+        }
+        if (!/\.tsx?$/.test(entry.name)) continue;
+        if (entry.name.includes(".test.")) continue;
+        out.push({ path: full, source: readFileSync(full, "utf-8") });
+      }
+    };
+    walk(dir);
+    return out;
+  }
 
-    it("tiene el medidor de uso, y un solo bloque de plan", () => {
-      expect(home).toContain("PlanUsageMeter");
-      expect(home.match(/<HomePlanBlock/g) ?? []).toHaveLength(1);
+  describe("una sola fuente de verdad para los checkouts", () => {
+    /*
+      La regresión concreta que esto evita: la URL mensual llegó a estar
+      copiada a mano en tres componentes. El día que Mercado Pago cambie el
+      link, tres lugares tienen que acordarse.
+    */
+    it("solo `lib/checkout-urls.ts` contiene URLs de Mercado Pago", () => {
+      const offenders = sourcesUnder(join(webRoot, "app"))
+        .concat(sourcesUnder(join(webRoot, "components")))
+        .concat(sourcesUnder(join(webRoot, "lib")))
+        .filter(({ path, source }) => {
+          if (path.endsWith(join("lib", "checkout-urls.ts"))) return false;
+          return /mpago\.la/.test(source);
+        })
+        .map(({ path }) => path);
+
+      expect(offenders).toEqual([]);
+    });
+
+    it("define los dos checkouts, distintos entre sí", () => {
+      const config = readFileSync(
+        join(webRoot, "lib", "checkout-urls.ts"),
+        "utf-8",
+      );
+      expect(config).toContain("https://mpago.la/1Acxajh");
+      expect(config).toContain("https://mpago.la/2hsbeMy");
+      expect(config).toContain("NEXT_PUBLIC_PRO_MONTHLY_CHECKOUT_URL");
+      expect(config).toContain("NEXT_PUBLIC_PRO_YEARLY_CHECKOUT_URL");
     });
 
     /*
-      La condición no la evalúa el frontend: el backend manda
-      `freePlanUsage: null` para Pro y para cualquier negocio sin tope, y
-      el bloque no se dibuja. Un solo lugar decide, y es el que conoce el
-      plan de verdad.
+      Solo el modal navega a pagar. Si otro componente importara las URLs,
+      podría mandar al checkout sin ofrecer la elección de plan.
     */
-    it("el bloque de plan desaparece para Pro y para negocios sin tope", () => {
-      expect(home).toContain("if (!usage) return null;");
-      expect(home).not.toMatch(/isPro\s*\?/);
-    });
+    it("solo el modal importa las URLs de checkout", () => {
+      const importers = sourcesUnder(join(webRoot, "components"))
+        .filter(({ source }) => /PRO_(MONTHLY|YEARLY)_CHECKOUT_URL/.test(source))
+        .map(({ path }) => path.split(/[\\/]/).pop());
 
-    /*
-      Inicio ya es la pantalla más cargada del panel. Un paywall completo
-      acá compite con la operación diaria: el bloque de plan es un medidor,
-      no una oferta.
-    */
-    it("Inicio no monta un paywall completo", () => {
-      expect(home).not.toContain("ProUpgradePrompt");
-    });
-
-    it("un fallo al leer el plan nunca rompe la portada", () => {
-      const block = home.slice(home.indexOf("function HomePlanBlock"));
-      expect(block).toContain("if (!res.ok) return;");
-      expect(block).toContain("} catch {");
+      expect(importers).toEqual(["upgrade-plan-modal.tsx"]);
     });
   });
 
-  describe("Insights", () => {
-    const page = read("insights", "insights-v2-page.tsx");
+  describe("un solo modal, abierto desde un solo lugar", () => {
+    it("el provider está montado en el layout del panel", () => {
+      const layout = readFileSync(
+        join(webRoot, "app", "(panel)", "layout.tsx"),
+        "utf-8",
+      );
+      expect(layout).toContain("<UpgradeModalProvider>");
+    });
 
-    it("la oportunidad se muestra después del impacto real, no antes", () => {
-      expect(page.indexOf("<ImpactCard")).toBeLessThan(
-        page.indexOf("<RecoveryOpportunityCard"),
+    /*
+      Nadie monta `UpgradePlanModal` por su cuenta: eso sería volver al
+      `useState` local por pantalla que el provider existe para evitar.
+    */
+    it("solo el provider renderiza el modal", () => {
+      const mounters = sourcesUnder(join(webRoot, "app"))
+        .concat(sourcesUnder(join(webRoot, "components")))
+        .filter(({ source }) => /<UpgradePlanModal/.test(source))
+        .map(({ path }) => path.split(/[\\/]/).pop());
+
+      expect(mounters).toEqual(["upgrade-modal-provider.tsx"]);
+    });
+
+    it("los CTAs de upsell abren el modal, no navegan", () => {
+      const prompt = readFileSync(
+        join(webRoot, "components", "panel", "pro-upgrade-prompt.tsx"),
+        "utf-8",
+      );
+      const meter = readFileSync(
+        join(webRoot, "components", "panel", "plan-usage-meter.tsx"),
+        "utf-8",
+      );
+      for (const source of [prompt, meter]) {
+        expect(source).toContain("openUpgradeModal");
+        expect(source).not.toContain("settings/suscripcion");
+      }
+    });
+  });
+
+  describe("ante la duda, no vender", () => {
+    /*
+      `isPro` arranca en `true` y solo baja cuando el backend lo confirma.
+      Si la lectura del plan falla, el panel se comporta como Pro: sin
+      nudges. Mostrarle "pasate a Pro" a alguien que ya paga es peor que no
+      mostrarle nada a alguien que podría pagar.
+    */
+    it("el provider asume Pro hasta que el backend diga lo contrario", () => {
+      const provider = readFileSync(
+        join(webRoot, "components", "panel", "upgrade-modal-provider.tsx"),
+        "utf-8",
+      );
+      expect(provider).toContain("useState(true)");
+      expect(provider).toContain("v.isPro !== false");
+      expect(provider).toContain("showUpsell: !isPro");
+    });
+
+    it("los nudges dependen de `freePlanUsage`, que es null para Pro", () => {
+      const home = read("home-client.tsx");
+      const customers = read("customers", "customers-loyalty-client.tsx");
+      for (const source of [home, customers]) {
+        expect(source).toContain("if (!freePlanUsage) return null;");
+      }
+    });
+  });
+
+  describe("saturación: máximo una presencia fuerte por pantalla", () => {
+    const countCtas = (source: string) =>
+      (source.match(/<ProUpgradePrompt|<PlanUsageMeter/g) ?? []).length;
+
+    it("Inicio y Clientes tienen exactamente un medidor", () => {
+      expect(countCtas(read("home-client.tsx"))).toBe(1);
+      expect(countCtas(read("customers", "customers-loyalty-client.tsx"))).toBe(
+        1,
+      );
+    });
+
+    it("Insights tiene a lo sumo dos, y las dos exigen evidencia real", () => {
+      const page = read("insights", "insights-v2-page.tsx");
+      const mounted = (page.match(/<RecoveryOpportunityCard|<PlanLimitSignal/g) ?? [])
+        .length;
+      expect(mounted).toBe(2);
+
+      // Ninguna se dibuja sin un número real del propio negocio.
+      expect(read("insights", "recovery-opportunity-card.tsx")).toContain(
+        "if (isPro || inactive <= 0) return null;",
+      );
+      expect(read("insights", "plan-limit-signal.tsx")).toContain(
+        "if (blocked <= 0) return null;",
       );
     });
 
     /*
-      Si no se pudo leer el plan, `isPro` queda en `true` y el prompt no se
-      muestra. Ante la duda, no vender — el default opuesto le mostraría un
-      paywall a un negocio que ya paga.
+      Auditado contra el backend: ni Reviews ni QR consultan `PlansService`.
+      Son plan base completo. Un badge PRO ahí estaría vendiendo algo que ya
+      es gratis.
     */
-    it("sin dato de plan asume Pro y no muestra el paywall", () => {
-      expect(page).toContain("let isPro = true;");
-      expect(page).toContain("subscription?.isPro !== false");
-    });
-  });
-
-  describe("Automatizaciones", () => {
-    const tab = read("notificaciones", "automations-tab.tsx");
-
-    it("el paywall se abre por acción del dueño, nunca al entrar", () => {
-      expect(tab).toContain("useState(false)");
-      // El ÚNICO lugar que lo abre es el click del CTA de la fila
-      // bloqueada. Si apareciera una segunda apertura (un efecto al montar,
-      // un timer, una respuesta del backend), este conteo lo delata.
-      const opens = tab.match(/setProModalOpen\(true\)/g) ?? [];
-      expect(opens).toHaveLength(1);
-      expect(tab).toContain("onLockedClick={() => setProModalOpen(true)}");
-    });
-
-    it("el modal siempre ofrece salir", () => {
-      const modal = tab.slice(
-        tab.indexOf('feature="cumpleanos"'),
-        tab.indexOf("/>", tab.indexOf('feature="cumpleanos"')),
-      );
-      expect(modal).toContain('label: "Ahora no"');
-      expect(modal).toContain("onDismiss");
+    it("Reseñas y QR no tienen upsell — no hay ninguna feature Pro ahí", () => {
+      for (const dir of ["reviews", "qr"]) {
+        for (const { source } of sourcesUnder(join(dashboard, dir))) {
+          expect(source).not.toContain("ProUpgradePrompt");
+          expect(source).not.toContain("PlanUsageMeter");
+          expect(source).not.toContain("openUpgradeModal");
+        }
+      }
     });
 
     /*
       Cumpleaños es la ÚNICA automatización que `PlansService` gatea por
-      plan (`hasProAccess` en `updateAutomations`). "Te extrañamos",
-      "Cerca del premio" y "Sellos por vencer" no lo son: ponerles un badge
-      PRO sería vender algo que el backend ya permite gratis.
+      plan (`hasProAccess` en `updateAutomations`). Las otras tres son
+      gratis y ponerles un badge sería mentir.
     */
-    it("solo Cumpleaños tiene paywall — las otras tres no", () => {
+    it("solo Cumpleaños está gateada en Automatizaciones", () => {
+      const tab = read("notificaciones", "automations-tab.tsx");
       expect(tab.match(/onLockedClick=/g) ?? []).toHaveLength(1);
-      expect(tab.match(/<ProUpgradePrompt/g) ?? []).toHaveLength(1);
-      expect(tab).toContain('feature="cumpleanos"');
+      expect(tab).toContain('feature: "birthday"');
     });
   });
 
-  describe("dónde NO va", () => {
-    it("Reseñas no tiene upsell: no hay ninguna feature de plan ahí", () => {
-      const reviews = read("reviews", "reviews-client.tsx");
-      expect(reviews).not.toContain("ProUpgradePrompt");
-      expect(reviews).not.toContain("PlanUsageMeter");
-    });
-
+  describe("el cliente final nunca ve un paywall", () => {
     /*
-      La regla más importante de todo este sistema: el cliente final nunca
-      ve un paywall. Quien se topa con el tope del plan es una persona que
-      quiso sumarse a un programa de un bar — no tiene nada que comprar, y
-      mostrarle el problema comercial del negocio sería trasladarle algo que
-      no le corresponde. El aviso es SOLO para el dueño, en el panel.
+      La regla más importante del sistema. Quien se topa con el tope del
+      plan es una persona que quiso sumarse al programa de un bar: no tiene
+      nada que comprar, y mostrarle el problema comercial del negocio sería
+      trasladarle algo que no le corresponde.
     */
-    it("ninguna superficie customer-facing importa el paywall", () => {
-      const publicDirs = [
-        join(dashboard, "..", "..", "(public)"),
-        join(dashboard, "..", "..", "..", "components", "public"),
-      ];
-
-      const offenders: string[] = [];
-      const walk = (dir: string) => {
-        for (const entry of readdirSync(dir, { withFileTypes: true })) {
-          const full = join(dir, entry.name);
-          if (entry.isDirectory()) {
-            walk(full);
-            continue;
-          }
-          if (!/\.tsx?$/.test(entry.name)) continue;
-          if (entry.name.includes(".test.")) continue;
-          const source = readFileSync(full, "utf-8");
-          if (
-            source.includes("ProUpgradePrompt") ||
-            source.includes("PlanUsageMeter") ||
-            source.includes("PlanLimitSignal") ||
-            source.includes("free-plan-usage")
-          ) {
-            offenders.push(full);
-          }
-        }
-      };
-      for (const dir of publicDirs) walk(dir);
+    it("ninguna superficie customer-facing importa el upsell", () => {
+      const offenders = sourcesUnder(join(webRoot, "app", "(public)"))
+        .concat(sourcesUnder(join(webRoot, "components", "public")))
+        .filter(({ source }) =>
+          /ProUpgradePrompt|PlanUsageMeter|UpgradePlanModal|useUpgradeModal|checkout-urls|mpago/.test(
+            source,
+          ),
+        )
+        .map(({ path }) => path);
 
       expect(offenders).toEqual([]);
-    });
-  });
-
-  describe("el aviso de tope alcanzado", () => {
-    it("Inicio le pasa al medidor los rechazos reales de la semana", () => {
-      const home = read("home-client.tsx");
-      expect(home).toContain("blockedLast7Days={usage.blockedCustomersLast7Days}");
-      // El bloque entero depende de `freePlanUsage`, que el backend manda en
-      // `null` para Pro — así desaparece al actualizar el plan, sin lógica
-      // propia en el frontend.
-      expect(home).toContain("parseFreePlanUsage");
-      expect(home).toContain("if (!usage) return null;");
-    });
-
-    it("Insights separa la señal de capacidad de las métricas de performance", () => {
-      const page = read("insights", "insights-v2-page.tsx");
-      expect(page.indexOf("<PlanLimitSignal")).toBeLessThan(
-        page.indexOf("<FlikkerPerformance"),
-      );
-    });
-
-    /*
-      §9: el dueño tiene que descubrir el problema, no ser perseguido por
-      él. Nada de esto puede abrirse por su cuenta ni repetirse al navegar.
-    */
-    it("no hay modal automático, toast ni banner rojo por el tope", () => {
-      // Solo el código DEL AVISO, no el archivo entero: Inicio tiene su
-      // propio banner rojo de "no pudimos cargar", que no tiene nada que
-      // ver con esto.
-      const home = read("home-client.tsx");
-      const planBlock = home.slice(home.indexOf("function HomePlanBlock"));
-      const sources = [
-        planBlock,
-        read("insights", "plan-limit-signal.tsx"),
-        read("insights", "insights-v2-page.tsx"),
-      ];
-
-      for (const source of sources) {
-        expect(source).not.toContain('variant="modal"');
-        expect(source).not.toContain("toast.");
-        expect(source).not.toMatch(/bg-red-|bg-\[#C0392B\]/);
-      }
     });
   });
 });

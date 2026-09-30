@@ -14,9 +14,12 @@ import {
   UserRoundSearch,
 } from "lucide-react";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
+import { PRO_MONTHLY_CHECKOUT_URL } from "@/lib/checkout-urls";
 import { useIsOwnerOrAdmin } from "../../../role-context";
 
-const MERCADOPAGO_CHECKOUT_URL = "https://mpago.la/1Acxajh";
+// La URL vive en un solo lugar — ver `lib/checkout-urls`. Esta pantalla
+// manda al checkout MENSUAL; la elección mensual/anual es del modal.
+const MERCADOPAGO_CHECKOUT_URL = PRO_MONTHLY_CHECKOUT_URL;
 
 export interface SubscriptionOverview {
   planSlug: string;

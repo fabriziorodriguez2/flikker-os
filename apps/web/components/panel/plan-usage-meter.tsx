@@ -1,4 +1,6 @@
-import Link from "next/link";
+"use client";
+
+import { useUpgradeModal } from "./upgrade-modal-provider";
 
 /**
  * El tope real del plan Free, mostrado sin dramatizar.
@@ -45,6 +47,8 @@ export default function PlanUsageMeter({
   blockedLast7Days?: number;
   className?: string;
 }) {
+  const { openUpgradeModal } = useUpgradeModal();
+
   // Sin tope no hay medidor que mostrar. Dibujar una barra "ilimitada" sería
   // inventar una escala que no existe.
   if (limit == null || limit <= 0) return null;
@@ -90,13 +94,14 @@ export default function PlanUsageMeter({
                   remaining === 1 ? "lugar" : "lugares"
                 } para nuevos clientes.`}
           </p>
-          <Link
-            href="/dashboard/settings/suscripcion"
+          <button
+            type="button"
+            onClick={() => openUpgradeModal({ feature: "customer_limit" })}
             data-pro-feature="customer_limit"
-            className="text-xs font-semibold text-[#6D4AFF] hover:underline"
+            className="text-xs font-semibold text-[#6D4AFF] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6D4AFF]"
           >
             Ver Pro
-          </Link>
+          </button>
         </div>
       ) : null}
 

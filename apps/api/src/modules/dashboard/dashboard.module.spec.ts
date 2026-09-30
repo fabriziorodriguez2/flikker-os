@@ -1,4 +1,5 @@
 import { Test } from '@nestjs/testing';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { DashboardModule } from './dashboard.module';
 import { DashboardOverviewService } from './dashboard-overview.service';
 
@@ -11,7 +12,13 @@ import { DashboardOverviewService } from './dashboard-overview.service';
 describe('DashboardModule — DI wiring', () => {
   it('compiles and resolves DashboardOverviewService', async () => {
     const moduleRef = await Test.createTestingModule({
-      imports: [DashboardModule],
+      imports: [
+        // `PublicController` usa `@UseGuards(ThrottlerGuard)`. En la app real
+        // `ThrottlerModule` es @Global() desde `AppModule`; un spec que compila
+        // un módulo suelto tiene que traerlo, igual que lo hace la raíz.
+        ThrottlerModule.forRoot([{ ttl: 60000, limit: 60 }]),
+        DashboardModule,
+      ],
     }).compile();
 
     const service = moduleRef.get(DashboardOverviewService);
