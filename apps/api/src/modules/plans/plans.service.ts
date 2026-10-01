@@ -3,7 +3,7 @@ import {
   NotFoundException,
   ForbiddenException,
 } from '@nestjs/common';
-import { SubscriptionStatus } from '@prisma/client';
+import { CheckoutPlan, SubscriptionStatus } from '@prisma/client';
 import { PlansRepository } from './plans.repository';
 
 /** Default limits when a business has no active subscription. */
@@ -327,6 +327,37 @@ export class PlansService {
    */
   ensureProSelfServicePlan() {
     return this.repository.ensureProSelfServicePlan();
+  }
+
+  /**
+   * Método CANÓNICO para activar Pro self-service tras un pago confirmado
+   * (Parte 5 — webhook de Mercado Pago). Nadie fuera de acá debe escribir
+   * `Subscription`/`Plan` a mano para este camino — mismo criterio que el
+   * resto de este service: un solo lugar decide qué significa "este
+   * negocio es Pro".
+   *
+   * `billingCycle` decide solo el CICLO de facturación (`currentPeriodEnd`
+   * a 1 o 12 meses) — el plan en sí (`pro-selfservice`, límites,
+   * entitlements) es el mismo sin importar si se pagó mensual o anual:
+   * Pro es Pro. Idempotente vía `upsert` (ver
+   * `PlansRepository#upsertProSelfServiceSubscription`) — se puede llamar
+   * tantas veces como el webhook reintente sin efecto acumulativo.
+   */
+  async activateProSelfService(
+    businessId: string,
+    billingCycle: CheckoutPlan,
+    now: Date = new Date(),
+  ) {
+    const plan = await this.repository.ensureProSelfServicePlan();
+    const periodMonths = billingCycle === CheckoutPlan.YEARLY ? 12 : 1;
+    const currentPeriodEnd = new Date(now);
+    currentPeriodEnd.setUTCMonth(currentPeriodEnd.getUTCMonth() + periodMonths);
+    return this.repository.upsertProSelfServiceSubscription(
+      businessId,
+      plan.id,
+      now,
+      currentPeriodEnd,
+    );
   }
 
   /**

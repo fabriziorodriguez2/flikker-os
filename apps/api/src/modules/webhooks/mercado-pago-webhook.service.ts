@@ -6,6 +6,8 @@ import {
   type PreapprovalResource,
 } from '../public/mercado-pago-subscription.provider';
 import { resolveCheckoutPricing } from '../public/checkout-pricing';
+import { PlansService } from '../plans/plans.service';
+import { SubscriptionPaidNotificationService } from './subscription-paid-notification.service';
 
 /**
  * Reconciliación de `CheckoutLead` a partir de webhooks de Mercado Pago
@@ -42,6 +44,8 @@ export class MercadoPagoWebhookService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mercadoPago: MercadoPagoSubscriptionProvider,
+    private readonly plans: PlansService,
+    private readonly subscriptionPaidNotification: SubscriptionPaidNotificationService,
   ) {}
 
   /**
@@ -105,8 +109,18 @@ export class MercadoPagoWebhookService {
 
     if (lead.status === CheckoutLeadStatus.PAID) {
       // Idempotente: ya procesado por una entrega anterior del mismo (o
-      // equivalente) evento. No hay nada más que hacer ni que loguear como
-      // advertencia — esto es lo ESPERADO ante un webhook repetido.
+      // equivalente) evento. Igual se vuelve a asegurar Pro + notificación
+      // (ambos idempotentes — upsert / DomainEvent claim) por si una
+      // entrega anterior marcó PAID pero se cayó ANTES de terminar esos
+      // pasos: sin esto, un reintento del webhook nunca los retomaría,
+      // porque este mismo branch cortaría antes de llegar a ellos.
+      if (lead.businessId) {
+        await this.ensureProActivatedAndNotified(
+          lead.id,
+          lead.businessId,
+          lead.plan,
+        );
+      }
       this.logger.log(
         `preapproval ${resource.id}: lead ${lead.id} ya está PAID — no-op idempotente.`,
       );
@@ -170,6 +184,63 @@ export class MercadoPagoWebhookService {
         `preapproval ${resource.id}: lead ${lead.id} ya fue transicionado por una entrega concurrente — idempotente.`,
       );
     }
+
+    // Sin importar quién ganó la escritura de arriba: el lead YA está PAID
+    // en la base en este punto, así que activar Pro + notificar es seguro
+    // y correcto para cualquiera de los dos casos.
+    if (lead.businessId) {
+      await this.ensureProActivatedAndNotified(
+        lead.id,
+        lead.businessId,
+        lead.plan,
+      );
+    } else {
+      this.logger.log(
+        `lead ${lead.id} sin businessId (flujo público) — no hay Business que activar a Pro.`,
+      );
+    }
+  }
+
+  /**
+   * Activa Pro (método canónico de `PlansService`, idempotente vía
+   * `upsert`) y dispara `SUBSCRIPTION_PAID` (idempotente vía
+   * `DomainEventClaimService`). Se llama desde DOS lugares de `reconcile`
+   * (la transición ganadora y el no-op "ya estaba PAID") a propósito:
+   * ambos deben converger en el mismo estado final, sin importar si Pro ya
+   * se había activado antes o no.
+   *
+   * Activar Pro SÍ se espera y puede propagar un error (el webhook
+   * responde error y Mercado Pago reintenta — dejar el Business en FREE
+   * con el lead ya en PAID sería una inconsistencia real que vale la pena
+   * reintentar). La notificación es fire-and-forget: una falla mandando un
+   * email/WhatsApp nunca debe hacer que Mercado Pago reintente todo el
+   * webhook.
+   */
+  private async ensureProActivatedAndNotified(
+    checkoutLeadId: string,
+    businessId: string,
+    plan: CheckoutPlan,
+  ): Promise<void> {
+    try {
+      await this.plans.activateProSelfService(businessId, plan);
+    } catch (error) {
+      this.logger.error(
+        `No se pudo activar Pro para business ${businessId} (lead ${checkoutLeadId}): ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      throw error;
+    }
+
+    void this.subscriptionPaidNotification
+      .fire(checkoutLeadId)
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `SUBSCRIPTION_PAID notification falló para lead ${checkoutLeadId}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
   }
 
   /**

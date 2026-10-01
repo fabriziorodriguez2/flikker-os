@@ -4,8 +4,12 @@ import { VisitSourcesModule } from '../visit-sources/visit-sources.module';
 import { BenefitsModule } from '../benefits/benefits.module';
 import { RetentionV2Module } from '../retention-v2/retention-v2.module';
 import { PlansModule } from '../plans/plans.module';
+import { DomainEventsModule } from '../domain-events/domain-events.module';
 import { OnboardingController } from './onboarding.controller';
 import { OnboardingService } from './onboarding.service';
+import { RegistrationCompletedService } from './registration-completed.service';
+import { EmailService } from '../../jobs/email.service';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 
 /**
  * Onboarding self-service. Reusa `VisitSourcesRepository`,
@@ -22,9 +26,18 @@ import { OnboardingService } from './onboarding.service';
     BenefitsModule,
     RetentionV2Module,
     PlansModule,
+    DomainEventsModule,
   ],
   controllers: [OnboardingController],
-  providers: [OnboardingService],
+  providers: [
+    OnboardingService,
+    RegistrationCompletedService,
+    // Sin estado propio — seguro de instanciar también acá sin importar
+    // todo `JobsModule` (que trae una cadena enorme de colas/workers sin
+    // relación con onboarding).
+    EmailService,
+    WhatsAppBspService,
+  ],
   exports: [OnboardingService],
 })
 export class OnboardingModule {}

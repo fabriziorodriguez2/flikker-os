@@ -1,24 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Check, Loader2, ExternalLink } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
 import PageHeader from "@/components/ui/page-header";
 import MetricCard from "@/components/ui/metric-card";
 import SettingsFormSection from "@/components/settings/settings-form-section";
-import { PRO_MONTHLY_CHECKOUT_URL } from "@/lib/checkout-urls";
+import { useProCheckout } from "@/lib/use-pro-checkout";
 import { useIsOwnerOrAdmin } from "../../../role-context";
-
-/**
- * Link real de checkout de Mercado Pago (pedido explícito). A propósito NO
- * hay ningún fetch al backend en el click de "Suscribirme": sin webhook de
- * Mercado Pago integrado todavía, un click no es prueba de pago. La
- * Subscription solo pasa a Pro cuando un admin de plataforma confirma el
- * cobro a mano desde el dashboard de Mercado Pago — ver
- * `PlatformService#confirmProSubscription`.
- */
-// La URL vive en un solo lugar — ver `lib/checkout-urls`. Esta pantalla
-// manda al checkout MENSUAL; la elección mensual/anual es del modal.
-const MERCADOPAGO_CHECKOUT_URL = PRO_MONTHLY_CHECKOUT_URL;
 
 interface SubscriptionOverview {
   planSlug: string;
@@ -78,6 +66,7 @@ export default function SubscriptionClient() {
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const checkout = useProCheckout();
 
   const load = useCallback(async () => {
     setError(null);
@@ -238,20 +227,33 @@ export default function SubscriptionClient() {
             {overview.isPro ? (
               <CurrentPlanBadge />
             ) : canManage ? (
-              <a
-                href={MERCADOPAGO_CHECKOUT_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 rounded-[16px] bg-[color:var(--brand-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,4,65,0.18)] transition-colors hover:bg-[color:var(--brand-accent)]"
+              <button
+                type="button"
+                disabled={checkout.pendingPlan !== null}
+                onClick={() => checkout.startCheckout("MONTHLY")}
+                className="inline-flex items-center gap-2 rounded-[16px] bg-[color:var(--brand-primary)] px-5 py-3 text-sm font-semibold text-white shadow-[0_14px_30px_rgba(0,4,65,0.18)] transition-colors hover:bg-[color:var(--brand-accent)] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Suscribirme <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              </a>
+                {checkout.pendingPlan === "MONTHLY" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Preparando checkout...
+                  </>
+                ) : (
+                  "Suscribirme"
+                )}
+              </button>
             ) : null}
-            <p className="mt-3 text-xs leading-5 text-[color:var(--text-soft)]">
-              Abre el checkout de Mercado Pago en una pestaña nueva. Tu plan
-              se activa cuando el equipo de Flikker confirma el pago — el
-              click por sí solo no lo activa.
-            </p>
+            {checkout.error ? (
+              <p role="alert" className="mt-3 text-xs leading-5 text-[color:var(--danger-text)]">
+                {checkout.error}
+              </p>
+            ) : null}
+            {!overview.isPro ? (
+              <p className="mt-3 text-xs leading-5 text-[color:var(--text-soft)]">
+                El pago se procesa en Mercado Pago. Tu plan se activa
+                automáticamente ni bien se confirma el pago.
+              </p>
+            ) : null}
           </div>
         </SettingsFormSection>
 

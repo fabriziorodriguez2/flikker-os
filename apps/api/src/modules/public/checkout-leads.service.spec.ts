@@ -449,6 +449,7 @@ describe('CheckoutLeadsService.createCheckout', () => {
       prisma.checkoutLead.findUnique.mockResolvedValue({
         status: CheckoutLeadStatus.CHECKOUT_CREATING,
         checkoutUrl: null,
+        email: 'juan@ejemplo.com',
       });
       const provider = makeProvider();
       const service = makeService(prisma, provider);

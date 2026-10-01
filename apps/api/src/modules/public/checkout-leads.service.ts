@@ -210,6 +210,19 @@ export class CheckoutLeadsService {
     });
     if (!lead) throw new NotFoundException('Checkout lead not found');
 
+    // Defensivo: `email` es nullable en el schema desde Parte 5 (el checkout
+    // AUTENTICADO no pisa los campos de contacto del formulario público),
+    // pero SIEMPRE tiene que venir completo — el checkout autenticado lo
+    // llena con `User.email`, el público con el email del formulario. Si
+    // esto dispara es un bug de creación del lead, no algo que el checkout
+    // pueda seguir adelante sin resolver: `payer_email` es obligatorio para
+    // Mercado Pago.
+    if (!lead.email) {
+      throw new Error(
+        `CheckoutLead ${lead.id} no tiene email — no se puede crear el checkout.`,
+      );
+    }
+
     if (lead.status === CheckoutLeadStatus.PAID) {
       throw new ConflictException('This checkout has already been paid.');
     }
@@ -255,7 +268,12 @@ export class CheckoutLeadsService {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       const claimed = await this.claimForCreation(leadId);
       if (claimed) {
-        return this.createSubscriptionForClaimedLead(lead);
+        return this.createSubscriptionForClaimedLead({
+          id: lead.id,
+          email: lead.email,
+          plan: lead.plan,
+          providerIdempotencyKey: lead.providerIdempotencyKey,
+        });
       }
 
       const resolved = await this.waitForConcurrentCreation(leadId);

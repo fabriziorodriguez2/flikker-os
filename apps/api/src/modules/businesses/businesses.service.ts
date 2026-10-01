@@ -4,7 +4,7 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { BusinessStatus, MembershipStatus } from '@prisma/client';
+import { BusinessStatus, CheckoutPlan, MembershipStatus } from '@prisma/client';
 import { BusinessesRepository } from './businesses.repository';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
@@ -17,6 +17,8 @@ import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.q
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { GooglePlacesProvider } from '../../jobs/google-places.provider';
 import { PlansService } from '../plans/plans.service';
+import { CheckoutLeadsService } from '../public/checkout-leads.service';
+import type { AuthenticatedUser } from '../../common/types/request.types';
 
 /**
  * Valid status transitions.
@@ -49,11 +51,55 @@ export class BusinessesService {
     private readonly whatsAppBspService: WhatsAppBspService,
     private readonly googlePlacesProvider: GooglePlacesProvider,
     private readonly plans: PlansService,
+    private readonly checkoutLeads: CheckoutLeadsService,
   ) {}
 
   /** Configuración → Suscripción — todo lo que la pantalla necesita, ya resuelto. */
   getSubscriptionOverview(businessId: string) {
     return this.plans.getSubscriptionOverview(businessId);
+  }
+
+  /**
+   * Checkout Pro AUTENTICADO (Parte 5). El Business viene de `TenantGuard`
+   * (`businessId`, ya validado contra la sesión) — nunca de algo que el
+   * browser pueda mandar. `plan` sí es elección legítima del usuario.
+   *
+   * Reusa un `CheckoutLead` existente del MISMO negocio y MISMO plan si
+   * todavía está en curso (PENDING/CHECKOUT_CREATING/CHECKOUT_CREATED) en
+   * vez de crear uno nuevo cada vez que alguien reabre el modal de
+   * upgrade — mismo criterio "reintento = SELECT, nunca una fila nueva" que
+   * ya tiene `CheckoutLeadsService.createCheckout`. Si el intento anterior
+   * quedó en `CHECKOUT_RECONCILIATION_REQUIRED`, se reusa igual: que
+   * `createCheckout` tire su propio 409 de "contactá soporte" es más seguro
+   * que crear un lead nuevo sobre un negocio con una ambigüedad sin
+   * resolver.
+   */
+  async createProCheckout(
+    businessId: string,
+    requester: AuthenticatedUser,
+    plan: CheckoutPlan,
+  ) {
+    if (await this.plans.isOnProPlan(businessId)) {
+      throw new ConflictException('Este negocio ya tiene Pro activo.');
+    }
+
+    const existing = await this.repository.findInProgressCheckoutLead(
+      businessId,
+      plan,
+    );
+
+    const leadId =
+      existing?.id ??
+      (
+        await this.repository.createAuthenticatedCheckoutLead({
+          businessId,
+          requestedByUserId: requester.id,
+          email: requester.email,
+          plan,
+        })
+      ).id;
+
+    return this.checkoutLeads.createCheckout(leadId);
   }
 
   /**

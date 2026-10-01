@@ -47,6 +47,14 @@ describe('MercadoPagoWebhookService', () => {
     };
   }
 
+  function makePlans() {
+    return { activateProSelfService: jest.fn().mockResolvedValue({}) };
+  }
+
+  function makeNotification() {
+    return { fire: jest.fn().mockResolvedValue(undefined) };
+  }
+
   function makeProvider(
     overrides: Partial<MercadoPagoSubscriptionProvider> = {},
   ) {
@@ -62,8 +70,15 @@ describe('MercadoPagoWebhookService', () => {
   function makeService(
     prisma: ReturnType<typeof makePrisma>,
     provider: ReturnType<typeof makeProvider>,
+    plans: ReturnType<typeof makePlans> = makePlans(),
+    notification: ReturnType<typeof makeNotification> = makeNotification(),
   ) {
-    return new MercadoPagoWebhookService(prisma as never, provider as never);
+    return new MercadoPagoWebhookService(
+      prisma as never,
+      provider as never,
+      plans as never,
+      notification as never,
+    );
   }
 
   // ── mapping de statuses (§9) ────────────────────────────────────────
@@ -102,6 +117,88 @@ describe('MercadoPagoWebhookService', () => {
           providerStatus: 'authorized',
         },
       });
+    });
+
+    it('con businessId: activa Pro (método canónico de PlansService) y dispara SUBSCRIPTION_PAID', async () => {
+      const lead = baseLead({ businessId: 'biz-1' });
+      const prisma = makePrisma(lead);
+      const provider = makeProvider({
+        getPreapprovalById: jest.fn().mockResolvedValue(preapproval()),
+      } as never);
+      const plans = makePlans();
+      const notification = makeNotification();
+      const service = makeService(prisma, provider, plans, notification);
+
+      await service.handleSubscriptionPreapproval('sub-123');
+
+      expect(plans.activateProSelfService).toHaveBeenCalledWith(
+        'biz-1',
+        CheckoutPlan.MONTHLY,
+      );
+      expect(notification.fire).toHaveBeenCalledWith('lead-1');
+    });
+
+    it('sin businessId (flujo público viejo): NUNCA activa Pro ni dispara notificación', async () => {
+      const lead = baseLead({ businessId: null });
+      const prisma = makePrisma(lead);
+      const provider = makeProvider({
+        getPreapprovalById: jest.fn().mockResolvedValue(preapproval()),
+      } as never);
+      const plans = makePlans();
+      const notification = makeNotification();
+      const service = makeService(prisma, provider, plans, notification);
+
+      await service.handleSubscriptionPreapproval('sub-123');
+
+      expect(plans.activateProSelfService).not.toHaveBeenCalled();
+      expect(notification.fire).not.toHaveBeenCalled();
+    });
+
+    it('si activar Pro falla, el error se propaga (el webhook responde error y Mercado Pago reintenta)', async () => {
+      const lead = baseLead({ businessId: 'biz-1' });
+      const prisma = makePrisma(lead);
+      const provider = makeProvider({
+        getPreapprovalById: jest.fn().mockResolvedValue(preapproval()),
+      } as never);
+      const plans = {
+        activateProSelfService: jest
+          .fn()
+          .mockRejectedValue(new Error('DB caída')),
+      };
+      const notification = makeNotification();
+      const service = makeService(prisma, provider, plans, notification);
+
+      await expect(
+        service.handleSubscriptionPreapproval('sub-123'),
+      ).rejects.toThrow('DB caída');
+      // El lead YA quedó PAID en la base (el updateMany de arriba ya pasó)
+      // — lo único que falló fue activar Pro, que el próximo webhook
+      // reintentará (ver el branch "ya está PAID" más abajo).
+      expect(notification.fire).not.toHaveBeenCalled();
+    });
+
+    it('lead ya PAID pero Pro todavía no se había activado (retry tras una falla previa): lo retoma', async () => {
+      const lead = baseLead({
+        status: CheckoutLeadStatus.PAID,
+        businessId: 'biz-1',
+      });
+      const prisma = makePrisma(lead);
+      const provider = makeProvider({
+        getPreapprovalById: jest.fn().mockResolvedValue(preapproval()),
+      } as never);
+      const plans = makePlans();
+      const notification = makeNotification();
+      const service = makeService(prisma, provider, plans, notification);
+
+      await service.handleSubscriptionPreapproval('sub-123');
+
+      expect(plans.activateProSelfService).toHaveBeenCalledWith(
+        'biz-1',
+        CheckoutPlan.MONTHLY,
+      );
+      expect(notification.fire).toHaveBeenCalledWith('lead-1');
+      // Nunca vuelve a escribir el lead — ya estaba PAID.
+      expect(prisma.checkoutLead.updateMany).not.toHaveBeenCalled();
     });
 
     it('cancelled: nunca PAID, no escribe nada', async () => {

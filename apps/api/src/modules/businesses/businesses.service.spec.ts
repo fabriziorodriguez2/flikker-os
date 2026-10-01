@@ -17,6 +17,7 @@ import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.q
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { GooglePlacesProvider } from '../../jobs/google-places.provider';
 import { PlansService } from '../plans/plans.service';
+import { CheckoutLeadsService } from '../public/checkout-leads.service';
 
 const OWNER_ID = 'user-owner';
 const OTHER_USER_ID = 'user-other';
@@ -76,6 +77,8 @@ const mockRepository = {
   findBrandProfile: jest.fn(),
   update: jest.fn(),
   updateStatus: jest.fn(),
+  findInProgressCheckoutLead: jest.fn(),
+  createAuthenticatedCheckoutLead: jest.fn(),
 };
 
 const mockAuditService = {
@@ -104,6 +107,13 @@ const mockGooglePlacesProvider = {
 };
 const mockPlansService = {
   getSubscriptionOverview: jest.fn().mockResolvedValue({}),
+  isOnProPlan: jest.fn().mockResolvedValue(false),
+};
+// Checkout Pro autenticado (Parte 5) — agregado al constructor de
+// BusinessesService después de que este archivo se escribiera, mismo
+// motivo que el bloque de arriba.
+const mockCheckoutLeadsService = {
+  createCheckout: jest.fn(),
 };
 
 describe('BusinessesService', () => {
@@ -124,6 +134,7 @@ describe('BusinessesService', () => {
         { provide: WhatsAppBspService, useValue: mockWhatsAppBspService },
         { provide: GooglePlacesProvider, useValue: mockGooglePlacesProvider },
         { provide: PlansService, useValue: mockPlansService },
+        { provide: CheckoutLeadsService, useValue: mockCheckoutLeadsService },
       ],
     }).compile();
 
@@ -522,6 +533,86 @@ describe('BusinessesService', () => {
         service.connectGooglePlace(BUSINESS_ID, 'bad-id'),
       ).rejects.toThrow(BadRequestException);
       expect(mockRepository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('createProCheckout (Parte 5 — checkout autenticado)', () => {
+    const REQUESTER = {
+      id: OWNER_ID,
+      email: 'owner@ejemplo.com',
+      firstName: 'Juan',
+      lastName: 'Pérez',
+      isActive: true,
+      isPlatformAdmin: false,
+    };
+
+    it('ya Pro: rechaza con ConflictException, nunca llega a crear/buscar un lead', async () => {
+      mockPlansService.isOnProPlan.mockResolvedValue(true);
+
+      await expect(
+        service.createProCheckout(BUSINESS_ID, REQUESTER, 'MONTHLY' as never),
+      ).rejects.toThrow(ConflictException);
+
+      expect(mockRepository.findInProgressCheckoutLead).not.toHaveBeenCalled();
+      expect(mockCheckoutLeadsService.createCheckout).not.toHaveBeenCalled();
+    });
+
+    it('sin lead en curso: crea uno nuevo (businessId de la sesión, nunca del body) y crea el checkout', async () => {
+      mockPlansService.isOnProPlan.mockResolvedValue(false);
+      mockRepository.findInProgressCheckoutLead.mockResolvedValue(null);
+      mockRepository.createAuthenticatedCheckoutLead.mockResolvedValue({
+        id: 'lead-new',
+      });
+      mockCheckoutLeadsService.createCheckout.mockResolvedValue({
+        checkoutUrl: 'https://mp.test/checkout/new',
+        status: 'CHECKOUT_CREATED',
+      });
+
+      const result = await service.createProCheckout(
+        BUSINESS_ID,
+        REQUESTER,
+        'MONTHLY' as never,
+      );
+
+      expect(
+        mockRepository.createAuthenticatedCheckoutLead,
+      ).toHaveBeenCalledWith({
+        businessId: BUSINESS_ID,
+        requestedByUserId: REQUESTER.id,
+        email: REQUESTER.email,
+        plan: 'MONTHLY',
+      });
+      expect(mockCheckoutLeadsService.createCheckout).toHaveBeenCalledWith(
+        'lead-new',
+      );
+      expect(result).toEqual({
+        checkoutUrl: 'https://mp.test/checkout/new',
+        status: 'CHECKOUT_CREATED',
+      });
+    });
+
+    it('con un lead del MISMO negocio y plan ya en curso: lo reusa — nunca crea uno nuevo', async () => {
+      mockPlansService.isOnProPlan.mockResolvedValue(false);
+      mockRepository.findInProgressCheckoutLead.mockResolvedValue({
+        id: 'lead-existing',
+      });
+      mockCheckoutLeadsService.createCheckout.mockResolvedValue({
+        checkoutUrl: 'https://mp.test/checkout/existing',
+        status: 'CHECKOUT_CREATED',
+      });
+
+      await service.createProCheckout(
+        BUSINESS_ID,
+        REQUESTER,
+        'MONTHLY' as never,
+      );
+
+      expect(
+        mockRepository.createAuthenticatedCheckoutLead,
+      ).not.toHaveBeenCalled();
+      expect(mockCheckoutLeadsService.createCheckout).toHaveBeenCalledWith(
+        'lead-existing',
+      );
     });
   });
 });

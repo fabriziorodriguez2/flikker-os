@@ -220,6 +220,42 @@ export class PlansRepository {
     });
   }
 
+  /**
+   * Activa/renueva el plan Pro self-service para un negocio. `upsert` a
+   * propósito: idempotente ante reintentos del webhook de Mercado Pago
+   * (Parte 5) — llamarlo varias veces con los mismos datos deja la MISMA
+   * fila, nunca duplica nada. `currentPeriodEnd` refleja el ciclo de
+   * facturación real (mensual/anual) pero NO gatea entitlements — eso lo
+   * decide únicamente `plan.slug` + `status` (ver
+   * `PlansService#isProSubscription`), así que un período vencido no le
+   * quita Pro a nadie por sí solo; billing real es una fase futura.
+   */
+  async upsertProSelfServiceSubscription(
+    businessId: string,
+    planId: string,
+    currentPeriodStart: Date,
+    currentPeriodEnd: Date,
+  ) {
+    return this.prisma.subscription.upsert({
+      where: { businessId },
+      update: {
+        planId,
+        status: SubscriptionStatus.ACTIVE,
+        currentPeriodStart,
+        currentPeriodEnd,
+        canceledAt: null,
+      },
+      create: {
+        businessId,
+        planId,
+        status: SubscriptionStatus.ACTIVE,
+        currentPeriodStart,
+        currentPeriodEnd,
+        trialEndsAt: null,
+      },
+    });
+  }
+
   findBusinessTrialFields(businessId: string) {
     return this.prisma.business.findUnique({
       where: { id: businessId },

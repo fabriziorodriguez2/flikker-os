@@ -2,6 +2,12 @@ import { randomUUID } from 'crypto';
 import { CheckoutLeadStatus, CheckoutPlan } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { MercadoPagoWebhookService } from './mercado-pago-webhook.service';
+import { SubscriptionPaidNotificationService } from './subscription-paid-notification.service';
+import { PlansService } from '../plans/plans.service';
+import { PlansRepository } from '../plans/plans.repository';
+import { DomainEventClaimService } from '../domain-events/domain-event-claim.service';
+import { EmailService } from '../../jobs/email.service';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import type { PreapprovalResource } from '../public/mercado-pago-subscription.provider';
 
 /**
@@ -13,6 +19,15 @@ import type { PreapprovalResource } from '../public/mercado-pago-subscription.pr
  * comportamiento real de Postgres (bloqueo de fila + reevaluación del
  * WHERE), no de este código. `Promise.all` sobre dos llamadas reales es
  * la única forma honesta de probarlo (§11/§17 — idempotencia).
+ *
+ * `PlansService`/`PlansRepository`/`DomainEventClaimService` son los
+ * REALES (contra la misma base) a propósito — Parte 5 pide explícitamente
+ * probar "PAID → PRO" y "repetido → sigue un solo upgrade" contra la base
+ * de verdad, no con un mock de `activateProSelfService`.
+ * `EmailService`/`WhatsAppBspService` también son los reales, pero sin
+ * credenciales configuradas en el entorno de test — `isAvailable()`
+ * devuelve `false` y las notificaciones se omiten solas, sin golpear
+ * ninguna red real.
  */
 class FakeProvider {
   constructor(private readonly resource: PreapprovalResource) {}
@@ -32,11 +47,14 @@ class FakeProvider {
 
 describe('MercadoPagoWebhookService (integration)', () => {
   let prisma: PrismaService;
+  let plans: PlansService;
   const createdLeadIds: string[] = [];
+  const createdBusinessIds: string[] = [];
 
   beforeAll(async () => {
     prisma = new PrismaService();
     await prisma.$connect();
+    plans = new PlansService(new PlansRepository(prisma));
   });
 
   afterAll(async () => {
@@ -45,8 +63,45 @@ describe('MercadoPagoWebhookService (integration)', () => {
         where: { id: { in: createdLeadIds } },
       });
     }
+    if (createdBusinessIds.length > 0) {
+      await prisma.subscription.deleteMany({
+        where: { businessId: { in: createdBusinessIds } },
+      });
+      await prisma.business.deleteMany({
+        where: { id: { in: createdBusinessIds } },
+      });
+    }
     await prisma.$disconnect();
   });
+
+  function makeService(provider: FakeProvider) {
+    const notification = new SubscriptionPaidNotificationService(
+      prisma,
+      new DomainEventClaimService(prisma),
+      new EmailService(),
+      new WhatsAppBspService(),
+    );
+    return new MercadoPagoWebhookService(
+      prisma,
+      provider as never,
+      plans,
+      notification,
+    );
+  }
+
+  async function makeBusiness() {
+    const business = await prisma.business.create({
+      data: {
+        name: `Negocio de prueba ${randomUUID()}`,
+        slug: `negocio-prueba-${randomUUID()}`,
+        country: 'UY',
+        timezone: 'America/Montevideo',
+        currency: 'UYU',
+      },
+    });
+    createdBusinessIds.push(business.id);
+    return business;
+  }
 
   async function makeCheckoutCreatedLead(
     overrides: Partial<
@@ -91,7 +146,7 @@ describe('MercadoPagoWebhookService (integration)', () => {
     const provider = new FakeProvider(
       preapprovalFor(lead.providerSubscriptionId!),
     );
-    const service = new MercadoPagoWebhookService(prisma, provider as never);
+    const service = makeService(provider);
 
     await service.handleSubscriptionPreapproval(lead.providerSubscriptionId!);
 
@@ -114,10 +169,7 @@ describe('MercadoPagoWebhookService (integration)', () => {
     const provider = new FakeProvider(
       preapprovalFor(lead.providerSubscriptionId!),
     );
-    const services = Array.from(
-      { length: 10 },
-      () => new MercadoPagoWebhookService(prisma, provider as never),
-    );
+    const services = Array.from({ length: 10 }, () => makeService(provider));
 
     await Promise.all(
       services.map((service) =>
@@ -137,7 +189,7 @@ describe('MercadoPagoWebhookService (integration)', () => {
     const provider = new FakeProvider(
       preapprovalFor(lead.providerSubscriptionId!),
     );
-    const service = new MercadoPagoWebhookService(prisma, provider as never);
+    const service = makeService(provider);
 
     await service.handleSubscriptionPreapproval(lead.providerSubscriptionId!);
     const first = await prisma.checkoutLead.findUniqueOrThrow({
@@ -157,7 +209,7 @@ describe('MercadoPagoWebhookService (integration)', () => {
     const resource = preapprovalFor(lead.providerSubscriptionId!);
     resource.autoRecurring.transactionAmount = 1000; // YEARLY espera 10000
     const provider = new FakeProvider(resource);
-    const service = new MercadoPagoWebhookService(prisma, provider as never);
+    const service = makeService(provider);
 
     await service.handleSubscriptionPreapproval(lead.providerSubscriptionId!);
 
@@ -175,7 +227,7 @@ describe('MercadoPagoWebhookService (integration)', () => {
     const resource = preapprovalFor(lead.providerSubscriptionId!);
     resource.status = 'cancelled';
     const provider = new FakeProvider(resource);
-    const service = new MercadoPagoWebhookService(prisma, provider as never);
+    const service = makeService(provider);
 
     await service.handleSubscriptionPreapproval(lead.providerSubscriptionId!);
 
@@ -193,7 +245,7 @@ describe('MercadoPagoWebhookService (integration)', () => {
     const resource = preapprovalFor(subscriptionId);
     resource.externalReference = lead.id;
     const provider = new FakeProvider(resource);
-    const service = new MercadoPagoWebhookService(prisma, provider as never);
+    const service = makeService(provider);
 
     await service.handleSubscriptionPreapproval(subscriptionId);
 
@@ -212,7 +264,7 @@ describe('MercadoPagoWebhookService (integration)', () => {
     const resource = preapprovalFor(subscriptionAjena);
     resource.externalReference = lead.id;
     const provider = new FakeProvider(resource);
-    const service = new MercadoPagoWebhookService(prisma, provider as never);
+    const service = makeService(provider);
 
     await service.handleSubscriptionPreapproval(subscriptionAjena);
 
@@ -222,5 +274,89 @@ describe('MercadoPagoWebhookService (integration)', () => {
     // Nunca tocado: sigue CHECKOUT_CREATED con SU subscription original.
     expect(row.status).toBe(CheckoutLeadStatus.CHECKOUT_CREATED);
     expect(row.providerSubscriptionId).toBe(otraSubscripcion);
+  });
+
+  // ── Parte 5 — PAID activa Pro en el Business vinculado ──────────────
+
+  describe('PAID -> PRO (Parte 5)', () => {
+    it('con businessId: PAID activa Pro de verdad en el Business (Subscription real)', async () => {
+      const business = await makeBusiness();
+      const lead = await makeCheckoutCreatedLead({ businessId: business.id });
+      const provider = new FakeProvider(
+        preapprovalFor(lead.providerSubscriptionId!),
+      );
+      const service = makeService(provider);
+
+      await service.handleSubscriptionPreapproval(lead.providerSubscriptionId!);
+
+      expect(await plans.isOnProPlan(business.id)).toBe(true);
+    });
+
+    it('webhook authorized repetido ×10 sobre el mismo lead: Business sigue Pro, un solo upgrade lógico', async () => {
+      const business = await makeBusiness();
+      const lead = await makeCheckoutCreatedLead({ businessId: business.id });
+      const provider = new FakeProvider(
+        preapprovalFor(lead.providerSubscriptionId!),
+      );
+      const services = Array.from({ length: 10 }, () => makeService(provider));
+
+      await Promise.all(
+        services.map((service) =>
+          service.handleSubscriptionPreapproval(lead.providerSubscriptionId!),
+        ),
+      );
+
+      expect(await plans.isOnProPlan(business.id)).toBe(true);
+      const subscription = await prisma.subscription.findUnique({
+        where: { businessId: business.id },
+      });
+      expect(subscription).not.toBeNull();
+    });
+
+    it('YEARLY: activa Pro con el ciclo de facturación anual (currentPeriodEnd ~12 meses)', async () => {
+      const business = await makeBusiness();
+      const lead = await makeCheckoutCreatedLead({
+        businessId: business.id,
+        plan: CheckoutPlan.YEARLY,
+      });
+      const resource = preapprovalFor(lead.providerSubscriptionId!);
+      resource.autoRecurring = {
+        frequency: 12,
+        frequencyType: 'months',
+        transactionAmount: 10000,
+        currencyId: 'UYU',
+      };
+      const provider = new FakeProvider(resource);
+      const service = makeService(provider);
+
+      await service.handleSubscriptionPreapproval(lead.providerSubscriptionId!);
+
+      const subscription = await prisma.subscription.findUniqueOrThrow({
+        where: { businessId: business.id },
+      });
+      const monthsDiff =
+        (subscription.currentPeriodEnd.getTime() -
+          subscription.currentPeriodStart.getTime()) /
+        (30 * 24 * 60 * 60 * 1000);
+      expect(monthsDiff).toBeGreaterThan(10);
+      expect(monthsDiff).toBeLessThan(13);
+    });
+
+    it('sin businessId: PAID nunca activa Pro en ningún lado', async () => {
+      const lead = await makeCheckoutCreatedLead();
+      const provider = new FakeProvider(
+        preapprovalFor(lead.providerSubscriptionId!),
+      );
+      const service = makeService(provider);
+
+      await service.handleSubscriptionPreapproval(lead.providerSubscriptionId!);
+
+      const row = await prisma.checkoutLead.findUniqueOrThrow({
+        where: { id: lead.id },
+      });
+      expect(row.status).toBe(CheckoutLeadStatus.PAID);
+      // No hay businessId — no hay nada que verificar del lado de Pro, el
+      // punto es simplemente que esto no explota y no crea nada.
+    });
   });
 });

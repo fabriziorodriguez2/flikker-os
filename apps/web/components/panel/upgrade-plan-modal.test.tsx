@@ -1,16 +1,20 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import UpgradePlanModal from "./upgrade-plan-modal";
-import {
-  PRO_MONTHLY_CHECKOUT_URL,
-  PRO_YEARLY_CHECKOUT_URL,
-  yearlyPriceFrom,
-} from "@/lib/checkout-urls";
+import { yearlyPriceFrom } from "@/lib/checkout-urls";
 
 /**
  * El modal que manda a pagar. Lo que estos tests protegen es plata real y
- * honestidad: que cada CTA vaya al checkout que dice ir, que el precio
- * mostrado sea el que se cobra, y que el anual gane por valor y no por
- * esconder al mensual.
+ * honestidad: que cada CTA abra el checkout autenticado (nunca un link
+ * estático), que el precio mostrado sea el que se cobra, y que el anual
+ * gane por valor y no por esconder al mensual.
+ *
+ * `renderToStaticMarkup` no ejecuta `onClick` ni `useState` entre renders
+ * (no hay DOM/jsdom en este repo — ver `jest.config.cjs`), así que lo que
+ * se prueba acá es la forma inicial del markup: botones reales (no `<a
+ * href>`), copy, precios, accesibilidad. El comportamiento del click en sí
+ * (POST al proxy, estado de carga, error) vive en `lib/pro-checkout.ts` y
+ * `lib/pro-checkout.test.ts`, que son lógica pura y sí se prueban de punta
+ * a punta sin necesitar un DOM.
  */
 const PRICE = { currency: "UYU", amount: 1000 };
 
@@ -25,26 +29,25 @@ const render = (props: Partial<Parameters<typeof UpgradePlanModal>[0]> = {}) =>
   );
 
 describe("UpgradePlanModal", () => {
-  describe("los checkouts reales", () => {
-    it("mensual apunta exactamente al checkout mensual", () => {
-      expect(render()).toContain('href="https://mpago.la/1Acxajh"');
-    });
-
-    it("anual apunta exactamente al checkout anual", () => {
-      expect(render()).toContain('href="https://mpago.la/2hsbeMy"');
-    });
-
-    it("los dos links salen de la configuración central", () => {
+  describe("el checkout real, nunca un link estático", () => {
+    it("los dos CTAs son botones, no links a Mercado Pago", () => {
       const html = render();
-      expect(html).toContain(`href="${PRO_MONTHLY_CHECKOUT_URL}"`);
-      expect(html).toContain(`href="${PRO_YEARLY_CHECKOUT_URL}"`);
-      expect(PRO_MONTHLY_CHECKOUT_URL).not.toBe(PRO_YEARLY_CHECKOUT_URL);
+      expect(html).not.toContain("<a ");
+      expect(html).not.toContain("mpago");
+      expect(html).toContain('<button type="button"');
     });
 
     it("cada CTA lleva su plan marcado, para no confundirlos", () => {
       const html = render();
       expect(html).toContain('data-plan="monthly"');
       expect(html).toContain('data-plan="yearly"');
+    });
+
+    it("el feature viaja en data-pro-feature de los dos botones", () => {
+      const html = render({ feature: "settings_banner" });
+      expect(
+        html.match(/data-pro-feature="settings_banner"/g)?.length,
+      ).toBe(2);
     });
   });
 
@@ -139,6 +142,24 @@ describe("UpgradePlanModal", () => {
       ]) {
         expect(html).not.toContain(pattern);
       }
+    });
+  });
+
+  describe("intención de signup: resalta, nunca decide por el usuario", () => {
+    it("sin intención, ninguna card dice “Tu elección”", () => {
+      expect(render()).not.toContain("Tu elección");
+    });
+
+    it("con intención mensual, resalta la card mensual", () => {
+      const html = render({ defaultBilling: "MONTHLY" });
+      expect(html).toContain("Tu elección");
+      expect(html.indexOf("Tu elección")).toBeLessThan(html.indexOf("Mejor opción"));
+    });
+
+    it("con intención anual, las dos cards siguen siendo elegibles", () => {
+      const html = render({ defaultBilling: "YEARLY" });
+      expect(html).toContain("Elegir mensual");
+      expect(html).toContain("Elegir anual");
     });
   });
 

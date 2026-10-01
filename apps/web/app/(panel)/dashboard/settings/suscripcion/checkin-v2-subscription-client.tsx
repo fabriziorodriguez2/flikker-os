@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   ChartNoAxesColumnIncreasing,
-  ExternalLink,
   Gift,
   Globe2,
   Layers3,
+  Loader2,
   MessageCircle,
   QrCode,
   Send,
@@ -14,12 +14,8 @@ import {
   UserRoundSearch,
 } from "lucide-react";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
-import { PRO_MONTHLY_CHECKOUT_URL } from "@/lib/checkout-urls";
+import { useProCheckout } from "@/lib/use-pro-checkout";
 import { useIsOwnerOrAdmin } from "../../../role-context";
-
-// La URL vive en un solo lugar — ver `lib/checkout-urls`. Esta pantalla
-// manda al checkout MENSUAL; la elección mensual/anual es del modal.
-const MERCADOPAGO_CHECKOUT_URL = PRO_MONTHLY_CHECKOUT_URL;
 
 export interface SubscriptionOverview {
   planSlug: string;
@@ -116,6 +112,7 @@ export default function CheckinV2SubscriptionClient() {
   const [overview, setOverview] = useState<SubscriptionOverview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const checkout = useProCheckout();
 
   const load = useCallback(async () => {
     setError(null);
@@ -152,14 +149,21 @@ export default function CheckinV2SubscriptionClient() {
   const trialState = resolveTrialState(overview);
 
   const upgradeLink = canManage && !overview.isPro ? (
-    <a
-      href={MERCADOPAGO_CHECKOUT_URL}
-      target="_blank"
-      rel="noopener noreferrer"
-      className="flk-glossy inline-flex h-10 items-center justify-center gap-2 rounded-[10px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4F5EB0]"
+    <button
+      type="button"
+      disabled={checkout.pendingPlan !== null}
+      onClick={() => checkout.startCheckout("MONTHLY")}
+      className="flk-glossy inline-flex h-10 items-center justify-center gap-2 rounded-[10px] bg-[#5C6BC0] px-4 text-sm font-semibold text-white hover:bg-[#4F5EB0] disabled:cursor-not-allowed disabled:opacity-60"
     >
-      Upgrade <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-    </a>
+      {checkout.pendingPlan === "MONTHLY" ? (
+        <>
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          Preparando...
+        </>
+      ) : (
+        "Upgrade"
+      )}
+    </button>
   ) : null;
 
   return (
@@ -270,22 +274,34 @@ export default function CheckinV2SubscriptionClient() {
               Pro = recuperar también a los que dejan de venir.
             </p>
             {!overview.isPro && canManage ? (
-              <a
-                href={MERCADOPAGO_CHECKOUT_URL}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flk-glossy flex h-11 w-full items-center justify-center gap-2 rounded-[11px] bg-white px-4 text-sm font-bold text-[#0D1B2A] hover:bg-[#EEF0FB]"
+              <button
+                type="button"
+                disabled={checkout.pendingPlan !== null}
+                onClick={() => checkout.startCheckout("MONTHLY")}
+                className="flk-glossy flex h-11 w-full items-center justify-center gap-2 rounded-[11px] bg-white px-4 text-sm font-bold text-[#0D1B2A] hover:bg-[#EEF0FB] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Suscribirme <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              </a>
+                {checkout.pendingPlan === "MONTHLY" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    Preparando checkout...
+                  </>
+                ) : (
+                  "Suscribirme"
+                )}
+              </button>
             ) : overview.isPro ? (
               <p className="rounded-[11px] border border-white/15 bg-white/8 px-4 py-3 text-center text-sm font-semibold text-white">
                 Este es tu plan actual
               </p>
             ) : null}
+            {checkout.error ? (
+              <p role="alert" className="mt-3 text-center text-[11px] leading-4 text-[#FFB4A8]">
+                {checkout.error}
+              </p>
+            ) : null}
             {!overview.isPro ? (
               <p className="mt-3 text-center text-[11px] leading-4 text-white/45">
-                El pago se confirma por separado; abrir el checkout no activa el plan.
+                El pago se procesa en Mercado Pago. Tu plan se activa automáticamente ni bien se confirma.
               </p>
             ) : null}
           </div>

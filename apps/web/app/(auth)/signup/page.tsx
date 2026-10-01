@@ -1,9 +1,15 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, Suspense, useEffect, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, MailCheck, User } from "lucide-react";
 import { AuthSplitShell } from "@/components/auth/auth-split-shell";
+import {
+  clearSignupIntent,
+  parseSignupIntentFromSearchParams,
+  storeSignupIntent,
+} from "@/lib/signup-intent";
 
 const MIN_LENGTH = 8;
 
@@ -18,6 +24,32 @@ const MIN_LENGTH = 8;
  * ambas pantallas de auth.
  */
 export default function SignupPage() {
+  return (
+    <Suspense fallback={<AuthSplitShell>{null}</AuthSplitShell>}>
+      <SignupPageContent />
+    </Suspense>
+  );
+}
+
+function SignupPageContent() {
+  const searchParams = useSearchParams();
+
+  /*
+    `/signup?plan=PRO&billing=MONTHLY|YEARLY` guarda la intención (cookie,
+    ver `lib/signup-intent`) para ofrecer el upgrade recién al terminar el
+    onboarding — nunca activa Pro acá. Un signup SIN esos params borra
+    cualquier intención vieja: no debe arrastrarse de un intento anterior
+    abandonado.
+  */
+  useEffect(() => {
+    const intent = parseSignupIntentFromSearchParams(searchParams);
+    if (intent) {
+      storeSignupIntent(intent);
+    } else {
+      clearSignupIntent();
+    }
+  }, [searchParams]);
+
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);

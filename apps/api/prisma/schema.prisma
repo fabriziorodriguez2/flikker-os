@@ -405,6 +405,7 @@ model User {
   businessPlansCreated    BusinessPlan[]           @relation("BusinessPlanCreator")
   simulationRuns          SimulationRun[]          @relation("SimulationRunCreator")
   programAuditEvents      ProgramAuditEvent[]
+  requestedCheckoutLeads  CheckoutLead[]
 }
 
 // ---------------------------------------------------------------------------
@@ -666,6 +667,7 @@ model Business {
   insightSummary                BusinessInsightSummary?
   reactivationFunnelSummary     ReactivationFunnelSummary?
   ownerLifecycleEmailLogs       OwnerLifecycleEmailLog[]
+  checkoutLeads                 CheckoutLead[]
 }
 
 // ---------------------------------------------------------------------------
@@ -3455,13 +3457,37 @@ enum CheckoutLeadStatus {
 }
 
 model CheckoutLead {
-  id           String             @id @default(uuid())
-  name         String
-  businessName String             @map("business_name")
-  phoneE164    String             @map("phone_e164")
-  email        String
-  plan         CheckoutPlan
-  status       CheckoutLeadStatus @default(PENDING)
+  id     String             @id @default(uuid())
+  plan   CheckoutPlan
+  status CheckoutLeadStatus @default(PENDING)
+
+  /// Datos de contacto capturados por el formulario PÚBLICO (landing sin
+  /// sesión, Parte 2/3). Nullable desde Parte 5: un CheckoutLead del
+  /// checkout AUTENTICADO (`businessId`/`requestedByUserId` no nulos) no
+  /// los pisa — la identidad real ya vive en `User`/`Business`, pedirlos de
+  /// nuevo sería exactamente lo que Parte 5 quiere evitar. `email` es la
+  /// excepción: sigue siendo el que de verdad viaja a Mercado Pago como
+  /// `payer_email` (ver `MercadoPagoSubscriptionProvider`), así que el
+  /// checkout autenticado SÍ lo completa (con `User.email`), solo que sin
+  /// pedírselo de nuevo a la persona.
+  name         String?
+  businessName String? @map("business_name")
+  phoneE164    String? @map("phone_e164")
+  email        String?
+
+  /// Checkout AUTENTICADO (Parte 5): a qué Business pertenece este pago.
+  /// Null para leads del flujo público viejo (todavía no hay Business). El
+  /// webhook resuelve el Business a activar SIEMPRE por acá — nunca
+  /// buscando por email/teléfono/nombre.
+  businessId String? @map("business_id")
+
+  /// Quién, autenticado, disparó este checkout — puede no ser el mismo User
+  /// que terminó pagando (cualquier miembro con acceso puede iniciar el
+  /// upgrade), pero es quien lo pidió. Null para el flujo público viejo.
+  requestedByUserId String? @map("requested_by_user_id")
+
+  business        Business? @relation(fields: [businessId], references: [id])
+  requestedByUser User?     @relation(fields: [requestedByUserId], references: [id])
 
   /// Anti doble-click. La landing puede mandar `Idempotency-Key`: dos POST
   /// con la misma key devuelven el MISMO lead en vez de crear dos filas.
@@ -3537,5 +3563,35 @@ model CheckoutLead {
   /// volver a intentar. Nunca se deduplica permanentemente por email.
   @@index([email, createdAt])
   @@index([status, createdAt])
+  @@index([businessId])
   @@map("checkout_leads")
+}
+
+// ---------------------------------------------------------------------------
+// DomainEvent (Parte 5 — idempotencia genérica de side effects únicos)
+// ---------------------------------------------------------------------------
+
+/// Reclamo atómico de "este evento de negocio ya se procesó" — mismo idiom
+/// que `OwnerLifecycleEmailLog.claimOnce` (crear la fila PRIMERO, atrapar
+/// P2002 si ya existía), generalizado: acá el claim es del EVENTO completo
+/// (`REGISTRATION_COMPLETED:<businessId>`, `SUBSCRIPTION_PAID:<checkoutLeadId>`),
+/// no de un canal de envío en particular. El handler dispara TODOS los side
+/// effects (email + WhatsApp + notificación al owner de Flikker) dentro de
+/// la misma ejecución que ganó el claim.
+///
+/// Auditado antes de crear esto: no existe una tabla de outbox/eventos
+/// genérica en el repo. `OwnerLifecycleEmailLog`/`EmailLog` no sirven tal
+/// cual — están scopeados a un `kind` fijo y a un canal por fila. Esta tabla
+/// es deliberadamente mínima: no hay reintento automático de un evento que
+/// falló a mitad de camino (mismo criterio que `sendOnce`/`sendOnceWhatsApp`
+/// ya aceptan) — evitar un duplicado importa más acá que reintentar un
+/// canal que falló solo.
+model DomainEvent {
+  id          String   @id @default(uuid())
+  eventType   String   @map("event_type")
+  entityId    String   @map("entity_id")
+  processedAt DateTime @default(now()) @map("processed_at")
+
+  @@unique([eventType, entityId])
+  @@map("domain_events")
 }

@@ -54,7 +54,17 @@ function makeDeps(options: { draft?: unknown } = {}) {
     ensureFreeSubscriptionIfMissing: jest.fn().mockResolvedValue({}),
     startBenefitsTrialIfNeeded: jest.fn().mockResolvedValue(undefined),
   };
-  return { prisma, visitSources, benefits, retentionBootstrap, plans };
+  const registrationCompleted = {
+    fire: jest.fn().mockResolvedValue(undefined),
+  };
+  return {
+    prisma,
+    visitSources,
+    benefits,
+    retentionBootstrap,
+    plans,
+    registrationCompleted,
+  };
 }
 
 const service = (d: ReturnType<typeof makeDeps>) =>
@@ -64,6 +74,7 @@ const service = (d: ReturnType<typeof makeDeps>) =>
     d.benefits as never,
     d.retentionBootstrap as never,
     d.plans as never,
+    d.registrationCompleted as never,
   );
 
 const BUSINESS_DTO = { name: 'Café Uno', category: 'cafeteria' };

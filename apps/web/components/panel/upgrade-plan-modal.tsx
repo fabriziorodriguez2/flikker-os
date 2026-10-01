@@ -1,16 +1,16 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Check, X } from "lucide-react";
+import { Check, Loader2, X } from "lucide-react";
 import {
   formatPrice,
-  PRO_MONTHLY_CHECKOUT_URL,
-  PRO_YEARLY_CHECKOUT_URL,
   YEARLY_MONTHS_CHARGED,
   YEARLY_MONTHS_FREE,
   YEARLY_MONTHS_GRANTED,
   yearlyPriceFrom,
 } from "@/lib/checkout-urls";
+import { useProCheckout } from "@/lib/use-pro-checkout";
+import type { SignupBilling } from "@/lib/signup-intent";
 
 /**
  * El único lugar del producto que manda a pagar.
@@ -40,15 +40,23 @@ export interface UpgradePlanModalProps {
    */
   monthlyPrice: { currency: string; amount: number } | null;
   onClose: () => void;
+  /**
+   * Billing que trajo la intención de signup (`?plan=PRO&billing=...`).
+   * Solo resalta la card correspondiente — nunca dispara el checkout por
+   * su cuenta. Las dos opciones siguen completas y elegibles.
+   */
+  defaultBilling?: SignupBilling;
 }
 
 export default function UpgradePlanModal({
   feature,
   monthlyPrice,
   onClose,
+  defaultBilling,
 }: UpgradePlanModalProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
+  const { pendingPlan, error, startCheckout } = useProCheckout();
 
   // ESC cierra. Un modal de venta del que no se sale con el teclado es
   // exactamente la clase de fricción que no queremos.
@@ -119,7 +127,12 @@ export default function UpgradePlanModal({
           {/* ── Mensual ─────────────────────────────────────────────────
               Card neutra y COMPLETA. Menos jerarquía que la anual, pero
               perfectamente legible: es una opción real, no un señuelo. */}
-          <section className="flex flex-col rounded-[16px] border border-[#E4E6EF] bg-white p-5">
+          <section className="relative flex flex-col rounded-[16px] border border-[#E4E6EF] bg-white p-5">
+            {defaultBilling === "MONTHLY" ? (
+              <span className="absolute -top-2.5 left-5 rounded-full bg-[#1A202C] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white">
+                Tu elección
+              </span>
+            ) : null}
             <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
               Mensual
             </p>
@@ -143,14 +156,23 @@ export default function UpgradePlanModal({
             {/* `mt-auto` lo pega abajo: las dos cards tienen alturas
                 distintas (la anual lista beneficios) y los CTAs alineados
                 se leen como un par de opciones, no como una escalera. */}
-            <a
-              href={PRO_MONTHLY_CHECKOUT_URL}
+            <button
+              type="button"
               data-pro-feature={feature}
               data-plan="monthly"
-              className="mt-auto inline-flex h-11 items-center justify-center rounded-[10px] border border-[#D9DCEA] bg-white px-4 pt-0 text-sm font-semibold text-[#1A202C] hover:border-[#6D4AFF] hover:text-[#6D4AFF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6D4AFF]"
+              disabled={pendingPlan !== null}
+              onClick={() => startCheckout("MONTHLY")}
+              className="mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#D9DCEA] bg-white px-4 pt-0 text-sm font-semibold text-[#1A202C] hover:border-[#6D4AFF] hover:text-[#6D4AFF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6D4AFF] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Elegir mensual
-            </a>
+              {pendingPlan === "MONTHLY" ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Preparando checkout...
+                </>
+              ) : (
+                "Elegir mensual"
+              )}
+            </button>
           </section>
 
           {/* ── Anual ───────────────────────────────────────────────────
@@ -201,16 +223,34 @@ export default function UpgradePlanModal({
               ) : null}
             </ul>
 
-            <a
-              href={PRO_YEARLY_CHECKOUT_URL}
+            <button
+              type="button"
               data-pro-feature={feature}
               data-plan="yearly"
-              className="flk-glossy mt-5 inline-flex h-11 items-center justify-center rounded-[10px] bg-[#6D4AFF] px-4 text-sm font-semibold text-white hover:bg-[#5c3ee0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6D4AFF] focus-visible:ring-offset-2"
+              disabled={pendingPlan !== null}
+              onClick={() => startCheckout("YEARLY")}
+              className="flk-glossy mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#6D4AFF] px-4 text-sm font-semibold text-white hover:bg-[#5c3ee0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6D4AFF] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Elegir anual
-            </a>
+              {pendingPlan === "YEARLY" ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  Preparando checkout...
+                </>
+              ) : (
+                "Elegir anual"
+              )}
+            </button>
           </section>
         </div>
+
+        {error ? (
+          <p
+            role="alert"
+            className="mt-4 rounded-[10px] border border-[#E8A33D]/30 bg-[#FDF3E3] px-4 py-3 text-center text-sm text-[#8A5A14]"
+          >
+            {error}
+          </p>
+        ) : null}
 
         <p className="mt-5 text-center text-xs leading-5 text-[#8891A4]">
           El pago se procesa en Mercado Pago. Podés cancelar cuando quieras.

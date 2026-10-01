@@ -1,26 +1,12 @@
 /**
- * Los checkouts de Mercado Pago. Única fuente de verdad del frontend.
- *
- * Antes de esto la URL mensual estaba copiada en tres componentes distintos
- * (las dos pantallas de Suscripción y los templates de email del backend).
- * Una URL de cobro duplicada es una bomba de tiempo: el día que Mercado Pago
- * cambie el link, tres lugares tienen que acordarse, y el que se olvide manda
- * gente a un checkout muerto sin que nadie se entere.
- *
- * Se leen de env para poder apuntarlos a un checkout de prueba sin tocar
- * código, con el link real como default — el panel tiene que funcionar en un
- * entorno sin configurar, no quedarse sin botón de pago.
- *
- * `NEXT_PUBLIC_` porque el modal es un componente de cliente y el valor no es
- * secreto: es una URL pública de cobro, la misma que ve cualquiera que llegue
- * al checkout.
+ * Copy y matemática de precios del plan Pro self-service. El checkout en
+ * sí (a dónde se manda a pagar) ya NO vive acá — ver `lib/pro-checkout.ts`
+ * y `lib/use-pro-checkout.ts`: el panel pega al checkout autenticado
+ * (`POST /businesses/current/checkout`), que el backend resuelve a una URL
+ * de Mercado Pago ligada a ese Business y a ese pago puntual. Una URL
+ * estática de cobro, igual para cualquiera que la viera, quedó obsoleta en
+ * cuanto existió un checkout real por negocio.
  */
-
-export const PRO_MONTHLY_CHECKOUT_URL =
-  process.env.NEXT_PUBLIC_PRO_MONTHLY_CHECKOUT_URL ?? 'https://mpago.la/1Acxajh';
-
-export const PRO_YEARLY_CHECKOUT_URL =
-  process.env.NEXT_PUBLIC_PRO_YEARLY_CHECKOUT_URL ?? 'https://mpago.la/2hsbeMy';
 
 /**
  * Cuántos meses se pagan en el plan anual. El anual da 12 meses de uso por el

@@ -13,6 +13,10 @@ import { LoyaltyProgramService } from '../reward-goals/loyalty-program.service';
 import { PlansService } from '../plans/plans.service';
 import { PlansRepository } from '../plans/plans.repository';
 import { OnboardingService } from './onboarding.service';
+import { RegistrationCompletedService } from './registration-completed.service';
+import { DomainEventClaimService } from '../domain-events/domain-event-claim.service';
+import { EmailService } from '../../jobs/email.service';
+import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { ONBOARDING_DEFAULTS } from './onboarding.defaults';
 
 /**
@@ -51,6 +55,15 @@ describe('Onboarding self-service — end to end (integration)', () => {
         LoyaltyProgramService,
         PlansService,
         PlansRepository,
+        // Parte 5 — REGISTRATION_COMPLETED, disparado al final de
+        // `saveBusiness`. Reales (no mocks): sin credenciales configuradas
+        // en el entorno de test, `EmailService`/`WhatsAppBspService` se
+        // omiten solas (`isAvailable()`/sin `notificationWhatsapp`), así que
+        // esto nunca golpea una red real.
+        RegistrationCompletedService,
+        DomainEventClaimService,
+        EmailService,
+        WhatsAppBspService,
       ],
     }).compile();
 

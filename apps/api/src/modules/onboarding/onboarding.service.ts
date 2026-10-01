@@ -1,6 +1,7 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import {
@@ -15,6 +16,7 @@ import { VisitSourcesRepository } from '../visit-sources/visit-sources.repositor
 import { BenefitsRepository } from '../benefits/benefits.repository';
 import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
 import { PlansService } from '../plans/plans.service';
+import { RegistrationCompletedService } from './registration-completed.service';
 import { ONBOARDING_DEFAULTS } from './onboarding.defaults';
 import { GoogleUrlError, normalizeGoogleBusinessUrl } from './google-url';
 import type {
@@ -47,12 +49,15 @@ import type {
  */
 @Injectable()
 export class OnboardingService {
+  private readonly logger = new Logger(OnboardingService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly visitSources: VisitSourcesRepository,
     private readonly benefits: BenefitsRepository,
     private readonly retentionBootstrap: RetentionV2BootstrapService,
     private readonly plans: PlansService,
+    private readonly registrationCompleted: RegistrationCompletedService,
   ) {}
 
   /** El negocio que este usuario está onboardeando, si hay alguno. */
@@ -199,7 +204,31 @@ export class OnboardingService {
       this.ensureOwnerMembership(business.id, userId),
       this.ensureSettings(business.id),
       this.visitSources.ensureDefaultSource(business.id),
+      // Register-first, pago después (Parte 5): todo Business nace con una
+      // Subscription FREE desde este mismo paso — no recién la primera vez
+      // que se prende una capacidad self-service (Programa, paso 2). Ya era
+      // idempotente (`upsert` que nunca pisa una Subscription existente), así
+      // que llamarlo también acá y de nuevo en el paso 2 es seguro: el
+      // segundo llamado es un no-op.
+      this.plans.ensureFreeSubscriptionIfMissing(business.id),
     ]);
+
+    // Fire-and-forget a propósito: el registro YA está confirmado en este
+    // punto (User + Business + Membership + Subscription FREE existen) —
+    // una falla mandando el email/WhatsApp de bienvenida nunca debe
+    // devolverle un error a alguien que se acaba de registrar
+    // correctamente. Idempotente del lado de adentro (`DomainEventClaimService`
+    // vía `REGISTRATION_COMPLETED:<businessId>`), así que reanudar este
+    // paso no duplica nada.
+    void this.registrationCompleted
+      .fire(business.id, userId)
+      .catch((error: unknown) => {
+        this.logger.warn(
+          `REGISTRATION_COMPLETED falló para business ${business.id}: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
 
     return this.getState(userId);
   }

@@ -39,44 +39,57 @@ describe("Upsell Free → Pro: en contexto, una sola puerta al checkout", () => 
   describe("una sola fuente de verdad para los checkouts", () => {
     /*
       La regresión concreta que esto evita: la URL mensual llegó a estar
-      copiada a mano en tres componentes. El día que Mercado Pago cambie el
-      link, tres lugares tienen que acordarse.
+      copiada a mano en tres componentes. El checkout real ahora lo arma el
+      backend (`POST /businesses/current/checkout`, ligado a la sesión del
+      que paga) — ningún archivo de producción debería volver a armar o
+      linkear un checkout de Mercado Pago a mano.
     */
-    it("solo `lib/checkout-urls.ts` contiene URLs de Mercado Pago", () => {
+    it("ningún archivo de producción referencia un link estático de Mercado Pago", () => {
       const offenders = sourcesUnder(join(webRoot, "app"))
         .concat(sourcesUnder(join(webRoot, "components")))
         .concat(sourcesUnder(join(webRoot, "lib")))
-        .filter(({ path, source }) => {
-          if (path.endsWith(join("lib", "checkout-urls.ts"))) return false;
-          return /mpago\.la/.test(source);
-        })
+        .filter(({ source }) => /mpago\.la/.test(source))
         .map(({ path }) => path);
 
       expect(offenders).toEqual([]);
     });
 
-    it("define los dos checkouts, distintos entre sí", () => {
-      const config = readFileSync(
-        join(webRoot, "lib", "checkout-urls.ts"),
+    /*
+      El checkout real se pide siempre con `useProCheckout` (POST al
+      backend autenticado), nunca armando un link a mano. Si un componente
+      nuevo necesita cobrar, tiene que pasar por acá — no por su cuenta.
+    */
+    it("el checkout se pide siempre vía `useProCheckout`, y solo desde estos tres lugares", () => {
+      const importers = sourcesUnder(join(webRoot, "app"))
+        .concat(sourcesUnder(join(webRoot, "components")))
+        .filter(({ source }) => /useProCheckout/.test(source))
+        .map(({ path }) => path.split(/[\\/]/).pop())
+        .sort();
+
+      expect(importers).toEqual([
+        "checkin-v2-subscription-client.tsx",
+        "subscription-client.tsx",
+        "upgrade-plan-modal.tsx",
+      ]);
+    });
+
+    it("el hook de checkout pega al endpoint autenticado, no a uno viejo ni inventado", () => {
+      const hook = readFileSync(
+        join(webRoot, "lib", "use-pro-checkout.ts"),
         "utf-8",
       );
-      expect(config).toContain("https://mpago.la/1Acxajh");
-      expect(config).toContain("https://mpago.la/2hsbeMy");
-      expect(config).toContain("NEXT_PUBLIC_PRO_MONTHLY_CHECKOUT_URL");
-      expect(config).toContain("NEXT_PUBLIC_PRO_YEARLY_CHECKOUT_URL");
+      expect(hook).toContain(
+        '"/api/proxy/businesses/current/checkout"',
+      );
     });
 
     /*
-      Solo el modal navega a pagar. Si otro componente importara las URLs,
-      podría mandar al checkout sin ofrecer la elección de plan.
+      El contrato real del body (Parte 5: el Business y el User salen de la
+      sesión del backend, nunca del navegador) se prueba por forma exacta
+      en `lib/pro-checkout.test.ts` (`buildProCheckoutRequestBody` devuelve
+      ÚNICAMENTE `{ plan }`) — una aserción de shape, no de texto fuente,
+      así que no choca con los comentarios que explican por qué.
     */
-    it("solo el modal importa las URLs de checkout", () => {
-      const importers = sourcesUnder(join(webRoot, "components"))
-        .filter(({ source }) => /PRO_(MONTHLY|YEARLY)_CHECKOUT_URL/.test(source))
-        .map(({ path }) => path.split(/[\\/]/).pop());
-
-      expect(importers).toEqual(["upgrade-plan-modal.tsx"]);
-    });
   });
 
   describe("un solo modal, abierto desde un solo lugar", () => {
@@ -207,7 +220,7 @@ describe("Upsell Free → Pro: en contexto, una sola puerta al checkout", () => 
       const offenders = sourcesUnder(join(webRoot, "app", "(public)"))
         .concat(sourcesUnder(join(webRoot, "components", "public")))
         .filter(({ source }) =>
-          /ProUpgradePrompt|PlanUsageMeter|UpgradePlanModal|useUpgradeModal|checkout-urls|mpago/.test(
+          /ProUpgradePrompt|PlanUsageMeter|UpgradePlanModal|useUpgradeModal|checkout-urls|mpago|useProCheckout|pro-checkout|signup-intent/.test(
             source,
           ),
         )

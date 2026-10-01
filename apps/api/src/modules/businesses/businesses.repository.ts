@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import {
   BusinessStatus,
+  CheckoutLeadStatus,
+  CheckoutPlan,
   MembershipRole,
   MembershipStatus,
 } from '@prisma/client';
@@ -12,6 +14,57 @@ export class BusinessesRepository {
 
   findBySlug(slug: string) {
     return this.prisma.business.findUnique({ where: { slug } });
+  }
+
+  /**
+   * Checkout Pro AUTENTICADO (Parte 5): ¿hay ya un `CheckoutLead` de ESTE
+   * Business y ESTE plan todavía en curso? Incluye
+   * `CHECKOUT_RECONCILIATION_REQUIRED` a propósito — reusarlo deja que
+   * `CheckoutLeadsService.createCheckout` tire su propio 409 explícito en
+   * vez de crear un lead nuevo sobre una ambigüedad sin resolver.
+   */
+  findInProgressCheckoutLead(businessId: string, plan: CheckoutPlan) {
+    return this.prisma.checkoutLead.findFirst({
+      where: {
+        businessId,
+        plan,
+        status: {
+          notIn: [
+            CheckoutLeadStatus.PAID,
+            CheckoutLeadStatus.FAILED,
+            CheckoutLeadStatus.EXPIRED,
+          ],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+  }
+
+  /**
+   * Crea un `CheckoutLead` para el checkout AUTENTICADO — a propósito NO
+   * completa `name`/`businessName`/`phoneE164` (son del formulario público
+   * viejo, nullable desde Parte 5): la identidad real de este lead vive en
+   * `businessId`/`requestedByUserId`. `email` sí se completa (con el del
+   * User autenticado) porque es el `payer_email` real que viaja a Mercado
+   * Pago.
+   */
+  createAuthenticatedCheckoutLead(input: {
+    businessId: string;
+    requestedByUserId: string;
+    email: string;
+    plan: CheckoutPlan;
+  }) {
+    return this.prisma.checkoutLead.create({
+      data: {
+        businessId: input.businessId,
+        requestedByUserId: input.requestedByUserId,
+        email: input.email,
+        plan: input.plan,
+        status: CheckoutLeadStatus.PENDING,
+      },
+      select: { id: true },
+    });
   }
 
   findById(id: string) {

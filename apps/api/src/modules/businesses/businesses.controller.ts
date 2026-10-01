@@ -17,6 +17,7 @@ import { UpdateBusinessDto } from './dto/update-business.dto';
 import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
 import { UpdateBrandProfileDto } from './dto/update-brand-profile.dto';
 import { ConnectGooglePlaceDto } from './dto/connect-google-place.dto';
+import { CreateProCheckoutDto } from './dto/create-pro-checkout.dto';
 import { JwtGuard } from '../auth/guards/jwt.guard';
 import { TenantGuard } from '../../common/guards/tenant.guard';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -91,6 +92,26 @@ export class BusinessesController {
   getSubscription(@Req() req: AuthenticatedRequest) {
     return this.businessesService.getSubscriptionOverview(
       req.currentBusinessId!,
+    );
+  }
+
+  /**
+   * Checkout Pro AUTENTICADO (Parte 5 — register-first, pago después). El
+   * Business sale de `TenantGuard` (sesión real), nunca del body — el
+   * browser no puede mandar un `businessId` propio. Mismo contrato de
+   * respuesta que el checkout público viejo (`{ checkoutUrl, status }`): la
+   * diferencia está en CÓMO se resuelve el Business, no en lo que devuelve.
+   */
+  @Post('current/checkout')
+  @UseGuards(TenantGuard)
+  createProCheckout(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreateProCheckoutDto,
+  ) {
+    return this.businessesService.createProCheckout(
+      req.currentBusinessId!,
+      req.user,
+      dto.plan,
     );
   }
 
