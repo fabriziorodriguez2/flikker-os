@@ -11,12 +11,18 @@ interface SignupResponse {
  * sesión arranca recién en `/api/auth/verify-email`, cuando el dueño
  * confirma que el correo es suyo.
  */
+/** Nunca se reenvía un valor que no sea exactamente uno de estos dos. */
+function sanitizePendingUpgradePlan(value: unknown): "MONTHLY" | "YEARLY" | undefined {
+  return value === "MONTHLY" || value === "YEARLY" ? value : undefined;
+}
+
 export async function POST(request: Request) {
   const body = (await request.json().catch(() => null)) as {
     name?: string;
     email?: string;
     password?: string;
     confirmPassword?: string;
+    pendingUpgradePlan?: unknown;
   } | null;
 
   if (!body?.name || !body?.email || !body?.password || !body?.confirmPassword) {
@@ -41,6 +47,8 @@ export async function POST(request: Request) {
   }
 
   try {
+    const pendingUpgradePlan = sanitizePendingUpgradePlan(body.pendingUpgradePlan);
+
     const data = await apiFetch<SignupResponse>("/auth/signup", null, {
       method: "POST",
       body: {
@@ -48,6 +56,7 @@ export async function POST(request: Request) {
         email: body.email,
         password: body.password,
         confirmPassword: body.confirmPassword,
+        ...(pendingUpgradePlan ? { pendingUpgradePlan } : {}),
       },
     });
 

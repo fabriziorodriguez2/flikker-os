@@ -23,6 +23,7 @@ import {
 import { UpdateAutomationsDto } from './dto/update-automations.dto';
 import { UpdateNotificationSettingsDto } from './dto/update-notification-settings.dto';
 import { SendPromotionDto } from './dto/send-promotion.dto';
+import { PlansService } from '../plans/plans.service';
 
 /**
  * Notificaciones. Fachada de producto: no agrega dominio, traduce el que ya
@@ -43,6 +44,7 @@ export class NotificationsController {
   constructor(
     private readonly notifications: NotificationsService,
     private readonly promotions: NotificationsPromotionsService,
+    private readonly plans: PlansService,
   ) {}
 
   @Get('overview')
@@ -51,7 +53,8 @@ export class NotificationsController {
   }
 
   @Get('history')
-  history(@Req() req: AuthenticatedRequest) {
+  async history(@Req() req: AuthenticatedRequest) {
+    await this.plans.assertProPlanAccess(req.currentBusinessId!);
     return this.notifications.history(req.currentBusinessId!);
   }
 

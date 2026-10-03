@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Check, Loader2, X } from "lucide-react";
 import {
   formatPrice,
@@ -10,7 +10,9 @@ import {
   yearlyPriceFrom,
 } from "@/lib/checkout-urls";
 import { useProCheckout } from "@/lib/use-pro-checkout";
-import type { SignupBilling } from "@/lib/signup-intent";
+import { useNotificationWhatsApp } from "@/lib/use-notification-whatsapp";
+import PhoneInput, { toNationalDigits } from "@/components/ui/phone-input";
+import type { CheckoutPlan } from "@/lib/pro-checkout";
 
 /**
  * El único lugar del producto que manda a pagar.
@@ -39,24 +41,30 @@ export interface UpgradePlanModalProps {
    * sin precio. Nunca se inventa un número que no coincida con el checkout.
    */
   monthlyPrice: { currency: string; amount: number } | null;
-  onClose: () => void;
   /**
-   * Billing que trajo la intención de signup (`?plan=PRO&billing=...`).
-   * Solo resalta la card correspondiente — nunca dispara el checkout por
-   * su cuenta. Las dos opciones siguen completas y elegibles.
+   * `null` = todavía no sabemos o nunca lo dejó — en los dos casos se pide
+   * en el modal, antes de dejar pagar (Parte 5E). Si ya existe, no se
+   * vuelve a pedir: el checkout arranca directo, como siempre.
    */
-  defaultBilling?: SignupBilling;
+  notificationWhatsapp: string | null;
+  onClose: () => void;
 }
 
 export default function UpgradePlanModal({
   feature,
   monthlyPrice,
+  notificationWhatsapp,
   onClose,
-  defaultBilling,
 }: UpgradePlanModalProps) {
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
   const { pendingPlan, error, startCheckout } = useProCheckout();
+  const needsPhone = !notificationWhatsapp;
+  const whatsapp = useNotificationWhatsApp(
+    toNationalDigits(notificationWhatsapp ?? ""),
+  );
+  const [savingPhoneForPlan, setSavingPhoneForPlan] =
+    useState<CheckoutPlan | null>(null);
 
   // ESC cierra. Un modal de venta del que no se sale con el teclado es
   // exactamente la clase de fricción que no queremos.
@@ -79,6 +87,29 @@ export default function UpgradePlanModal({
     monthlyPrice && yearlyAmount !== null
       ? monthlyPrice.amount * YEARLY_MONTHS_GRANTED - yearlyAmount
       : null;
+
+  const busy = pendingPlan !== null || (needsPhone && whatsapp.saving);
+
+  /*
+    Si falta WhatsApp, se guarda ANTES de abrir el checkout (Parte 5E) — si
+    falla guardarlo, nunca se llega a `startCheckout`. Si ya existe, es
+    exactamente el flujo de siempre: un click, un checkout.
+  */
+  async function continueWithPlan(plan: CheckoutPlan) {
+    if (needsPhone) {
+      setSavingPhoneForPlan(plan);
+      const saved = await whatsapp.save();
+      setSavingPhoneForPlan(null);
+      if (!saved) return;
+    }
+    startCheckout(plan);
+  }
+
+  function buttonLabel(plan: CheckoutPlan, idle: string) {
+    if (savingPhoneForPlan === plan) return "Guardando...";
+    if (pendingPlan === plan) return "Preparando checkout...";
+    return idle;
+  }
 
   return (
     <div
@@ -123,16 +154,32 @@ export default function UpgradePlanModal({
           </button>
         </div>
 
+        {needsPhone ? (
+          <div className="mt-5">
+            <PhoneInput
+              label="WhatsApp"
+              value={whatsapp.phone}
+              onChange={whatsapp.setPhone}
+              placeholder="099 123 456"
+              required
+            />
+            <p className="mt-2 text-xs leading-5 text-[#8891A4]">
+              Lo usaremos para enviarte la confirmación y ayudarte con la
+              puesta en marcha.
+            </p>
+            {whatsapp.error ? (
+              <p role="alert" className="mt-2 text-xs text-[#C0392B]">
+                {whatsapp.error}
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
         <div className="mt-7 grid gap-4 sm:grid-cols-2">
           {/* ── Mensual ─────────────────────────────────────────────────
               Card neutra y COMPLETA. Menos jerarquía que la anual, pero
               perfectamente legible: es una opción real, no un señuelo. */}
-          <section className="relative flex flex-col rounded-[16px] border border-[#E4E6EF] bg-white p-5">
-            {defaultBilling === "MONTHLY" ? (
-              <span className="absolute -top-2.5 left-5 rounded-full bg-[#1A202C] px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em] text-white">
-                Tu elección
-              </span>
-            ) : null}
+          <section className="flex flex-col rounded-[16px] border border-[#E4E6EF] bg-white p-5">
             <p className="text-xs font-semibold uppercase tracking-[0.1em] text-[#8891A4]">
               Mensual
             </p>
@@ -160,17 +207,17 @@ export default function UpgradePlanModal({
               type="button"
               data-pro-feature={feature}
               data-plan="monthly"
-              disabled={pendingPlan !== null}
-              onClick={() => startCheckout("MONTHLY")}
+              disabled={busy}
+              onClick={() => void continueWithPlan("MONTHLY")}
               className="mt-auto inline-flex h-11 items-center justify-center gap-2 rounded-[10px] border border-[#D9DCEA] bg-white px-4 pt-0 text-sm font-semibold text-[#1A202C] hover:border-[#6D4AFF] hover:text-[#6D4AFF] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6D4AFF] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {pendingPlan === "MONTHLY" ? (
+              {pendingPlan === "MONTHLY" || savingPhoneForPlan === "MONTHLY" ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Preparando checkout...
+                  {buttonLabel("MONTHLY", "Elegir mensual")}
                 </>
               ) : (
-                "Elegir mensual"
+                buttonLabel("MONTHLY", "Elegir mensual")
               )}
             </button>
           </section>
@@ -227,17 +274,17 @@ export default function UpgradePlanModal({
               type="button"
               data-pro-feature={feature}
               data-plan="yearly"
-              disabled={pendingPlan !== null}
-              onClick={() => startCheckout("YEARLY")}
+              disabled={busy}
+              onClick={() => void continueWithPlan("YEARLY")}
               className="flk-glossy mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-[10px] bg-[#6D4AFF] px-4 text-sm font-semibold text-white hover:bg-[#5c3ee0] focus:outline-none focus-visible:ring-2 focus-visible:ring-[#6D4AFF] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {pendingPlan === "YEARLY" ? (
+              {pendingPlan === "YEARLY" || savingPhoneForPlan === "YEARLY" ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                  Preparando checkout...
+                  {buttonLabel("YEARLY", "Elegir anual")}
                 </>
               ) : (
-                "Elegir anual"
+                buttonLabel("YEARLY", "Elegir anual")
               )}
             </button>
           </section>

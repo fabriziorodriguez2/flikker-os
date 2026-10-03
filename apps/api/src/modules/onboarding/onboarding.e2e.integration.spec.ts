@@ -17,7 +17,9 @@ import { RegistrationCompletedService } from './registration-completed.service';
 import { DomainEventClaimService } from '../domain-events/domain-event-claim.service';
 import { EmailService } from '../../jobs/email.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { SubscriptionPaidNotificationService } from '../webhooks/subscription-paid-notification.service';
 import { ONBOARDING_DEFAULTS } from './onboarding.defaults';
+import { CheckoutLeadStatus, CheckoutPlan } from '@prisma/client';
 
 /**
  * End-to-end del onboarding NUEVO (2 pasos) contra DB real, sin mocks.
@@ -64,6 +66,10 @@ describe('Onboarding self-service — end to end (integration)', () => {
         DomainEventClaimService,
         EmailService,
         WhatsAppBspService,
+        // Parte 5D — SUBSCRIPTION_PAID cuando se asocia un CheckoutLead
+        // pre-onboarding ya pagado. Mismo motivo que arriba: sin
+        // credenciales configuradas, nunca golpea una red real.
+        SubscriptionPaidNotificationService,
       ],
     }).compile();
 
@@ -498,6 +504,168 @@ describe('Onboarding self-service — end to end (integration)', () => {
       });
       expect(authorized).toHaveLength(1);
       expect(authorized[0].benefitId).toBe(extra.id);
+    });
+  });
+
+  /**
+   * Parte 5D — "PRO paga ANTES del onboarding", contra Postgres real. Lo
+   * que un mock no puede probar: que el `updateMany` guardado que asocia
+   * el CheckoutLead al Business recién creado sea real race-safe (bloqueo
+   * de fila de Postgres), no solo "llamado con los argumentos correctos".
+   */
+  describe('Parte 5D — pago antes del onboarding', () => {
+    const createdCheckoutLeadIds: string[] = [];
+
+    afterEach(async () => {
+      if (createdCheckoutLeadIds.length > 0) {
+        await prisma.checkoutLead.deleteMany({
+          where: { id: { in: createdCheckoutLeadIds } },
+        });
+        createdCheckoutLeadIds.length = 0;
+      }
+    });
+
+    async function makePaidLead(forUserId: string, plan: CheckoutPlan) {
+      const lead = await prisma.checkoutLead.create({
+        data: {
+          requestedByUserId: forUserId,
+          businessId: null,
+          email: `pago-${randomUUID()}@test.local`,
+          plan,
+          status: CheckoutLeadStatus.PAID,
+          paidAt: new Date(),
+          providerSubscriptionId: `SUB-${randomUUID()}`,
+        },
+      });
+      createdCheckoutLeadIds.push(lead.id);
+      return lead;
+    }
+
+    it('con un CheckoutLead PAID (MONTHLY): el Business nace directamente PRO, el lead se asocia y pendingUpgradePlan se limpia', async () => {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { pendingUpgradePlan: CheckoutPlan.MONTHLY },
+      });
+      const lead = await makePaidLead(userId, CheckoutPlan.MONTHLY);
+
+      await onboarding.saveBusiness(userId, {
+        name: 'Café Pro E2E',
+        category: 'cafeteria',
+      });
+
+      const business = await prisma.business.findFirstOrThrow({
+        where: { memberships: { some: { userId } } },
+      });
+      const subscription = await prisma.subscription.findUniqueOrThrow({
+        where: { businessId: business.id },
+        include: { plan: true },
+      });
+      expect(subscription.plan.slug).toBe('pro-selfservice');
+
+      const refreshedLead = await prisma.checkoutLead.findUniqueOrThrow({
+        where: { id: lead.id },
+      });
+      expect(refreshedLead.businessId).toBe(business.id);
+
+      const refreshedUser = await prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+      });
+      expect(refreshedUser.pendingUpgradePlan).toBeNull();
+
+      const event = await prisma.domainEvent.findUnique({
+        where: {
+          eventType_entityId: {
+            eventType: 'SUBSCRIPTION_PAID',
+            entityId: lead.id,
+          },
+        },
+      });
+      expect(event).not.toBeNull();
+    });
+
+    it('con un CheckoutLead PAID (YEARLY): activa Pro con ciclo de 12 meses', async () => {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { pendingUpgradePlan: CheckoutPlan.YEARLY },
+      });
+      await makePaidLead(userId, CheckoutPlan.YEARLY);
+
+      await onboarding.saveBusiness(userId, {
+        name: 'Café Anual E2E',
+        category: 'cafeteria',
+      });
+
+      const business = await prisma.business.findFirstOrThrow({
+        where: { memberships: { some: { userId } } },
+      });
+      const subscription = await prisma.subscription.findUniqueOrThrow({
+        where: { businessId: business.id },
+      });
+      const monthsDiff =
+        (subscription.currentPeriodEnd.getFullYear() -
+          subscription.currentPeriodStart.getFullYear()) *
+          12 +
+        (subscription.currentPeriodEnd.getMonth() -
+          subscription.currentPeriodStart.getMonth());
+      expect(monthsDiff).toBe(12);
+    });
+
+    it('sin ningún CheckoutLead pagado: el Business nace FREE como siempre', async () => {
+      await onboarding.saveBusiness(userId, {
+        name: 'Café Free E2E',
+        category: 'cafeteria',
+      });
+
+      const business = await prisma.business.findFirstOrThrow({
+        where: { memberships: { some: { userId } } },
+      });
+      const subscription = await prisma.subscription.findUnique({
+        where: { businessId: business.id },
+        include: { plan: true },
+      });
+      expect(subscription?.plan.slug).not.toBe('pro-selfservice');
+    });
+
+    it('IDEMPOTENCIA real: reanudar el mismo borrador dos veces A LA VEZ nunca vuelve a activar Pro ni reasocia el lead', async () => {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { pendingUpgradePlan: CheckoutPlan.MONTHLY },
+      });
+      const lead = await makePaidLead(userId, CheckoutPlan.MONTHLY);
+
+      // Primera llamada real: crea el Business, asocia el lead, activa Pro.
+      await onboarding.saveBusiness(userId, {
+        name: 'Carrera E2E',
+        category: 'cafeteria',
+      });
+      const business = await prisma.business.findFirstOrThrow({
+        where: { memberships: { some: { userId } } },
+      });
+
+      // Reanudar el MISMO borrador dos veces A LA VEZ (doble-click, retry de
+      // red) — el lead ya está asociado; esto nunca debe reactivar Pro ni
+      // reasociarlo a otro Business.
+      await Promise.all([
+        onboarding.saveBusiness(userId, {
+          name: 'Carrera E2E',
+          category: 'cafeteria',
+        }),
+        onboarding.saveBusiness(userId, {
+          name: 'Carrera E2E',
+          category: 'cafeteria',
+        }),
+      ]);
+
+      const subscription = await prisma.subscription.findUniqueOrThrow({
+        where: { businessId: business.id },
+        include: { plan: true },
+      });
+      expect(subscription.plan.slug).toBe('pro-selfservice');
+
+      const refreshedLead = await prisma.checkoutLead.findUniqueOrThrow({
+        where: { id: lead.id },
+      });
+      expect(refreshedLead.businessId).toBe(business.id);
     });
   });
 });

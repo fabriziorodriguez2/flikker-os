@@ -79,6 +79,7 @@ const mockRepository = {
   updateStatus: jest.fn(),
   findInProgressCheckoutLead: jest.fn(),
   createAuthenticatedCheckoutLead: jest.fn(),
+  findRequesterNotificationWhatsapp: jest.fn(),
 };
 
 const mockAuditService = {
@@ -546,6 +547,15 @@ describe('BusinessesService', () => {
       isPlatformAdmin: false,
     };
 
+    beforeEach(() => {
+      // Default: el User YA dejó WhatsApp — así los tests de siempre (sin
+      // Parte 5F en mente) no se ven afectados. El caso "falta" se prueba
+      // aparte, explícito.
+      mockRepository.findRequesterNotificationWhatsapp.mockResolvedValue({
+        notificationWhatsapp: '+59899123456',
+      });
+    });
+
     it('ya Pro: rechaza con ConflictException, nunca llega a crear/buscar un lead', async () => {
       mockPlansService.isOnProPlan.mockResolvedValue(true);
 
@@ -613,6 +623,86 @@ describe('BusinessesService', () => {
       expect(mockCheckoutLeadsService.createCheckout).toHaveBeenCalledWith(
         'lead-existing',
       );
+    });
+
+    describe('WhatsApp requerido antes del checkout (Parte 5F)', () => {
+      it('sin notificationWhatsapp: rechaza con BadRequestException, nunca crea el lead ni llama al provider', async () => {
+        mockPlansService.isOnProPlan.mockResolvedValue(false);
+        mockRepository.findRequesterNotificationWhatsapp.mockResolvedValue({
+          notificationWhatsapp: null,
+        });
+
+        await expect(
+          service.createProCheckout(BUSINESS_ID, REQUESTER, 'MONTHLY' as never),
+        ).rejects.toThrow(BadRequestException);
+
+        expect(
+          mockRepository.findInProgressCheckoutLead,
+        ).not.toHaveBeenCalled();
+        expect(
+          mockRepository.createAuthenticatedCheckoutLead,
+        ).not.toHaveBeenCalled();
+        expect(mockCheckoutLeadsService.createCheckout).not.toHaveBeenCalled();
+      });
+
+      it('usuario inexistente (defensivo — no debería pasar con sesión válida): mismo rechazo, nunca crea nada', async () => {
+        mockPlansService.isOnProPlan.mockResolvedValue(false);
+        mockRepository.findRequesterNotificationWhatsapp.mockResolvedValue(
+          null,
+        );
+
+        await expect(
+          service.createProCheckout(BUSINESS_ID, REQUESTER, 'MONTHLY' as never),
+        ).rejects.toThrow(BadRequestException);
+        expect(mockCheckoutLeadsService.createCheckout).not.toHaveBeenCalled();
+      });
+
+      it('con notificationWhatsapp: el checkout funciona normalmente, igual que siempre', async () => {
+        mockPlansService.isOnProPlan.mockResolvedValue(false);
+        mockRepository.findRequesterNotificationWhatsapp.mockResolvedValue({
+          notificationWhatsapp: '+59899123456',
+        });
+        mockRepository.findInProgressCheckoutLead.mockResolvedValue(null);
+        mockRepository.createAuthenticatedCheckoutLead.mockResolvedValue({
+          id: 'lead-new',
+        });
+        mockCheckoutLeadsService.createCheckout.mockResolvedValue({
+          checkoutUrl: 'https://mp.test/checkout/new',
+          status: 'CHECKOUT_CREATED',
+        });
+
+        const result = await service.createProCheckout(
+          BUSINESS_ID,
+          REQUESTER,
+          'MONTHLY' as never,
+        );
+
+        expect(result).toEqual({
+          checkoutUrl: 'https://mp.test/checkout/new',
+          status: 'CHECKOUT_CREATED',
+        });
+      });
+
+      it('busca el WhatsApp del requester autenticado — nunca por email ni por un id del body', async () => {
+        mockPlansService.isOnProPlan.mockResolvedValue(false);
+        mockRepository.findInProgressCheckoutLead.mockResolvedValue({
+          id: 'lead-existing',
+        });
+        mockCheckoutLeadsService.createCheckout.mockResolvedValue({
+          checkoutUrl: 'https://mp.test/checkout/existing',
+          status: 'CHECKOUT_CREATED',
+        });
+
+        await service.createProCheckout(
+          BUSINESS_ID,
+          REQUESTER,
+          'MONTHLY' as never,
+        );
+
+        expect(
+          mockRepository.findRequesterNotificationWhatsapp,
+        ).toHaveBeenCalledWith(REQUESTER.id);
+      });
     });
   });
 });

@@ -1,10 +1,12 @@
 import {
   IsEmail,
+  IsEnum,
   IsOptional,
   IsString,
   MaxLength,
   MinLength,
 } from 'class-validator';
+import { CheckoutPlan } from '@prisma/client';
 
 /**
  * Alta self-service. Pide exactamente lo mínimo para tener una cuenta:
@@ -49,4 +51,16 @@ export class SignupDto {
   @IsOptional()
   @IsString()
   timezone?: string;
+
+  /**
+   * Intención de `/signup?plan=PRO&billing=MONTHLY|YEARLY`, capturada por el
+   * frontend. NUNCA se confía en el query param directamente — acá se valida
+   * como lo que es: un enum. Cualquier otro valor queda rechazado por el
+   * `ValidationPipe` global, nunca silenciosamente ignorado como si fuera
+   * `undefined` (eso escondería un bug del lado del cliente). Un signup
+   * normal, sin el param, simplemente no manda este campo.
+   */
+  @IsOptional()
+  @IsEnum(CheckoutPlan)
+  pendingUpgradePlan?: CheckoutPlan;
 }

@@ -10,6 +10,7 @@ interface VerifyEmailResponse {
     firstName: string;
     lastName?: string;
     isPlatformAdmin?: boolean;
+    pendingUpgradePlan?: "MONTHLY" | "YEARLY" | null;
   };
   memberships: {
     businessId: string;
@@ -61,7 +62,15 @@ export async function POST(request: Request) {
 
     await setSession(session);
 
-    return Response.json({ ok: true, redirectTo: "/comenzar" });
+    /*
+      Parte 5D: si este User tiene una intención Pro pendiente (guardada en
+      el signup, server-side — ver `User.pendingUpgradePlan`), lo mandamos a
+      pagar ANTES del onboarding, nunca a crear un Business FREE primero.
+      Un signup normal sigue yendo a `/comenzar` como siempre.
+    */
+    const redirectTo = data.user.pendingUpgradePlan ? "/upgrade" : "/comenzar";
+
+    return Response.json({ ok: true, redirectTo });
   } catch (err) {
     if (err instanceof ApiError && err.status === 400) {
       return Response.json(

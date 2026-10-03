@@ -17,6 +17,18 @@ export class BusinessesRepository {
   }
 
   /**
+   * Parte 5F: el único dato de User que necesita el checkout — si ya dejó
+   * un WhatsApp. Un `select` mínimo, no toda la fila; evita traer una
+   * dependencia nueva de `AuthRepository` a este módulo por un solo campo.
+   */
+  findRequesterNotificationWhatsapp(userId: string) {
+    return this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { notificationWhatsapp: true },
+    });
+  }
+
+  /**
    * Checkout Pro AUTENTICADO (Parte 5): ¿hay ya un `CheckoutLead` de ESTE
    * Business y ESTE plan todavía en curso? Incluye
    * `CHECKOUT_RECONCILIATION_REQUIRED` a propósito — reusarlo deja que

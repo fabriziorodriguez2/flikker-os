@@ -27,6 +27,8 @@ const mockRepository = {
   createEmailVerificationToken: jest.fn(),
   findEmailVerificationToken: jest.fn(),
   executeEmailVerification: jest.fn(),
+  clearPendingUpgradePlan: jest.fn(),
+  updateNotificationWhatsapp: jest.fn(),
 };
 
 const mockJwt = {
@@ -89,6 +91,48 @@ describe('AuthService', () => {
       );
       expect(result).not.toHaveProperty('accessToken');
       expect(result.message).toBe('Revisá tu correo');
+    });
+
+    it('signup normal (sin ?plan=PRO): pendingUpgradePlan queda null', async () => {
+      mockRepository.findUserByEmail.mockResolvedValue(null);
+      mockRepository.createUnverifiedUser.mockResolvedValue({ id: 'user-1' });
+      mockRepository.createEmailVerificationToken.mockResolvedValue({});
+
+      await service.signup(SIGNUP_DTO);
+
+      expect(mockRepository.createUnverifiedUser).toHaveBeenCalledWith(
+        expect.objectContaining({ pendingUpgradePlan: null }),
+      );
+    });
+
+    it('/signup?plan=PRO&billing=MONTHLY: pendingUpgradePlan=MONTHLY llega al User', async () => {
+      mockRepository.findUserByEmail.mockResolvedValue(null);
+      mockRepository.createUnverifiedUser.mockResolvedValue({ id: 'user-1' });
+      mockRepository.createEmailVerificationToken.mockResolvedValue({});
+
+      await service.signup({
+        ...SIGNUP_DTO,
+        pendingUpgradePlan: 'MONTHLY' as never,
+      });
+
+      expect(mockRepository.createUnverifiedUser).toHaveBeenCalledWith(
+        expect.objectContaining({ pendingUpgradePlan: 'MONTHLY' }),
+      );
+    });
+
+    it('/signup?plan=PRO&billing=YEARLY: pendingUpgradePlan=YEARLY llega al User', async () => {
+      mockRepository.findUserByEmail.mockResolvedValue(null);
+      mockRepository.createUnverifiedUser.mockResolvedValue({ id: 'user-1' });
+      mockRepository.createEmailVerificationToken.mockResolvedValue({});
+
+      await service.signup({
+        ...SIGNUP_DTO,
+        pendingUpgradePlan: 'YEARLY' as never,
+      });
+
+      expect(mockRepository.createUnverifiedUser).toHaveBeenCalledWith(
+        expect.objectContaining({ pendingUpgradePlan: 'YEARLY' }),
+      );
     });
 
     it('rechaza si las contraseñas no coinciden, sin tocar el repositorio', async () => {
@@ -428,6 +472,65 @@ describe('AuthService', () => {
           token: 'expired-token',
           newPassword: 'newpassword1',
         }),
+      ).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('consumePendingUpgradePlan', () => {
+    it('delega en el repositorio — el frontend es quien ya decidió que corresponde consumirla', async () => {
+      mockRepository.clearPendingUpgradePlan.mockResolvedValue({
+        id: 'user-1',
+        pendingUpgradePlan: null,
+      });
+
+      const result = await service.consumePendingUpgradePlan('user-1');
+
+      expect(mockRepository.clearPendingUpgradePlan).toHaveBeenCalledWith(
+        'user-1',
+      );
+      expect(result.pendingUpgradePlan).toBeNull();
+    });
+  });
+
+  describe('updateNotificationWhatsapp (Parte 5E)', () => {
+    it('normaliza a E.164 antes de guardar — un local uruguayo con 0 inicial', async () => {
+      mockRepository.updateNotificationWhatsapp.mockResolvedValue({
+        id: 'user-1',
+        notificationWhatsapp: '+59899123456',
+      });
+
+      await service.updateNotificationWhatsapp('user-1', '099123456');
+
+      expect(mockRepository.updateNotificationWhatsapp).toHaveBeenCalledWith(
+        'user-1',
+        '+59899123456',
+      );
+    });
+
+    it('un +598... ya completo: lo deja igual', async () => {
+      mockRepository.updateNotificationWhatsapp.mockResolvedValue({
+        id: 'user-1',
+        notificationWhatsapp: '+59899123456',
+      });
+
+      await service.updateNotificationWhatsapp('user-1', '+59899123456');
+
+      expect(mockRepository.updateNotificationWhatsapp).toHaveBeenCalledWith(
+        'user-1',
+        '+59899123456',
+      );
+    });
+
+    it('vacío: rechaza, nunca guarda nada', async () => {
+      await expect(
+        service.updateNotificationWhatsapp('user-1', '   '),
+      ).rejects.toThrow(BadRequestException);
+      expect(mockRepository.updateNotificationWhatsapp).not.toHaveBeenCalled();
+    });
+
+    it('muy corto para ser un teléfono real: rechaza', async () => {
+      await expect(
+        service.updateNotificationWhatsapp('user-1', '123'),
       ).rejects.toThrow(BadRequestException);
     });
   });

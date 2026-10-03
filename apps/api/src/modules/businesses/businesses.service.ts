@@ -83,6 +83,20 @@ export class BusinessesService {
       throw new ConflictException('Este negocio ya tiene Pro activo.');
     }
 
+    // Parte 5F: misma garantía server-side que el checkout pre-onboarding
+    // (`PreOnboardingCheckoutService`) — nunca confiar solo en que
+    // `UpgradePlanModal` lo haya pedido. El teléfono ya vive normalizado en
+    // `User.notificationWhatsapp` (`PATCH /auth/me/notification-whatsapp`);
+    // acá solo se verifica que esté, nunca se vuelve a parsear nada.
+    const user = await this.repository.findRequesterNotificationWhatsapp(
+      requester.id,
+    );
+    if (!user?.notificationWhatsapp) {
+      throw new BadRequestException(
+        'Necesitás agregar un número de WhatsApp antes de continuar con Pro.',
+      );
+    }
+
     const existing = await this.repository.findInProgressCheckoutLead(
       businessId,
       plan,

@@ -11,6 +11,8 @@ import GoogleLogo from "@/components/icons/google-logo";
 import BusinessSelector from "./business-selector";
 import LogoutButton from "./logout-button";
 import { supportWhatsAppHref } from "@/src/config/support";
+import ProBadge from "@/components/panel/pro-badge";
+import { useUpgradeModal } from "@/components/panel/upgrade-modal-provider";
 
 interface SidebarProps {
   memberships: SessionMembership[];
@@ -164,6 +166,7 @@ export interface NavItem {
   legacyOnly?: boolean;
   /** Solo para roles que pueden usarla. Omitido = la ve cualquier miembro. */
   roles?: string[];
+  proFeature?: string;
 }
 
 export interface NavSection {
@@ -211,6 +214,7 @@ const CHECKIN_V2_NAV: NavSection[] = [
         href: "/dashboard/insights",
         label: "Insights",
         icon: <Sparkles className="h-[18px] w-[18px]" strokeWidth={1.8} />,
+        proFeature: "insights",
       },
     ],
   },
@@ -290,7 +294,12 @@ const LEGACY_NAV: NavSection[] = [
         icon: <HomeIcon />,
         onboardingKey: "panel",
       },
-      { href: "/dashboard/insights", label: "Insights", icon: <InsightsIcon /> },
+      {
+        href: "/dashboard/insights",
+        label: "Insights",
+        icon: <InsightsIcon />,
+        proFeature: "insights",
+      },
       {
         href: "/dashboard/customers",
         label: "Clientes",
@@ -308,7 +317,11 @@ const LEGACY_NAV: NavSection[] = [
         label: "Reseñas",
         icon: <GoogleLogo className="h-[18px] w-[18px]" />,
       },
-      { href: "/dashboard/benefits", label: "Beneficios", icon: <BenefitsIcon /> },
+      {
+        href: "/dashboard/benefits",
+        label: "Beneficios",
+        icon: <BenefitsIcon />,
+      },
       {
         href: "/dashboard/retention",
         label: "Retención",
@@ -355,10 +368,23 @@ const LEGACY_NAV: NavSection[] = [
 const OPERATOR_TOOLS: NavSection = {
   title: "Herramientas Flikker",
   items: [
-    { href: "/dashboard/retention-v2", label: "Retention V2", icon: <RetentionV2Icon /> },
+    {
+      href: "/dashboard/retention-v2",
+      label: "Retention V2",
+      icon: <RetentionV2Icon />,
+    },
     { href: "/dashboard/checkins", label: "Check-ins", icon: <CheckinIcon /> },
-    { href: "/dashboard/insights", label: "Insights", icon: <InsightsIcon /> },
-    { href: "/dashboard/benefits", label: "Beneficios", icon: <BenefitsIcon /> },
+    {
+      href: "/dashboard/insights",
+      label: "Insights",
+      icon: <InsightsIcon />,
+      proFeature: "insights",
+    },
+    {
+      href: "/dashboard/benefits",
+      label: "Beneficios",
+      icon: <BenefitsIcon />,
+    },
     { href: "/dashboard/widgets", label: "Widget", icon: <WidgetIcon /> },
   ],
 };
@@ -378,7 +404,8 @@ export function resolveNavSections(options: {
       items: section.items.filter(
         (item) =>
           (!item.impersonatorOnly || options.isImpersonating) &&
-          (!item.roles || (options.role !== null && item.roles.includes(options.role))),
+          (!item.roles ||
+            (options.role !== null && item.roles.includes(options.role))),
       ),
     }))
     .filter((section) => section.items.length > 0);
@@ -394,6 +421,7 @@ export default function Sidebar(props: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { isPro, openUpgradeModal } = useUpgradeModal();
   const activeBusiness = props.memberships.find(
     (membership) => membership.businessId === props.activeBusinessId,
   );
@@ -427,7 +455,10 @@ export default function Sidebar(props: SidebarProps) {
 
       {/* The desktop sidebar has a stable width, so content never jumps while
           the user moves through the navigation. */}
-      <div aria-hidden="true" className="hidden shrink-0 lg:block lg:w-[272px]" />
+      <div
+        aria-hidden="true"
+        className="hidden shrink-0 lg:block lg:w-[272px]"
+      />
 
       <aside
         aria-label={`Navegación del panel${activeBusiness ? ` de ${activeBusiness.business.name}` : ""}`}
@@ -440,120 +471,151 @@ export default function Sidebar(props: SidebarProps) {
           lg:z-40 lg:h-screen lg:w-[272px] lg:translate-x-0
         `}
       >
-      {/* Mobile close button */}
-      <div className="relative flex items-center justify-end px-4 pt-4 lg:hidden">
-        <button
-          type="button"
-          onClick={() => setMobileOpen(false)}
-          aria-label="Cerrar menú"
-          className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-[#716C82] hover:bg-[#ECECF2] hover:text-[#252037]"
-        >
-          <X aria-hidden="true" className="h-5 w-5" />
-        </button>
-      </div>
-
-      <div className="relative px-6 pt-4 lg:pt-6">
-        <div className="flex items-center justify-start">
-          <Link
-            href="/dashboard"
-            aria-label="Ir al panel"
+        {/* Mobile close button */}
+        <div className="relative flex items-center justify-end px-4 pt-4 lg:hidden">
+          <button
+            type="button"
             onClick={() => setMobileOpen(false)}
-            className="inline-flex min-w-0 items-center"
+            aria-label="Cerrar menú"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-[10px] text-[#716C82] hover:bg-[#ECECF2] hover:text-[#252037]"
           >
-            <Image
-              src="/flikker-wordmark.svg"
-              alt="Flikker"
-              width={148}
-              height={44}
-              priority
-              className="h-auto w-[122px]"
-            />
-          </Link>
+            <X aria-hidden="true" className="h-5 w-5" />
+          </button>
         </div>
-      </div>
 
-      {props.businessDisplayName ? (
-        <div className="relative mx-4 mt-5 flex min-h-14 items-center gap-3 rounded-[15px] border border-[#E5E6EC] bg-white px-3 py-2.5 shadow-[0_3px_12px_rgba(42,40,67,0.06)]">
-          <BusinessLogo
-            logoUrl={props.businessLogoUrl}
-            name={props.businessDisplayName}
-            size="sm"
-            className="border-[#E7E8EF] bg-[#F5F5F8]"
-          />
-          <div className="min-w-0 flex-1">
-            {props.isImpersonating ? (
-              <p className="truncate text-sm font-semibold text-[#29243D]">
-                {props.businessDisplayName}
-              </p>
-            ) : (
-              <BusinessSelector
-                memberships={props.memberships}
-                activeBusinessId={props.activeBusinessId}
-                activeBusinessName={props.businessDisplayName}
-                placement="bottom"
+        <div className="relative px-6 pt-4 lg:pt-6">
+          <div className="flex items-center justify-start">
+            <Link
+              href="/dashboard"
+              aria-label="Ir al panel"
+              onClick={() => setMobileOpen(false)}
+              className="inline-flex min-w-0 items-center"
+            >
+              <Image
+                src="/flikker-wordmark.svg"
+                alt="Flikker"
+                width={148}
+                height={44}
+                priority
+                className="h-auto w-[122px]"
               />
-            )}
+            </Link>
           </div>
         </div>
-      ) : null}
 
-      <nav className="relative mt-4 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3.5 pb-3">
-        {sections.map((section) => (
-          <div key={section.title ?? "principal"} className="flex flex-col gap-1">
-            {section.title ? (
-              <p className="mt-3 px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#AAA6B5]">
-                {section.title}
-              </p>
-            ) : null}
-
-            {section.items.map((item) => {
-              const active = isItemActive(pathname, item.href);
-              return (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  data-onboarding={item.onboardingKey}
-                  onClick={() => setMobileOpen(false)}
-                  onMouseEnter={() => router.prefetch(item.href)}
-                  className={`flex min-h-11 items-center gap-3 rounded-[12px] px-3 py-2.5 text-[14px] font-semibold transition-colors duration-150 ${
-                    active
-                      ? "bg-[#5C6BC0] text-white shadow-[0_7px_18px_rgba(92,107,192,0.24)]"
-                      : "text-[#6F6A80] hover:bg-[#ECECF2] hover:text-[#302A48]"
-                  }`}
-                >
-                  <span className={active ? "text-white" : "text-[#817B94]"}>
-                    {item.icon}
-                  </span>
-                  <span className="whitespace-nowrap">{item.label}</span>
-                </Link>
-              );
-            })}
+        {props.businessDisplayName ? (
+          <div className="relative mx-4 mt-5 flex min-h-14 items-center gap-3 rounded-[15px] border border-[#E5E6EC] bg-white px-3 py-2.5 shadow-[0_3px_12px_rgba(42,40,67,0.06)]">
+            <BusinessLogo
+              logoUrl={props.businessLogoUrl}
+              name={props.businessDisplayName}
+              size="sm"
+              className="border-[#E7E8EF] bg-[#F5F5F8]"
+            />
+            <div className="min-w-0 flex-1">
+              {props.isImpersonating ? (
+                <p className="truncate text-sm font-semibold text-[#29243D]">
+                  {props.businessDisplayName}
+                </p>
+              ) : (
+                <BusinessSelector
+                  memberships={props.memberships}
+                  activeBusinessId={props.activeBusinessId}
+                  activeBusinessName={props.businessDisplayName}
+                  placement="bottom"
+                />
+              )}
+            </div>
           </div>
-        ))}
-      </nav>
+        ) : null}
 
-      <div className="px-4 pb-3">
-        <a
-          href={supportWhatsAppHref("Hola, necesito ayuda con Flikker.")}
-          target="_blank"
-          rel="noreferrer"
-          className="flex h-9 w-full items-center justify-center gap-2 rounded-full bg-[#35C978] px-4 text-xs font-bold text-white hover:bg-[#2DB86B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35C978]/35 focus-visible:ring-offset-2"
-        >
-          <WhatsAppIcon />
-          Ayuda y soporte
-        </a>
-      </div>
+        <nav className="relative mt-4 flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3.5 pb-3">
+          {sections.map((section) => (
+            <div
+              key={section.title ?? "principal"}
+              className="flex flex-col gap-1"
+            >
+              {section.title ? (
+                <p className="mt-3 px-3 pb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-[#AAA6B5]">
+                  {section.title}
+                </p>
+              ) : null}
 
-      <div
-        className="relative mt-auto px-4 pb-5 pt-4"
-      >
-        <p className="mb-1 truncate px-3 text-xs font-medium text-[#817B94]">
-          {props.userName}
-        </p>
-        <div className="flex flex-col gap-1.5">
-          <LogoutButton sidebar />
+              {section.items.map((item) => {
+                const active = isItemActive(pathname, item.href);
+                const isProLocked = Boolean(item.proFeature && !isPro);
+                const className = `flex min-h-11 items-center gap-3 rounded-[12px] px-3 py-2.5 text-[14px] font-semibold transition-colors duration-150 ${
+                  active
+                    ? "bg-[#5C6BC0] text-white shadow-[0_7px_18px_rgba(92,107,192,0.24)]"
+                    : "text-[#6F6A80] hover:bg-[#ECECF2] hover:text-[#302A48]"
+                }`;
+                const content = (
+                  <>
+                    <span className={active ? "text-white" : "text-[#817B94]"}>
+                      {item.icon}
+                    </span>
+                    <span className="whitespace-nowrap">{item.label}</span>
+                    {isProLocked ? <ProBadge className="ml-auto" /> : null}
+                  </>
+                );
+
+                if (isProLocked) {
+                  return (
+                    <button
+                      key={item.href}
+                      type="button"
+                      data-onboarding={item.onboardingKey}
+                      data-pro-feature={item.proFeature}
+                      aria-label={`${item.label}, disponible en Flikker Pro`}
+                      onClick={() => {
+                        setMobileOpen(false);
+                        openUpgradeModal({
+                          feature: item.proFeature!,
+                          source: "sidebar",
+                        });
+                      }}
+                      className={`${className} w-full text-left`}
+                    >
+                      {content}
+                    </button>
+                  );
+                }
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    data-onboarding={item.onboardingKey}
+                    onClick={() => setMobileOpen(false)}
+                    onMouseEnter={() => router.prefetch(item.href)}
+                    className={className}
+                  >
+                    {content}
+                  </Link>
+                );
+              })}
+            </div>
+          ))}
+        </nav>
+
+        <div className="px-4 pb-3">
+          <a
+            href={supportWhatsAppHref("Hola, necesito ayuda con Flikker.")}
+            target="_blank"
+            rel="noreferrer"
+            className="flex h-9 w-full items-center justify-center gap-2 rounded-full bg-[#35C978] px-4 text-xs font-bold text-white hover:bg-[#2DB86B] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#35C978]/35 focus-visible:ring-offset-2"
+          >
+            <WhatsAppIcon />
+            Ayuda y soporte
+          </a>
         </div>
-      </div>
+
+        <div className="relative mt-auto px-4 pb-5 pt-4">
+          <p className="mb-1 truncate px-3 text-xs font-medium text-[#817B94]">
+            {props.userName}
+          </p>
+          <div className="flex flex-col gap-1.5">
+            <LogoutButton sidebar />
+          </div>
+        </div>
       </aside>
     </>
   );

@@ -35,7 +35,19 @@ export class RegistrationCompletedService {
     private readonly whatsApp: WhatsAppBspService,
   ) {}
 
-  async fire(businessId: string, userId: string): Promise<void> {
+  /**
+   * `alreadyPro`: Parte 5D — un Business que nace pagado (checkout
+   * pre-onboarding resuelto antes de `saveBusiness`) nunca debe recibir el
+   * email/WhatsApp de bienvenida al plan GRATIS — sería contradictorio con
+   * lo que acaba de pagar. El aviso al owner de Flikker SÍ se manda
+   * siempre: le interesa saber de todo registro nuevo, y el aviso de "Nuevo
+   * Pro" (vía `SUBSCRIPTION_PAID`) es un mensaje distinto, no un duplicado.
+   */
+  async fire(
+    businessId: string,
+    userId: string,
+    options: { alreadyPro?: boolean } = {},
+  ): Promise<void> {
     const claimed = await this.claims.claimOnce(EVENT_TYPE, businessId);
     if (!claimed) return;
 
@@ -61,8 +73,10 @@ export class RegistrationCompletedService {
       return;
     }
 
-    await this.sendWelcomeEmail(user);
-    await this.sendWelcomeWhatsApp(user);
+    if (!options.alreadyPro) {
+      await this.sendWelcomeEmail(user);
+      await this.sendWelcomeWhatsApp(user);
+    }
     await this.sendOwnerNotification(user, business.name, businessId);
   }
 

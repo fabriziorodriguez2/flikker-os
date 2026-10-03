@@ -387,6 +387,14 @@ model User {
   /// Platform Admin (`platform.repository.ts`) se marcan verificadas en el
   /// momento: nunca pasan por el flujo de confirmación por correo.
   emailVerifiedAt       DateTime? @map("email_verified_at")
+  /// Intención de upgrade capturada en `/signup?plan=PRO&billing=...`, NO
+  /// autoridad de billing: nunca activa Pro ni crea una Subscription por sí
+  /// sola. Vive en el User (no en cookie/sessionStorage) justamente para
+  /// sobrevivir a que el link de verificación se abra en otra pestaña, otro
+  /// navegador o otro dispositivo — un bug real donde la cookie se perdía.
+  /// Se consume (vuelve a null) la primera vez que, ya con el Business
+  /// creado, se confirma su estado real de plan — ver `AuthService`.
+  pendingUpgradePlan    CheckoutPlan? @map("pending_upgrade_plan")
   createdAt             DateTime  @default(now())
   updatedAt             DateTime  @updatedAt
 

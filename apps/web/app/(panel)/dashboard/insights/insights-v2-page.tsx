@@ -8,10 +8,7 @@ import InsightCards from "./insight-cards";
 import ImpactCard from "./impact-card";
 import RecoveryOpportunityCard from "./recovery-opportunity-card";
 import PlanLimitSignal from "./plan-limit-signal";
-import {
-  parseFreePlanUsage,
-  type FreePlanUsage,
-} from "@/lib/free-plan-usage";
+import { parseFreePlanUsage, type FreePlanUsage } from "@/lib/free-plan-usage";
 import { CustomerCompositionChart, VisitTrendChart } from "./insights-charts";
 import {
   buildRecommendation,
@@ -25,6 +22,7 @@ import type {
   InsightsMetricsView,
   InsightStatement,
 } from "./types";
+import ProFeatureLocked from "@/components/panel/pro-feature-locked";
 
 interface InsightsOverviewResponse {
   metrics: InsightsMetricsView;
@@ -38,6 +36,36 @@ export default async function InsightsV2Page() {
   const { accessToken, businessId } = getEffectiveApiContext(session);
   if (!businessId) redirect("/login");
 
+  /*
+    El plan se resuelve antes que cualquier analytics. Si el backend confirma
+    Free, la ruta directa muestra el gate sin pedir datos privados. Si esta
+    lectura falla, se conserva el fail-open del panel: no se muestra un upsell
+    potencialmente incorrecto y el backend sigue siendo la autoridad final.
+  */
+  let isPro = true;
+  let freePlanUsage: FreePlanUsage | null = null;
+  try {
+    const subscription = await apiFetch<{
+      isPro?: boolean;
+      freePlanUsage?: unknown;
+    }>("/businesses/current/subscription", accessToken, { businessId });
+    isPro = subscription?.isPro !== false;
+    freePlanUsage = parseFreePlanUsage(subscription?.freePlanUsage);
+  } catch {
+    // Ante la duda, no vender.
+  }
+
+  if (!isPro) {
+    return (
+      <ProFeatureLocked
+        title="Insights es parte de Flikker Pro"
+        description="Entendé qué hace volver a tus clientes y cómo está funcionando tu programa."
+        feature="insights"
+        source="insights"
+      />
+    );
+  }
+
   let overview: InsightsOverviewResponse | null = null;
   let sessionExpired = false;
   try {
@@ -50,24 +78,6 @@ export default async function InsightsV2Page() {
     if (isUnauthorizedApiError(error)) sessionExpired = true;
   }
   if (sessionExpired) redirect("/session-expired");
-
-  /*
-    Estado de plan, solo para decidir si mostrar la oportunidad de
-    recuperación. Best-effort igual que el resumen: si falla, se asume Pro
-    — el default que NO muestra el paywall. Ante la duda, no vender.
-  */
-  let isPro = true;
-  let freePlanUsage: FreePlanUsage | null = null;
-  try {
-    const subscription = await apiFetch<{
-      isPro?: boolean;
-      freePlanUsage?: unknown;
-    }>("/businesses/current/subscription", accessToken, { businessId });
-    isPro = subscription?.isPro !== false;
-    freePlanUsage = parseFreePlanUsage(subscription?.freePlanUsage);
-  } catch {
-    // Sin dato de plan no se muestra ningún prompt.
-  }
 
   let summary: InsightsSummaryView | null = null;
   try {

@@ -137,4 +137,37 @@ describe('RegistrationCompletedService', () => {
 
     expect(deps.whatsApp.sendText).toHaveBeenCalled();
   });
+
+  describe('alreadyPro (Parte 5D — pago antes del onboarding)', () => {
+    it('alreadyPro: true — nunca manda el email/WhatsApp de bienvenida GRATIS, pero el owner igual se entera', async () => {
+      const deps = makeDeps();
+      const service = makeService(deps);
+
+      await service.fire('biz-1', 'user-1', { alreadyPro: true });
+
+      expect(deps.email.send).not.toHaveBeenCalled();
+      expect(deps.whatsApp.sendText).toHaveBeenCalledTimes(1); // solo el owner
+      expect(deps.whatsApp.sendText).toHaveBeenCalledWith(
+        expect.objectContaining({ phone: '+59891234567' }),
+      );
+    });
+
+    it('sin el flag (default): sigue mandando la bienvenida GRATIS como siempre', async () => {
+      const deps = makeDeps();
+      const service = makeService(deps);
+
+      await service.fire('biz-1', 'user-1');
+
+      expect(deps.email.send).toHaveBeenCalled();
+    });
+
+    it('alreadyPro: false explícito — igual que el default, manda la bienvenida GRATIS', async () => {
+      const deps = makeDeps();
+      const service = makeService(deps);
+
+      await service.fire('biz-1', 'user-1', { alreadyPro: false });
+
+      expect(deps.email.send).toHaveBeenCalled();
+    });
+  });
 });

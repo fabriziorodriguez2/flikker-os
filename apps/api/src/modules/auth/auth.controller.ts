@@ -1,4 +1,12 @@
-import { Controller, Post, Get, Body, UseGuards, Req } from '@nestjs/common';
+import {
+  Controller,
+  Post,
+  Get,
+  Patch,
+  Body,
+  UseGuards,
+  Req,
+} from '@nestjs/common';
 import { Throttle, ThrottlerGuard } from '@nestjs/throttler';
 import type { Request } from 'express';
 import { AuthService } from './auth.service';
@@ -13,10 +21,16 @@ import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { JwtGuard } from './guards/jwt.guard';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { PreOnboardingCheckoutService } from './pre-onboarding-checkout.service';
+import { CreateProCheckoutDto } from '../businesses/dto/create-pro-checkout.dto';
+import { UpdateNotificationWhatsAppDto } from './dto/update-notification-whatsapp.dto';
 
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly preOnboardingCheckout: PreOnboardingCheckoutService,
+  ) {}
 
   @Post('signup')
   @UseGuards(ThrottlerGuard)
@@ -96,5 +110,40 @@ export class AuthController {
   @Post('me/onboarding-complete')
   markOnboardingComplete(@CurrentUser() user: { id: string }) {
     return this.authService.markOnboardingComplete(user.id);
+  }
+
+  @UseGuards(JwtGuard)
+  @Post('me/consume-pending-upgrade-plan')
+  consumePendingUpgradePlan(@CurrentUser() user: { id: string }) {
+    return this.authService.consumePendingUpgradePlan(user.id);
+  }
+
+  @UseGuards(JwtGuard)
+  @Patch('me/notification-whatsapp')
+  updateNotificationWhatsapp(
+    @CurrentUser() user: { id: string },
+    @Body() dto: UpdateNotificationWhatsAppDto,
+  ) {
+    return this.authService.updateNotificationWhatsapp(user.id, dto.phone);
+  }
+
+  /**
+   * Checkout Pro PRE-onboarding (Parte 5D) — para un User que todavía no
+   * tiene Business. El upgrade de un Business FREE existente sigue siendo
+   * `POST /businesses/current/checkout`, sin tocar.
+   */
+  @UseGuards(JwtGuard)
+  @Post('me/checkout')
+  createPreOnboardingCheckout(
+    @CurrentUser() user: { id: string },
+    @Body() dto: CreateProCheckoutDto,
+  ) {
+    return this.preOnboardingCheckout.createCheckout(user.id, dto.plan);
+  }
+
+  @UseGuards(JwtGuard)
+  @Get('me/checkout')
+  getPreOnboardingCheckoutStatus(@CurrentUser() user: { id: string }) {
+    return this.preOnboardingCheckout.getStatus(user.id);
   }
 }

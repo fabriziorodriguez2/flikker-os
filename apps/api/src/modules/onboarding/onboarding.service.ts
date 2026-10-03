@@ -7,6 +7,7 @@ import {
 import {
   BenefitType,
   BusinessStatus,
+  CheckoutLeadStatus,
   ExperienceVersion,
   MembershipRole,
   MembershipStatus,
@@ -17,6 +18,7 @@ import { BenefitsRepository } from '../benefits/benefits.repository';
 import { RetentionV2BootstrapService } from '../retention-v2/retention-v2-bootstrap.service';
 import { PlansService } from '../plans/plans.service';
 import { RegistrationCompletedService } from './registration-completed.service';
+import { SubscriptionPaidNotificationService } from '../webhooks/subscription-paid-notification.service';
 import { ONBOARDING_DEFAULTS } from './onboarding.defaults';
 import { GoogleUrlError, normalizeGoogleBusinessUrl } from './google-url';
 import type {
@@ -58,6 +60,7 @@ export class OnboardingService {
     private readonly retentionBootstrap: RetentionV2BootstrapService,
     private readonly plans: PlansService,
     private readonly registrationCompleted: RegistrationCompletedService,
+    private readonly subscriptionPaidNotification: SubscriptionPaidNotificationService,
   ) {}
 
   /** El negocio que este usuario está onboardeando, si hay alguno. */
@@ -213,15 +216,27 @@ export class OnboardingService {
       this.plans.ensureFreeSubscriptionIfMissing(business.id),
     ]);
 
+    // Parte 5D — "PRO paga ANTES del onboarding": si este User ya tiene un
+    // CheckoutLead PAID sin Business todavía, acá es donde se asocia y se
+    // activa Pro — nunca antes (recién ahora existe un Business real). El
+    // resultado observable para quien mira desde afuera es directamente
+    // PRO: la Subscription FREE de arriba queda pisada por el `upsert` de
+    // `activateProSelfService` antes de que este método devuelva nada.
+    const paidLeadId = await this.linkPaidPreOnboardingCheckout(
+      business.id,
+      userId,
+    );
+
     // Fire-and-forget a propósito: el registro YA está confirmado en este
-    // punto (User + Business + Membership + Subscription FREE existen) —
-    // una falla mandando el email/WhatsApp de bienvenida nunca debe
-    // devolverle un error a alguien que se acaba de registrar
-    // correctamente. Idempotente del lado de adentro (`DomainEventClaimService`
-    // vía `REGISTRATION_COMPLETED:<businessId>`), así que reanudar este
-    // paso no duplica nada.
+    // punto (User + Business + Membership + Subscription existen) — una
+    // falla mandando el email/WhatsApp de bienvenida nunca debe devolverle
+    // un error a alguien que se acaba de registrar correctamente.
+    // Idempotente del lado de adentro (`DomainEventClaimService` vía
+    // `REGISTRATION_COMPLETED:<businessId>`), así que reanudar este paso no
+    // duplica nada. `alreadyPro` evita mandarle "bienvenido al plan
+    // gratis" a quien ya pagó Pro.
     void this.registrationCompleted
-      .fire(business.id, userId)
+      .fire(business.id, userId, { alreadyPro: paidLeadId !== null })
       .catch((error: unknown) => {
         this.logger.warn(
           `REGISTRATION_COMPLETED falló para business ${business.id}: ${
@@ -230,7 +245,62 @@ export class OnboardingService {
         );
       });
 
+    if (paidLeadId) {
+      void this.subscriptionPaidNotification
+        .fire(paidLeadId)
+        .catch((error: unknown) => {
+          this.logger.warn(
+            `SUBSCRIPTION_PAID falló para lead ${paidLeadId} (business ${business.id}): ${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        });
+    }
+
     return this.getState(userId);
+  }
+
+  /**
+   * Busca un CheckoutLead pre-onboarding (`businessId: null`) de este User
+   * en `PAID`, lo asocia al Business recién creado y activa Pro. Devuelve
+   * el id del lead si lo hizo, o `null` si no había nada que asociar (el
+   * caso normal: el usuario nunca pagó, o ya se asoció en un intento
+   * anterior).
+   *
+   * El `updateMany` guardado (`businessId: null` en el `where`) es lo que
+   * hace esto idempotente ante un reintento/doble-submit de `saveBusiness`:
+   * la segunda llamada encuentra 0 filas afectadas (el lead ya no tiene
+   * `businessId: null`) y no vuelve a activar nada — mismo idiom que
+   * `CheckoutLeadsService#claimForCreation`.
+   */
+  private async linkPaidPreOnboardingCheckout(
+    businessId: string,
+    userId: string,
+  ): Promise<string | null> {
+    const lead = await this.prisma.checkoutLead.findFirst({
+      where: {
+        requestedByUserId: userId,
+        businessId: null,
+        status: CheckoutLeadStatus.PAID,
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, plan: true },
+    });
+    if (!lead) return null;
+
+    const claimed = await this.prisma.checkoutLead.updateMany({
+      where: { id: lead.id, businessId: null },
+      data: { businessId },
+    });
+    if (claimed.count === 0) return null;
+
+    await this.plans.activateProSelfService(businessId, lead.plan);
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { pendingUpgradePlan: null },
+    });
+
+    return lead.id;
   }
 
   /**

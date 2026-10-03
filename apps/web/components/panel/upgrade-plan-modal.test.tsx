@@ -18,11 +18,16 @@ import { yearlyPriceFrom } from "@/lib/checkout-urls";
  */
 const PRICE = { currency: "UYU", amount: 1000 };
 
+// Por default YA tiene WhatsApp guardado — así los tests de siempre (sin
+// Parte 5E en mente) siguen viendo exactamente el modal de dos botones, sin
+// el campo nuevo. El propio campo se prueba aparte, con
+// `notificationWhatsapp: null` explícito.
 const render = (props: Partial<Parameters<typeof UpgradePlanModal>[0]> = {}) =>
   renderToStaticMarkup(
     <UpgradePlanModal
       feature="test"
       monthlyPrice={PRICE}
+      notificationWhatsapp="+59899123456"
       onClose={() => {}}
       {...props}
     />,
@@ -145,21 +150,29 @@ describe("UpgradePlanModal", () => {
     });
   });
 
-  describe("intención de signup: resalta, nunca decide por el usuario", () => {
-    it("sin intención, ninguna card dice “Tu elección”", () => {
-      expect(render()).not.toContain("Tu elección");
-    });
-
-    it("con intención mensual, resalta la card mensual", () => {
-      const html = render({ defaultBilling: "MONTHLY" });
-      expect(html).toContain("Tu elección");
-      expect(html.indexOf("Tu elección")).toBeLessThan(html.indexOf("Mejor opción"));
-    });
-
-    it("con intención anual, las dos cards siguen siendo elegibles", () => {
-      const html = render({ defaultBilling: "YEARLY" });
+  describe("WhatsApp previo al pago (Parte 5E)", () => {
+    it("con notificationWhatsapp ya guardado: no pide nada, es el modal de siempre", () => {
+      const html = render({ notificationWhatsapp: "+59899123456" });
+      expect(html).not.toContain("WhatsApp");
       expect(html).toContain("Elegir mensual");
       expect(html).toContain("Elegir anual");
+    });
+
+    it("sin notificationWhatsapp: pide el WhatsApp antes de los botones de checkout", () => {
+      const html = render({ notificationWhatsapp: null });
+      expect(html).toContain("WhatsApp");
+      expect(html).toContain(
+        "Lo usaremos para enviarte la confirmación y ayudarte con la puesta en marcha.",
+      );
+      expect(html).toContain("099 123 456");
+    });
+
+    it("el copy nunca menciona promociones ni pide consentimiento de marketing", () => {
+      const html = render({ notificationWhatsapp: null });
+      const lower = html.toLowerCase();
+      expect(lower).not.toContain("promoci");
+      expect(lower).not.toContain("marketing");
+      expect(lower).not.toContain("acepto");
     });
   });
 

@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { resolveNavSections } from "./sidebar";
+import ProBadge from "@/components/panel/pro-badge";
+import { useUpgradeModal } from "@/components/panel/upgrade-modal-provider";
 
 /**
  * Antes tenía su propia lista de ítems (`MAIN_NAV_ITEMS`), escrita a mano y
@@ -27,6 +29,7 @@ export default function MobileNav({
   isPlatformAdmin: boolean;
 }) {
   const pathname = usePathname();
+  const { isPro, openUpgradeModal } = useUpgradeModal();
   const sections = resolveNavSections({
     isCheckinV2,
     isImpersonating,
@@ -43,17 +46,42 @@ export default function MobileNav({
             item.href === "/dashboard"
               ? pathname === "/dashboard"
               : pathname.startsWith(item.href);
+          const isProLocked = Boolean(item.proFeature && !isPro);
+
+          const className = `inline-flex shrink-0 items-center gap-2 rounded-[12px] border px-3.5 py-2 text-xs font-semibold transition-all ${
+            isActive
+              ? "border-[#5C6BC0]/25 bg-[#5C6BC0] text-white shadow-[0_5px_14px_rgba(92,107,192,0.22)]"
+              : "border-transparent bg-transparent text-[#777187] hover:bg-[#ECECF2]"
+          }`;
+
+          if (isProLocked) {
+            return (
+              <button
+                key={item.href}
+                type="button"
+                data-onboarding={item.onboardingKey}
+                data-pro-feature={item.proFeature}
+                aria-label={`${item.label}, disponible en Flikker Pro`}
+                onClick={() =>
+                  openUpgradeModal({
+                    feature: item.proFeature!,
+                    source: "mobile_nav",
+                  })
+                }
+                className={className}
+              >
+                {item.label}
+                <ProBadge />
+              </button>
+            );
+          }
 
           return (
             <Link
               key={item.href}
               href={item.href}
               data-onboarding={item.onboardingKey}
-              className={`shrink-0 rounded-[12px] border px-3.5 py-2 text-xs font-semibold transition-all ${
-                isActive
-                  ? "border-[#5C6BC0]/25 bg-[#5C6BC0] text-white shadow-[0_5px_14px_rgba(92,107,192,0.22)]"
-                  : "border-transparent bg-transparent text-[#777187] hover:bg-[#ECECF2]"
-              }`}
+              className={className}
             >
               {item.label}
             </Link>

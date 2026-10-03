@@ -12,7 +12,9 @@ import { resolveNavSections } from "./sidebar";
 const hrefsOf = (sections: ReturnType<typeof resolveNavSections>) =>
   sections.flatMap((section) => section.items.map((item) => item.href));
 
-const owner = (overrides: Partial<Parameters<typeof resolveNavSections>[0]> = {}) =>
+const owner = (
+  overrides: Partial<Parameters<typeof resolveNavSections>[0]> = {},
+) =>
   resolveNavSections({
     isCheckinV2: true,
     isImpersonating: false,
@@ -22,9 +24,10 @@ const owner = (overrides: Partial<Parameters<typeof resolveNavSections>[0]> = {}
   });
 
 describe("Navegación CHECKIN_V2", () => {
-  it("muestra exactamente las siete superficies del producto", () => {
+  it("muestra exactamente las ocho superficies del producto", () => {
     expect(hrefsOf(owner())).toEqual([
       "/dashboard",
+      "/dashboard/insights",
       "/dashboard/programa",
       "/dashboard/customers",
       "/dashboard/notificaciones",
@@ -54,7 +57,6 @@ describe("Navegación CHECKIN_V2", () => {
     ["/dashboard/benefits", "Beneficios"],
     ["/dashboard/campaigns", "Campañas"],
     ["/dashboard/checkins", "Check-ins"],
-    ["/dashboard/insights", "Insights"],
     ["/dashboard/widgets", "Widget"],
     ["/dashboard/members", "Equipo"],
     ["/dashboard/branches", "Sucursales"],
@@ -130,6 +132,7 @@ describe("Navegación por rol", () => {
     expect(hrefs).not.toContain("/dashboard/programa");
     expect(hrefs).toEqual([
       "/dashboard",
+      "/dashboard/insights",
       "/dashboard/customers",
       "/dashboard/notificaciones",
       "/dashboard/reviews",
@@ -228,7 +231,9 @@ describe("Navegación LEGACY", () => {
       isPlatformAdmin: true,
     });
 
-    expect(impersonatingLegacy.map((s) => s.title)).toContain("Herramientas Flikker");
+    expect(impersonatingLegacy.map((s) => s.title)).toContain(
+      "Herramientas Flikker",
+    );
     // Y el resto del nav LEGACY (Campañas, Beneficios, Retención...) sigue igual.
     expect(hrefsOf(impersonatingLegacy)).toEqual(
       expect.arrayContaining([
@@ -274,7 +279,7 @@ describe("Platform Admin / impersonation", () => {
   });
 
   it("Platform Admin impersonando ve navegación normal + Herramientas Flikker", () => {
-    const productHrefs = hrefsOf(platformAdminImpersonating()).slice(0, 7);
+    const productHrefs = hrefsOf(platformAdminImpersonating()).slice(0, 8);
     expect(productHrefs).toEqual(hrefsOf(owner()));
   });
 

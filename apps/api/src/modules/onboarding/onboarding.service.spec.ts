@@ -42,6 +42,13 @@ function makeDeps(options: { draft?: unknown } = {}) {
       findFirst: jest.fn().mockResolvedValue(null),
       create: jest.fn().mockResolvedValue({ id: 'ben-new' }),
     },
+    // Parte 5D — sin lead pagado pre-onboarding por default: el caso normal
+    // (FREE) en casi todos estos tests.
+    checkoutLead: {
+      findFirst: jest.fn().mockResolvedValue(null),
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+    },
+    user: { update: jest.fn().mockResolvedValue({}) },
   };
   const visitSources = {
     ensureDefaultSource: jest.fn().mockResolvedValue({ token: 'tok-1' }),
@@ -53,8 +60,12 @@ function makeDeps(options: { draft?: unknown } = {}) {
   const plans = {
     ensureFreeSubscriptionIfMissing: jest.fn().mockResolvedValue({}),
     startBenefitsTrialIfNeeded: jest.fn().mockResolvedValue(undefined),
+    activateProSelfService: jest.fn().mockResolvedValue({}),
   };
   const registrationCompleted = {
+    fire: jest.fn().mockResolvedValue(undefined),
+  };
+  const subscriptionPaidNotification = {
     fire: jest.fn().mockResolvedValue(undefined),
   };
   return {
@@ -64,6 +75,7 @@ function makeDeps(options: { draft?: unknown } = {}) {
     retentionBootstrap,
     plans,
     registrationCompleted,
+    subscriptionPaidNotification,
   };
 }
 
@@ -75,6 +87,7 @@ const service = (d: ReturnType<typeof makeDeps>) =>
     d.retentionBootstrap as never,
     d.plans as never,
     d.registrationCompleted as never,
+    d.subscriptionPaidNotification as never,
   );
 
 const BUSINESS_DTO = { name: 'Café Uno', category: 'cafeteria' };
@@ -125,6 +138,85 @@ describe('Onboarding — paso 1 deja el negocio listo para funcionar', () => {
       expect.objectContaining({
         where: expect.objectContaining({ onboardingCompletedAt: null }),
       }),
+    );
+  });
+});
+
+describe('Onboarding — paso 1, pago antes del onboarding (Parte 5D)', () => {
+  it('sin CheckoutLead pagado: Business nace FREE, nada de Pro se activa, bienvenida GRATIS normal', async () => {
+    const deps = makeDeps({ draft: null });
+    deps.prisma.business.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(DRAFT);
+    // Default de `makeDeps`: `checkoutLead.findFirst` devuelve null.
+
+    await service(deps).saveBusiness('user-1', BUSINESS_DTO);
+
+    expect(deps.plans.activateProSelfService).not.toHaveBeenCalled();
+    expect(deps.prisma.checkoutLead.updateMany).not.toHaveBeenCalled();
+    expect(deps.subscriptionPaidNotification.fire).not.toHaveBeenCalled();
+    expect(deps.registrationCompleted.fire).toHaveBeenCalledWith(
+      'biz-new',
+      'user-1',
+      { alreadyPro: false },
+    );
+  });
+
+  it('con un CheckoutLead PAID del User (businessId null): lo asocia, activa Pro, limpia pendingUpgradePlan y dispara SUBSCRIPTION_PAID', async () => {
+    const deps = makeDeps({ draft: null });
+    deps.prisma.business.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(DRAFT);
+    deps.prisma.checkoutLead.findFirst.mockResolvedValue({
+      id: 'lead-paid-1',
+      plan: 'YEARLY',
+    });
+    deps.prisma.checkoutLead.updateMany.mockResolvedValue({ count: 1 });
+
+    await service(deps).saveBusiness('user-1', BUSINESS_DTO);
+
+    expect(deps.prisma.checkoutLead.updateMany).toHaveBeenCalledWith({
+      where: { id: 'lead-paid-1', businessId: null },
+      data: { businessId: 'biz-new' },
+    });
+    expect(deps.plans.activateProSelfService).toHaveBeenCalledWith(
+      'biz-new',
+      'YEARLY',
+    );
+    expect(deps.prisma.user.update).toHaveBeenCalledWith({
+      where: { id: 'user-1' },
+      data: { pendingUpgradePlan: null },
+    });
+    expect(deps.subscriptionPaidNotification.fire).toHaveBeenCalledWith(
+      'lead-paid-1',
+    );
+    expect(deps.registrationCompleted.fire).toHaveBeenCalledWith(
+      'biz-new',
+      'user-1',
+      { alreadyPro: true },
+    );
+  });
+
+  it('IDEMPOTENTE: perder la carrera de asociación (otro saveBusiness ya se la llevó) no activa Pro dos veces', async () => {
+    const deps = makeDeps({ draft: null });
+    deps.prisma.business.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(DRAFT);
+    deps.prisma.checkoutLead.findFirst.mockResolvedValue({
+      id: 'lead-paid-1',
+      plan: 'MONTHLY',
+    });
+    // `updateMany` no afectó ninguna fila: alguien más ya la asoció antes.
+    deps.prisma.checkoutLead.updateMany.mockResolvedValue({ count: 0 });
+
+    await service(deps).saveBusiness('user-1', BUSINESS_DTO);
+
+    expect(deps.plans.activateProSelfService).not.toHaveBeenCalled();
+    expect(deps.subscriptionPaidNotification.fire).not.toHaveBeenCalled();
+    expect(deps.registrationCompleted.fire).toHaveBeenCalledWith(
+      'biz-new',
+      'user-1',
+      { alreadyPro: false },
     );
   });
 });

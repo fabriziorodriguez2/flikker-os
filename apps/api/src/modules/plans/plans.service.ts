@@ -216,6 +216,19 @@ export class PlansService {
   }
 
   /**
+   * Gate canónico para features exclusivas del plan Pro. A diferencia de
+   * `hasProAccess`, no incluye el trial acotado de Beneficios: Insights y el
+   * historial de notificaciones pertenecen al plan completo.
+   */
+  async assertProPlanAccess(businessId: string): Promise<void> {
+    if (!(await this.isOnProPlan(businessId))) {
+      throw new ForbiddenException(
+        'Esta función está disponible en Flikker Pro.',
+      );
+    }
+  }
+
+  /**
    * ¿Tiene ESTE negocio acceso a funciones Pro AHORA MISMO — pagando o en
    * trial vigente? Deliberadamente distinto de `!isBenefitsBlocked`: ese
    * método también devuelve "no bloqueado" cuando el trial NUNCA arrancó

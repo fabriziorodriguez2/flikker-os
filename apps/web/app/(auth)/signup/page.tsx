@@ -1,15 +1,11 @@
 "use client";
 
-import { FormEvent, Suspense, useEffect, useState } from "react";
+import { FormEvent, Suspense, useState } from "react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, MailCheck, User } from "lucide-react";
 import { AuthSplitShell } from "@/components/auth/auth-split-shell";
-import {
-  clearSignupIntent,
-  parseSignupIntentFromSearchParams,
-  storeSignupIntent,
-} from "@/lib/signup-intent";
+import { parsePendingUpgradePlanFromSearchParams } from "@/lib/pending-upgrade-plan";
 
 const MIN_LENGTH = 8;
 
@@ -35,20 +31,15 @@ function SignupPageContent() {
   const searchParams = useSearchParams();
 
   /*
-    `/signup?plan=PRO&billing=MONTHLY|YEARLY` guarda la intención (cookie,
-    ver `lib/signup-intent`) para ofrecer el upgrade recién al terminar el
-    onboarding — nunca activa Pro acá. Un signup SIN esos params borra
-    cualquier intención vieja: no debe arrastrarse de un intento anterior
-    abandonado.
+    `/signup?plan=PRO&billing=MONTHLY|YEARLY` viaja en el body del signup y
+    queda guardada en el User (`pendingUpgradePlan`, backend) — nunca activa
+    Pro acá, solo decide si se ofrece el upgrade al terminar el onboarding.
+    Antes vivía en una cookie, pero se perdía si el link de verificación se
+    abría en otra pestaña/navegador/dispositivo (bug real, reproducido en
+    producción): guardarla en el User la hace sobrevivir a eso, porque viaja
+    con la sesión en vez de con el storage de un browser puntual.
   */
-  useEffect(() => {
-    const intent = parseSignupIntentFromSearchParams(searchParams);
-    if (intent) {
-      storeSignupIntent(intent);
-    } else {
-      clearSignupIntent();
-    }
-  }, [searchParams]);
+  const pendingUpgradePlan = parsePendingUpgradePlanFromSearchParams(searchParams);
 
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -87,7 +78,13 @@ function SignupPageContent() {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, password, confirmPassword }),
+        body: JSON.stringify({
+          name,
+          email,
+          password,
+          confirmPassword,
+          ...(pendingUpgradePlan ? { pendingUpgradePlan } : {}),
+        }),
       });
 
       const data = (await response.json().catch(() => ({}))) as {

@@ -10,6 +10,7 @@ import { OnboardingService } from './onboarding.service';
 import { RegistrationCompletedService } from './registration-completed.service';
 import { EmailService } from '../../jobs/email.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { SubscriptionPaidNotificationService } from '../webhooks/subscription-paid-notification.service';
 
 /**
  * Onboarding self-service. Reusa `VisitSourcesRepository`,
@@ -37,6 +38,9 @@ import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
     // relación con onboarding).
     EmailService,
     WhatsAppBspService,
+    // Parte 5D — dispara SUBSCRIPTION_PAID cuando el onboarding asocia un
+    // CheckoutLead pre-onboarding ya pagado. Sin estado propio.
+    SubscriptionPaidNotificationService,
   ],
   exports: [OnboardingService],
 })

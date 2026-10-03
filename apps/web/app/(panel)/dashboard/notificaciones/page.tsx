@@ -9,6 +9,10 @@ import { useIsCheckinV2 } from "../../experience-context";
 import AutomationsTab from "./automations-tab";
 import PromotionsTab from "./promotions-tab";
 import HistoryTab from "./history-tab";
+import ProBadge from "@/components/panel/pro-badge";
+import ProFeatureLocked from "@/components/panel/pro-feature-locked";
+import { useUpgradeModal } from "@/components/panel/upgrade-modal-provider";
+import RouteProgressBar from "@/components/ui/route-progress-bar";
 
 /**
  * Notificaciones.
@@ -43,6 +47,7 @@ function isTabKey(value: string | null): value is TabKey {
 
 export default function NotificacionesPage() {
   const isCheckinV2 = useIsCheckinV2();
+  const { isPro, isSubscriptionLoading, openUpgradeModal } = useUpgradeModal();
   // El CTA del chatbot ("Ir a Promociones") llega con `?tab=promociones` —
   // así aterriza en la pestaña real, no solo en la página.
   const searchParams = useSearchParams();
@@ -86,7 +91,9 @@ export default function NotificacionesPage() {
       <div className="flex items-start gap-3 rounded-[13px] border border-[#C9D7F6] bg-[#EEF4FF] px-4 py-3 text-sm leading-5 text-[#36539A]">
         <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
         <p>
-          <span className="font-semibold">Canales disponibles:</span> las automatizaciones compatibles usan WhatsApp. Pro suma emails adicionales, Cumpleaños y promociones.
+          <span className="font-semibold">Canales disponibles:</span> las
+          automatizaciones compatibles usan WhatsApp. Pro suma emails
+          adicionales, Cumpleaños y promociones.
         </p>
       </div>
 
@@ -97,13 +104,31 @@ export default function NotificacionesPage() {
       >
         {TABS.map((option) => {
           const Icon = option.icon;
+          const isHistoryLocked = option.key === "historial" && !isPro;
           return (
             <button
               key={option.key}
               type="button"
               role="tab"
               aria-selected={tab === option.key}
-              onClick={() => setTab(option.key)}
+              aria-label={
+                isHistoryLocked
+                  ? "Historial, disponible en Flikker Pro"
+                  : option.label
+              }
+              data-pro-feature={
+                isHistoryLocked ? "notification_history" : undefined
+              }
+              onClick={() => {
+                if (isHistoryLocked) {
+                  openUpgradeModal({
+                    feature: "notification_history",
+                    source: "notifications",
+                  });
+                  return;
+                }
+                setTab(option.key);
+              }}
               className={`inline-flex shrink-0 items-center gap-2 rounded-[9px] px-3.5 py-2 text-sm font-semibold transition-colors ${
                 tab === option.key
                   ? "bg-white text-[#5C6BC0] shadow-[0_1px_4px_rgba(17,22,59,0.12)]"
@@ -112,6 +137,7 @@ export default function NotificacionesPage() {
             >
               <Icon className="h-4 w-4" strokeWidth={1.8} aria-hidden="true" />
               {option.label}
+              {isHistoryLocked ? <ProBadge /> : null}
             </button>
           );
         })}
@@ -119,7 +145,20 @@ export default function NotificacionesPage() {
 
       {tab === "automaticas" ? <AutomationsTab /> : null}
       {tab === "promociones" ? <PromotionsTab /> : null}
-      {tab === "historial" ? <HistoryTab /> : null}
+      {tab === "historial" && isSubscriptionLoading ? (
+        <RouteProgressBar />
+      ) : null}
+      {tab === "historial" && !isSubscriptionLoading && !isPro ? (
+        <ProFeatureLocked
+          title="Historial de notificaciones"
+          description="Consultá los mensajes enviados a tus clientes y revisá la actividad de tus comunicaciones."
+          feature="notification_history"
+          source="notifications"
+        />
+      ) : null}
+      {tab === "historial" && !isSubscriptionLoading && isPro ? (
+        <HistoryTab />
+      ) : null}
     </div>
   );
 }

@@ -7,6 +7,14 @@ interface OnboardingStateResponse {
   businessId: string | null;
 }
 
+interface MeResponse {
+  pendingUpgradePlan: "MONTHLY" | "YEARLY" | null;
+}
+
+interface CheckoutStatusResponse {
+  status: string | null;
+}
+
 /**
  * Onboarding self-service. Ruta propia y separada de `/onboarding`, que es
  * el wizard asistido que usa Platform Admin (`?businessId=`) para negocios
@@ -15,6 +23,37 @@ interface OnboardingStateResponse {
 export default async function ComenzarPage() {
   const session = await getSession();
   if (!session) redirect("/login");
+
+  // Parte 5D — "PRO paga ANTES del onboarding": con una intención pendiente
+  // sin resolver, `/comenzar` NUNCA deja crear un Business FREE por
+  // accidente. Si ya pagó (CheckoutLead PAID) sigue de largo — el paso 1
+  // del wizard (`OnboardingService.saveBusiness`) es quien asocia ese lead
+  // y activa Pro. Elegir "Seguir con el plan gratis" en `/upgrade` deja
+  // `pendingUpgradePlan` en null, así que esto deja de aplicar.
+  let pendingUpgradePlan: "MONTHLY" | "YEARLY" | null = null;
+  try {
+    const me = await apiFetch<MeResponse>("/auth/me", session.accessToken);
+    pendingUpgradePlan = me.pendingUpgradePlan ?? null;
+  } catch {
+    pendingUpgradePlan = null;
+  }
+
+  if (pendingUpgradePlan) {
+    let checkoutStatus: string | null = null;
+    try {
+      const status = await apiFetch<CheckoutStatusResponse>(
+        "/auth/me/checkout",
+        session.accessToken,
+      );
+      checkoutStatus = status.status;
+    } catch {
+      checkoutStatus = null;
+    }
+
+    if (checkoutStatus === "CHECKOUT_CREATED") redirect("/checkout/success");
+    if (checkoutStatus !== "PAID") redirect("/upgrade");
+    // PAID: sigue de largo — el wizard asocia el lead y activa Pro.
+  }
 
   // Guard inverso al de `(panel)/layout.tsx`. Ambos miran si existe un
   // borrador (`onboardingCompletedAt` nulo) y redirigen en direcciones

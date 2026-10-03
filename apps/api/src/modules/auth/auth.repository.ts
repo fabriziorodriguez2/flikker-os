@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { CheckoutLeadStatus, CheckoutPlan } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 
 @Injectable()
@@ -20,6 +21,94 @@ export class AuthRepository {
         isActive: true,
         createdAt: true,
         onboardingCompletedAt: true,
+        pendingUpgradePlan: true,
+        emailVerifiedAt: true,
+        notificationWhatsapp: true,
+      },
+    });
+  }
+
+  /** Guarda el WhatsApp YA normalizado a E.164 — ver `normalizeToE164` en el servicio. */
+  updateNotificationWhatsapp(id: string, phoneE164: string) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { notificationWhatsapp: phoneE164 },
+      select: { id: true, notificationWhatsapp: true },
+    });
+  }
+
+  /**
+   * Checkout pre-onboarding (Parte 5D): el mismo "¿ya hay uno en curso?"
+   * que `BusinessesRepository.findInProgressCheckoutLead`, pero sin
+   * `businessId` todavía — ligado solo al User.
+   */
+  findInProgressPreOnboardingCheckoutLead(userId: string, plan: CheckoutPlan) {
+    return this.prisma.checkoutLead.findFirst({
+      where: {
+        requestedByUserId: userId,
+        businessId: null,
+        plan,
+        status: {
+          notIn: [
+            CheckoutLeadStatus.PAID,
+            CheckoutLeadStatus.FAILED,
+            CheckoutLeadStatus.EXPIRED,
+          ],
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true },
+    });
+  }
+
+  createPreOnboardingCheckoutLead(input: {
+    requestedByUserId: string;
+    email: string;
+    plan: CheckoutPlan;
+  }) {
+    return this.prisma.checkoutLead.create({
+      data: {
+        requestedByUserId: input.requestedByUserId,
+        businessId: null,
+        email: input.email,
+        plan: input.plan,
+        status: CheckoutLeadStatus.PENDING,
+      },
+      select: { id: true },
+    });
+  }
+
+  /** El checkout pre-onboarding más reciente de este User, si hay alguno. */
+  findLatestPreOnboardingCheckoutLead(userId: string) {
+    return this.prisma.checkoutLead.findFirst({
+      where: { requestedByUserId: userId, businessId: null },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true,
+        status: true,
+        plan: true,
+        businessId: true,
+        providerSubscriptionId: true,
+      },
+    });
+  }
+
+  /**
+   * Por id exacto, SIN filtrar por `businessId: null` — a diferencia de
+   * `findLatestPreOnboardingCheckoutLead`. La usa `getStatus` para releer
+   * después de reconciliar: si en el medio el onboarding ya asoció este
+   * lead a un Business (carrera real, aunque rarísima), el filtro de
+   * "pre-onboarding" ya no lo encontraría y se devolvería un estado viejo.
+   */
+  findCheckoutLeadById(id: string) {
+    return this.prisma.checkoutLead.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        status: true,
+        plan: true,
+        businessId: true,
+        providerSubscriptionId: true,
       },
     });
   }
@@ -85,6 +174,8 @@ export class AuthRepository {
     passwordHash: string;
     firstName: string;
     lastName: string;
+    /** Intención de upgrade de `/signup?plan=PRO&billing=...` — NUNCA activa Pro. */
+    pendingUpgradePlan?: CheckoutPlan | null;
   }) {
     return this.prisma.user.create({
       data: {
@@ -94,7 +185,22 @@ export class AuthRepository {
         lastName: data.lastName,
         isActive: true,
         emailVerifiedAt: null,
+        pendingUpgradePlan: data.pendingUpgradePlan ?? null,
       },
+    });
+  }
+
+  /**
+   * Consume la intención de upgrade — se llama una vez que el frontend ya
+   * conoce el estado real del plan (Free u ya-Pro) y decidió qué hacer con
+   * ella (abrir el modal, o simplemente descartarla si ya es Pro). Nunca se
+   * llama antes de esa confirmación.
+   */
+  clearPendingUpgradePlan(id: string) {
+    return this.prisma.user.update({
+      where: { id },
+      data: { pendingUpgradePlan: null },
+      select: { id: true, pendingUpgradePlan: true },
     });
   }
 
@@ -118,6 +224,7 @@ export class AuthRepository {
             email: true,
             firstName: true,
             emailVerifiedAt: true,
+            pendingUpgradePlan: true,
           },
         },
       },

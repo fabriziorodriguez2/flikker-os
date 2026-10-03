@@ -9,11 +9,7 @@ import {
   useState,
 } from "react";
 import UpgradePlanModal from "./upgrade-plan-modal";
-import {
-  parseFreePlanUsage,
-  type FreePlanUsage,
-} from "@/lib/free-plan-usage";
-import { consumeSignupIntent, type SignupBilling } from "@/lib/signup-intent";
+import { parseFreePlanUsage, type FreePlanUsage } from "@/lib/free-plan-usage";
 
 /**
  * Un solo host de modal para todo el panel, y un solo lugar que sabe el
@@ -35,6 +31,10 @@ import { consumeSignupIntent, type SignupBilling } from "@/lib/signup-intent";
  * confirma. Si la llamada falla, el panel se comporta como si fuera Pro: sin
  * nudges, sin meter, sin badges. Mostrarle "pasate a Pro" a alguien que ya
  * paga es peor que no mostrarle nada a alguien que podría pagar.
+ *
+ * Este provider es exclusivamente para el upgrade de un Business FREE ya
+ * creado (dashboard adentro). Pagar ANTES de tener Business es otro flujo
+ * por completo (Parte 5D — `/upgrade`, pre-onboarding) y no pasa por acá.
  */
 
 interface UpgradeModalContextValue {
@@ -42,6 +42,8 @@ interface UpgradeModalContextValue {
   openUpgradeModal: (options: { feature: string; source?: string }) => void;
   /** `false` solo cuando el backend confirmó que NO es Pro. */
   isPro: boolean;
+  /** Evita montar contenido sensible mientras todavía no conocemos el plan. */
+  isSubscriptionLoading: boolean;
   /** Uso del tope Free. `null` para Pro, sin tope, o si no se pudo leer. */
   freePlanUsage: FreePlanUsage | null;
   /** ¿Corresponde mostrarle upsell a este negocio? */
@@ -57,6 +59,7 @@ interface UpgradeModalContextValue {
 const UpgradeModalContext = createContext<UpgradeModalContextValue>({
   openUpgradeModal: () => undefined,
   isPro: true,
+  isSubscriptionLoading: true,
   freePlanUsage: null,
   showUpsell: false,
   refreshSubscription: () => undefined,
@@ -76,11 +79,9 @@ export default function UpgradeModalProvider({
 }: {
   children: React.ReactNode;
 }) {
-  const [open, setOpen] = useState<{
-    feature: string;
-    billing?: SignupBilling;
-  } | null>(null);
+  const [open, setOpen] = useState<{ feature: string } | null>(null);
   const [isPro, setIsPro] = useState(true);
+  const [isSubscriptionLoading, setIsSubscriptionLoading] = useState(true);
   const [freePlanUsage, setFreePlanUsage] = useState<FreePlanUsage | null>(
     null,
   );
@@ -88,24 +89,44 @@ export default function UpgradeModalProvider({
     currency: string;
     amount: number;
   } | null>(null);
+  const [notificationWhatsapp, setNotificationWhatsapp] = useState<
+    string | null
+  >(null);
 
   /**
-   * `null` = no se pudo leer el plan (red caída, 401, etc.) — a diferencia
-   * de `true`/`false`, que son respuestas reales del backend. La diferencia
-   * importa para la intención de signup: sobre un `null` no se puede
-   * decidir nada, así que esa intención queda sin consumir para
-   * reintentarse en la próxima carga.
+   * Parte 5E: el modal necesita saber si este User ya dejó un WhatsApp
+   * antes de decidir si se lo pide. `null` cubre tanto "todavía no sabemos"
+   * (fetch en curso o caído) como "nunca lo dejó" — en los dos casos pedirlo
+   * de nuevo es seguro (como mucho, redundante); lo inseguro sería asumir
+   * que existe y no pedirlo.
    */
-  const loadSubscription = useCallback(async (): Promise<boolean | null> => {
+  const loadNotificationWhatsapp = useCallback(async (): Promise<void> => {
+    try {
+      const res = await fetch("/api/proxy/auth/me");
+      if (!res.ok) return;
+      const raw: unknown = await res.json();
+      if (typeof raw !== "object" || raw === null) return;
+      const v = raw as Record<string, unknown>;
+      setNotificationWhatsapp(
+        typeof v.notificationWhatsapp === "string"
+          ? v.notificationWhatsapp
+          : null,
+      );
+    } catch {
+      // Silencio deliberado — ver comentario de arriba.
+    }
+  }, []);
+
+  const loadSubscription = useCallback(async (): Promise<void> => {
+    setIsSubscriptionLoading(true);
     try {
       const res = await fetch("/api/proxy/businesses/current/subscription");
-      if (!res.ok) return null;
+      if (!res.ok) return;
       const raw: unknown = await res.json();
-      if (typeof raw !== "object" || raw === null) return null;
+      if (typeof raw !== "object" || raw === null) return;
       const v = raw as Record<string, unknown>;
 
-      const proNow = v.isPro !== false;
-      setIsPro(proNow);
+      setIsPro(v.isPro !== false);
       setFreePlanUsage(parseFreePlanUsage(v.freePlanUsage));
 
       /*
@@ -123,36 +144,18 @@ export default function UpgradeModalProvider({
           });
         }
       }
-
-      return proNow;
     } catch {
       // Silencio deliberado: `isPro` queda en true y no se vende nada.
-      return null;
+    } finally {
+      setIsSubscriptionLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
     void (async () => {
-      const proNow = await loadSubscription();
-      if (cancelled || proNow === null) return;
-
-      /*
-        Intención de Pro capturada en `/signup?plan=PRO&billing=...`. Se
-        consume acá, recién con el estado real del plan ya conocido: si el
-        negocio ya es Pro no hay nada que ofrecer, y si es Free se abre el
-        modal UNA sola vez — `consumeSignupIntent` borra la cookie al
-        leerla, así que una navegación posterior no la vuelve a encontrar.
-      */
-      const intent = consumeSignupIntent();
-      if (intent && proNow === false) {
-        setOpen({ feature: "signup_intent", billing: intent.billing });
-      }
+      await Promise.all([loadSubscription(), loadNotificationWhatsapp()]);
     })();
-    return () => {
-      cancelled = true;
-    };
-  }, [loadSubscription]);
+  }, [loadSubscription, loadNotificationWhatsapp]);
 
   const openUpgradeModal = useCallback(
     ({ feature }: { feature: string; source?: string }) => {
@@ -169,11 +172,18 @@ export default function UpgradeModalProvider({
     () => ({
       openUpgradeModal,
       isPro,
+      isSubscriptionLoading,
       freePlanUsage,
       showUpsell: !isPro,
       refreshSubscription,
     }),
-    [openUpgradeModal, isPro, freePlanUsage, refreshSubscription],
+    [
+      openUpgradeModal,
+      isPro,
+      isSubscriptionLoading,
+      freePlanUsage,
+      refreshSubscription,
+    ],
   );
 
   return (
@@ -183,7 +193,7 @@ export default function UpgradeModalProvider({
         <UpgradePlanModal
           feature={open.feature}
           monthlyPrice={monthlyPrice}
-          defaultBilling={open.billing}
+          notificationWhatsapp={notificationWhatsapp}
           onClose={() => setOpen(null)}
         />
       ) : null}

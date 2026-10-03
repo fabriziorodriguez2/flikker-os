@@ -14,6 +14,7 @@ import { BusinessInsightSummaryService } from './business-insight-summary.servic
 import { OwnerLifecycleAiSummaryService } from './owner-lifecycle-ai-summary.service';
 import { BusinessImpactService } from './business-impact.service';
 import { ChatbotService } from './chatbot.service';
+import { PlansModule } from '../plans/plans.module';
 
 /**
  * Insights (CHECKIN_V2) — no reimplementa ninguna métrica que ya exista:
@@ -34,6 +35,7 @@ import { ChatbotService } from './chatbot.service';
     // Para citar EXACTAMENTE el mismo número que Inicio en "Beneficios
     // canjeados" (`BenefitsRepository.countRedeemed`), no uno propio.
     BenefitsModule,
+    PlansModule,
   ],
   controllers: [InsightsController, ChatbotController],
   providers: [

@@ -26,6 +26,7 @@ import {
   buildVerificationEmail,
 } from '../../jobs/auth-email-templates';
 import { normalizeEmail } from '../../common/utils/email.util';
+import { normalizeToE164 } from '../../common/utils/phone.util';
 
 const BCRYPT_ROUNDS = 12;
 const RESET_TOKEN_EXPIRY_MINUTES = 30;
@@ -90,6 +91,7 @@ export class AuthService {
       passwordHash,
       firstName: firstName || dto.name.trim(),
       lastName: rest.join(' '),
+      pendingUpgradePlan: dto.pendingUpgradePlan ?? null,
     });
 
     const devToken = await this.sendVerificationEmail(user);
@@ -143,6 +145,7 @@ export class AuthService {
         id: record.userId,
         email: record.user.email,
         firstName: record.user.firstName,
+        pendingUpgradePlan: record.user.pendingUpgradePlan,
       },
       memberships,
     };
@@ -408,6 +411,28 @@ export class AuthService {
 
   async markOnboardingComplete(userId: string) {
     return this.repository.markUserOnboardingComplete(userId);
+  }
+
+  /**
+   * Consume `pendingUpgradePlan`. El frontend la llama recién después de
+   * confirmar el estado real del plan (vía `GET /businesses/current/
+   * subscription`) y decidir qué hacer con la intención — abrir el modal de
+   * upgrade, o descartarla si el negocio ya es Pro. Nunca es este método el
+   * que decide: solo ejecuta el borrado una vez que ya se decidió.
+   */
+  async consumePendingUpgradePlan(userId: string) {
+    return this.repository.clearPendingUpgradePlan(userId);
+  }
+
+  /**
+   * Parte 5E — captura de WhatsApp ANTES de pagar Pro (y, para un upgrade
+   * desde el panel, antes de abrir el checkout si todavía no lo teníamos).
+   * `normalizeToE164` es la misma normalización que ya usa
+   * `BusinessesService.verifyWhatsApp` — nunca se guarda el valor crudo.
+   */
+  async updateNotificationWhatsapp(userId: string, phone: string) {
+    const phoneE164 = normalizeToE164(phone);
+    return this.repository.updateNotificationWhatsapp(userId, phoneE164);
   }
 
   // ---------------------------------------------------------------------------

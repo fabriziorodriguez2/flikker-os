@@ -154,7 +154,7 @@ export default async function PanelLayout({
   const isCheckinV2 = experienceVersion === "CHECKIN_V2";
 
   return (
-    <>
+    <UpgradeModalProvider>
       <div
         className={`flikker-app-shell min-h-screen lg:flex lg:h-screen lg:overflow-hidden ${
           isCheckinV2 ? `${panelGeist.variable} flikker-panel-v2` : ""
@@ -215,11 +215,7 @@ export default async function PanelLayout({
                   >
                     {/* Montado UNA sola vez para todo el panel — ninguna
                         pantalla arma su propio cartel de "Guardado ✓". */}
-                    <ToastProvider>
-                      {/* Un solo host de modal de upgrade para todo el
-                          panel — ver UpgradeModalProvider. */}
-                      <UpgradeModalProvider>{children}</UpgradeModalProvider>
-                    </ToastProvider>
+                    <ToastProvider>{children}</ToastProvider>
                   </ExperienceProvider>
                 </RoleProvider>
               </QueryProvider>
@@ -232,6 +228,6 @@ export default async function PanelLayout({
           `overflow-auto`/scroll del contenido ni queda atrapado por el
           `overflow-hidden` del shell en desktop. */}
       {isCheckinV2 && <FlikkerChatbotLauncher />}
-    </>
+    </UpgradeModalProvider>
   );
 }

@@ -220,7 +220,7 @@ describe("Upsell Free → Pro: en contexto, una sola puerta al checkout", () => 
       const offenders = sourcesUnder(join(webRoot, "app", "(public)"))
         .concat(sourcesUnder(join(webRoot, "components", "public")))
         .filter(({ source }) =>
-          /ProUpgradePrompt|PlanUsageMeter|UpgradePlanModal|useUpgradeModal|checkout-urls|mpago|useProCheckout|pro-checkout|signup-intent/.test(
+          /ProUpgradePrompt|PlanUsageMeter|UpgradePlanModal|useUpgradeModal|checkout-urls|mpago|useProCheckout|pro-checkout|pending-upgrade-plan/.test(
             source,
           ),
         )

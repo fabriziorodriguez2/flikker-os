@@ -314,6 +314,30 @@ describe('PlansService', () => {
     });
   });
 
+  describe('assertProPlanAccess', () => {
+    it('permite un plan Pro activo', async () => {
+      mockRepo.findActiveSubscription.mockResolvedValue({
+        status: SubscriptionStatus.ACTIVE,
+        plan: { slug: 'pro-selfservice' },
+      });
+
+      await expect(
+        service.assertProPlanAccess(BUSINESS_ID),
+      ).resolves.toBeUndefined();
+    });
+
+    it('responde Forbidden para Free', async () => {
+      mockRepo.findActiveSubscription.mockResolvedValue({
+        status: SubscriptionStatus.ACTIVE,
+        plan: { slug: 'free' },
+      });
+
+      await expect(service.assertProPlanAccess(BUSINESS_ID)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+  });
+
   describe('isBenefitsBlocked', () => {
     it('Pro nunca está bloqueado, aunque el trial (viejo) haya vencido', async () => {
       mockRepo.findActiveSubscription.mockResolvedValue({
