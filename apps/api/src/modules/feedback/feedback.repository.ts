@@ -19,6 +19,7 @@ export class FeedbackRepository {
             // Define qué experiencia se le muestra al cliente al abrir el
             // link del recordatorio — ver `FeedbackService.getByToken`.
             experienceVersion: true,
+            reviewFlowMode: true,
           },
         },
         customer: { select: { id: true } },

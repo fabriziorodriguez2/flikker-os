@@ -2,10 +2,12 @@ import {
   IsString,
   IsOptional,
   IsEmail,
+  IsEnum,
   IsUrl,
   MaxLength,
   Matches,
 } from 'class-validator';
+import { ReviewFlowMode } from '@prisma/client';
 
 export class UpdateBusinessDto {
   @IsOptional()
@@ -105,4 +107,12 @@ export class UpdateBusinessDto {
   @IsOptional()
   @IsUrl()
   defaultReviewRedirectUrl?: string;
+
+  /**
+   * Nunca se confía en un string arbitrario — `class-validator` ya rechaza
+   * cualquier valor fuera del enum antes de llegar al service.
+   */
+  @IsOptional()
+  @IsEnum(ReviewFlowMode)
+  reviewFlowMode?: ReviewFlowMode;
 }

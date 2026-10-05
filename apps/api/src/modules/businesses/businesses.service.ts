@@ -4,7 +4,12 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { BusinessStatus, CheckoutPlan, MembershipStatus } from '@prisma/client';
+import {
+  BusinessStatus,
+  CheckoutPlan,
+  MembershipStatus,
+  ReviewFlowMode,
+} from '@prisma/client';
 import { BusinessesRepository } from './businesses.repository';
 import { CreateBusinessDto } from './dto/create-business.dto';
 import { UpdateBusinessDto } from './dto/update-business.dto';
@@ -12,6 +17,7 @@ import { UpdateBusinessStatusDto } from './dto/update-business-status.dto';
 import { UpdateBrandProfileDto } from './dto/update-brand-profile.dto';
 import { AuditService } from '../../common/services/audit.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
+import { canUseDirectGoogle } from '../../common/utils/review-flow.util';
 import { GoogleReviewsProvider } from '../../jobs/google-reviews.provider';
 import { GoogleReviewDetectionQueue } from '../../jobs/google-review-detection.queue';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
@@ -263,6 +269,24 @@ export class BusinessesService {
   ) {
     const before = await this.repository.findById(businessId);
     if (!before) throw new NotFoundException('Business not found');
+
+    // Nunca puede quedar activo DIRECT_GOOGLE sin un destino real — mandaría
+    // al cliente a un link roto. Se evalúa contra el estado FINAL (lo que ya
+    // tenía el negocio, pisado por lo que este mismo PATCH esté guardando),
+    // porque la URL y el modo pueden llegar juntos en un solo request.
+    if (dto.reviewFlowMode === ReviewFlowMode.DIRECT_GOOGLE) {
+      const willHaveGoogleUrl = canUseDirectGoogle({
+        defaultReviewRedirectUrl:
+          dto.defaultReviewRedirectUrl ?? before.defaultReviewRedirectUrl,
+        googleBusinessProfileUrl:
+          dto.googleBusinessProfileUrl ?? before.googleBusinessProfileUrl,
+      });
+      if (!willHaveGoogleUrl) {
+        throw new BadRequestException(
+          'Conectá tu perfil de Google para usar este modo.',
+        );
+      }
+    }
 
     const updated = await this.repository.update(businessId, dto);
 

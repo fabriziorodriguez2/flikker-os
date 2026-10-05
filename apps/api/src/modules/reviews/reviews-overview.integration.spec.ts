@@ -617,4 +617,43 @@ describe('Reseñas — overview (integration)', () => {
       expect(data.google.historySync.status).toBe('idle');
     });
   });
+
+  describe('reviewFlowMode (Parte 6)', () => {
+    it('default (negocio nunca tocó el campo): PRIVATE_FEEDBACK', async () => {
+      const businessId = await makeBusiness(null);
+
+      const data = await overview(businessId);
+
+      expect(data.reviewFlowMode).toBe('PRIVATE_FEEDBACK');
+      expect(data.businessId).toBe(businessId);
+    });
+
+    it('hasGoogleReviewUrl: false sin ninguna URL de Google', async () => {
+      const businessId = await makeBusiness(null);
+
+      const data = await overview(businessId);
+
+      expect(data.hasGoogleReviewUrl).toBe(false);
+    });
+
+    it('hasGoogleReviewUrl: true con googleBusinessProfileUrl configurado', async () => {
+      const businessId = await makeBusiness('https://g.page/r/real');
+
+      const data = await overview(businessId);
+
+      expect(data.hasGoogleReviewUrl).toBe(true);
+    });
+
+    it('reviewFlowMode refleja el valor real guardado en Business', async () => {
+      const businessId = await makeBusiness('https://g.page/r/real');
+      await prisma.business.update({
+        where: { id: businessId },
+        data: { reviewFlowMode: 'DIRECT_GOOGLE' },
+      });
+
+      const data = await overview(businessId);
+
+      expect(data.reviewFlowMode).toBe('DIRECT_GOOGLE');
+    });
+  });
 });

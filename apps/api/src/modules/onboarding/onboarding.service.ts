@@ -145,6 +145,7 @@ export class OnboardingService {
       businessName: draft.name,
       completed: false,
       checkinToken: source?.token ?? null,
+      reviewFlowMode: draft.reviewFlowMode,
       steps: {
         business: true,
         program: draft.retentionProgramDecided,
@@ -177,6 +178,9 @@ export class OnboardingService {
       logoUrl: dto.logoUrl,
       country: ONBOARDING_DEFAULTS.country,
       timezone: ONBOARDING_DEFAULTS.timezone,
+      // `undefined` = Prisma no toca el campo (ni en create, donde aplica el
+      // default del schema, ni en update, donde no pisa lo que ya había).
+      reviewFlowMode: dto.reviewFlowMode,
     };
 
     // El onboarding self-service SIEMPRE deja el negocio en la experiencia

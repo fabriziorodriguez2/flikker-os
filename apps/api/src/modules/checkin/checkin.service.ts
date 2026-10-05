@@ -12,10 +12,12 @@ import {
   Business,
   CheckinPresenceMode,
   CustomerEventType,
+  ReviewFlowMode,
   VisitVerificationType,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
+import { resolveReviewFlow } from '../../common/utils/review-flow.util';
 import { BenefitsService } from '../benefits/benefits.service';
 import { PublicMessagingService } from '../public/public-messaging.service';
 import { WHATSAPP_MIN_SEND_INTERVAL_MS } from '../../jobs/whatsapp-provider';
@@ -62,6 +64,8 @@ type BusinessForCheckin = Pick<
   | 'logoUrl'
   | 'primaryColor'
   | 'googleBusinessProfileUrl'
+  | 'defaultReviewRedirectUrl'
+  | 'reviewFlowMode'
   | 'phone'
   | 'timezone'
   | 'checkinMinHoursBetweenVisits'
@@ -387,6 +391,16 @@ export class CheckinService {
     const session = await this.sessions.resolveLive(sessionRawToken ?? '');
     if (!session) throw new UnauthorizedException('No session');
     const business = await this.getBusinessOrThrow(session.businessId);
+
+    // El negocio eligió DIRECT_GOOGLE: nunca se crea feedback interno acá.
+    // La card de feedback no debería ni mostrarse en ese caso — esto es la
+    // garantía de backend, no se confía solo en el frontend.
+    if (business.reviewFlowMode === ReviewFlowMode.DIRECT_GOOGLE) {
+      throw new BadRequestException(
+        'Este negocio no usa feedback privado — la reseña va directo a Google.',
+      );
+    }
+
     const customer = await this.getCustomerOrThrow(
       business.id,
       session.customerId,
@@ -418,12 +432,12 @@ export class CheckinService {
       });
     }
 
+    const { googleReviewUrl } = resolveReviewFlow(business);
     return {
       alreadySubmitted: result.alreadySubmitted,
       bonusGranted: result.bonusGranted,
-      offerGoogle:
-        result.offerGoogle && Boolean(business.googleBusinessProfileUrl),
-      googleUrl: business.googleBusinessProfileUrl,
+      offerGoogle: result.offerGoogle && Boolean(googleReviewUrl),
+      googleUrl: googleReviewUrl,
       rewardGoal: result.rewardGoal,
     };
   }
@@ -646,6 +660,8 @@ export class CheckinService {
         logoUrl: true,
         primaryColor: true,
         googleBusinessProfileUrl: true,
+        defaultReviewRedirectUrl: true,
+        reviewFlowMode: true,
         phone: true,
         timezone: true,
         checkinMinHoursBetweenVisits: true,
@@ -942,7 +958,8 @@ export class CheckinService {
       rewardGoal,
       reviewPrompt: {
         show: showReview,
-        googleUrl: business.googleBusinessProfileUrl,
+        googleUrl: resolveReviewFlow(business).googleReviewUrl,
+        mode: business.reviewFlowMode,
       },
     };
   }

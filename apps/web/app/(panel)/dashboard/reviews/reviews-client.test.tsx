@@ -14,6 +14,9 @@ function makeOverview(
 ): ReviewsOverview {
   return {
     periodDays: 30,
+    businessId: "biz-1",
+    reviewFlowMode: "PRIVATE_FEEDBACK",
+    hasGoogleReviewUrl: true,
     google: {
       connected: true,
       profileUrl: "https://example.com/hidden-profile-url",

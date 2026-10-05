@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { CustomerEventType } from '@prisma/client';
+import { CustomerEventType, ReviewFlowMode } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   bucketByDay,
@@ -7,6 +7,7 @@ import {
   parsePeriodDays,
   resolvePeriod,
 } from '../dashboard/dashboard-period';
+import { canUseDirectGoogle } from '../../common/utils/review-flow.util';
 
 /**
  * Reseñas — fachada de lectura para la pantalla del panel.
@@ -109,6 +110,8 @@ export class ReviewsOverviewService {
       select: {
         createdAt: true,
         googleBusinessProfileUrl: true,
+        defaultReviewRedirectUrl: true,
+        reviewFlowMode: true,
         googlePlaceId: true,
         experienceVersion: true,
         googlePlaceDisplayName: true,
@@ -292,6 +295,16 @@ export class ReviewsOverviewService {
 
     return {
       periodDays: days,
+      businessId,
+      // Parte 6 — "Flujo de reseñas". `defaultReviewRedirectUrl` es el
+      // destino real (cascade canónico, ver `resolveReviewFlow`): la
+      // pantalla lo necesita para saber si DIRECT_GOOGLE puede activarse.
+      reviewFlowMode:
+        business?.reviewFlowMode ?? ReviewFlowMode.PRIVATE_FEEDBACK,
+      hasGoogleReviewUrl: canUseDirectGoogle({
+        defaultReviewRedirectUrl: business?.defaultReviewRedirectUrl ?? null,
+        googleBusinessProfileUrl: business?.googleBusinessProfileUrl ?? null,
+      }),
 
       google: {
         connected: googleConnected,

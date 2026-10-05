@@ -117,6 +117,9 @@ export default function WizardClient() {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("cafeteria");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [reviewFlowMode, setReviewFlowMode] = useState<
+    "PRIVATE_FEEDBACK" | "DIRECT_GOOGLE"
+  >("PRIVATE_FEEDBACK");
 
   const [mode, setMode] = useState<ProgramMode>(null);
   const [programSetupOpen, setProgramSetupOpen] = useState(false);
@@ -167,7 +170,12 @@ export default function WizardClient() {
     setSaving(true);
     setError(null);
     try {
-      await post("business", { name, category, logoUrl: logoUrl ?? undefined });
+      await post("business", {
+        name,
+        category,
+        logoUrl: logoUrl ?? undefined,
+        reviewFlowMode,
+      });
       await fetch("/api/auth/sync-session", { method: "POST" });
       setStep(2);
     } catch (caught) {
@@ -352,6 +360,54 @@ export default function WizardClient() {
                 </div>
               </div>
             </div>
+          </div>
+
+          <div>
+            <span className={labelClass}>¿Cómo querés recibir las reseñas?</span>
+            <div className="mt-2.5 grid gap-2.5 sm:grid-cols-2">
+              {(
+                [
+                  {
+                    value: "PRIVATE_FEEDBACK" as const,
+                    title: "Feedback privado primero",
+                    description:
+                      "El cliente puede contarte su experiencia dentro de Flikker y después dejar una reseña en Google.",
+                  },
+                  {
+                    value: "DIRECT_GOOGLE" as const,
+                    title: "Directo a Google",
+                    description:
+                      "El cliente va directamente a tu perfil de Google para dejar su reseña.",
+                  },
+                ]
+              ).map((option) => {
+                const selected = reviewFlowMode === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setReviewFlowMode(option.value)}
+                    className={`flex flex-col items-start gap-1 rounded-[14px] border px-4 py-3 text-left transition-colors ${selected ? "border-[#5C6BC0] bg-[#EEF0FB]" : "border-[#E3E5F0] bg-white hover:border-[#AAB1DA]"}`}
+                  >
+                    <span className="flex items-center gap-1.5 text-sm font-semibold text-[#202333]">
+                      {selected ? <Check className="h-3.5 w-3.5 text-[#5C6BC0]" /> : null}
+                      {option.title}
+                    </span>
+                    <span className="text-xs leading-5 text-[#8891A4]">
+                      {option.description}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="mt-2 text-xs leading-5 text-[#8891A4]">
+              Podés cambiarlo después, cuando quieras, desde Reseñas.
+              {reviewFlowMode === "DIRECT_GOOGLE"
+                ? " Vas a poder conectar tu perfil de Google más adelante."
+                : ""}
+            </p>
           </div>
         </div>
       </WizardShell>

@@ -10,6 +10,7 @@ import {
   BusinessStatus,
   MembershipRole,
   MembershipStatus,
+  ReviewFlowMode,
 } from '@prisma/client';
 import { AuditService } from '../../common/services/audit.service';
 import { GoogleReviewsProvider } from '../../jobs/google-reviews.provider';
@@ -534,6 +535,93 @@ describe('BusinessesService', () => {
         service.connectGooglePlace(BUSINESS_ID, 'bad-id'),
       ).rejects.toThrow(BadRequestException);
       expect(mockRepository.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('update — reviewFlowMode (Parte 6)', () => {
+    it('DIRECT_GOOGLE con defaultReviewRedirectUrl ya guardado: lo acepta', async () => {
+      mockRepository.findById.mockResolvedValue({
+        id: BUSINESS_ID,
+        defaultReviewRedirectUrl: 'https://g.page/r/real',
+        googleBusinessProfileUrl: null,
+      });
+      mockRepository.update.mockResolvedValue({ id: BUSINESS_ID });
+
+      await service.update(BUSINESS_ID, {
+        reviewFlowMode: ReviewFlowMode.DIRECT_GOOGLE,
+      });
+
+      expect(mockRepository.update).toHaveBeenCalledWith(
+        BUSINESS_ID,
+        expect.objectContaining({
+          reviewFlowMode: ReviewFlowMode.DIRECT_GOOGLE,
+        }),
+      );
+    });
+
+    it('DIRECT_GOOGLE con la URL llegando en el MISMO request: lo acepta', async () => {
+      mockRepository.findById.mockResolvedValue({
+        id: BUSINESS_ID,
+        defaultReviewRedirectUrl: null,
+        googleBusinessProfileUrl: null,
+      });
+      mockRepository.update.mockResolvedValue({ id: BUSINESS_ID });
+
+      await service.update(BUSINESS_ID, {
+        reviewFlowMode: ReviewFlowMode.DIRECT_GOOGLE,
+        defaultReviewRedirectUrl: 'https://g.page/r/nueva',
+      });
+
+      expect(mockRepository.update).toHaveBeenCalled();
+    });
+
+    it('DIRECT_GOOGLE sin ninguna URL de Google: rechaza con BadRequestException, nunca guarda', async () => {
+      mockRepository.findById.mockResolvedValue({
+        id: BUSINESS_ID,
+        defaultReviewRedirectUrl: null,
+        googleBusinessProfileUrl: null,
+      });
+
+      await expect(
+        service.update(BUSINESS_ID, {
+          reviewFlowMode: ReviewFlowMode.DIRECT_GOOGLE,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(mockRepository.update).not.toHaveBeenCalled();
+    });
+
+    it('PRIVATE_FEEDBACK: nunca exige ninguna URL de Google', async () => {
+      mockRepository.findById.mockResolvedValue({
+        id: BUSINESS_ID,
+        defaultReviewRedirectUrl: null,
+        googleBusinessProfileUrl: null,
+      });
+      mockRepository.update.mockResolvedValue({ id: BUSINESS_ID });
+
+      await service.update(BUSINESS_ID, {
+        reviewFlowMode: ReviewFlowMode.PRIVATE_FEEDBACK,
+      });
+
+      expect(mockRepository.update).toHaveBeenCalled();
+    });
+
+    it('cambiar el modo no borra nada — el repositorio solo pisa los campos del dto', async () => {
+      mockRepository.findById.mockResolvedValue({
+        id: BUSINESS_ID,
+        defaultReviewRedirectUrl: 'https://g.page/r/real',
+        googleBusinessProfileUrl: null,
+      });
+      mockRepository.update.mockResolvedValue({ id: BUSINESS_ID });
+
+      await service.update(BUSINESS_ID, {
+        reviewFlowMode: ReviewFlowMode.DIRECT_GOOGLE,
+      });
+
+      // Ningún campo de feedback histórico forma parte de este dto — no hay
+      // nada acá que pueda estar borrando `CheckinFeedback`/`GoogleReview`.
+      expect(mockRepository.update).toHaveBeenCalledWith(BUSINESS_ID, {
+        reviewFlowMode: ReviewFlowMode.DIRECT_GOOGLE,
+      });
     });
   });
 

@@ -212,6 +212,19 @@ enum ExperienceVersion {
   CHECKIN_V2
 }
 
+// Cómo este Business quiere recibir reseñas (Check-in V2 solamente — LEGACY
+// sigue con su comportamiento propio, score-gated, sin cambios). Nunca se
+// deriva del puntaje del cliente: es una elección del negocio, fija para
+// todas las visitas hasta que el dueño la cambie.
+//   PRIVATE_FEEDBACK → feedback interno de Flikker primero, Google se ofrece
+//                       después, con cualquier puntaje (sin gating).
+//   DIRECT_GOOGLE    → sin formulario interno: la acción de reseña va directo
+//                       al link de Google real del negocio.
+enum ReviewFlowMode {
+  PRIVATE_FEEDBACK
+  DIRECT_GOOGLE
+}
+
 // ---------------------------------------------------------------------------
 // Retention Engine V2 enums
 // ---------------------------------------------------------------------------
@@ -588,6 +601,12 @@ model Business {
   reviewGoalMonthly                Int                 @default(0) @map("review_goal_monthly")
   reviewRequestsPausedUntil        DateTime?           @map("review_requests_paused_until")
   defaultReviewRedirectUrl         String?
+  /// Elección del negocio (Check-in V2) entre feedback privado + Google, o
+  /// directo a Google sin formulario interno. Default `PRIVATE_FEEDBACK`
+  /// para no cambiar el comportamiento de ningún negocio existente —
+  /// `resolveReviewFlow` es la única fuente de verdad de a dónde mandar al
+  /// cliente, nunca se vuelve a decidir por puntaje.
+  reviewFlowMode                   ReviewFlowMode      @default(PRIVATE_FEEDBACK) @map("review_flow_mode")
   // Check-in dedup + review re-prompt policy. Configurable per business (no
   // panel yet — defaults encode the product rules). The 8h rule is enforced
   // transactionally via an advisory lock, not a static index.

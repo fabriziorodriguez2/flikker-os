@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getFeedbackData } from "../../feedback-data";
 import FeedbackLanding from "../../l/[slug]/feedback-landing";
 import CheckinFeedbackLanding from "./checkin-feedback-landing";
+import NoReviewFlowConfigured from "./no-review-flow-configured";
 
 export async function generateMetadata({
   params,
@@ -33,6 +34,16 @@ export default async function ReviewRequestLandingPage({
   // puntaje, tolera que el negocio no tenga Google, y reconoce a quien ya
   // contestó); LEGACY sigue exactamente como estaba.
   if (data.experienceVersion === "CHECKIN_V2") {
+    // Parte 6 — DIRECT_GOOGLE: sin formulario de Flikker, sin pantalla
+    // intermedia artificial. Redirect real de servidor, directo a Google.
+    if (data.reviewFlowMode === "DIRECT_GOOGLE") {
+      if (data.googleReviewUrl) redirect(data.googleReviewUrl);
+      // El negocio eligió este modo pero todavía no conectó Google — nunca
+      // se manda a una URL vacía ni se revierte a mostrar el formulario
+      // privado que el negocio explícitamente desactivó.
+      return <NoReviewFlowConfigured businessName={data.businessName} />;
+    }
+
     return (
       <CheckinFeedbackLanding
         token={token}

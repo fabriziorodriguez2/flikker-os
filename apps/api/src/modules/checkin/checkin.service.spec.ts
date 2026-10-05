@@ -131,6 +131,8 @@ const fullBusiness = {
   logoUrl: null,
   primaryColor: null,
   googleBusinessProfileUrl: 'https://g.page/cafe',
+  defaultReviewRedirectUrl: null,
+  reviewFlowMode: 'PRIVATE_FEEDBACK',
   phone: '+59899000000',
   timezone: 'America/Montevideo',
   checkinMinHoursBetweenVisits: 8,
@@ -899,5 +901,111 @@ describe('Check-in — el desafío de vuelta se resuelve ANTES que los sellos', 
     if (result.status !== 'registered') throw new Error('expected registered');
     expect(result.personal.returnChallengeCompleted).toBe(false);
     expect(result.personal.returnChallengeBonusApplied).toBe(false);
+  });
+});
+
+describe('CheckinService — submitFeedback y reviewFlowMode (Parte 6)', () => {
+  function setupLiveSession(
+    deps: ReturnType<typeof makeDeps>,
+    business = fullBusiness,
+  ) {
+    deps.prisma.business.findFirst.mockResolvedValue(business);
+    deps.sessions.resolveLive.mockResolvedValue({
+      businessId: 'biz-1',
+      customerId: 'cust-1',
+    });
+    deps.prisma.customer.findFirst.mockResolvedValue({
+      id: 'cust-1',
+      name: 'Ana',
+    });
+    deps.visits.findLastByCustomer.mockResolvedValue({ id: 'visit-1' });
+  }
+
+  it('PRIVATE_FEEDBACK: submitFeedback funciona normalmente', async () => {
+    const deps = makeDeps();
+    setupLiveSession(deps);
+    const service = makeService(deps);
+
+    const result = await service.submitFeedback('session-token', 5, undefined);
+
+    expect(deps.rewardGoalFeedback.submit).toHaveBeenCalledWith(
+      'biz-1',
+      'cust-1',
+      'visit-1',
+      5,
+      undefined,
+    );
+    expect(result.alreadySubmitted).toBe(false);
+  });
+
+  it('DIRECT_GOOGLE: submitFeedback rechaza con BadRequestException, nunca crea feedback interno', async () => {
+    const deps = makeDeps();
+    setupLiveSession(deps, {
+      ...fullBusiness,
+      reviewFlowMode: 'DIRECT_GOOGLE',
+    });
+    const service = makeService(deps);
+
+    await expect(
+      service.submitFeedback('session-token', 5, undefined),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(deps.rewardGoalFeedback.submit).not.toHaveBeenCalled();
+  });
+
+  it('DIRECT_GOOGLE: rechaza con cualquier puntaje, nunca por threshold', async () => {
+    for (const score of [1, 2, 3, 4, 5]) {
+      const deps = makeDeps();
+      setupLiveSession(deps, {
+        ...fullBusiness,
+        reviewFlowMode: 'DIRECT_GOOGLE',
+      });
+      const service = makeService(deps);
+
+      await expect(
+        service.submitFeedback('session-token', score, undefined),
+      ).rejects.toThrow(BadRequestException);
+    }
+  });
+
+  it('reviewPrompt (buildPersonalSpace) expone el mode y la URL resuelta por el cascade canónico', async () => {
+    const deps = makeDeps();
+    deps.sources.findByToken.mockResolvedValue(activeSource);
+    deps.prisma.business.findFirst.mockResolvedValue({
+      ...fullBusiness,
+      reviewFlowMode: 'DIRECT_GOOGLE',
+      defaultReviewRedirectUrl: 'https://g.page/r/real',
+      googleBusinessProfileUrl: 'https://maps.google.com/otro',
+    });
+    deps.prisma.customer.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue({ id: 'cust-1', name: 'Ana' });
+    deps.prisma.customer.create.mockResolvedValue({
+      id: 'cust-1',
+      name: 'Ana',
+    });
+    deps.visits.registerVisit.mockResolvedValue({
+      created: true,
+      isReturn: false,
+      visit: { id: 'v-1', attributionType: VisitAttributionType.organic },
+    });
+    deps.sessions.issue.mockResolvedValue({
+      rawToken: 'raw-token',
+      expiresAt: new Date('2027-01-01T00:00:00Z'),
+    });
+    const service = makeService(deps);
+
+    const result = await service.register(
+      'tok',
+      { name: 'Ana', phone: '099111222' },
+      'ua',
+    );
+
+    if (result.status !== 'registered') throw new Error('expected registered');
+    expect(result.personal.reviewPrompt.mode).toBe('DIRECT_GOOGLE');
+    // Prefiere `defaultReviewRedirectUrl` sobre `googleBusinessProfileUrl` —
+    // mismo cascade que el resto del sistema, ya no solo este último.
+    expect(result.personal.reviewPrompt.googleUrl).toBe(
+      'https://g.page/r/real',
+    );
   });
 });

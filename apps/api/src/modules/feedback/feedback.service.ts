@@ -4,11 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { ExperienceVersion } from '@prisma/client';
+import { ExperienceVersion, ReviewFlowMode } from '@prisma/client';
 import { OwnerNotificationsQueue } from '../../jobs/owner-notifications.queue';
 import { RewardGoalFeedbackService } from '../reward-goals/reward-goal-feedback.service';
 import { SubmitFeedbackDto } from './dto/submit-feedback.dto';
 import { FeedbackRepository } from './feedback.repository';
+import { resolveReviewFlow } from '../../common/utils/review-flow.util';
 
 type FeedbackMessage = NonNullable<
   Awaited<ReturnType<FeedbackRepository['findMessageByToken']>>
@@ -45,9 +46,7 @@ export class FeedbackService {
 
     const isCheckinV2 =
       message.business.experienceVersion === ExperienceVersion.CHECKIN_V2;
-    const googleReviewUrl =
-      message.business.defaultReviewRedirectUrl ??
-      message.business.googleBusinessProfileUrl;
+    const { googleReviewUrl } = resolveReviewFlow(message.business);
 
     let alreadySubmitted: boolean;
     if (isCheckinV2) {
@@ -72,8 +71,11 @@ export class FeedbackService {
       businessLogo: message.business.logoUrl,
       // `null` solo es posible en V2 — la pantalla oculta el paso de Google
       // en vez de ofrecer un link roto.
-      googleReviewUrl: googleReviewUrl ?? null,
+      googleReviewUrl,
       experienceVersion: message.business.experienceVersion,
+      // Solo tiene sentido para CHECKIN_V2 — LEGACY lo ignora, su landing
+      // sigue con su propio comportamiento score-gated.
+      reviewFlowMode: message.business.reviewFlowMode,
       alreadySubmitted,
     };
   }
@@ -134,6 +136,15 @@ export class FeedbackService {
     message: FeedbackMessage,
     dto: SubmitFeedbackDto,
   ) {
+    // El negocio eligió DIRECT_GOOGLE: nunca se crea feedback interno acá.
+    // La pantalla no debería ni mostrar este formulario en ese caso — esto
+    // es la garantía de backend, no se confía solo en el frontend.
+    if (message.business.reviewFlowMode === ReviewFlowMode.DIRECT_GOOGLE) {
+      throw new BadRequestException(
+        'Este negocio no usa feedback privado — la reseña va directo a Google.',
+      );
+    }
+
     const visitId = await this.resolveVisitId(message);
     if (!visitId) {
       // Sin ninguna visita a la que atar el feedback (mensaje viejo, de
@@ -155,9 +166,7 @@ export class FeedbackService {
     // negocio) — pero acá, igual que antes de este cambio, se lo apaga si el
     // negocio ni siquiera tiene Google conectado. Mismo criterio que
     // `getByToken`, para que la pantalla nunca ofrezca un link roto.
-    const googleReviewUrl =
-      message.business.defaultReviewRedirectUrl ??
-      message.business.googleBusinessProfileUrl;
+    const { googleReviewUrl } = resolveReviewFlow(message.business);
     const offerGoogle = result.offerGoogle && Boolean(googleReviewUrl);
 
     // El aviso de "feedback bajo" al dueño ya no se dispara desde acá: lo

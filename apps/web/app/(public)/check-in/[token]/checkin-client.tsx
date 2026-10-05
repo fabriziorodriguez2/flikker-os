@@ -20,6 +20,7 @@ import { useImagePalette } from "@/lib/use-logo-palette";
 import CustomerShell from "@/components/public/customer-shell";
 import LoyaltyCard from "@/components/public/loyalty-card";
 import CheckinFeedbackCard from "@/components/public/checkin-feedback-card";
+import GoogleReviewCta from "@/components/public/google-review-cta";
 import BenefitCard from "@/components/public/benefit-card";
 import SlideToReveal from "@/components/public/slide-to-reveal";
 import ChallengeRow from "@/components/public/challenge-row";
@@ -51,7 +52,12 @@ interface PersonalSpace {
   // Optional defensively: every real response includes it, but the card must
   // never crash the whole personal space if it's ever missing.
   rewardGoal?: RewardGoalView | null;
-  reviewPrompt: { show: boolean; googleUrl: string | null };
+  reviewPrompt: {
+    show: boolean;
+    googleUrl: string | null;
+    /** Parte 6 — cuál card renderizar. Nunca se decide por puntaje. */
+    mode?: "PRIVATE_FEEDBACK" | "DIRECT_GOOGLE";
+  };
   /**
    * Otros beneficios otorgados a este cliente y sin canjear — típicamente
    * por una promoción manual (Notificaciones → Promociones ya puede elegir
@@ -1195,13 +1201,28 @@ function PersonalScreen({
         </div>
 
         {/* ── 5. Feedback ─────────────────────────────────────────────────── */}
-        {showReview && (
-          <div className="mt-4 w-full">
-            <CheckinFeedbackCard
-              hasActiveGoal={Boolean(activeGoal)}
-              onReviewLinkClicked={onReviewLinkClicked}
-            />
-          </div>
+        {showReview && personal.reviewPrompt.mode === "DIRECT_GOOGLE" ? (
+          // Sin formulario interno: el negocio eligió ir directo a Google.
+          // Sin URL todavía (no debería pasar — el admin no deja guardar
+          // este modo sin Google conectado) no se muestra nada, nunca un
+          // link roto.
+          personal.reviewPrompt.googleUrl ? (
+            <div className="mt-4 w-full">
+              <GoogleReviewCta
+                googleUrl={personal.reviewPrompt.googleUrl}
+                onClick={onReviewLinkClicked}
+              />
+            </div>
+          ) : null
+        ) : (
+          showReview && (
+            <div className="mt-4 w-full">
+              <CheckinFeedbackCard
+                hasActiveGoal={Boolean(activeGoal)}
+                onReviewLinkClicked={onReviewLinkClicked}
+              />
+            </div>
+          )
         )}
 
         {/* ── 6. Navegación secundaria ───────────────────────────────────── */}

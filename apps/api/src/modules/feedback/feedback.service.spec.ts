@@ -1,11 +1,12 @@
-import { NotFoundException } from '@nestjs/common';
-import { ExperienceVersion } from '@prisma/client';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { ExperienceVersion, ReviewFlowMode } from '@prisma/client';
 import { FeedbackService } from './feedback.service';
 
 type BusinessOverrides = {
   experienceVersion?: ExperienceVersion;
   googleBusinessProfileUrl?: string | null;
   defaultReviewRedirectUrl?: string | null;
+  reviewFlowMode?: ReviewFlowMode;
 };
 
 const GOOGLE_URL = 'https://g.page/r/example/review';
@@ -37,6 +38,8 @@ function buildHarness(
           ? GOOGLE_URL
           : business.googleBusinessProfileUrl,
       defaultReviewRedirectUrl: business.defaultReviewRedirectUrl ?? null,
+      reviewFlowMode:
+        business.reviewFlowMode ?? ReviewFlowMode.PRIVATE_FEEDBACK,
     },
     customer: { id: 'customer-1' },
     // Fuente de verdad SOLO para LEGACY. V2 nunca la mira — ver
@@ -238,6 +241,56 @@ describe('FeedbackService — Check-in V2: sin dual-write', () => {
     const result = await service.submit('token-1', { score: 5 });
 
     expect(repository.createFeedback).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+  });
+});
+
+describe('FeedbackService — Parte 6: reviewFlowMode (DIRECT_GOOGLE)', () => {
+  const directGoogle = { reviewFlowMode: ReviewFlowMode.DIRECT_GOOGLE };
+
+  it('getByToken devuelve el reviewFlowMode del negocio', async () => {
+    const { service } = buildHarness(directGoogle);
+
+    const data = await service.getByToken('token-1');
+
+    expect(data.reviewFlowMode).toBe(ReviewFlowMode.DIRECT_GOOGLE);
+  });
+
+  it('PRIVATE_FEEDBACK (default): getByToken lo devuelve también', async () => {
+    const { service } = buildHarness();
+
+    const data = await service.getByToken('token-1');
+
+    expect(data.reviewFlowMode).toBe(ReviewFlowMode.PRIVATE_FEEDBACK);
+  });
+
+  it('DIRECT_GOOGLE: submit rechaza — nunca crea feedback interno', async () => {
+    const { service, rewardGoalFeedback } = buildHarness(directGoogle);
+
+    await expect(
+      service.submit('token-1', { score: 5 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(rewardGoalFeedback.submit).not.toHaveBeenCalled();
+  });
+
+  it('DIRECT_GOOGLE: rechaza con cualquier puntaje, nunca por threshold', async () => {
+    for (const score of [1, 2, 3, 4, 5]) {
+      const { service, rewardGoalFeedback } = buildHarness(directGoogle);
+      await expect(service.submit('token-1', { score })).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(rewardGoalFeedback.submit).not.toHaveBeenCalled();
+    }
+  });
+
+  it('PRIVATE_FEEDBACK: submit sigue funcionando normalmente (no afectado por el nuevo guard)', async () => {
+    const { service, rewardGoalFeedback } = buildHarness({
+      reviewFlowMode: ReviewFlowMode.PRIVATE_FEEDBACK,
+    });
+
+    const result = await service.submit('token-1', { score: 3 });
+
+    expect(rewardGoalFeedback.submit).toHaveBeenCalled();
     expect(result.ok).toBe(true);
   });
 });

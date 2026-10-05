@@ -1,8 +1,10 @@
 import { BUSINESS_CATEGORY_VALUES } from '../onboarding.defaults';
 import { Type } from 'class-transformer';
+import { ReviewFlowMode } from '@prisma/client';
 import {
   ArrayMaxSize,
   IsBoolean,
+  IsEnum,
   IsHexColor,
   IsIn,
   IsInt,
@@ -35,6 +37,15 @@ export class OnboardingBusinessDto {
   @IsString()
   @MaxLength(3000000)
   logoUrl?: string;
+
+  /**
+   * Cómo quiere recibir reseñas (Parte 6) — elección chica, sin paso nuevo
+   * en el wizard. Omitido = default del schema (`PRIVATE_FEEDBACK`), así que
+   * un cliente viejo que no manda este campo no cambia nada.
+   */
+  @IsOptional()
+  @IsEnum(ReviewFlowMode)
+  reviewFlowMode?: ReviewFlowMode;
 }
 
 export class OnboardingProgramDto {

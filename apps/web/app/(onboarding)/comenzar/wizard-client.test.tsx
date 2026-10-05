@@ -36,6 +36,36 @@ describe("/comenzar — asistente de programa", () => {
     expect(isBusinessStepValid("Café Central", "cafeteria")).toBe(true);
   });
 
+  it("Paso 1 ofrece la elección de flujo de reseñas, sin llamar a ninguna 'recomendada' (Parte 6)", () => {
+    expect(wizard).toContain("¿Cómo querés recibir las reseñas?");
+    expect(wizard).toContain("Feedback privado primero");
+    expect(wizard).toContain(
+      "El cliente puede contarte su experiencia dentro de Flikker y después dejar una reseña en Google.",
+    );
+    expect(wizard).toContain("Directo a Google");
+    expect(wizard).toContain(
+      "El cliente va directamente a tu perfil de Google para dejar su reseña.",
+    );
+    expect(wizard).not.toContain("recomendad");
+    expect(wizard).not.toContain("mejor opción");
+  });
+
+  it("la elección de reseñas viaja en el mismo POST del paso 1, nunca gating por puntaje", () => {
+    const saveBusinessBody = wizard.slice(
+      wizard.indexOf("async function saveBusiness"),
+      wizard.indexOf("async function finishBenefitsOnly"),
+    );
+    expect(saveBusinessBody).toContain('post("business"');
+    expect(saveBusinessBody).toContain("reviewFlowMode");
+    expect(saveBusinessBody).not.toContain("score");
+    expect(saveBusinessBody).not.toContain("puntaje");
+  });
+
+  it("default PRIVATE_FEEDBACK — no cambia el comportamiento actual si el dueño no toca nada", () => {
+    expect(wizard).toContain('"PRIVATE_FEEDBACK" | "DIRECT_GOOGLE"');
+    expect(wizard).toContain('>("PRIVATE_FEEDBACK")');
+  });
+
   it("mantiene las dos elecciones de programa y un estado seleccionado explícito", () => {
     expect(wizard).toContain('setMode("benefits")');
     expect(wizard).toContain('setMode("benefits_stamps")');

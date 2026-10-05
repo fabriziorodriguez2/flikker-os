@@ -116,6 +116,39 @@ describe('Onboarding — paso 1 deja el negocio listo para funcionar', () => {
     expect(deps.visitSources.ensureDefaultSource).toHaveBeenCalled();
   });
 
+  it('sin elegir reviewFlowMode: lo manda undefined — Prisma aplica el default del schema (PRIVATE_FEEDBACK)', async () => {
+    const deps = makeDeps({ draft: null });
+    deps.prisma.business.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(DRAFT);
+
+    await service(deps).saveBusiness('user-1', BUSINESS_DTO);
+
+    expect(deps.prisma.business.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ reviewFlowMode: undefined }),
+      }),
+    );
+  });
+
+  it('eligiendo DIRECT_GOOGLE en el paso 1: lo persiste tal cual', async () => {
+    const deps = makeDeps({ draft: null });
+    deps.prisma.business.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue(DRAFT);
+
+    await service(deps).saveBusiness('user-1', {
+      ...BUSINESS_DTO,
+      reviewFlowMode: 'DIRECT_GOOGLE' as never,
+    });
+
+    expect(deps.prisma.business.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ reviewFlowMode: 'DIRECT_GOOGLE' }),
+      }),
+    );
+  });
+
   it('IDEMPOTENTE: si ya hay un borrador, lo actualiza en vez de crear otro', async () => {
     const deps = makeDeps(); // findFirst ya devuelve un borrador
 

@@ -15,6 +15,7 @@ import RouteProgressBar from "@/components/ui/route-progress-bar";
 import { relativeDay, Stars } from "../customers/loyalty-ui";
 import { useIsOwnerOrAdmin } from "../../role-context";
 import GoogleConnectModal from "./google-connect-modal";
+import ReviewFlowSettings from "./review-flow-settings";
 
 export interface PrivateFeedback {
   id: string;
@@ -36,6 +37,11 @@ export interface GoogleReviewItem {
 
 export interface ReviewsOverview {
   periodDays: number;
+  businessId: string;
+  /** Parte 6 — "Flujo de reseñas". Nunca se deriva del puntaje del cliente. */
+  reviewFlowMode: "PRIVATE_FEEDBACK" | "DIRECT_GOOGLE";
+  /** Si hay un destino real de Google — condición para poder usar DIRECT_GOOGLE. */
+  hasGoogleReviewUrl: boolean;
   google: {
     connected: boolean;
     profileUrl: string | null;
@@ -193,6 +199,14 @@ export function ReviewsInbox({
             onManage={() => setShowGoogleManager(true)}
           />
         }
+      />
+
+      <ReviewFlowSettings
+        businessId={data.businessId}
+        mode={data.reviewFlowMode}
+        hasGoogleReviewUrl={data.hasGoogleReviewUrl}
+        canManage={canManage}
+        onSaved={() => void onReload?.()}
       />
 
       <nav

@@ -11,6 +11,12 @@ export interface FeedbackData {
   experienceVersion?: "LEGACY" | "CHECKIN_V2";
   /** El cliente ya había contestado este mismo link. */
   alreadySubmitted?: boolean;
+  /**
+   * Solo tiene sentido para CHECKIN_V2 (Parte 6) — LEGACY lo ignora, sigue
+   * con su comportamiento propio. `DIRECT_GOOGLE` hace que la página
+   * redirija directo a Google, sin ningún formulario de Flikker.
+   */
+  reviewFlowMode?: "PRIVATE_FEEDBACK" | "DIRECT_GOOGLE";
 }
 
 const API_URL = process.env.API_URL ?? "http://localhost:3000";
