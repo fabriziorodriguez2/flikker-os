@@ -239,7 +239,7 @@ export default function LoyaltyCard({
           <img
             src={appearance.logoUrl}
             alt={businessName}
-            className={`relative h-12 w-14 shrink-0 object-contain ${contrastRatio("#171A2B", theme.card) < 4.5 ? "rounded-lg bg-white p-1" : "object-left"}`}
+            className={`relative h-14 w-16 shrink-0 object-contain ${contrastRatio("#171A2B", theme.card) < 4.5 ? "rounded-lg bg-white p-1" : "object-left"}`}
           />
         ) : (
           <span
@@ -252,15 +252,8 @@ export default function LoyaltyCard({
           </span>
         )}
         <div className="relative min-w-0">
-          {appearance.showBusinessName !== false ? (
-            <p className="break-words text-[13px] font-extrabold uppercase leading-snug tracking-[0.12em]">
-              {businessName}
-            </p>
-          ) : (
-            <span className="sr-only">{businessName}</span>
-          )}
-          <p className="mt-1 text-[9px] font-semibold uppercase tracking-[0.13em]">
-            Tu tarjeta en Flikker
+          <p className="break-words text-[13px] font-extrabold uppercase leading-snug tracking-[0.12em]">
+            {businessName}
           </p>
         </div>
       </header>

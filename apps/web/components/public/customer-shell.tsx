@@ -162,7 +162,7 @@ function BusinessHeader({
   return (
     <div className="mb-5 flex items-center gap-3">
       <span
-        className={`flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden bg-white text-sm font-extrabold ${detail ? "rounded-xl border" : "rounded-full border-2"}`}
+        className={`flex shrink-0 items-center justify-center text-sm font-extrabold ${business.logoUrl && !detail ? "h-14 w-16" : `h-11 w-11 overflow-hidden bg-white ${detail ? "rounded-xl border" : "rounded-full border-2"}`}`}
         style={{
           borderColor: detail ? "var(--pub-surface-border)" : "var(--biz)",
           color: "var(--biz)",
@@ -173,7 +173,7 @@ function BusinessHeader({
           <img
             src={business.logoUrl}
             alt=""
-            className="h-full w-full object-contain p-1"
+            className={`h-full w-full object-contain ${detail ? "p-1" : ""}`}
           />
         ) : (
           initial
