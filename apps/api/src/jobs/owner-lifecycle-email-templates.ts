@@ -7,6 +7,12 @@ import {
   getEmailAppUrl,
   renderEmailLayout,
 } from './email-design-system';
+import {
+  renderWeeklyProductEmail,
+  type WeeklyProductReport,
+  type OwnerEmailAssets,
+} from './owner-product-email-templates';
+export { renderWelcomeEmail } from './owner-product-email-templates';
 
 /**
  * Re-export por compatibilidad: el valor real vive en `config/checkout`,
@@ -74,6 +80,8 @@ export function renderFirstWeekEmail(input: {
 
 export function renderWeeklySummaryEmail(input: {
   businessName: string;
+  report?: WeeklyProductReport;
+  assets?: OwnerEmailAssets;
   funnel: {
     contacted: number;
     returned: number;
@@ -82,6 +90,13 @@ export function renderWeeklySummaryEmail(input: {
   kpis: Array<{ label: string; value: string | number }>;
   aiText: string | null;
 }) {
+  if (input.report) {
+    return renderWeeklyProductEmail({
+      businessName: input.businessName,
+      report: input.report,
+      assets: input.assets,
+    });
+  }
   const funnelHtml = input.funnel
     ? emailParagraph(
         `Flikker contactó a <strong>${input.funnel.contacted}</strong> ${input.funnel.contacted === 1 ? 'cliente inactivo' : 'clientes inactivos'} y <strong>${input.funnel.returned}</strong> ${input.funnel.returned === 1 ? 'volvió' : 'volvieron'} (<strong>${input.funnel.recoveryRatePercent}%</strong> de recuperación).`,

@@ -5,6 +5,7 @@ import { EmailService } from './email.service';
 import { WhatsAppBspService } from './whatsapp-bsp.service';
 
 export type OwnerLifecycleEmailKind =
+  | 'welcome'
   | 'first_week'
   | 'weekly_summary_v2'
   | 'monthly_summary'

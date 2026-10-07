@@ -117,7 +117,12 @@ function makeDeps() {
           { user: { email: 'owner@negocio.com', notificationEmail: null } },
         ]),
     },
-    visit: { count: jest.fn().mockResolvedValue(0) },
+    visit: {
+      count: jest.fn().mockResolvedValue(0),
+      groupBy: jest.fn().mockResolvedValue([]),
+    },
+    benefitParticipation: { groupBy: jest.fn().mockResolvedValue([]) },
+    benefit: { findFirst: jest.fn().mockResolvedValue(null) },
   };
   const plans = { isOnProPlan: jest.fn().mockResolvedValue(false) };
   const reactivationFunnel = {
@@ -157,6 +162,58 @@ const MONDAY_9AM = new Date('2026-08-17T12:00:00.000Z');
 const FIRST_OF_MONTH_9AM = new Date('2026-09-01T12:00:00.000Z');
 /** Ni lunes 9am ni día 1 del mes — para tests que solo quieren un tick neutro. */
 const NEUTRAL_TICK = new Date('2026-08-20T21:00:00.000Z'); // jueves 18:00 local
+
+describe('OwnerLifecycleEmailsService — bienvenida automática', () => {
+  it('usa el negocio y destinatario reales y no duplica entre barridos', async () => {
+    const deps = makeDeps();
+    deps.prisma.business.findMany.mockResolvedValue([
+      business({
+        name: 'Café Real',
+        onboardingCompletedAt: new Date(NEUTRAL_TICK.getTime() - 30 * 60_000),
+      }),
+    ]);
+    const service = makeService(deps);
+    await service.runHourlySweep(NEUTRAL_TICK);
+    await service.runHourlySweep(
+      new Date(NEUTRAL_TICK.getTime() + 60 * 60_000),
+    );
+    expect(deps.emailSend).toHaveBeenCalledTimes(1);
+    const [email] = deps.emailSend.mock.calls[0];
+    expect(email.to).toEqual(['owner@negocio.com']);
+    expect(email.subject).toBe('Bienvenido a Flikker 👋');
+    expect(email.html).toContain('Café Real');
+    expect(email.html).toContain('/dashboard');
+    expect(deps.businessImpact.getWindowMetrics).not.toHaveBeenCalled();
+  });
+
+  it('cruzar medianoche no pierde la bienvenida', async () => {
+    const deps = makeDeps();
+    deps.prisma.business.findMany.mockResolvedValue([
+      business({
+        onboardingCompletedAt: new Date('2026-08-21T02:50:00Z'),
+      }),
+    ]);
+    await makeService(deps).runHourlySweep(new Date('2026-08-21T03:10:00Z'));
+    expect(deps.emailSend).toHaveBeenCalledTimes(1);
+  });
+
+  it('no envía bienvenidas retroactivas, ni para fechas futuras o onboarding incompleto', async () => {
+    const deps = makeDeps();
+    deps.prisma.business.findMany.mockResolvedValue([
+      business({
+        id: 'old',
+        onboardingCompletedAt: new Date(NEUTRAL_TICK.getTime() - MS_PER_DAY),
+      }),
+      business({
+        id: 'future',
+        onboardingCompletedAt: new Date(NEUTRAL_TICK.getTime() + 60_000),
+      }),
+      business({ id: 'draft' }),
+    ]);
+    await makeService(deps).runHourlySweep(NEUTRAL_TICK);
+    expect(deps.emailSend).not.toHaveBeenCalled();
+  });
+});
 
 describe('OwnerLifecycleEmailsService — primera semana / primer mes (una sola vez)', () => {
   it('primera semana se manda exactamente al día 7, no al 6 ni al 8', async () => {
@@ -339,7 +396,7 @@ describe('OwnerLifecycleEmailsService — resiliencia del sweep', () => {
 });
 
 describe('OwnerLifecycleEmailsService — la IA caída nunca impide el envío', () => {
-  it('el resumen semanal sale igual con la línea estática si generate() devuelve null', async () => {
+  it('el resumen semanal sale sin depender de IA', async () => {
     const deps = makeDeps();
     deps.aiSummary.generate.mockResolvedValue(null);
     deps.prisma.business.findMany.mockResolvedValue([business()]);
@@ -349,12 +406,13 @@ describe('OwnerLifecycleEmailsService — la IA caída nunca impide el envío', 
 
     expect(deps.emailSend).toHaveBeenCalledTimes(1);
     const [{ html }] = deps.emailSend.mock.calls[0];
-    expect(html).toContain('Lo que Flikker ve');
+    expect(html).toContain('Tu semana en Flikker');
+    expect(deps.aiSummary.generate).not.toHaveBeenCalled();
   });
 });
 
 describe('OwnerLifecycleEmailsService — los números del email coinciden con BusinessImpactService (fuente única)', () => {
-  it('el resumen semanal muestra exactamente el funnel y la ventana que devolvió BusinessImpactService', async () => {
+  it('el resumen semanal muestra la ventana canónica y limita visitas y canjes al período del negocio', async () => {
     const deps = makeDeps();
     deps.reactivationFunnel.forBusiness.mockResolvedValue({
       overall: {
@@ -367,9 +425,23 @@ describe('OwnerLifecycleEmailsService — los números del email coinciden con B
       byArm: null,
     });
     deps.prisma.visit.count.mockResolvedValue(88);
+    deps.prisma.visit.groupBy
+      .mockResolvedValueOnce([
+        { customerId: 'c-1', _count: { _all: 2 } },
+        { customerId: 'c-2', _count: { _all: 1 } },
+      ])
+      .mockResolvedValueOnce([
+        { visitDayKey: '2026-08-14', _count: { _all: 20 } },
+      ]);
+    deps.prisma.benefitParticipation.groupBy.mockResolvedValue([
+      { benefitId: 'benefit-1', _count: { _all: 7 } },
+    ]);
+    deps.prisma.benefit.findFirst.mockResolvedValue({
+      title: 'Café de regalo',
+    });
     deps.businessImpact.getWindowMetrics.mockResolvedValue({
       customersIdentified: 5,
-      customersReturned: 0,
+      customersReturned: 6,
       customersReturnedAfterContact: 0,
       benefitsRedeemed: 2,
       newReviews: 3,
@@ -387,12 +459,24 @@ describe('OwnerLifecycleEmailsService — los números del email coinciden con B
       expect.any(Date),
     );
     const [{ html }] = deps.emailSend.mock.calls[0];
-    expect(html).toContain('>24<');
-    expect(html).toContain('>7<');
-    expect(html).toContain('29.2'); // round(7/24*1000)/10
+    expect(html).toContain('2 clientes');
+    expect(html).toContain('>6<');
+    expect(html).toContain('7 canjes');
+    expect(html).toContain('Café de regalo');
+    expect(html).toContain('20 interacciones');
+    expect(html).toContain('vie');
     expect(html).toContain('>88<');
-    expect(html).toContain('>5<');
-    expect(html).toContain('>3<');
-    expect(html).toContain('>2<');
+    expect(html).toContain('+5');
+    expect(deps.prisma.benefitParticipation.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          businessId: 'biz-1',
+          redeemedAt: {
+            gte: new Date('2026-08-10T03:00:00Z'),
+            lt: new Date('2026-08-17T03:00:00Z'),
+          },
+        },
+      }),
+    );
   });
 });

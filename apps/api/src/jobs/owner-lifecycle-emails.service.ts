@@ -24,6 +24,7 @@ import {
   renderMonthlySummaryEmail,
   renderTrialEndingEmail,
   renderWeeklySummaryEmail,
+  renderWelcomeEmail,
 } from './owner-lifecycle-email-templates';
 
 /**
@@ -41,6 +42,7 @@ import {
  * dueño recibiendo el mismo logro dos veces, en dos canales distintos.
  */
 const OWNER_LIFECYCLE_PRIORITY: OwnerLifecycleEmailKind[] = [
+  'welcome',
   'first_week',
   'trial_ending_5d',
   'trial_ending_2d',
@@ -149,6 +151,12 @@ export class OwnerLifecycleEmailsService {
     const candidates: Candidate[] = [];
 
     if (business.onboardingCompletedAt) {
+      // Rolling 24h window survives onboarding just before midnight and avoids
+      // sending a retroactive welcome to all existing businesses on deployment.
+      const elapsed = now.getTime() - business.onboardingCompletedAt.getTime();
+      if (elapsed >= 0 && elapsed < 86_400_000) {
+        candidates.push({ kind: 'welcome', dedupeKey: 'once' });
+      }
       const daysSinceOnboarding = calendarDayDiff(
         business.onboardingCompletedAt,
         now,
@@ -207,6 +215,9 @@ export class OwnerLifecycleEmailsService {
 
     let content: { subject: string; html: string };
     switch (candidate.kind) {
+      case 'welcome':
+        content = renderWelcomeEmail({ businessName: business.name });
+        break;
       case 'first_week':
         content = await this.buildFirstWeekEmail(business);
         break;
@@ -365,50 +376,103 @@ export class OwnerLifecycleEmailsService {
   private async buildWeeklySummaryEmail(business: BusinessRow, now: Date) {
     const range = previousLocalWeekRange(now, business.timezone);
 
-    const [window, visits, funnel] = await Promise.all([
-      this.businessImpact.getWindowMetrics(business.id, range.start, range.end),
-      this.prisma.visit.count({
-        where: {
-          businessId: business.id,
-          occurredAt: { gte: range.start, lt: range.end },
-        },
-      }),
-      this.reactivationFunnel.forBusiness(business.id),
-    ]);
+    const [window, visits, customers, dailyVisits, redeemed] =
+      await Promise.all([
+        this.businessImpact.getWindowMetrics(
+          business.id,
+          range.start,
+          range.end,
+        ),
+        this.prisma.visit.count({
+          where: {
+            businessId: business.id,
+            occurredAt: { gte: range.start, lt: range.end },
+          },
+        }),
+        this.prisma.visit.groupBy({
+          by: ['customerId'],
+          where: {
+            businessId: business.id,
+            occurredAt: { gte: range.start, lt: range.end },
+          },
+          _count: { _all: true },
+        }),
+        this.prisma.visit.groupBy({
+          by: ['visitDayKey'],
+          where: {
+            businessId: business.id,
+            occurredAt: { gte: range.start, lt: range.end },
+          },
+          _count: { _all: true },
+        }),
+        this.prisma.benefitParticipation.groupBy({
+          by: ['benefitId'],
+          where: {
+            businessId: business.id,
+            redeemedAt: { gte: range.start, lt: range.end },
+          },
+          _count: { _all: true },
+          orderBy: [{ _count: { benefitId: 'desc' } }, { benefitId: 'asc' }],
+          take: 1,
+        }),
+      ]);
 
-    const kpis = [
-      { label: 'Visitas', value: visits },
-      { label: 'Clientes nuevos', value: window.customersIdentified },
-      { label: 'Reseñas nuevas', value: window.newReviews },
-      ...(window.benefitsRedeemed > 0
-        ? [{ label: 'Beneficios canjeados', value: window.benefitsRedeemed }]
-        : []),
-    ].slice(0, 4);
-
-    const funnelPayload =
-      funnel.overall.contacted > 0
-        ? {
-            contacted: funnel.overall.contacted,
-            returned: funnel.overall.returned,
-            recoveryRatePercent:
-              Math.round(funnel.overall.recoveryRate * 1000) / 10,
-          }
-        : null;
-
-    const aiText = await this.aiSummary.generate(business.id, {
-      periodLabel: 'esta semana',
-      newCustomers: window.customersIdentified,
-      returningCustomers: 0,
-      newReviews: window.newReviews,
-      reactivation: funnelPayload,
-      benefitsRedeemed: window.benefitsRedeemed,
+    const dateFormat = new Intl.DateTimeFormat('es-UY', {
+      timeZone: business.timezone,
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric',
     });
+    const dayKeyFormat = new Intl.DateTimeFormat('en-CA', {
+      timeZone: business.timezone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    });
+    const dayNameFormat = new Intl.DateTimeFormat('es-UY', {
+      timeZone: business.timezone,
+      weekday: 'short',
+    });
+    const days = Array.from({ length: 7 }, (_, index) => {
+      // Midday avoids timezone/DST boundaries when deriving local calendar labels.
+      const date = new Date(
+        range.start.getTime() + (index * 24 + 12) * 60 * 60 * 1000,
+      );
+      const key = dayKeyFormat.format(date);
+      return {
+        name: dayNameFormat.format(date),
+        count:
+          dailyVisits.find((row) => row.visitDayKey === key)?._count._all ?? 0,
+      };
+    });
+    const best = days.reduce((a, b) => (b.count > a.count ? b : a));
+    const top = redeemed[0];
+    const benefit = top
+      ? await this.prisma.benefit.findFirst({
+          where: { id: top.benefitId, businessId: business.id },
+          select: { title: true },
+        })
+      : null;
 
     return renderWeeklySummaryEmail({
       businessName: business.name,
-      funnel: funnelPayload,
-      kpis,
-      aiText,
+      report: {
+        week_range: `${dateFormat.format(range.start)} – ${dateFormat.format(new Date(range.end.getTime() - 1))}`,
+        active_customers: customers.length,
+        returning_customers: window.customersReturned,
+        total_interactions: visits,
+        new_customers: window.customersIdentified,
+        recurring_customers: customers.filter((row) => row._count._all > 1)
+          .length,
+        top_benefit_name: benefit?.title ?? null,
+        top_benefit_redemptions: top?._count._all ?? 0,
+        best_day_name: best.count > 0 ? best.name : null,
+        best_day_count: best.count,
+        days,
+      },
+      funnel: null,
+      kpis: [],
+      aiText: null,
     });
   }
 
