@@ -1,12 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   BadgePercent,
-  Check,
-  CheckCircle2,
-  Footprints,
   Gift,
   Loader2,
   PartyPopper,
@@ -18,7 +14,9 @@ import { normalizeUruguayNationalPhone } from "@/components/ui/phone-input";
 import OtpInput from "@/components/ui/otp-input";
 import { useImagePalette } from "@/lib/use-logo-palette";
 import CustomerShell from "@/components/public/customer-shell";
-import LoyaltyCard from "@/components/public/loyalty-card";
+import LoyaltyCard, {
+  LoyaltyCardActions,
+} from "@/components/public/loyalty-card";
 import CheckinFeedbackCard from "@/components/public/checkin-feedback-card";
 import GoogleReviewCta from "@/components/public/google-review-cta";
 import BenefitCard from "@/components/public/benefit-card";
@@ -927,7 +925,7 @@ function benefitIconFor(type: string): LucideIcon {
   return PartyPopper;
 }
 
-function PersonalScreen({
+export function PersonalScreen({
   token,
   landing,
   personal,
@@ -1026,42 +1024,51 @@ function PersonalScreen({
       brandOverride={palette}
       backgroundColor={landing.business.checkinBackgroundColor}
       compact
+      cardExperience
     >
-      <div className="flex w-full max-w-md flex-col items-center">
-        {/*
-          ── 1. Qué pasó con ESTA visita ─────────────────────────────────────
-          Una sola cabecera para los dos estados. En `duplicate` el mensaje
-          que manda es que la visita ya estaba contada: va en el título, no en
-          una pastilla debajo del saludo, porque es la única pregunta que la
-          persona tiene parada frente al mostrador. Y no es un error: mismo
-          tono, mismos colores, sin rojo ni ícono de alerta.
-        */}
-        <div className="checkin-success-pop mb-2 flex h-8 w-8 items-center justify-center rounded-full bg-[color:var(--pub-surface)] text-[color:var(--pub-text)]">
-          {isDuplicate ? (
-            <Check className="h-5 w-5 stroke-[2.5]" aria-hidden="true" />
-          ) : (
-            <CheckCircle2 className="h-5 w-5" aria-hidden="true" />
-          )}
-        </div>
-        <h1 className="checkin-enter text-balance text-center text-2xl font-bold tracking-[-0.035em] text-[color:var(--pub-text)]">
-          {isDuplicate
+      <LoyaltyCard
+        experience
+        rewardName={activeGoal?.incentiveName ?? null}
+        progress={activeGoal?.progressVisits ?? 0}
+        target={activeGoal?.targetAdditionalVisits ?? 0}
+        bonusStamps={activeGoal?.bonusStamps ?? 0}
+        customerName={firstName}
+        visits={personal.visits.total}
+        visitStatus={
+          isDuplicate
             ? "Tu visita de hoy ya está contada"
-            : `¡Hola, ${firstName}!`}
-        </h1>
-        <p className="checkin-enter mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-center text-sm text-[color:var(--pub-text-muted)]">
-          <span className="font-semibold">
-            {isDuplicate ? `Hola, ${firstName}` : "Tu visita quedó guardada"}
-          </span>
-          <span aria-hidden="true" className="opacity-50">
-            ·
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Footprints className="h-4 w-4 shrink-0" aria-hidden="true" />
-            {personal.visits.total}{" "}
-            {personal.visits.total === 1 ? "visita" : "visitas"}
-          </span>
-        </p>
-
+            : "Tu visita quedó guardada"
+        }
+        secondaryMessage={
+          isDuplicate && activeGoal
+            ? "Tu tarjeta no cambió con esta visita."
+            : undefined
+        }
+        appearance={{
+          cardColor:
+            landing.business.loyaltyCardColor ??
+            landing.business.primaryColor ??
+            brand,
+          textColor: landing.business.loyaltyCardTextColor,
+          backgroundImage: landing.business.loyaltyCardBackgroundImage,
+          stampAreaColor: landing.business.loyaltyStampAreaColor,
+          stampColor: landing.business.loyaltyStampColor,
+          stampIcon: landing.business.loyaltyStampIcon,
+          logoUrl: landing.business.logoUrl,
+          businessName: landing.business.businessName,
+          showBusinessName: landing.business.loyaltyShowBusinessName,
+          stampBackgroundPattern:
+            landing.business.loyaltyStampBackgroundPattern,
+          stampBackgroundOpacity:
+            landing.business.loyaltyStampBackgroundOpacity,
+        }}
+        actions={
+          <LoyaltyCardActions
+            onSwitchAccount={() => void switchAccount()}
+            loggingOut={loggingOut}
+          />
+        }
+      >
         <div className="mt-5 grid w-full grid-cols-1 gap-3">
           {/*
             ── 2. El premio, cuando acaba de desbloquearse ───────────────────
@@ -1109,43 +1116,6 @@ function PersonalScreen({
                 onReveal={onBenefitReveal}
               />
             ))}
-
-          {/*
-            ── 3. La tarjeta activa ──────────────────────────────────────────
-            El mismo `LoyaltyCard` de siempre, con la configuración real del
-            negocio. En `duplicate` se muestra igual pero atenuada y con una
-            línea que aclara que hoy no cambió: el progreso no es la noticia.
-          */}
-          {activeGoal ? (
-            <div className={isDuplicate ? "opacity-90" : undefined}>
-              <LoyaltyCard
-                rewardName={activeGoal.incentiveName}
-                progress={activeGoal.progressVisits}
-                target={activeGoal.targetAdditionalVisits}
-                bonusStamps={activeGoal.bonusStamps ?? 0}
-                appearance={{
-                  cardColor: landing.business.loyaltyCardColor ?? brand,
-                  textColor: landing.business.loyaltyCardTextColor,
-                  backgroundImage: landing.business.loyaltyCardBackgroundImage,
-                  stampAreaColor: landing.business.loyaltyStampAreaColor,
-                  stampColor: landing.business.loyaltyStampColor,
-                  stampIcon: landing.business.loyaltyStampIcon,
-                  logoUrl: landing.business.logoUrl,
-                  businessName: landing.business.businessName,
-                  showBusinessName: landing.business.loyaltyShowBusinessName,
-                  stampBackgroundPattern:
-                    landing.business.loyaltyStampBackgroundPattern,
-                  stampBackgroundOpacity:
-                    landing.business.loyaltyStampBackgroundOpacity,
-                }}
-              />
-              {isDuplicate ? (
-                <p className="mt-2 text-center text-xs text-[color:var(--pub-text-muted)]">
-                  Tu tarjeta no cambió con esta visita.
-                </p>
-              ) : null}
-            </div>
-          ) : null}
 
           {/*
             ── 4. Desafíos ───────────────────────────────────────────────────
@@ -1224,28 +1194,7 @@ function PersonalScreen({
             </div>
           )
         )}
-
-        {/* ── 6. Navegación secundaria ───────────────────────────────────── */}
-        <Link
-          href="/mi-flikker"
-          className="checkin-enter-delay mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[14px] py-3 text-sm font-bold"
-          style={{
-            backgroundColor: "var(--pub-accent)",
-            color: "var(--pub-on-accent)",
-          }}
-        >
-          Mis lugares y premios
-        </Link>
-
-        <button
-          type="button"
-          onClick={() => void switchAccount()}
-          disabled={loggingOut}
-          className="mt-2 rounded-full px-4 py-1.5 text-xs font-semibold text-[color:var(--pub-text-muted)] transition-colors hover:bg-[color:var(--pub-surface)] hover:text-[color:var(--pub-text)] disabled:opacity-60"
-        >
-          {loggingOut ? "Cerrando…" : "Cambiar de cuenta"}
-        </button>
-      </div>
+      </LoyaltyCard>
     </Shell>
   );
 }
@@ -1337,7 +1286,7 @@ function RewardUnlockedHero({
   onReveal?: () => void;
 }) {
   return (
-    <div className="checkin-enter checkin-hover-lift relative overflow-hidden rounded-[24px] border border-[color:var(--pub-surface-border)] bg-[color:var(--pub-surface)] p-5 text-[color:var(--pub-text)]">
+    <div className="py-3 text-[color:var(--pub-text)]">
       <div className="flex items-center gap-2.5">
         <span
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full"
@@ -1353,7 +1302,7 @@ function RewardUnlockedHero({
         </p>
       </div>
 
-      <p className="mt-3 text-[22px] font-bold leading-tight tracking-[-0.02em]">
+      <p className="mt-3 break-words text-[30px] font-extrabold leading-[1.05] tracking-[-0.04em]">
         {reward.name}
       </p>
       {reward.expiresAt ? (
@@ -1394,6 +1343,7 @@ export function Shell({
   fill = true,
   compact = false,
   hero = false,
+  cardExperience = false,
   children,
 }: {
   landing: CheckinLanding;
@@ -1405,6 +1355,7 @@ export function Shell({
    * header sigue siendo el chico de siempre.
    */
   hero?: boolean;
+  cardExperience?: boolean;
   /**
    * `Business.checkinBackgroundColor` — ya NO pinta nada. Se mantiene en la
    * firma porque el panel lo sigue pasando desde su preview en vivo, pero
@@ -1422,15 +1373,21 @@ export function Shell({
 
   return (
     <CustomerShell
-      business={{
-        name: landing.business.businessName,
-        logoUrl: landing.business.logoUrl,
-      }}
+      business={
+        cardExperience
+          ? null
+          : {
+              name: landing.business.businessName,
+              logoUrl: landing.business.logoUrl,
+            }
+      }
       businessPresentation={hero ? "hero" : "compact"}
       eyebrow={hero ? null : "Tu tarjeta en Flikker"}
       brand={brand}
       fill={fill}
       compact={compact}
+      footer={!cardExperience}
+      edgeToEdge={cardExperience}
     >
       {children}
     </CustomerShell>

@@ -41,6 +41,8 @@ export default function CustomerShell({
   compact = false,
   showWordmark = false,
   footer = true,
+  edgeToEdge = false,
+  wallet = false,
   children,
 }: {
   /** El negocio, cuando la pantalla pertenece a uno. */
@@ -55,7 +57,7 @@ export default function CustomerShell({
    * (`Sumate a {businessName}`) y repetirlo en un avatar chico arriba es
    * ruido. Sin logo, no se dibuja nada acá — el título alcanza.
    */
-  businessPresentation?: "compact" | "hero";
+  businessPresentation?: "compact" | "hero" | "detail";
   /**
    * La línea chica debajo del nombre del negocio. Sin default a propósito: en
    * el check-in y en el detalle de un lugar la pantalla ES la tarjeta, pero en
@@ -72,6 +74,10 @@ export default function CustomerShell({
   /** Marca Flikker arriba: se usa donde el cliente todavía no sabe dónde está. */
   showWordmark?: boolean;
   footer?: boolean;
+  /** A shared loyalty experience supplies its own branded header and footer. */
+  edgeToEdge?: boolean;
+  /** Wallet surface for the four main Mi Flikker tabs. */
+  wallet?: boolean;
   children: React.ReactNode;
 }) {
   const biz = normalizeHex(brand) ?? FLIKKER_ACCENT;
@@ -83,7 +89,7 @@ export default function CustomerShell({
       }`}
       style={
         {
-          backgroundColor: TOKENS["--pub-bg"],
+          backgroundColor: wallet ? "#ECEBF0" : TOKENS["--pub-bg"],
           color: TOKENS["--pub-text"],
           ...TOKENS,
           "--biz": biz,
@@ -92,9 +98,7 @@ export default function CustomerShell({
       }
     >
       <div
-        className={`flex w-full max-w-md flex-1 flex-col px-4 ${
-          compact ? "py-5" : "py-7"
-        }`}
+        className={`flex w-full max-w-md flex-1 flex-col ${edgeToEdge ? "" : `px-4 ${compact ? "py-5" : "py-7"}`}`}
       >
         {showWordmark ? (
           <div className="mb-6 flex justify-center">
@@ -120,7 +124,11 @@ export default function CustomerShell({
         {business && businessPresentation === "hero" ? (
           <BusinessLogoHero business={business} />
         ) : business ? (
-          <BusinessHeader business={business} eyebrow={eyebrow} />
+          <BusinessHeader
+            business={business}
+            eyebrow={eyebrow}
+            detail={businessPresentation === "detail"}
+          />
         ) : null}
 
         {children}
@@ -143,17 +151,22 @@ export default function CustomerShell({
 function BusinessHeader({
   business,
   eyebrow,
+  detail = false,
 }: {
   business: { name: string; logoUrl?: string | null };
   eyebrow?: string | null;
+  detail?: boolean;
 }) {
   const initial = business.name.trim().slice(0, 1).toUpperCase() || "F";
 
   return (
     <div className="mb-5 flex items-center gap-3">
       <span
-        className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 bg-white text-sm font-extrabold"
-        style={{ borderColor: "var(--biz)", color: "var(--biz)" }}
+        className={`flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden bg-white text-sm font-extrabold ${detail ? "rounded-xl border" : "rounded-full border-2"}`}
+        style={{
+          borderColor: detail ? "var(--pub-surface-border)" : "var(--biz)",
+          color: "var(--biz)",
+        }}
       >
         {business.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element

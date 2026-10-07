@@ -553,6 +553,7 @@ describe('MyFlikkerService.listChallenges — misiones y rachas juntas', () => {
         logoUrl: null,
         currentWeeks: 3,
         state: 'AT_RISK',
+        timezone: 'America/Montevideo',
         deadlineDayKey: '2026-09-27',
       },
     ]);

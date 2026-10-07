@@ -3,10 +3,12 @@ import {
   Get,
   Headers,
   Param,
+  Query,
   UnauthorizedException,
 } from '@nestjs/common';
 import { FlikkerAccountService } from './flikker-account.service';
 import { MyFlikkerService } from './my-flikker.service';
+import { PlaceActivityService } from './place-activity.service';
 
 /**
  * Public, authenticated-by-global-session "Mi Flikker" read API. Every
@@ -19,6 +21,7 @@ export class MyFlikkerController {
   constructor(
     private readonly accounts: FlikkerAccountService,
     private readonly myFlikker: MyFlikkerService,
+    private readonly activity: PlaceActivityService,
   ) {}
 
   @Get()
@@ -65,6 +68,16 @@ export class MyFlikkerController {
   ) {
     const account = await this.requireAccount(session);
     return this.myFlikker.placeDetail(account.flikkerAccountId, businessId);
+  }
+
+  @Get(':businessId/activity')
+  async placeActivity(
+    @Param('businessId') businessId: string,
+    @Headers('x-flikker-account-session') session?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    const account = await this.requireAccount(session);
+    return this.activity.list(account.flikkerAccountId, businessId, cursor);
   }
 
   /**

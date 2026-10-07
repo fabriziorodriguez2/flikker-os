@@ -1,112 +1,119 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Loader2, LogOut, Phone, User } from "lucide-react";
+import { Loader2, LogOut, Phone } from "lucide-react";
+import MiFlikkerHeader, {
+  MiFlikkerMark,
+} from "@/components/public/mi-flikker-header";
 
-interface AccountProfile {
+export interface AccountProfile {
   phone: string;
   name: string | null;
 }
+export interface AccountMetrics {
+  places: number;
+  rewards: number;
+  challenges: number;
+}
 
-/**
- * Mi Flikker → Cuenta.
- *
- * Reemplaza al popover que colgaba del avatar: ahora que la navegación es
- * una barra de 4 pestañas, "Cuenta" es una pantalla más y no un menú
- * escondido. Lo que muestra es deliberadamente lo que YA existe — el
- * teléfono probado por OTP y, si el cliente alguna vez lo dio al
- * registrarse, su nombre. Nada de editar, nada de settings: no hay backend
- * para eso y no se inventa.
- */
 export default function AccountTab({
+  profile,
+  error = false,
+  metrics,
   onLogout,
   loggingOut,
 }: {
+  profile: AccountProfile | null;
+  error?: boolean;
+  metrics: AccountMetrics | null;
   onLogout: () => void;
   loggingOut: boolean;
 }) {
-  const [profile, setProfile] = useState<AccountProfile | null>(null);
-  const [status, setStatus] = useState<"loading" | "ok" | "error">("loading");
-
-  useEffect(() => {
-    let cancelled = false;
-    void (async () => {
-      try {
-        const res = await fetch("/api/mi-flikker/account");
-        if (!res.ok) throw new Error();
-        const data = (await res.json()) as AccountProfile;
-        if (!cancelled) {
-          setProfile(data);
-          setStatus("ok");
-        }
-      } catch {
-        if (!cancelled) setStatus("error");
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
   return (
-    <div className="mt-6 w-full pb-4">
-      <div className="rounded-[18px] border border-[#E7E8F1] bg-white p-4">
-        <div className="flex items-center gap-3.5">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-[#EFEDFD] text-[#4A3FD1]">
-            <User className="h-5 w-5" aria-hidden="true" />
+    <div className="flex flex-1 flex-col">
+      <MiFlikkerHeader tab="cuenta" chip={profile?.name?.split(" ")[0]} />
+      <section
+        aria-label="Tu identidad"
+        className="rounded-[20px] bg-[#1C1B23] p-5 text-white"
+      >
+        <div className="flex items-center justify-between gap-3">
+          <MiFlikkerMark light />
+          <span
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/10 text-xs font-bold"
+            aria-hidden="true"
+          >
+            {profile?.name?.trim().slice(0, 1).toUpperCase() ?? "F"}
           </span>
-          <div className="min-w-0">
-            {status === "loading" ? (
-              <p className="flex items-center gap-2 text-[14px] text-[#8A90A6]">
-                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                Cargando…
-              </p>
-            ) : status === "error" ? (
-              <p className="text-[14px] font-medium text-[#8A90A6]">
-                No pudimos cargar tus datos
-              </p>
-            ) : (
-              <>
-                {profile?.name ? (
-                  <p className="truncate text-[16px] font-bold text-[#1A1A24]">
-                    {profile.name}
-                  </p>
-                ) : null}
-                <p
-                  className={`flex items-center gap-1.5 text-[14px] font-medium text-[#5A5A6E] ${
-                    profile?.name ? "mt-0.5" : ""
-                  }`}
-                >
-                  <Phone className="h-[14px] w-[14px] shrink-0" aria-hidden="true" />
-                  {profile ? formatPhone(profile.phone) : ""}
-                </p>
-              </>
-            )}
-          </div>
         </div>
-      </div>
-
+        <div className="mt-12">
+          {error ? (
+            <p role="alert" className="text-sm text-white/70">
+              No pudimos cargar tus datos
+            </p>
+          ) : !profile ? (
+            <p
+              role="status"
+              className="flex items-center gap-2 text-sm text-white/70"
+            >
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Cargando…
+            </p>
+          ) : (
+            <>
+              <h2 className="break-words text-[26px] font-bold leading-tight tracking-[-0.04em]">
+                {profile.name || "Tu cuenta"}
+              </h2>
+              <p className="mt-2 flex items-center gap-2 text-sm font-semibold">
+                <Phone className="h-4 w-4 shrink-0" />
+                <span className="break-all">{formatPhone(profile.phone)}</span>
+              </p>
+            </>
+          )}
+        </div>
+      </section>
+      <p className="my-3 text-[11px] leading-relaxed text-[#777780]">
+        Con este número te identificamos en todos tus lugares.
+      </p>
+      {metrics ? (
+        <div className="grid grid-cols-3 gap-2" aria-label="Tu resumen">
+          {[
+            [metrics.places, metrics.places === 1 ? "lugar" : "lugares"],
+            [metrics.rewards, metrics.rewards === 1 ? "premio" : "premios"],
+            [
+              metrics.challenges,
+              metrics.challenges === 1 ? "desafío" : "desafíos",
+            ],
+          ].map(([count, label]) => (
+            <div key={label} className="rounded-[13px] bg-white px-3 py-3">
+              <p className="text-xl font-bold">{count}</p>
+              <p className="mt-1 text-[10px] text-[#777780]">{label}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
       <button
         type="button"
         onClick={onLogout}
         disabled={loggingOut}
-        className="mt-3 flex w-full items-center justify-center gap-2 rounded-[18px] border border-[#F0DCDA] bg-white py-3.5 text-[14px] font-bold text-[#C0392B] transition-colors hover:bg-[#FBEBEA] disabled:opacity-60"
+        className="mt-auto flex min-h-11 w-full items-center justify-center gap-2 rounded-[14px] border border-[#EBD4D2] bg-white px-3 py-3 text-xs font-semibold text-[#BC3934] disabled:opacity-60"
       >
-        <LogOut className="h-[17px] w-[17px]" aria-hidden="true" />
+        <LogOut className="h-4 w-4" />
         {loggingOut ? "Cerrando…" : "Cerrar sesión"}
       </button>
     </div>
   );
 }
 
-/**
- * `+59891624988` → `+598 91 624 988`. Best-effort: si el E.164 no tiene la
- * forma esperada (8 dígitos nacionales), se muestra tal cual llegó en vez de
- * forzar un formato que no le corresponde.
- */
-function formatPhone(e164: string): string {
+export function formatPhone(e164: string): string {
   const match = /^(\+\d{1,3})(\d{8})$/.exec(e164);
   if (!match) return e164;
   const [, cc, national] = match;
-  return `${cc} ${national.slice(0, 2)} ${national.slice(2, 5)} ${national.slice(5)}`;
+  return (
+    cc +
+    " " +
+    national.slice(0, 2) +
+    " " +
+    national.slice(2, 5) +
+    " " +
+    national.slice(5)
+  );
 }

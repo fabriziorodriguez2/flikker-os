@@ -1,0 +1,440 @@
+{
+  "passed": true,
+  "checks": [
+    {
+      "mode": "normal",
+      "tab": "lugares",
+      "width": 320,
+      "viewport": 320,
+      "content": 320,
+      "active": "lugares",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "lugares",
+      "width": 375,
+      "viewport": 375,
+      "content": 375,
+      "active": "lugares",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "lugares",
+      "width": 390,
+      "viewport": 390,
+      "content": 390,
+      "active": "lugares",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "lugares",
+      "width": 430,
+      "viewport": 430,
+      "content": 430,
+      "active": "lugares",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "desafios",
+      "width": 320,
+      "viewport": 320,
+      "content": 320,
+      "active": "desafios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "desafios",
+      "width": 375,
+      "viewport": 375,
+      "content": 375,
+      "active": "desafios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "desafios",
+      "width": 390,
+      "viewport": 390,
+      "content": 390,
+      "active": "desafios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "desafios",
+      "width": 430,
+      "viewport": 430,
+      "content": 430,
+      "active": "desafios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "premios",
+      "width": 320,
+      "viewport": 320,
+      "content": 320,
+      "active": "premios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "premios",
+      "width": 375,
+      "viewport": 375,
+      "content": 375,
+      "active": "premios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "premios",
+      "width": 390,
+      "viewport": 390,
+      "content": 390,
+      "active": "premios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "premios",
+      "width": 430,
+      "viewport": 430,
+      "content": 430,
+      "active": "premios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "cuenta",
+      "width": 320,
+      "viewport": 320,
+      "content": 320,
+      "active": "cuenta",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "cuenta",
+      "width": 375,
+      "viewport": 375,
+      "content": 375,
+      "active": "cuenta",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "cuenta",
+      "width": 390,
+      "viewport": 390,
+      "content": 390,
+      "active": "cuenta",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "normal",
+      "tab": "cuenta",
+      "width": 430,
+      "viewport": 430,
+      "content": 430,
+      "active": "cuenta",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "lugares",
+      "width": 320,
+      "viewport": 320,
+      "content": 320,
+      "active": "lugares",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "lugares",
+      "width": 375,
+      "viewport": 375,
+      "content": 375,
+      "active": "lugares",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "lugares",
+      "width": 390,
+      "viewport": 390,
+      "content": 390,
+      "active": "lugares",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "lugares",
+      "width": 430,
+      "viewport": 430,
+      "content": 430,
+      "active": "lugares",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "desafios",
+      "width": 320,
+      "viewport": 320,
+      "content": 320,
+      "active": "desafios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "desafios",
+      "width": 375,
+      "viewport": 375,
+      "content": 375,
+      "active": "desafios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "desafios",
+      "width": 390,
+      "viewport": 390,
+      "content": 390,
+      "active": "desafios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "desafios",
+      "width": 430,
+      "viewport": 430,
+      "content": 430,
+      "active": "desafios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "premios",
+      "width": 320,
+      "viewport": 320,
+      "content": 320,
+      "active": "premios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "premios",
+      "width": 375,
+      "viewport": 375,
+      "content": 375,
+      "active": "premios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "premios",
+      "width": 390,
+      "viewport": 390,
+      "content": 390,
+      "active": "premios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "premios",
+      "width": 430,
+      "viewport": 430,
+      "content": 430,
+      "active": "premios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "cuenta",
+      "width": 320,
+      "viewport": 320,
+      "content": 320,
+      "active": "cuenta",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "cuenta",
+      "width": 375,
+      "viewport": 375,
+      "content": 375,
+      "active": "cuenta",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "cuenta",
+      "width": 390,
+      "viewport": 390,
+      "content": 390,
+      "active": "cuenta",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "empty",
+      "tab": "cuenta",
+      "width": 430,
+      "viewport": 430,
+      "content": 430,
+      "active": "cuenta",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "lugares",
+      "width": 320,
+      "viewport": 320,
+      "content": 320,
+      "active": "lugares",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "lugares",
+      "width": 375,
+      "viewport": 375,
+      "content": 375,
+      "active": "lugares",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "lugares",
+      "width": 390,
+      "viewport": 390,
+      "content": 390,
+      "active": "lugares",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "lugares",
+      "width": 430,
+      "viewport": 430,
+      "content": 430,
+      "active": "lugares",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "desafios",
+      "width": 320,
+      "viewport": 320,
+      "content": 320,
+      "active": "desafios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "desafios",
+      "width": 375,
+      "viewport": 375,
+      "content": 375,
+      "active": "desafios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "desafios",
+      "width": 390,
+      "viewport": 390,
+      "content": 390,
+      "active": "desafios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "desafios",
+      "width": 430,
+      "viewport": 430,
+      "content": 430,
+      "active": "desafios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "premios",
+      "width": 320,
+      "viewport": 320,
+      "content": 320,
+      "active": "premios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "premios",
+      "width": 375,
+      "viewport": 375,
+      "content": 375,
+      "active": "premios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "premios",
+      "width": 390,
+      "viewport": 390,
+      "content": 390,
+      "active": "premios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "premios",
+      "width": 430,
+      "viewport": 430,
+      "content": 430,
+      "active": "premios",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "cuenta",
+      "width": 320,
+      "viewport": 320,
+      "content": 320,
+      "active": "cuenta",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "cuenta",
+      "width": 375,
+      "viewport": 375,
+      "content": 375,
+      "active": "cuenta",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "cuenta",
+      "width": 390,
+      "viewport": 390,
+      "content": 390,
+      "active": "cuenta",
+      "pill": "rgb(255, 255, 255)"
+    },
+    {
+      "mode": "long",
+      "tab": "cuenta",
+      "width": 430,
+      "viewport": 430,
+      "content": 430,
+      "active": "cuenta",
+      "pill": "rgb(255, 255, 255)"
+    }
+  ],
+  "navigation": true,
+  "logout": true,
+  "errorRetry": true
+}

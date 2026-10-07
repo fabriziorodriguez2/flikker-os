@@ -149,7 +149,8 @@ export function resolveLoyaltyStampAreaColor(
 ): string {
   const requested = normalizeHex(requestedArea);
   if (requested) return requested;
-  return buildLoyaltyCardTheme(cardColor).isDarkCard ? "#F8F3EF" : "#F2F4F8";
+  void cardColor;
+  return "#FFFFFF";
 }
 
 /** Íconos disponibles para el sello. La clave se guarda en `loyaltyStampIcon`. */

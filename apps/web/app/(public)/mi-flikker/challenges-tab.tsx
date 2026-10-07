@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Target } from "lucide-react";
-import ChallengeRow from "@/components/public/challenge-row";
+import WalletChallengeCard from "@/components/public/wallet-challenge-card";
 import PublicState from "@/components/public/public-state";
 
 /**
@@ -15,6 +15,7 @@ export type MyFlikkerChallenge =
   | ReturnChallengeCard;
 
 interface ChallengeBase {
+  timezone?: string;
   businessId: string;
   businessName: string;
   logoUrl: string | null;
@@ -68,17 +69,19 @@ export interface MissionChallenge extends ChallengeBase {
  * Solo muestra lo que el cliente REALMENTE tiene: sin desafíos no hay
  * tarjetas decorativas ni un "0 de 3" inventado, hay un estado vacío.
  *
- * El markup de cada fila vive en `ChallengeRow`, compartido con el detalle de
- * lugar y con el check-in. Acá queda únicamente lo propio de esta pantalla:
- * el orden de la lista y que cada fila diga de qué negocio es, porque esta es
- * la única vista que mezcla varios locales.
+ * La composición wallet vive en `WalletChallengeCard`. El texto de cada
+ * mecánica sigue en `toRow`, compartido con el detalle y el check-in.
  */
 export default function ChallengesTab({
   challenges,
   loading,
+  error = false,
+  onRetry,
 }: {
   challenges: MyFlikkerChallenge[];
   loading: boolean;
+  error?: boolean;
+  onRetry?: () => void;
 }) {
   if (loading) {
     return (
@@ -89,30 +92,41 @@ export default function ChallengesTab({
     );
   }
 
+  if (error)
+    return (
+      <div role="alert" className="py-5 text-sm text-[#777780]">
+        No pudimos cargar tus desaf?os.{" "}
+        <button onClick={onRetry} className="font-bold text-[#6851EC]">
+          Reintentar
+        </button>
+      </div>
+    );
+
   if (challenges.length === 0) {
     return (
       <PublicState
         icon={Target}
-        title="Todavía no tenés desafíos"
+        title="No tenés desafíos activos"
+        compact
         description="Cuando alguno de tus lugares proponga un objetivo — como venir 3 veces en el mes — te va a aparecer acá, con tu progreso."
       />
     );
   }
 
   return (
-    <ul className="mt-8 flex w-full flex-col gap-3 pb-16">
-      {challenges.map((challenge) => (
-        <ChallengeRow
-          key={challengeKey(challenge)}
-          showBusiness
-          business={{ name: challenge.businessName }}
-          // Solo acá: la lista cruza varios locales, así que cada fila tiene
-          // que poder llevar hasta el suyo.
-          href={`/mi-flikker/${challenge.businessId}`}
-          {...toRow(challenge)}
-        />
-      ))}
-    </ul>
+    <>
+      <ul className="flex w-full flex-col gap-5">
+        {challenges.map((challenge) => (
+          <WalletChallengeCard
+            key={challengeKey(challenge)}
+            challenge={challenge}
+          />
+        ))}
+      </ul>
+      <p className="mt-4 text-center text-[10px] leading-relaxed text-[#85858F]">
+        Cuando un lugar tenga un desafío para vos, va a aparecer acá.
+      </p>
+    </>
   );
 }
 

@@ -4,18 +4,22 @@ import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
-import { ChevronRight, Gift, Loader2, MapPin, QrCode } from "lucide-react";
+import { ChevronRight, Gift, Loader2, QrCode } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
+import {
+  bestContrastOn,
+  contrastRatio,
+  normalizeHex,
+} from "@/lib/loyalty-card-theme";
+import MiFlikkerHeader from "@/components/public/mi-flikker-header";
 import PublicState from "@/components/public/public-state";
 import CustomerShell from "@/components/public/customer-shell";
 import BottomNav, { type MiFlikkerTab } from "@/components/public/bottom-nav";
 import PhoneInput, { isValidNationalPhone } from "@/components/ui/phone-input";
 import OtpInput from "@/components/ui/otp-input";
-import ChallengesTab, {
-  type MyFlikkerChallenge,
-} from "./challenges-tab";
+import ChallengesTab, { type MyFlikkerChallenge } from "./challenges-tab";
 import RewardsTab, { type MyFlikkerReward } from "./rewards-tab";
-import AccountTab from "./account-tab";
+import AccountTab, { type AccountProfile } from "./account-tab";
 
 /** `?tab=` → pestaña. Cualquier valor raro cae en Lugares. */
 function asTab(raw: string | null): MiFlikkerTab {
@@ -93,12 +97,6 @@ async function postJson(url: string, body: unknown) {
 }
 
 /** El subtítulo de cada pestaña — dice qué estoy mirando, no qué es Flikker. */
-const TAB_SUBTITLES: Record<MiFlikkerTab, string> = {
-  lugares: "Todas tus recompensas Flikker en un solo lugar.",
-  desafios: "Lo que tenés en curso en tus locales.",
-  premios: "Tus beneficios, de todos tus lugares.",
-  cuenta: "Con qué número estás identificado.",
-};
 
 export default function MiFlikkerClient({
   hasSession,
@@ -119,6 +117,10 @@ export default function MiFlikkerClient({
   const [rewardsLoading, setRewardsLoading] = useState(false);
   const [rewardsLoaded, setRewardsLoaded] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [profile, setProfile] = useState<AccountProfile | null>(null);
+  const [profileError, setProfileError] = useState(false);
+  const [challengesError, setChallengesError] = useState(false);
+  const [rewardsError, setRewardsError] = useState(false);
 
   useEffect(() => {
     if (!hasSession) return;
@@ -131,10 +133,11 @@ export default function MiFlikkerClient({
     ahí tocar "Premios" tiene que llevar a Premios. Ver `BottomNav`.
   */
   useEffect(() => {
-    if (view === "desafios") void loadChallenges();
+    if (status !== "places") return;
+    if (view === "desafios" || view === "cuenta") void loadChallenges();
     if (view === "premios") void loadRewards();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view]);
+  }, [view, status]);
 
   /*
     El badge de Premios necesita saber cuántos hay disponibles antes de que
@@ -147,15 +150,32 @@ export default function MiFlikkerClient({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
-  /*
-    Acá vivía el efecto que manejaba la billetera apilada: medía cada card
-    contra una línea de foco, elegía la "activa" y les escribía scale/offset
-    en cada scroll. Se fue junto con el deck — Lugares ahora es una lista
-    vertical común, sin solapamiento, y no necesita ningún listener de scroll.
-  */
+  useEffect(() => {
+    if (view !== "cuenta" || status !== "places") return;
+    const controller = new AbortController();
+    setProfileError(false);
+    void (async () => {
+      try {
+        const res = await fetch("/api/mi-flikker/account", {
+          signal: controller.signal,
+        });
+        if (res.status === 401) {
+          setStatus("verify");
+          return;
+        }
+        if (!res.ok) throw new Error();
+        const value = (await res.json()) as AccountProfile;
+        if (!controller.signal.aborted) setProfile(value);
+      } catch {
+        if (!controller.signal.aborted) setProfileError(true);
+      }
+    })();
+    return () => controller.abort();
+  }, [view, status]);
 
   async function load() {
     setStatus("loading");
+    setLoadError(null);
     try {
       const res = await fetch("/api/mi-flikker/places");
       if (res.status === 401) {
@@ -172,23 +192,25 @@ export default function MiFlikkerClient({
   }
 
   /**
-   * Desafíos se pide recién cuando se abre la pestaña, y una sola vez: es una
-   * consulta por cada negocio del cliente, así que no hay motivo para pagarla
-   * si nunca la mira.
+   * Desafíos se pide al abrir su pestaña o el resumen de Cuenta, una sola vez.
    */
   async function loadChallenges() {
     if (challengesLoaded || challengesLoading) return;
     setChallengesLoading(true);
+    setChallengesError(false);
     try {
       const res = await fetch("/api/mi-flikker/challenges");
+      if (res.status === 401) {
+        setStatus("verify");
+        return;
+      }
+      if (!res.ok) throw new Error();
       if (res.ok) {
         setChallenges((await res.json()) as MyFlikkerChallenge[]);
         setChallengesLoaded(true);
       }
     } catch {
-      // Silencioso a propósito: la pestaña muestra su propio estado vacío,
-      // que dice lo mismo que diría un error ("no hay nada para mostrar")
-      // sin alarmar por algo que se arregla recargando.
+      setChallengesError(true);
     } finally {
       setChallengesLoading(false);
     }
@@ -198,16 +220,20 @@ export default function MiFlikkerClient({
   async function loadRewards() {
     if (rewardsLoaded || rewardsLoading) return;
     setRewardsLoading(true);
+    setRewardsError(false);
     try {
       const res = await fetch("/api/mi-flikker/rewards");
+      if (res.status === 401) {
+        setStatus("verify");
+        return;
+      }
+      if (!res.ok) throw new Error();
       if (res.ok) {
         setRewards((await res.json()) as MyFlikkerReward[]);
         setRewardsLoaded(true);
       }
     } catch {
-      // Silencioso a propósito: la pestaña muestra su propio estado vacío,
-      // que dice lo mismo que diría un error sin alarmar por algo que se
-      // arregla recargando.
+      setRewardsError(true);
     } finally {
       setRewardsLoading(false);
     }
@@ -226,6 +252,7 @@ export default function MiFlikkerClient({
     } finally {
       // Todo lo cargado se descarta: nada de la cuenta anterior puede
       // quedar visible detrás de la pantalla de verificación.
+      setProfile(null);
       setPlaces([]);
       setChallenges([]);
       setChallengesLoaded(false);
@@ -241,6 +268,9 @@ export default function MiFlikkerClient({
     cero polling. Solo cuenta disponibles: canjeados y vencidos no son algo
     pendiente que el cliente tenga que atender.
   */
+  const activeChallengeCount = challenges.filter(
+    (c) => c.kind !== "mission" || c.status === "ACTIVE",
+  ).length;
   const availableRewards = rewards.filter(
     (reward) => reward.status === "AVAILABLE",
   ).length;
@@ -262,17 +292,57 @@ export default function MiFlikkerClient({
 
   return (
     <Shell activeTab={view} rewardsBadge={availableRewards}>
-      <MiFlikkerTitle />
-      <p className="mt-1 text-center text-sm text-[#8A91A3]">
-        {TAB_SUBTITLES[view]}
-      </p>
+      {view !== "cuenta" ? (
+        <MiFlikkerHeader
+          tab={view}
+          chip={
+            view === "lugares"
+              ? loadError
+                ? null
+                : places.length + (places.length === 1 ? " lugar" : " lugares")
+              : view === "premios"
+                ? rewardsLoaded
+                  ? availableRewards +
+                    (availableRewards === 1 ? " disponible" : " disponibles")
+                  : null
+                : challengesLoaded
+                  ? activeChallengeCount +
+                    (activeChallengeCount === 1 ? " activo" : " activos")
+                  : null
+          }
+        />
+      ) : null}
 
       {view === "cuenta" ? (
-        <AccountTab onLogout={() => void logout()} loggingOut={loggingOut} />
+        <AccountTab
+          profile={profile}
+          error={profileError}
+          metrics={
+            !loadError && rewardsLoaded && challengesLoaded
+              ? {
+                  places: places.length,
+                  rewards: availableRewards,
+                  challenges: activeChallengeCount,
+                }
+              : null
+          }
+          onLogout={() => void logout()}
+          loggingOut={loggingOut}
+        />
       ) : view === "premios" ? (
-        <RewardsTab rewards={rewards} loading={rewardsLoading} />
+        <RewardsTab
+          rewards={rewards}
+          loading={rewardsLoading || (!rewardsLoaded && !rewardsError)}
+          error={rewardsError}
+          onRetry={() => void loadRewards()}
+        />
       ) : view === "desafios" ? (
-        <ChallengesTab challenges={challenges} loading={challengesLoading} />
+        <ChallengesTab
+          challenges={challenges}
+          loading={challengesLoading || (!challengesLoaded && !challengesError)}
+          error={challengesError}
+          onRetry={() => void loadChallenges()}
+        />
       ) : loadError ? (
         <p className="mt-6 text-center text-sm text-[#C0392B]">{loadError}</p>
       ) : places.length === 0 ? (
@@ -283,153 +353,19 @@ export default function MiFlikkerClient({
         */
         <PublicState
           icon={QrCode}
-          title="Todavía no tenés ningún lugar"
+          title="Todavía no tenés lugares"
           description="Escaneá el QR de un local Flikker y tu tarjeta aparece acá sola. Si ya tenés una en algún negocio, verificá el mismo WhatsApp que usaste al registrarte ahí."
         />
       ) : (
-        <ul className="mt-6 flex w-full flex-col gap-3 pb-4">
+        <ul className="flex w-full flex-col pb-4 [&>li+li]:-mt-3">
           {places.map((place) => (
             <li key={place.businessId}>
-              <PlaceCard place={place} />
+              <PlacePass place={place} />
             </li>
           ))}
         </ul>
       )}
     </Shell>
-  );
-}
-
-/**
- * Una fila de la lista de Lugares.
- *
- * Deliberadamente NO es la tarjeta de sellos. Antes esta lista era una
- * billetera de cupones apilados: la card con RewardGoal montaba el
- * `LoyaltyCard` completo y las demás se pintaban enteras con el gradiente del
- * negocio, solapadas entre sí. Con diez lugares eso era un mazo imposible de
- * escanear, y cada fila se veía de un producto distinto.
- *
- * Ahora es una lista vertical común: superficie Flikker, una card por lugar,
- * y del negocio solo su logo, el aro y un riel de 5px. La tarjeta completa —
- * sellos, colores, patrón, premio — vive en el detalle del lugar, que es
- * donde el cliente entra a mirarla.
- *
- * Toda la card es el tap target hacia `/mi-flikker/{businessId}`.
- */
-/**
- * Una fila de Lugares.
- *
- * Segunda vuelta de diseño sobre la primera versión de esta card (que ya
- * había reemplazado el deck de cupones solapados). El problema esta vez no
- * era el solapamiento sino que la card se sentía "de IA": el riel de color
- * de 5px pegado al borde izquierdo de una card redondeada es exactamente el
- * patrón que hace que cualquier diseño lea como plantilla genérica, y el
- * progreso solo en texto ("4 de 6 sellos") no daba ninguna lectura rápida.
- *
- * Esta versión saca el riel — el logo (en una tarjeta cuadrada, no un aro
- * circular) es el único lugar donde el negocio aparece — y agrega una barra
- * de progreso real para las tarjetas con `rewardGoal`, que es lo que un
- * producto sólido (tipo Mercado Libre) usa para "cuánto llevás" en vez de
- * texto solo. El premio disponible pasa a ser un chip, no una línea de texto
- * en negrita — más legible como estado, no como otro párrafo más.
- */
-function PlaceCard({ place }: { place: MyFlikkerPlace }) {
-  const palette = useLogoPalette(
-    place.businessId,
-    place.logoUrl,
-    place.primaryColor,
-  );
-  const brand = palette.primary;
-  const summary = placeSummary(place);
-  const pct = summary.progress
-    ? Math.round((summary.progress.current / summary.progress.target) * 100)
-    : 0;
-
-  return (
-    <Link
-      href={`/mi-flikker/${place.businessId}`}
-      className="flex items-center gap-3.5 rounded-[18px] border border-[#E7E8F1] bg-white p-4 transition-colors hover:border-[#DBDDE9] hover:bg-[#FCFCFE] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#6A5DF0] focus-visible:ring-offset-2"
-    >
-      {/*
-        Tarjeta cuadrada con esquinas suaves, no aro circular — un logo de
-        negocio casi siempre es rectangular, así que forzarlo a un círculo lo
-        recorta. El color de marca queda solo en el borde, muy sutil.
-      */}
-      {place.logoUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={place.logoUrl}
-          alt=""
-          className="h-12 w-12 shrink-0 rounded-[12px] border bg-white object-contain p-1.5"
-          style={{ borderColor: "#ECEDF3" }}
-        />
-      ) : (
-        <span
-          className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[12px]"
-          style={{
-            backgroundColor: `color-mix(in srgb, ${brand} 10%, #FFFFFF)`,
-            color: brand,
-          }}
-        >
-          <MapPin className="h-[19px] w-[19px]" aria-hidden="true" />
-        </span>
-      )}
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          {/*
-            `break-words` en vez de `truncate`: un nombre largo se parte en
-            dos líneas y la card crece. Cortarlo con puntos suspensivos deja
-            al cliente sin saber en qué local está, que es lo único que esta
-            fila tiene que responder.
-          */}
-          <p className="min-w-0 flex-1 break-words text-[16px] font-bold leading-tight tracking-[-0.01em] text-[#1A1A24]">
-            {place.businessName}
-          </p>
-        </div>
-
-        {summary.progress ? (
-          <div className="mt-2">
-            <div className="flex items-baseline justify-between gap-2">
-              <p className="text-[13px] font-semibold text-[#3D4053]">
-                {summary.primary}
-              </p>
-            </div>
-            <div
-              className="mt-1.5 h-[5px] w-full overflow-hidden rounded-full"
-              style={{ backgroundColor: "#EDEEF5" }}
-              role="img"
-              aria-label={summary.primary}
-            >
-              <div
-                className="h-full rounded-full"
-                style={{ width: `${pct}%`, backgroundColor: "#6A5DF0" }}
-              />
-            </div>
-            {summary.secondary ? (
-              <p className="mt-1.5 text-[12px] font-medium text-[#8A90A6]">
-                {summary.secondary}
-              </p>
-            ) : null}
-          </div>
-        ) : (
-          <p className="mt-1 text-[13px] font-medium text-[#5A5A6E]">
-            {summary.primary}
-          </p>
-        )}
-
-        {summary.reward ? (
-          <span className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-[#F0F0FC] px-2.5 py-1 text-[12px] font-bold text-[#4A46C4]">
-            <Gift className="h-[13px] w-[13px] shrink-0" aria-hidden="true" />
-            {summary.reward}
-          </span>
-        ) : null}
-      </div>
-
-      <ChevronRight
-        className="h-5 w-5 shrink-0 self-center text-[#B7BACB]"
-        aria-hidden="true"
-      />
-    </Link>
   );
 }
 
@@ -620,11 +556,119 @@ function Shell({
   rewardsBadge?: number;
 }) {
   return (
-    <CustomerShell footer={false}>
-      <div className={activeTab ? "pb-24" : undefined}>{children}</div>
+    <CustomerShell
+      footer={false}
+      wallet={Boolean(activeTab)}
+      compact={Boolean(activeTab)}
+    >
+      <div
+        className={
+          activeTab
+            ? "flex min-h-[calc(100dvh-2.5rem)] flex-col pb-24 [padding-bottom:calc(6rem+env(safe-area-inset-bottom))]"
+            : undefined
+        }
+      >
+        {children}
+      </div>
       {activeTab ? (
         <BottomNav active={activeTab} rewardsBadge={rewardsBadge} />
       ) : null}
     </CustomerShell>
+  );
+}
+/** Compact wallet pass; progress and awards use the existing read model. */
+export function PlacePass({ place }: { place: MyFlikkerPlace }) {
+  const palette = useLogoPalette(
+    place.businessId,
+    place.logoUrl,
+    place.primaryColor,
+  );
+  const color =
+    normalizeHex(place.loyaltyCardColor) ??
+    normalizeHex(place.primaryColor) ??
+    palette.primary;
+  const requested = normalizeHex(place.loyaltyCardTextColor);
+  const text =
+    requested && contrastRatio(requested, color) >= 4.5
+      ? requested
+      : bestContrastOn(color);
+  const summary = placeSummary(place);
+  return (
+    <Link
+      href={`/mi-flikker/${encodeURIComponent(place.businessId)}`}
+      data-place-pass
+      className="relative block overflow-hidden rounded-[20px] px-4 pb-6 pt-3.5 shadow-[0_3px_8px_#17171D08] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#19191F] focus-visible:ring-offset-2"
+      style={{ backgroundColor: color, color: text }}
+    >
+      <div className="flex items-center gap-2.5">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-[9px] bg-white text-xs font-bold text-[#19191F]">
+          {place.logoUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={place.logoUrl}
+              alt=""
+              className="h-full w-full object-contain p-1"
+            />
+          ) : (
+            place.businessName.trim().slice(0, 1).toUpperCase()
+          )}
+        </span>
+        <p className="min-w-0 flex-1 break-words text-[13px] font-bold leading-tight">
+          {place.businessName}
+        </p>
+        {summary.progress && summary.progress.target <= 12 ? (
+          <span className="shrink-0 font-bold">
+            <span className="text-xl">{summary.progress.current}</span>
+            <span className="text-[11px]">/{summary.progress.target}</span>
+          </span>
+        ) : place.visitsTotal > 0 ? (
+          <span className="shrink-0 text-[11px] font-semibold">
+            {summary.primary}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+        {summary.progress ? (
+          <span role="img" aria-label={summary.primary} className="flex gap-1">
+            {Array.from(
+              { length: Math.min(summary.progress.target, 12) },
+              (_, i) => (
+                <span
+                  key={i}
+                  className="h-2 w-2 rounded-full border"
+                  style={{
+                    borderColor: text,
+                    backgroundColor:
+                      i < summary.progress!.current ? text : "transparent",
+                    opacity: i < summary.progress!.current ? 1 : 0.6,
+                  }}
+                />
+              ),
+            )}
+          </span>
+        ) : null}
+        <p className="text-[10px] leading-snug">
+          {summary.progress
+            ? (summary.secondary ?? "Completaste tu tarjeta")
+            : place.visitsTotal === 0
+              ? summary.primary
+              : null}
+        </p>
+      </div>
+      {summary.reward ? (
+        <div
+          className="-mx-4 -mb-2 mt-4 flex items-center gap-3 border-t px-4 pb-1 pt-4"
+          style={{ borderColor: `${text}33` }}
+        >
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[#6851EC]">
+            <Gift className="h-5 w-5" />
+          </span>
+          <p className="min-w-0 flex-1 text-base font-bold leading-tight">
+            {summary.reward}
+          </p>
+          <ChevronRight className="h-4 w-4 shrink-0" />
+        </div>
+      ) : null}
+    </Link>
   );
 }

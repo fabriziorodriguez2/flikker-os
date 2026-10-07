@@ -12,6 +12,7 @@ import { FlikkerAccountSessionsRepository } from './flikker-account-sessions.rep
 import { FlikkerAccountVerificationsRepository } from './flikker-account-verifications.repository';
 import { MyFlikkerController } from './my-flikker.controller';
 import { MyFlikkerService } from './my-flikker.service';
+import { PlaceActivityService } from './place-activity.service';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { MyFlikkerService } from './my-flikker.service';
     FlikkerAccountSessionsRepository,
     FlikkerAccountVerificationsRepository,
     MyFlikkerService,
+    PlaceActivityService,
   ],
   exports: [FlikkerAccountService, FlikkerAccountSessionsRepository],
 })

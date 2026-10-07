@@ -1,0 +1,130 @@
+[
+  {
+    "name": "many",
+    "width": 320,
+    "viewport": 320,
+    "content": 320,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "many",
+    "width": 375,
+    "viewport": 375,
+    "content": 375,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "many",
+    "width": 390,
+    "viewport": 390,
+    "content": 390,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "many",
+    "width": 430,
+    "viewport": 430,
+    "content": 430,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "few",
+    "width": 320,
+    "viewport": 320,
+    "content": 320,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "few",
+    "width": 375,
+    "viewport": 375,
+    "content": 375,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "few",
+    "width": 390,
+    "viewport": 390,
+    "content": 390,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "few",
+    "width": 430,
+    "viewport": 430,
+    "content": 430,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "empty",
+    "width": 320,
+    "viewport": 320,
+    "content": 320,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "empty",
+    "width": 375,
+    "viewport": 375,
+    "content": 375,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "empty",
+    "width": 390,
+    "viewport": 390,
+    "content": 390,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "empty",
+    "width": 430,
+    "viewport": 430,
+    "content": 430,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "long",
+    "width": 320,
+    "viewport": 320,
+    "content": 320,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "long",
+    "width": 375,
+    "viewport": 375,
+    "content": 375,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "long",
+    "width": 390,
+    "viewport": 390,
+    "content": 390,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  },
+  {
+    "name": "long",
+    "width": 430,
+    "viewport": 430,
+    "content": 430,
+    "activeTab": "lugares",
+    "cardBeforeActivity": true
+  }
+]

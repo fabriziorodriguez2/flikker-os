@@ -29,7 +29,10 @@ import {
   X,
   Zap,
 } from "lucide-react";
-import LoyaltyCard from "@/components/public/loyalty-card";
+import LoyaltyCard, {
+  LoyaltyCardActions,
+} from "@/components/public/loyalty-card";
+import CustomerShell from "@/components/public/customer-shell";
 import PhoneFrame from "@/components/ui/phone-frame";
 import {
   DEFAULT_CARD_COLOR,
@@ -154,14 +157,16 @@ export default function ProgramDesignTab({
   canMutate,
   onSave,
   children,
+  previewExtra,
 }: {
   appearance: LoyaltyAppearance;
   businessName: string;
-  rewardName: string;
+  rewardName: string | null;
   stampsRequired: number;
   canMutate: boolean;
   onSave: (patch: Record<string, unknown>) => Promise<void>;
   children?: ReactNode;
+  previewExtra?: ReactNode;
 }) {
   const [cardColor, setCardColor] = useState(
     appearance.loyaltyCardColor ??
@@ -214,9 +219,10 @@ export default function ProgramDesignTab({
     stampAreaColor,
   );
   const resolvedPatternIntensity =
-    patternIntensity ?? automaticPatternIntensity(theme.isDarkCard);
-  const requestedStampIgnored =
-    Boolean(stampColor) && contrastRatio(stampColor, stampBackground) < 3;
+    patternIntensity ??
+    automaticPatternIntensity(
+      buildLoyaltyCardTheme(stampBackground).isDarkCard,
+    );
   const requestedTextIgnored =
     Boolean(textColor) && contrastRatio(textColor, cardColor) < 4.5;
 
@@ -288,9 +294,16 @@ export default function ProgramDesignTab({
   const previewContent = (
     <>
       <PhoneFrame>
-        <div className="flex h-full min-h-full items-start bg-white px-3 pb-6 pt-12">
-          <div className="w-full">
+        <div className="h-full overflow-y-auto" inert>
+          <CustomerShell fill={false} edgeToEdge footer={false}>
             <LoyaltyCard
+              experience
+              fill={false}
+              visitStatus="Tu visita de hoy ya está contada"
+              customerName="Cliente"
+              visits={2}
+              secondaryMessage="Tu tarjeta no cambió con esta visita."
+              actions={<LoyaltyCardActions />}
               rewardName={rewardName}
               progress={Math.min(2, stampsRequired)}
               target={stampsRequired}
@@ -307,13 +320,16 @@ export default function ProgramDesignTab({
                 stampBackgroundPattern: pattern,
                 stampBackgroundOpacity: patternIntensity,
               }}
-            />
-          </div>
+            >
+              {previewExtra}
+            </LoyaltyCard>
+          </CustomerShell>
         </div>
       </PhoneFrame>
       <p className="mt-3 text-xs leading-5 text-[#8891A4]">
-        Los colores con poco contraste se corrigen automáticamente para
-        mantener la tarjeta legible.
+        El mismo diseño que ve tu cliente. El saludo y progreso son ejemplos; la
+        marca, el premio y la apariencia usan tu configuración. Los colores con
+        poco contraste se ajustan para mantener la tarjeta legible.
       </p>
     </>
   );
@@ -365,10 +381,10 @@ export default function ProgramDesignTab({
                     cardColor,
                     textColor || theme.text,
                     stampBackground,
-                    stampColor || theme.accent,
-                  ].map((color) => (
+                    stampColor || cardColor,
+                  ].map((color, index) => (
                     <span
-                      key={color}
+                      key={index}
                       className="h-7 w-7 rounded-full border-2 border-white"
                       style={{ backgroundColor: color }}
                     />
@@ -458,18 +474,18 @@ export default function ProgramDesignTab({
             <DesignSection
               icon={SlidersHorizontal}
               title="Apariencia"
-              description="Colores principales de la tarjeta."
+              description="Tu color de marca en el encabezado; el contenido permanece blanco."
             >
               <div className="space-y-4">
                 <ColorControl
-                  label="Color de la tarjeta"
+                  label="Color principal / encabezado"
                   value={cardColor}
                   fallback={DEFAULT_CARD_COLOR}
                   disabled={!canMutate}
                   onChange={setCardColor}
                 />
                 <ColorControl
-                  label="Color del texto"
+                  label="Texto del encabezado"
                   value={textColor}
                   fallback={theme.text}
                   disabled={!canMutate}
@@ -485,7 +501,7 @@ export default function ProgramDesignTab({
             <DesignSection
               icon={Sparkles}
               title="Diseño de sellos"
-              description="Ícono y colores del área de sellos."
+              description="El mismo ícono en cada sello. Los pendientes se muestran en contorno, sin números."
             >
               <div className="space-y-4">
                 <ColorControl
@@ -497,16 +513,17 @@ export default function ProgramDesignTab({
                   onReset={() => setStampAreaColor("")}
                 />
                 <ColorControl
-                  label="Color de los círculos"
+                  label="Color de los sellos completados"
                   value={stampColor}
-                  fallback={buildLoyaltyCardTheme(stampBackground).accent}
+                  fallback={cardColor}
                   disabled={!canMutate}
                   onChange={setStampColor}
                   onReset={() => setStampColor("")}
                 />
-                {requestedStampIgnored ? (
-                  <ContrastWarning text="Ese color se pierde sobre el fondo de sellos. Usamos automáticamente uno con contraste." />
-                ) : null}
+                <p className="text-xs leading-5 text-[#8891A4]">
+                  El relleno conserva tu color. El ícono se ajusta para que sea
+                  legible; los pendientes usan contorno neutro.
+                </p>
               </div>
 
               <p className="mt-5 text-sm font-semibold text-[#202333]">
@@ -612,9 +629,7 @@ export default function ProgramDesignTab({
                         Usar automático
                       </button>
                     ) : (
-                      <span className="text-xs text-[#9AA2B5]">
-                        Automático
-                      </span>
+                      <span className="text-xs text-[#9AA2B5]">Automático</span>
                     )}
                   </div>
                   <CropSlider
@@ -632,7 +647,7 @@ export default function ProgramDesignTab({
             <DesignSection
               icon={ImageUp}
               title="Imagen de fondo"
-              description="Opcional, aparece detrás del contenido."
+              description="Opcional, aparece detrás del encabezado."
             >
               {backgroundImage ? (
                 <div className="relative h-40 overflow-hidden rounded-[14px] border border-[#E4E7EF]">
@@ -770,7 +785,7 @@ export default function ProgramDesignTab({
           cardColor={cardColor}
           textColor={textColor || theme.text}
           stampAreaColor={stampBackground}
-          stampColor={stampColor || theme.accent}
+          stampColor={stampColor || cardColor}
           onCardColor={setCardColor}
           onTextColor={setTextColor}
           onStampAreaColor={setStampAreaColor}

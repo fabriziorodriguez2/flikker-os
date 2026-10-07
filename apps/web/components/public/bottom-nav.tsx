@@ -36,29 +36,30 @@ export default function BottomNav({
   return (
     <nav
       aria-label="Secciones de Mi Flikker"
-      className="fixed inset-x-0 bottom-0 z-40 border-t bg-white pb-[env(safe-area-inset-bottom)]"
+      className="fixed inset-x-0 bottom-0 z-40 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))]"
       style={{ borderColor: "var(--pub-surface-border, #E7E8F1)" }}
     >
-      <ul className="mx-auto flex w-full max-w-md items-stretch">
+      <ul className="mx-auto flex w-full max-w-[424px] items-stretch rounded-[20px] bg-[#19191F] p-1.5 shadow-[0_8px_24px_#19191F18]">
         {TABS.map(({ key, label, icon: Icon }) => {
           const current = key === active;
           return (
             <li key={key} className="flex-1">
               <Link
-                href={key === "lugares" ? "/mi-flikker" : `/mi-flikker?tab=${key}`}
+                href={
+                  key === "lugares" ? "/mi-flikker" : `/mi-flikker?tab=${key}`
+                }
                 aria-current={current ? "page" : undefined}
                 data-tab={key}
                 data-active={current ? "true" : "false"}
-                className="flex flex-col items-center gap-1 px-1 pb-2 pt-2.5 transition-colors"
+                className="flex min-h-[48px] flex-col items-center justify-center gap-1 rounded-[14px] px-1 py-1.5 transition-colors"
                 style={{
-                  color: current
-                    ? "var(--pub-accent, #6A5DF0)"
-                    : "var(--pub-text-soft, #8A90A6)",
+                  backgroundColor: current ? "#FFFFFF" : "transparent",
+                  color: current ? "#19191F" : "#C0BEC9",
                 }}
               >
                 <span className="relative">
                   <Icon
-                    className="h-[22px] w-[22px]"
+                    className="h-[18px] w-[18px]"
                     strokeWidth={current ? 2.4 : 1.9}
                     aria-hidden="true"
                   />
@@ -74,7 +75,7 @@ export default function BottomNav({
                     </span>
                   ) : null}
                 </span>
-                <span className="text-[11px] font-semibold leading-none">
+                <span className="text-[10px] font-semibold leading-none">
                   {label}
                 </span>
               </Link>
