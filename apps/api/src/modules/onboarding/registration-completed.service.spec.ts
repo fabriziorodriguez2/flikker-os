@@ -24,7 +24,16 @@ describe('RegistrationCompletedService', () => {
     email: 'juan@ejemplo.com',
     notificationWhatsapp: '+59899123456',
   };
-  const BUSINESS = { name: 'Café Ejemplo' };
+  const BUSINESS = {
+    name: 'Café Ejemplo',
+    subscription: {
+      plan: {
+        slug: 'free',
+        name: 'Free — sellos y beneficios',
+        maxCustomers: 73,
+      },
+    },
+  };
 
   function makeDeps(opts: { claimed?: boolean } = {}) {
     const prisma = {
@@ -81,6 +90,20 @@ describe('RegistrationCompletedService', () => {
 
     expect(deps.email.send).toHaveBeenCalled();
     expect(deps.whatsApp.sendText).toHaveBeenCalledTimes(1); // solo la bienvenida al usuario
+  });
+
+  it('renders the real subscription limit without changing the notification flow', async () => {
+    const deps = makeDeps();
+    await makeService(deps).fire('biz-1', 'user-1');
+    expect(deps.email.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: USER.email,
+        subject: 'Bienvenido a Flikker',
+        html: expect.stringContaining('Hasta 73 clientes'),
+      }),
+    );
+    expect(deps.email.send.mock.calls[0][0].html).toContain('Hola Juan,');
+    expect(deps.whatsApp.sendText).toHaveBeenCalledTimes(2);
   });
 
   it('ya reclamado (claim perdido): no lee User/Business ni manda nada', async () => {

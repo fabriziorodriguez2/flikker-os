@@ -26,8 +26,11 @@ WhatsApp, por lo que no deben contarse como emails faltantes.
 
 ## Arquitectura
 
-- `email-design-system.ts` concentra layout, tokens, header con wordmark SVG,
-  preheader, botones, callouts, códigos, métricas, footer y escape de contenido.
+- `email-design-system.ts` concentra los helpers anteriores. Confirmación,
+  bienvenida Base/Pro y resumen semanal de producto comparten ahora el shell,
+  tokens, logo PNG, cards, CTA y footer de `product-email-layout.ts`.
+  Ver [familia de emails de producto](email-product-family.md) para el inventario
+  actualizado, contexto de plan y límites del transporte plain text.
 - Las plantillas continúan devolviendo `{ subject, html }` y el transporte sigue
   siendo `EmailService` + Resend. No se alteraron jobs, destinatarios ni reglas
   de negocio.
@@ -45,9 +48,11 @@ Desde `apps/api`:
 npm run emails:preview
 ```
 
-El comando genera `.email-previews/index.html` y 15 escenarios individuales,
+El comando genera `.email-previews/index.html` y 18 escenarios individuales,
 incluyendo variantes con poca actividad, progreso/reactivación y ambos resúmenes
-semanales. El directorio generado es local y está ignorado por Git.
+semanales, además de las bienvenidas Base/Pro y la referencia semanal de producto.
+`product-family.html` permite comparar la familia en desktop y tres anchos móviles.
+El directorio generado es local y está ignorado por Git.
 
 ## Verificación
 
