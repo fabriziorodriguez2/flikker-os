@@ -6,6 +6,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { AuthSplitShell } from "@/components/auth/auth-split-shell";
 import { getSafeInternalPath } from "@/lib/safe-redirect";
+import {
+  AuthDivider,
+  GoogleAuthButton,
+} from "@/components/auth/google-auth-button";
+import {
+  buildGoogleStartHref,
+  GOOGLE_AUTH_ERROR_MESSAGE,
+} from "@/lib/google-oauth";
 
 export default function LoginPage() {
   return (
@@ -18,7 +26,10 @@ export default function LoginPage() {
 function LoginPageContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [error, setError] = useState<string | null>(null);
+  // Vuelta fallida de "Continuar con Google": copy genérico, sin internals.
+  const [error, setError] = useState<string | null>(() =>
+    searchParams.get("error") === "google" ? GOOGLE_AUTH_ERROR_MESSAGE : null,
+  );
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -76,6 +87,11 @@ function LoginPageContent() {
           Accedé a tu panel y seguí haciendo crecer tu negocio.
         </p>
       </div>
+
+      <GoogleAuthButton
+        href={buildGoogleStartHref({ origin: "login", next: safeNext })}
+      />
+      <AuthDivider />
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {searchParams.get("reason") === "session_expired" ? (

@@ -115,4 +115,22 @@ describe('AuthService.changePassword', () => {
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(repo.updatePasswordAndRevokeSessions).not.toHaveBeenCalled();
   });
+
+  it('cuenta solo-Google (sin password): explica cómo crearla, sin null errors', async () => {
+    const repo = makeRepo();
+    repo.findUserCredentials.mockResolvedValue({
+      id: 'u-1',
+      passwordHash: null,
+      isActive: true,
+    });
+    const service = makeService(repo);
+
+    await expect(
+      service.changePassword('u-1', {
+        currentPassword,
+        newPassword: 'brandNewPass456',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(repo.updatePasswordAndRevokeSessions).not.toHaveBeenCalled();
+  });
 });

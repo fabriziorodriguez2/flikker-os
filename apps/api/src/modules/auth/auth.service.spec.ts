@@ -314,6 +314,21 @@ describe('AuthService', () => {
       ).rejects.toThrow(UnauthorizedException);
     });
 
+    it('cuenta solo-Google (sin password): responde que usa Google, sin null errors ni sesión', async () => {
+      mockRepository.findUserByEmail.mockResolvedValue({
+        id: '1',
+        email: 'user@example.com',
+        isActive: true,
+        passwordHash: null,
+        googleSub: 'google-sub-1',
+        emailVerifiedAt: new Date(),
+      });
+      await expect(
+        service.login({ email: 'user@example.com', password: 'password1' }),
+      ).rejects.toThrow('Esta cuenta usa Google para iniciar sesión.');
+      expect(mockRepository.createSession).not.toHaveBeenCalled();
+    });
+
     it('throws UnauthorizedException on wrong password', async () => {
       const hash = await bcrypt.hash('correct-pass', 10);
       mockRepository.findUserByEmail.mockResolvedValue({

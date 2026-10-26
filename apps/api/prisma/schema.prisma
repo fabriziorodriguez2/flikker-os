@@ -387,7 +387,12 @@ model User {
   email                 String    @unique
   notificationEmail     String?   @map("notification_email")
   notificationWhatsapp  String?   @map("notification_whatsapp")
-  passwordHash          String
+  /// Null = cuenta creada con "Continuar con Google" que todavía no definió
+  /// contraseña. Puede crearla con el flujo verificado de forgot/reset.
+  passwordHash          String?
+  /// `sub` de Google (identidad estable, NO el email). Null = nunca entró con
+  /// Google. Único: una identidad Google pertenece a un solo User.
+  googleSub             String?   @unique @map("google_sub")
   firstName             String
   lastName              String
   isPlatformAdmin       Boolean   @default(false)

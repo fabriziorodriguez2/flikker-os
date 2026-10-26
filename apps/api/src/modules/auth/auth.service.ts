@@ -35,6 +35,9 @@ const EMAIL_VERIFICATION_EXPIRY_HOURS = 48;
 const VERIFICATION_SENT_MESSAGE = 'Revisá tu correo';
 const RESEND_VERIFICATION_MESSAGE =
   'Si el correo existe y no fue confirmado, te reenviamos el enlace';
+/** La web lo compara literal para mostrarlo tal cual — no cambiar sin `apps/web/app/api/auth/login/route.ts`. */
+export const GOOGLE_ONLY_ACCOUNT_MESSAGE =
+  'Esta cuenta usa Google para iniciar sesión.';
 
 /**
  * How long a refresh session stays usable without activity. The window slides:
@@ -180,6 +183,13 @@ export class AuthService {
 
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Invalid credentials');
+    }
+
+    // Cuenta creada con "Continuar con Google" que nunca definió contraseña.
+    // Decir que existe no agrega enumeración: el signup ya responde 409 para
+    // un email registrado.
+    if (!user.passwordHash) {
+      throw new UnauthorizedException(GOOGLE_ONLY_ACCOUNT_MESSAGE);
     }
 
     const passwordValid = await bcrypt.compare(dto.password, user.passwordHash);
@@ -373,6 +383,12 @@ export class AuthService {
       throw new UnauthorizedException();
     }
 
+    if (!user.passwordHash) {
+      throw new BadRequestException(
+        'Tu cuenta todavía no tiene contraseña. Creala desde "¿Olvidaste tu contraseña?" en el login.',
+      );
+    }
+
     const currentValid = await bcrypt.compare(
       dto.currentPassword,
       user.passwordHash,
@@ -433,6 +449,24 @@ export class AuthService {
   async updateNotificationWhatsapp(userId: string, phone: string) {
     const phoneE164 = normalizeToE164(phone);
     return this.repository.updateNotificationWhatsapp(userId, phoneE164);
+  }
+
+  /**
+   * Misma sesión que arma `login`: tokens JWT + fila `Session`. La usa
+   * "Continuar con Google" para que no exista una sesión paralela — Google
+   * solo prueba la identidad, después todo es auth Flikker normal.
+   */
+  async issueSession(userId: string, userAgent?: string, ip?: string) {
+    const { accessToken, refreshToken, refreshTokenHash } =
+      this.generateTokens(userId);
+    await this.repository.createSession({
+      userId,
+      refreshTokenHash,
+      userAgent: userAgent ?? null,
+      ip: ip ?? null,
+      expiresAt: buildSessionExpiry(),
+    });
+    return { accessToken, refreshToken };
   }
 
   // ---------------------------------------------------------------------------

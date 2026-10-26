@@ -1,6 +1,9 @@
 import { apiFetch, ApiError } from "@/lib/api";
 import { setSession, type Session } from "@/lib/auth";
 
+/** Literal de `GOOGLE_ONLY_ACCOUNT_MESSAGE` en `apps/api/.../auth.service.ts`. */
+const GOOGLE_ONLY_ACCOUNT_MESSAGE = "Esta cuenta usa Google para iniciar sesión.";
+
 interface LoginResponse {
   accessToken: string;
   refreshToken: string;
@@ -57,6 +60,19 @@ export async function POST(request: Request) {
       redirectTo: data.user.isPlatformAdmin ? "/platform" : "/dashboard",
     });
   } catch (err) {
+    if (
+      err instanceof ApiError &&
+      err.status === 401 &&
+      err.message === GOOGLE_ONLY_ACCOUNT_MESSAGE
+    ) {
+      return Response.json(
+        {
+          message:
+            "Esta cuenta usa Google para iniciar sesión. Tocá “Continuar con Google” o creá una contraseña desde “¿Olvidaste tu contraseña?”.",
+        },
+        { status: 401 },
+      );
+    }
     if (err instanceof ApiError && err.status === 401) {
       return Response.json(
         { message: "Email o contraseña incorrectos" },
