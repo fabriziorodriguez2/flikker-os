@@ -5,6 +5,8 @@ import { PolicyModule } from '../../policy/policy.module';
 import { AiModule } from '../../ai/ai.module';
 import { PlannerService } from '../plans/planner.service';
 import { BusinessSnapshotService } from '../plans/business-snapshot.service';
+import { PlanExecutorService } from '../plans/plan-executor.service';
+import { PlanMeasurementService } from '../plans/plan-measurement.service';
 import { AutonomyService } from './autonomy.service';
 import { AutonomyAdminService } from './autonomy-admin.service';
 import {
@@ -27,7 +29,14 @@ import {
     // Planificador con IA (simulación).
     PlannerService,
     BusinessSnapshotService,
+    PlanExecutorService,
+    PlanMeasurementService,
   ],
-  exports: [AutonomyService, AutonomyAdminService, PlannerService],
+  exports: [
+    AutonomyService,
+    AutonomyAdminService,
+    PlannerService,
+    PlanMeasurementService,
+  ],
 })
 export class AutonomyModule {}

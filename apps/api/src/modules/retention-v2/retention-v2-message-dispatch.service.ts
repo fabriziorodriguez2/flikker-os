@@ -17,6 +17,7 @@ import {
   hasEmailMarketingConsent,
   hasWhatsappMarketingConsent,
 } from '../policy/marketing-consent';
+import { planExecutionAllowed } from '../policy/plan-execution';
 import { policyBlockerCode } from './retention-v2-send.service';
 import {
   DECISION_CODES,
@@ -155,9 +156,14 @@ export class RetentionV2MessageDispatchService {
     const isProgressReminder =
       message.retentionAssignment.experiment.objective ===
       RetentionObjective.REWARD_GOAL_PROGRESS;
-    const automationEnabled = isProgressReminder
-      ? settings.progressReminderEnabled
-      : settings.automaticCampaignsEnabled;
+    const isPlan =
+      message.retentionAssignment.experiment.objective ===
+      RetentionObjective.INTELLIGENCE_PLAN;
+    const automationEnabled = isPlan
+      ? await planExecutionAllowed(this.prisma, message.businessId)
+      : isProgressReminder
+        ? settings.progressReminderEnabled
+        : settings.automaticCampaignsEnabled;
 
     if (!message.business.retentionEngineV2Enabled || !automationEnabled) {
       return this.skipTerminal(message, 'AUTOMATION_DISABLED');

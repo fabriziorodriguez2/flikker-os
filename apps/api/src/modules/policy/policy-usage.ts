@@ -292,8 +292,10 @@ export async function loadUsage(
         source: true,
       },
     }),
-    // Campañas nuevas de la semana: promociones manuales y corridas del
-    // modo autónomo de Intelligence que reclutaron de verdad (PILOT).
+    // Campañas nuevas de la semana: promociones manuales, corridas de reglas
+    // fijas del modo autónomo que reclutaron de verdad (PILOT) y cada plan
+    // del planificador ejecutado (uno por plan, no por corrida: una corrida
+    // puede ejecutar varios).
     Promise.all([
       db.manualCampaign.count({
         where: { businessId, createdAt: { gte: weekStart } },
@@ -303,10 +305,14 @@ export async function loadUsage(
           businessId,
           mode: 'PILOT',
           status: 'EXECUTED',
+          engine: 'RULES',
           createdAt: { gte: weekStart },
         },
       }),
-    ]).then(([manual, autonomous]) => manual + autonomous),
+      db.intelligencePlan.count({
+        where: { businessId, executedAt: { gte: weekStart } },
+      }),
+    ]).then(([manual, autonomous, plans]) => manual + autonomous + plans),
     candidates.length
       ? db.manualCampaignContact.findMany({
           where: {

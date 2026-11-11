@@ -40,7 +40,13 @@ export class RetentionExperimentService {
    */
   async findUsableRunning(businessId: string) {
     const experiments = await this.prisma.retentionExperiment.findMany({
-      where: { businessId, status: RetentionExperimentStatus.RUNNING },
+      where: {
+        businessId,
+        status: RetentionExperimentStatus.RUNNING,
+        // Los experimentos de un plan de Intelligence los recluta el plan:
+        // Autopilot nunca suma clientes a ellos por su cuenta.
+        objective: { not: RetentionObjective.INTELLIGENCE_PLAN },
+      },
       include: {
         variants: {
           select: {

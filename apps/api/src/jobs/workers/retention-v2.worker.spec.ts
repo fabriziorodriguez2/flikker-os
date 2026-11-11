@@ -60,6 +60,9 @@ function makeWorker(deps: ReturnType<typeof makeDeps>) {
     deps.dispatch as never,
     deps.queue as never,
     deps.autonomy as never,
+    {
+      refreshAll: jest.fn().mockResolvedValue({ plans: 0, updated: 0 }),
+    } as never,
   );
 }
 

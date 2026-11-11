@@ -49,6 +49,18 @@ export class SetAutonomyModeDto {
   @IsOptional()
   @IsBoolean()
   plannerEnabled?: boolean;
+
+  /**
+   * Los planes elegidos se ejecutan de verdad (reclutan y envían). Exige
+   * PILOT, planificador prendido y `confirmPlannerExecution`.
+   */
+  @IsOptional()
+  @IsBoolean()
+  plannerExecutionEnabled?: boolean;
+
+  @IsOptional()
+  @IsBoolean()
+  confirmPlannerExecution?: boolean;
 }
 
 /**

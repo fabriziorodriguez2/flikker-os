@@ -87,6 +87,12 @@ function openingLine(
       throw new Error(
         'openingLine is never used for REWARD_GOAL_PROGRESS — PROGRESS_REMINDER and CONTROL both short-circuit before this call',
       );
+    case RetentionObjective.INTELLIGENCE_PLAN:
+      // Las variantes de un plan traen su propio texto ya validado
+      // (`RetentionVariant.messageTemplate`): nunca llegan acá.
+      throw new Error(
+        'openingLine is never used for INTELLIGENCE_PLAN — plan variants carry their own validated messageTemplate',
+      );
   }
 }
 

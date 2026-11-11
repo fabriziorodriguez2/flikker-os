@@ -506,6 +506,9 @@ describe('Intelligence — modo autónomo (integration)', () => {
         app.get(RetentionV2MessageDispatchService),
         deadQueue as never,
         autonomy,
+        {
+          refreshAll: jest.fn().mockResolvedValue({ plans: 0, updated: 0 }),
+        } as never,
       );
       const job = { name: RUN_RETENTION_V2_EVALUATE_JOB, data: {} } as never;
       await worker.process(job);
@@ -652,7 +655,60 @@ describe('Intelligence — modo autónomo (integration)', () => {
         mode: 'PILOT',
         pilotGroupSize: 5,
         plannerEnabled: false,
+        plannerExecutionEnabled: false,
       });
+    });
+
+    it('ejecutar planes de verdad exige PILOT, planificador y su propia confirmación', async () => {
+      const url = `/platform/businesses/${biz.id}/autonomy`;
+      const noConfirm = await request(app.getHttpServer())
+        .patch(url)
+        .set(as(owner, biz.id, true))
+        .send({
+          mode: 'PILOT',
+          confirmPilot: true,
+          plannerEnabled: true,
+          plannerExecutionEnabled: true,
+        });
+      expect(noConfirm.status).toBe(400);
+      expect(noConfirm.body.message).toContain(
+        'confirmación explícita de la ejecución de planes',
+      );
+
+      const notPilot = await request(app.getHttpServer())
+        .patch(url)
+        .set(as(owner, biz.id, true))
+        .send({
+          mode: 'DRY_RUN',
+          plannerEnabled: true,
+          plannerExecutionEnabled: true,
+          confirmPlannerExecution: true,
+        });
+      expect(notPilot.status).toBe(400);
+      expect(notPilot.body.message).toContain('modo Piloto');
+
+      const ok = await request(app.getHttpServer())
+        .patch(url)
+        .set(as(owner, biz.id, true))
+        .send({
+          mode: 'PILOT',
+          confirmPilot: true,
+          plannerEnabled: true,
+          plannerExecutionEnabled: true,
+          confirmPlannerExecution: true,
+        });
+      expect(ok.status).toBe(200);
+      expect(ok.body).toMatchObject({
+        plannerEnabled: true,
+        plannerExecutionEnabled: true,
+      });
+
+      // Volver a simulación apaga la ejecución sola.
+      const back = await request(app.getHttpServer())
+        .patch(url)
+        .set(as(owner, biz.id, true))
+        .send({ mode: 'DRY_RUN', plannerEnabled: true });
+      expect(back.body).toMatchObject({ plannerExecutionEnabled: false });
     });
 
     it('el dueño lo apaga en cualquier momento (rollback)', async () => {
@@ -665,7 +721,8 @@ describe('Intelligence — modo autónomo (integration)', () => {
         await prisma.auditLog.count({
           where: { businessId: biz.id, action: 'AUTONOMY_MODE_SET' },
         }),
-      ).toBe(2);
+        // PILOT, ejecución de planes, vuelta a simulación y el apagado.
+      ).toBe(4);
     });
   });
 });

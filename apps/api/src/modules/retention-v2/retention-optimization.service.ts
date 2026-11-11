@@ -6,6 +6,7 @@ import {
   OptimizationTrigger,
   Prisma,
   RetentionExperimentStatus,
+  RetentionObjective,
   RetentionStrategyType,
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -132,6 +133,8 @@ export class RetentionOptimizationService {
     return this.prisma.retentionExperiment.findMany({
       where: {
         status: RetentionExperimentStatus.RUNNING,
+        // El reparto de un plan lo decidió el plan: el optimizador no lo toca.
+        objective: { not: RetentionObjective.INTELLIGENCE_PLAN },
         business: {
           isActive: true,
           experienceVersion: ExperienceVersion.CHECKIN_V2,

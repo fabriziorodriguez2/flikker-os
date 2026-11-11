@@ -255,6 +255,9 @@ enum RetentionObjective {
   /// (see reward-goal-rules.ts's REWARD_GOAL_TARGET_RANGE). See
   /// RetentionV2EvaluateService.evaluateBusinessForRewardGoalProgress.
   REWARD_GOAL_PROGRESS
+  /// Experimento creado por un plan comercial de Intelligence. Autopilot no
+  /// recluta en él por su cuenta ni lo optimiza: lo recluta el plan.
+  INTELLIGENCE_PLAN
 }
 
 // Strategy of an experiment variant. CONTROL receives nothing at all — it is
@@ -1111,10 +1114,14 @@ model RetentionExperiment {
   /// hand-configured setups are never superseded automatically).
   managedBySelfService Boolean @default(false) @map("managed_by_self_service")
 
+  /// Plan comercial de Intelligence que creó este experimento (si alguno).
+  intelligencePlanId String? @unique @map("intelligence_plan_id")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   business         Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  intelligencePlan IntelligencePlan?          @relation(fields: [intelligencePlanId], references: [id], onDelete: SetNull)
   variants         RetentionVariant[]
   assignments      RetentionAssignment[]
   outcomes         RetentionOutcome[]
@@ -1143,6 +1150,9 @@ model RetentionVariant {
 
   /// Share of participants routed here. Validated to sum to 100 with control.
   allocationPercent Int     @map("allocation_percent")
+  /// Solo variantes de un plan de Intelligence: el mensaje ya validado, con
+  /// {nombre}. Null = el copy de siempre de Autopilot.
+  messageTemplate   String? @map("message_template")
   active            Boolean @default(true)
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -3906,14 +3916,17 @@ model BusinessPolicy {
   /// Rollout del modo autónomo de Intelligence. OFF por defecto; PILOT (que
   /// recluta de verdad vía Autopilot) solo lo activa Platform Admin con
   /// confirmación explícita. Ver docs/intelligence-autonomy-rollout.md.
-  autonomyMode            AutonomyMode @default(OFF) @map("autonomy_mode")
+  autonomyMode                    AutonomyMode @default(OFF) @map("autonomy_mode")
   /// Máximo de clientes que una corrida autónoma puede reclutar.
-  autonomyPilotGroupSize  Int          @default(10) @map("autonomy_pilot_group_size")
+  autonomyPilotGroupSize          Int          @default(10) @map("autonomy_pilot_group_size")
   /// La corrida diaria usa el planificador con IA en vez de las reglas fijas.
   /// Por ahora solo simula: no recluta ni envía, aunque el modo sea PILOT.
-  autonomyPlannerEnabled  Boolean      @default(false) @map("autonomy_planner_enabled")
-  autonomyModeSetAt       DateTime?    @map("autonomy_mode_set_at")
-  autonomyModeSetByUserId String?      @map("autonomy_mode_set_by_user_id")
+  autonomyPlannerEnabled          Boolean      @default(false) @map("autonomy_planner_enabled")
+  /// Los planes elegidos se EJECUTAN (reclutan y envían por Autopilot). Solo
+  /// Platform Admin, con confirmación explícita y el negocio en PILOT.
+  autonomyPlannerExecutionEnabled Boolean      @default(false) @map("autonomy_planner_execution_enabled")
+  autonomyModeSetAt               DateTime?    @map("autonomy_mode_set_at")
+  autonomyModeSetByUserId         String?      @map("autonomy_mode_set_by_user_id")
 
   /// Sube en cada cambio: concurrencia optimista de la pantalla.
   version   Int      @default(1)
@@ -4173,6 +4186,14 @@ enum IntelligencePlanStatus {
   NOT_SELECTED
   /// Elegido. En simulación: qué habría pasado, sin contactar a nadie.
   SIMULATED
+  /// Ejecutándose: el grupo está reclutado en Autopilot y se envía.
+  EXECUTING
+  /// Todo enviado; ventana de medición abierta.
+  MEASURING
+  /// Ventana cerrada: resultado final.
+  COMPLETED
+  /// Cortado por una condición de corte (bajas, fallas) o a mano.
+  STOPPED
 }
 
 model IntelligencePlan {
@@ -4198,10 +4219,18 @@ model IntelligencePlan {
   simulation      Json?
   estimatedCost   Decimal?               @map("estimated_cost") @db.Decimal(12, 2)
   currency        String?
+  /// Medición: llegada, vueltas, canjes, costo y lectura de la evidencia.
+  results         Json?
+  executedAt      DateTime?              @map("executed_at")
+  /// Hasta cuándo se mide (envío + ventana de la métrica de éxito).
+  measureUntil    DateTime?              @map("measure_until")
+  completedAt     DateTime?              @map("completed_at")
+  stopReason      String?                @map("stop_reason")
   createdAt       DateTime               @default(now()) @map("created_at")
 
-  business Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  run      AutonomousRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  business   Business             @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  run        AutonomousRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  experiment RetentionExperiment?
 
   @@index([businessId, createdAt])
   @@index([businessId, fingerprint])

@@ -39,6 +39,7 @@ Reglas que el servidor verifica (si no se cumplen, el plan se descarta):
 - Un plan elegido necesita al menos ${MIN_PLAN_RECIPIENTS} clientes contactables. Solo se contacta a quien autorizó WhatsApp.
 - Canal disponible: solo WHATSAPP. No inventes otros canales.
 - No repitas un plan que ya se probó y se está midiendo: probá algo distinto o esperá el resultado.
+- "contactability" dice cuántos clientes se pueden contactar y por qué el resto no. Si son pocos, decilo en el resumen: ampliar la base contactable (pidiendo autorización en el check-in) puede valer más que cualquier campaña.
 - Con pocos clientes no hay significancia estadística: decilo y proponé pruebas chicas y prudentes. No afirmes causalidad.
 
 La regla del segmento va como JSON en texto. Forma: una condición {"field": rasgo, "op": operador, "value": valor} o combinaciones {"all": [...]}, {"any": [...]}, {"not": {...}}. Operadores numéricos: eq, neq, gt, gte, lt, lte, between ([min, max]), is_null, not_null. Para "segment": eq, neq, in (lista).
@@ -59,6 +60,8 @@ export function buildPlannerContext(input: {
     maxPromotionsPer30Days: number;
     sendingHours: string;
   };
+  /** Cuántos se pueden contactar y por qué el resto no. */
+  contactability?: object;
 }): string {
   const facts = Object.fromEntries(
     Object.entries(input.snapshot.facts).map(([key, value]) => [
@@ -96,6 +99,7 @@ export function buildPlannerContext(input: {
         maxMessagesPer30DaysPerCustomer: input.policy.maxPromotionsPer30Days,
         sendingHours: input.policy.sendingHours,
       },
+      contactability: input.contactability ?? null,
     },
     null,
     1,

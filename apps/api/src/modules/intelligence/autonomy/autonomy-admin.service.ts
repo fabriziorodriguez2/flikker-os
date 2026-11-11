@@ -33,6 +33,8 @@ export class AutonomyAdminService {
       pilotGroupSize?: number;
       confirmPilot?: boolean;
       plannerEnabled?: boolean;
+      plannerExecutionEnabled?: boolean;
+      confirmPlannerExecution?: boolean;
     },
   ) {
     const business = await this.prisma.business.findUnique({
@@ -46,6 +48,7 @@ export class AutonomyAdminService {
             paused: true,
             messageUnitCost: true,
             autonomyMode: true,
+            autonomyPlannerEnabled: true,
           },
         },
       },
@@ -76,6 +79,35 @@ export class AutonomyAdminService {
         );
       }
     }
+    // Ejecutar planes de verdad: otra decisión explícita, aparte del piloto.
+    if (input.plannerExecutionEnabled) {
+      const plannerOn =
+        input.plannerEnabled ??
+        business.policy?.autonomyPlannerEnabled ??
+        false;
+      const missing: string[] = [];
+      if (input.mode !== AutonomyMode.PILOT) missing.push('modo Piloto');
+      if (!plannerOn) missing.push('planificador prendido');
+      if (!input.confirmPlannerExecution) {
+        missing.push('confirmación explícita de la ejecución de planes');
+      }
+      if (!business.policy?.acceptedAt) missing.push('política aceptada');
+      if (business.policy?.messageUnitCost == null) {
+        missing.push('costo por mensaje');
+      }
+      if (missing.length > 0) {
+        throw new BadRequestException(
+          `Para ejecutar planes de verdad falta: ${missing.join(', ')}.`,
+        );
+      }
+    }
+    // Fuera de PILOT o sin planificador, la ejecución nunca queda prendida.
+    const executionEnabled =
+      input.mode === AutonomyMode.PILOT &&
+      (input.plannerEnabled ??
+        business.policy?.autonomyPlannerEnabled ??
+        false) &&
+      (input.plannerExecutionEnabled ?? false);
     const before = business.policy?.autonomyMode ?? AutonomyMode.OFF;
     const policy = await this.prisma.businessPolicy.upsert({
       where: { businessId },
@@ -84,6 +116,7 @@ export class AutonomyAdminService {
         autonomyMode: input.mode,
         autonomyPilotGroupSize: input.pilotGroupSize ?? 10,
         autonomyPlannerEnabled: input.plannerEnabled ?? false,
+        autonomyPlannerExecutionEnabled: executionEnabled,
         autonomyModeSetAt: new Date(),
         autonomyModeSetByUserId: adminUserId,
       },
@@ -95,6 +128,7 @@ export class AutonomyAdminService {
         ...(input.plannerEnabled !== undefined
           ? { autonomyPlannerEnabled: input.plannerEnabled }
           : {}),
+        autonomyPlannerExecutionEnabled: executionEnabled,
         autonomyModeSetAt: new Date(),
         autonomyModeSetByUserId: adminUserId,
         version: { increment: 1 },
@@ -111,12 +145,14 @@ export class AutonomyAdminService {
         after: input.mode,
         pilotGroupSize: policy.autonomyPilotGroupSize,
         plannerEnabled: policy.autonomyPlannerEnabled,
+        plannerExecutionEnabled: policy.autonomyPlannerExecutionEnabled,
       },
     });
     return {
       mode: policy.autonomyMode,
       pilotGroupSize: policy.autonomyPilotGroupSize,
       plannerEnabled: policy.autonomyPlannerEnabled,
+      plannerExecutionEnabled: policy.autonomyPlannerExecutionEnabled,
     };
   }
 
@@ -131,6 +167,7 @@ export class AutonomyAdminService {
         where: { businessId },
         data: {
           autonomyMode: AutonomyMode.OFF,
+          autonomyPlannerExecutionEnabled: false,
           autonomyModeSetAt: new Date(),
           autonomyModeSetByUserId: userId,
           version: { increment: 1 },
@@ -158,6 +195,7 @@ export class AutonomyAdminService {
           autonomyPilotGroupSize: true,
           autonomyModeSetAt: true,
           autonomyPlannerEnabled: true,
+          autonomyPlannerExecutionEnabled: true,
           messageUnitCost: true,
         },
       }),
@@ -175,6 +213,7 @@ export class AutonomyAdminService {
       pilotGroupSize: policy?.autonomyPilotGroupSize ?? 10,
       modeSetAt: policy?.autonomyModeSetAt ?? null,
       plannerEnabled: policy?.autonomyPlannerEnabled ?? false,
+      plannerExecutionEnabled: policy?.autonomyPlannerExecutionEnabled ?? false,
       runs: runs.map((run) => this.runView(run, metrics.get(run.id), unitCost)),
     };
   }

@@ -24,6 +24,7 @@ import { RetentionV2SendService } from '../../modules/retention-v2/retention-v2-
 import { RetentionOutcomeService } from '../../modules/retention-v2/retention-outcome.service';
 import { RetentionV2MessageDispatchService } from '../../modules/retention-v2/retention-v2-message-dispatch.service';
 import { AutonomyService } from '../../modules/intelligence/autonomy/autonomy.service';
+import { PlanMeasurementService } from '../../modules/intelligence/plans/plan-measurement.service';
 
 /** Mismo criterio que el reintento de mensajes fuera de horario. */
 const ASSIGNMENT_WINDOW_RETRY_MS = 30 * 60_000;
@@ -56,6 +57,7 @@ export class RetentionV2Worker implements OnModuleInit, OnModuleDestroy {
     private readonly dispatchService: RetentionV2MessageDispatchService,
     private readonly queue: RetentionV2Queue,
     private readonly autonomy: AutonomyService,
+    private readonly planMeasurement: PlanMeasurementService,
   ) {}
 
   onModuleInit() {
@@ -157,6 +159,17 @@ export class RetentionV2Worker implements OnModuleInit, OnModuleDestroy {
         }`,
       );
       return { businesses: 0, runs: 0 };
+    });
+
+    // Planes de Intelligence ejecutados: medir, cortar si una condición de
+    // corte se cumplió (lo pendiente de ese plan no sale) y cerrar los que
+    // terminaron. Antes de encolar, para que un plan cortado no mande nada.
+    await this.planMeasurement.refreshAll().catch((error) => {
+      this.logger.error(
+        `Intelligence plan measurement failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
     });
 
     const pending = await this.prisma.retentionAssignment.findMany({

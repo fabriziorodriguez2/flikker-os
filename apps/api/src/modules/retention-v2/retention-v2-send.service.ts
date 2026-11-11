@@ -27,6 +27,11 @@ import {
 } from '../ai/retention-ai-copy.service';
 import { PolicyGateService } from '../policy/policy-gate.service';
 import { hasWhatsappMarketingConsent } from '../policy/marketing-consent';
+import {
+  planExecutionAllowed,
+  renderPlanMessage,
+} from '../policy/plan-execution';
+import { validateGeneratedCopy } from '../ai/copy-validator';
 
 /**
  * Sends (or deliberately does not send) one assignment.
@@ -125,6 +130,14 @@ export class RetentionV2SendService {
       assignment.experiment.objective ===
       RetentionObjective.REWARD_GOAL_PROGRESS;
 
+    // Un plan de Intelligence no cuelga de los interruptores de Autopilot:
+    // cuelga de su propio permiso de ejecución, revisado en cada envío.
+    const isPlan =
+      assignment.experiment.objective === RetentionObjective.INTELLIGENCE_PLAN;
+    const planAllowed = isPlan
+      ? await planExecutionAllowed(this.prisma, assignment.businessId)
+      : false;
+
     const eligibility = evaluateEligibility({
       business: assignment.business,
       settings: {
@@ -133,9 +146,11 @@ export class RetentionV2SendService {
         // revalida contra SU interruptor. Si el dueño apagó la recuperación
         // entre el reclutamiento y el envío, los recordatorios de progreso ya
         // reclutados siguen saliendo (y viceversa).
-        automationEnabled: isProgressReminder
-          ? settings.progressReminderEnabled
-          : settings.automaticCampaignsEnabled,
+        automationEnabled: isPlan
+          ? planAllowed
+          : isProgressReminder
+            ? settings.progressReminderEnabled
+            : settings.automaticCampaignsEnabled,
       },
       customer: { ...assignment.customer, hasMarketingConsent },
       // Pre-piloto fix (§1/§2) — REWARD_GOAL_PROGRESS recruitment never
@@ -147,7 +162,9 @@ export class RetentionV2SendService {
       // SEGMENT_NOT_TARGETABLE, undoing the whole recruitment fix at the
       // very last step. `segment: null` mirrors exactly what recruitment
       // itself passed.
-      segment: isProgressReminder ? null : assignment.segmentAtAssignment,
+      // Un plan recluta por su propia regla de segmento, no por etapa.
+      segment:
+        isProgressReminder || isPlan ? null : assignment.segmentAtAssignment,
       lastRetentionMessageAt,
       retentionMessagesLast30Days: messagesLast30Days,
       // Already recruited by definition — this check belongs to recruitment.
@@ -243,6 +260,38 @@ export class RetentionV2SendService {
       return this.sendProgressReminder(assignment, now);
     }
 
+    // ── Plan de Intelligence: su texto, revalidado ANTES de emitir nada ──────
+    let planText: string | null = null;
+    if (isPlan) {
+      const template = assignment.variant.messageTemplate;
+      const definition = assignment.variant.incentiveDefinition;
+      planText = template
+        ? renderPlanMessage(template, assignment.customer.name)
+        : null;
+      const check = planText
+        ? validateGeneratedCopy(planText, {
+            percentageValue: definition?.percentageValue ?? null,
+            fixedValue: definition?.fixedValue
+              ? Number(definition.fixedValue)
+              : null,
+            expiresInDays: definition?.expiresInDays ?? null,
+            allowFreeWording:
+              definition?.type === 'gift' || definition?.type === 'upgrade',
+            allowRaffleWording: false,
+            maxLength: 600,
+          })
+        : { valid: false as const };
+      if (!check.valid) {
+        // Nunca debería pasar (el plan se validó al crearse), pero nunca se
+        // manda un texto que hoy no pasa la validación.
+        return this.skip(
+          assignment,
+          'PLAN_COPY_INVALID',
+          DECISION_CODES.SKIPPED_POLICY,
+        );
+      }
+    }
+
     // ── Incentive, when the variant carries one ──────────────────────────────
     const carriesIncentive =
       assignment.variant.strategyType === RetentionStrategyType.SOFT_BENEFIT ||
@@ -299,6 +348,15 @@ export class RetentionV2SendService {
      * los tres casos de una. Y el guard de `returnedSince` de más arriba ya
      * suprimió el envío entero si el cliente volvió — esto es la segunda red.
      */
+    if (isPlan && planText) {
+      return this.sendMessageBody(
+        assignment,
+        { text: planText, copySource: 'AI', aiUsageEventId: null },
+        now,
+        benefitIssued,
+      );
+    }
+
     const challenge = await this.returnChallenges.currentView(
       assignment.businessId,
       assignment.customerId,

@@ -14,6 +14,10 @@ import { PolicyService } from '../../policy/policy.service';
 import { ConsentService } from '../../policy/consent.service';
 import { BusinessSnapshotService } from './business-snapshot.service';
 import { PlannerService } from './planner.service';
+import { PlanExecutorService } from './plan-executor.service';
+import { PolicyGateService } from '../../policy/policy-gate.service';
+import { ConsentAuditService } from '../../policy/consent-audit.service';
+import { RetentionAssignmentService } from '../../retention-v2/retention-assignment.service';
 
 /**
  * El planificador contra Postgres real, con un modelo guionado (nunca llama
@@ -120,14 +124,22 @@ describe('PlannerService (integration)', () => {
     const config = new AiConfigService();
     const settings = new RetentionSettingsService(prisma);
     const audit = new AuditService(prisma);
+    const consent = new ConsentService(prisma);
+    const policies = new PolicyService(prisma, settings, consent, audit);
     return new PlannerService(
       prisma,
       config,
       new AiUsageService(prisma, config),
       provider,
       new BusinessSnapshotService(prisma),
-      new PolicyService(prisma, settings, new ConsentService(prisma), audit),
+      policies,
       audit,
+      new PlanExecutorService(
+        prisma,
+        new PolicyGateService(prisma, policies, audit),
+        new RetentionAssignmentService(prisma),
+      ),
+      new ConsentAuditService(prisma, consent, audit),
     );
   }
 

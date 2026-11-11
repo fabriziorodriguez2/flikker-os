@@ -25,6 +25,9 @@ import { loadUsage } from '../../policy/policy-usage';
 import type { AuthorizedIncentive } from './commercial-plan';
 import { previewSegment } from './business-snapshot';
 import { BusinessSnapshotService } from './business-snapshot.service';
+import { PlanExecutorService } from './plan-executor.service';
+import { planExecutionAllowed } from '../../policy/plan-execution';
+import { ConsentAuditService } from '../../policy/consent-audit.service';
 import { validateSegmentRule, type SegmentRule } from './segment-rules';
 import {
   evaluateSubmission,
@@ -78,6 +81,8 @@ export class PlannerService {
     private readonly snapshots: BusinessSnapshotService,
     private readonly policies: PolicyService,
     private readonly audit: AuditService,
+    private readonly executor: PlanExecutorService,
+    private readonly consentAudit: ConsentAuditService,
   ) {}
 
   /**
@@ -185,6 +190,9 @@ export class PlannerService {
   ): Promise<PlannerOutcome> {
     const businessId = run.businessId;
     const snapshot = await this.snapshots.load(businessId, now);
+    const contactability = toContactability(
+      await this.consentAudit.audit(businessId, now),
+    );
     if (snapshot.facts['customers.active'] === 0) {
       // Sin clientes no hay nada que pensar: no se gasta una llamada.
       return {
@@ -228,6 +236,7 @@ export class PlannerService {
             incentives,
             budget,
             policy: policyInfo,
+            contactability,
           },
         )}`,
       },
@@ -367,43 +376,96 @@ export class PlannerService {
       };
     }
 
-    const simulated = evaluation.plans.filter((p) => p.status === 'SIMULATED');
-    await this.prisma.intelligencePlan.createMany({
-      data: evaluation.plans.map((e) => ({
-        businessId,
-        runId: run.id,
-        status: e.status as IntelligencePlanStatus,
-        rank: e.status === 'SIMULATED' ? e.rank : null,
-        title: String(e.submitted.title ?? '').slice(0, 200),
-        objective: String(e.submitted.objective ?? 'OTHER'),
-        hypothesis: String(e.submitted.hypothesis ?? '').slice(0, 1000),
-        fingerprint: e.fingerprint,
-        plan: e.submitted as unknown as Prisma.InputJsonValue,
-        issues: e.issues as unknown as Prisma.InputJsonValue,
-        selectionReason: e.submitted.selectionReason,
-        matched: e.matched,
-        reachable: e.reachable,
-        simulation:
-          e.status === 'SIMULATED' && e.cost
-            ? ({
-                recipients: e.cost.recipients,
-                treated: e.cost.treated,
-                control: e.cost.control,
-                perVariant: e.submitted.variants.map((v) => ({
-                  key: v.key,
-                  weightPercent: v.weightPercent,
-                  incentiveId: v.incentiveId,
-                })),
-                cost: e.cost,
-                costKnown: e.costKnown,
-                startOn: e.submitted.schedule.startOn,
-              } as unknown as Prisma.InputJsonValue)
-            : Prisma.JsonNull,
-        estimatedCost: e.cost ? e.cost.total : null,
-        currency: business.currency,
-      })),
-    });
+    // Cada plan queda registrado (con su id, para poder ejecutarlo y medirlo).
+    const execute = await planExecutionAllowed(this.prisma, businessId);
+    const saved: {
+      evaluated: (typeof evaluation.plans)[number];
+      id: string;
+    }[] = [];
+    for (const e of evaluation.plans) {
+      const row = await this.prisma.intelligencePlan.create({
+        data: {
+          businessId,
+          runId: run.id,
+          status: e.status as IntelligencePlanStatus,
+          rank: e.status === 'SIMULATED' ? e.rank : null,
+          title: String(e.submitted.title ?? '').slice(0, 200),
+          objective: String(e.submitted.objective ?? 'OTHER'),
+          hypothesis: String(e.submitted.hypothesis ?? '').slice(0, 1000),
+          fingerprint: e.fingerprint,
+          plan: e.submitted as unknown as Prisma.InputJsonValue,
+          issues: e.issues as unknown as Prisma.InputJsonValue,
+          selectionReason: e.submitted.selectionReason,
+          matched: e.matched,
+          reachable: e.reachable,
+          simulation:
+            e.status === 'SIMULATED' && e.cost
+              ? ({
+                  recipients: e.cost.recipients,
+                  treated: e.cost.treated,
+                  control: e.cost.control,
+                  perVariant: e.submitted.variants.map((v) => ({
+                    key: v.key,
+                    weightPercent: v.weightPercent,
+                    incentiveId: v.incentiveId,
+                  })),
+                  cost: e.cost,
+                  costKnown: e.costKnown,
+                  startOn: e.submitted.schedule.startOn,
+                } as unknown as Prisma.InputJsonValue)
+              : Prisma.JsonNull,
+          estimatedCost: e.cost ? e.cost.total : null,
+          currency: business.currency,
+        },
+        select: { id: true },
+      });
+      saved.push({ evaluated: e, id: row.id });
+    }
 
+    // Con la ejecución autorizada, cada elegido se convierte en un
+    // experimento de Autopilot. Si la política lo frena, queda inviable con
+    // el motivo; nunca se saltea una regla.
+    let executed = 0;
+    let assigned = 0;
+    if (execute) {
+      for (const { evaluated: e, id } of saved) {
+        if (e.status !== 'SIMULATED') continue;
+        const outcome = await this.executor.execute({
+          businessId,
+          runId: run.id,
+          planId: id,
+          plan: {
+            ...e.submitted,
+            segment: { ...e.submitted.segment },
+          },
+          recipientIds: e.recipientIds,
+          incentives: ctx.incentives,
+          snapshot,
+          now,
+        });
+        if (outcome.status === 'EXECUTING') {
+          executed += 1;
+          assigned += outcome.assigned;
+        } else {
+          await this.prisma.intelligencePlan.update({
+            where: { id },
+            data: {
+              status: IntelligencePlanStatus.INFEASIBLE,
+              issues: [
+                ...e.issues,
+                ...outcome.messages.map((message) => ({
+                  path: 'execution',
+                  code: outcome.code,
+                  message,
+                })),
+              ] as unknown as Prisma.InputJsonValue,
+            },
+          });
+        }
+      }
+    }
+
+    const simulated = evaluation.plans.filter((p) => p.status === 'SIMULATED');
     // El resumen del modelo solo se muestra si no inventa números.
     const summary =
       evaluation.ungroundedSummaryNumbers.length === 0 &&
@@ -411,15 +473,29 @@ export class PlannerService {
       submission.ownerSummary?.trim()
         ? submission.ownerSummary.trim()
         : fallbackSummary(evaluation, submission);
-    const status = simulated.length
-      ? AutonomousRunStatus.SIMULATED
-      : AutonomousRunStatus.NO_ACTION;
+    const status = execute
+      ? executed
+        ? AutonomousRunStatus.EXECUTED
+        : simulated.length
+          ? AutonomousRunStatus.BLOCKED
+          : AutonomousRunStatus.NO_ACTION
+      : simulated.length
+        ? AutonomousRunStatus.SIMULATED
+        : AutonomousRunStatus.NO_ACTION;
+    const tail = execute
+      ? executed
+        ? `(Se ${executed === 1 ? 'ejecutó 1 plan' : `ejecutaron ${executed} planes`}: ${assigned} clientes quedaron en Autopilot, que les escribe dentro del horario y la política.)`
+        : '(No se ejecutó ningún plan: ver el motivo de cada uno.)'
+      : '(Simulación: no se contactó a nadie.)';
 
     return {
       run: await this.finish(run.id, businessId, {
         status,
-        explanation: `${summary} (Simulación: no se contactó a nadie.)`,
-        suggestions: submission.nextSteps ?? [],
+        explanation: `${summary} ${tail} ${contactabilityText(contactability)}`,
+        suggestions: [
+          ...(submission.nextSteps ?? []),
+          ...contactabilitySuggestions(contactability),
+        ],
         facts: snapshot.facts,
         analysis: {
           observations: submission.observations ?? [],
@@ -430,11 +506,14 @@ export class PlannerService {
           stopReason,
           trace,
           summaryReplaced: summary !== submission.ownerSummary?.trim(),
+          contactability,
         },
         plannerModel: model,
         aiCostUsd: costUsd,
         estimatedCost: simulated.reduce((s, p) => s + (p.cost?.total ?? 0), 0),
         currency: business.currency,
+        mode: execute ? AutonomyMode.PILOT : AutonomyMode.DRY_RUN,
+        assignedCount: assigned,
       }),
       simulated: simulated.length,
     };
@@ -484,10 +563,12 @@ export class PlannerService {
         hypothesis: true,
         reachable: true,
         plan: true,
+        results: true,
+        stopReason: true,
       },
     });
     return JSON.stringify({
-      note: 'Todavía no hay planes ejecutados: los SIMULATED no contactaron a nadie y no tienen resultados.',
+      note: 'SIMULATED no contactó a nadie. EXECUTING/MEASURING/COMPLETED/STOPPED tienen resultados reales: "evidence" dice qué se puede afirmar (SIGNAL_ONLY = señal sin prueba; INCREMENTAL = el plan sumó vueltas frente al control; NO_DIFFERENCE = sin diferencia con el control). Aprendé de eso: no repitas lo que no funcionó y no afirmes más de lo que dice "evidence".',
       plans: plans.map((p) => ({
         date: p.createdAt.toISOString().slice(0, 10),
         status: p.status,
@@ -497,7 +578,7 @@ export class PlannerService {
         reachable: p.reachable,
         segment: (p.plan as { segment?: { description?: string } }).segment
           ?.description,
-        result: null,
+        result: summarizeResults(p.results, p.stopReason),
       })),
     });
   }
@@ -506,11 +587,24 @@ export class PlannerService {
     const rows = await this.prisma.intelligencePlan.findMany({
       where: {
         businessId,
-        status: IntelligencePlanStatus.SIMULATED,
         fingerprint: { not: null },
-        createdAt: {
-          gte: new Date(now.getTime() - SIMULATED_DEDUPE_DAYS * MS_PER_DAY),
-        },
+        OR: [
+          // Lo que se está ejecutando o midiendo no se repite hasta cerrar.
+          {
+            status: {
+              in: [
+                IntelligencePlanStatus.EXECUTING,
+                IntelligencePlanStatus.MEASURING,
+              ],
+            },
+          },
+          {
+            status: IntelligencePlanStatus.SIMULATED,
+            createdAt: {
+              gte: new Date(now.getTime() - SIMULATED_DEDUPE_DAYS * MS_PER_DAY),
+            },
+          },
+        ],
       },
       select: { fingerprint: true },
     });
@@ -608,6 +702,8 @@ export class PlannerService {
       aiCostUsd?: number;
       estimatedCost?: number;
       currency?: string;
+      mode?: AutonomyMode;
+      assignedCount?: number;
     },
   ): Promise<AutonomousRun> {
     const run = await this.prisma.autonomousRun.update({
@@ -623,6 +719,10 @@ export class PlannerService {
         aiCostUsd: data.aiCostUsd ?? null,
         estimatedCost: data.estimatedCost ?? null,
         currency: data.currency ?? null,
+        ...(data.mode ? { mode: data.mode } : {}),
+        ...(data.assignedCount !== undefined
+          ? { assignedCount: data.assignedCount }
+          : {}),
         finishedAt: new Date(),
       },
     });
@@ -650,6 +750,114 @@ function traceVerdict(evaluation: SubmissionEvaluation): string {
   );
   const top = evaluation.issues.map((i) => i.code);
   return [...top, ...parts].join(', ') || 'SIN_PLANES';
+}
+
+export interface Contactability {
+  active: number;
+  reachableWhatsapp: number;
+  neverAsked: number;
+  neverAskedVisitedLast30d: number;
+  neverAskedWithMiFlikker: number;
+  optedOut: number;
+  suppressed: number;
+  noPhone: number;
+}
+
+function toContactability(audit: {
+  customers: { active: number };
+  whatsapp: {
+    granted: number;
+    neverAsked: number;
+    neverAskedVisitedLast30d: number;
+    neverAskedWithMiFlikker: number;
+    revoked: number;
+    suppressed: number;
+    noPhone: number;
+  };
+}): Contactability {
+  return {
+    active: audit.customers.active,
+    reachableWhatsapp: audit.whatsapp.granted,
+    neverAsked: audit.whatsapp.neverAsked,
+    neverAskedVisitedLast30d: audit.whatsapp.neverAskedVisitedLast30d,
+    neverAskedWithMiFlikker: audit.whatsapp.neverAskedWithMiFlikker,
+    optedOut: audit.whatsapp.revoked,
+    suppressed: audit.whatsapp.suppressed,
+    noPhone: audit.whatsapp.noPhone,
+  };
+}
+
+/** "De 105 clientes, 12 se pueden contactar…" — todo con conteos reales. */
+export function contactabilityText(c: Contactability): string {
+  if (c.active === 0) return '';
+  const parts = [
+    `De ${c.active} clientes activos, ${c.reachableWhatsapp} se pueden contactar por WhatsApp.`,
+  ];
+  const reasons: string[] = [];
+  if (c.neverAsked)
+    reasons.push(`${c.neverAsked} todavía no autorizaron promociones`);
+  if (c.optedOut)
+    reasons.push(`${c.optedOut} dijeron que no o se dieron de baja`);
+  if (c.suppressed) reasons.push(`${c.suppressed} pidieron no ser contactados`);
+  if (c.noPhone) reasons.push(`${c.noPhone} no tienen teléfono`);
+  if (reasons.length) parts.push(`Del resto: ${reasons.join(', ')}.`);
+  return parts.join(' ');
+}
+
+/** Cómo ampliar la base contactable de forma legítima. */
+export function contactabilitySuggestions(c: Contactability): string[] {
+  const out: string[] = [];
+  if (c.neverAskedVisitedLast30d) {
+    out.push(
+      `${c.neverAskedVisitedLast30d} clientes que vinieron en los últimos 30 días todavía no respondieron: en su próximo check-in se les pregunta si quieren recibir promociones.`,
+    );
+  }
+  if (c.neverAsked > c.neverAskedVisitedLast30d) {
+    out.push(
+      'Invitá en el mostrador a escanear el QR: a quien vuelve se le ofrece la casilla de promociones, opcional y desmarcada.',
+    );
+  }
+  return out;
+}
+
+/** Lo que el planificador necesita saber de un resultado: sin clientes. */
+function summarizeResults(results: unknown, stopReason: string | null) {
+  if (!results || typeof results !== 'object' || !('evidence' in results)) {
+    return null;
+  }
+  const r = results as {
+    phase: string;
+    evidence: string;
+    readout: string;
+    treated: {
+      contacted: number;
+      returned: number;
+      attributed: number;
+      redeemed: number;
+    };
+    control: { observed: number; returned: number };
+    liftPoints: number | null;
+    byVariant: {
+      name: string;
+      contacted: number;
+      returned: number;
+      redeemed: number;
+    }[];
+    cost: { total: number | null };
+    optOuts: number;
+  };
+  return {
+    phase: r.phase,
+    evidence: r.evidence,
+    readout: r.readout,
+    treated: r.treated,
+    control: r.control,
+    liftPoints: r.liftPoints,
+    byVariant: r.byVariant,
+    cost: r.cost.total,
+    optOuts: r.optOuts,
+    stoppedBy: stopReason,
+  };
 }
 
 function parseSubmission(raw: string): PlannerSubmission | null {
