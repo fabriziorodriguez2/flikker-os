@@ -11,6 +11,9 @@
 -- Garantías de este archivo:
 --   * Todo corre dentro de una transacción READ ONLY que termina en ROLLBACK:
 --     Postgres rechaza cualquier escritura.
+--   * Si hay un usuario de solo lectura en producción, usarlo igual: es una
+--     segunda barrera, además de la transacción READ ONLY.
+--   * Lo verifica `apps/api/src/docs/pilot-diagnosis-queries.spec.ts`.
 --   * Ninguna consulta devuelve nombres, teléfonos, emails, cumpleaños ni ids
 --     de clientes. Solo conteos, fechas, estados y configuración del negocio.
 --   * Los textos de error del proveedor se recortan y se les reemplaza
@@ -22,8 +25,13 @@
 --     sección final.
 -- ============================================================================
 
+\set ON_ERROR_STOP on
 BEGIN TRANSACTION READ ONLY;
-SET LOCAL statement_timeout = '30s';
+-- Cada consulta corta a los 15 s; nunca espera un bloqueo más de 2 s; y si
+-- la sesión queda colgada, Postgres la cierra al minuto.
+SET LOCAL statement_timeout = '15s';
+SET LOCAL lock_timeout = '2s';
+SET LOCAL idle_in_transaction_session_timeout = '60s';
 
 -- ----------------------------------------------------------------------------
 -- 0. Identificar el negocio (correr primero y elegir el business_id).
