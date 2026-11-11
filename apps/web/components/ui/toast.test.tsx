@@ -139,17 +139,20 @@ describe("call sites — el success va después de que el backend confirmó", ()
     expect(block).toContain("toast.error");
   });
 
-  it("Reviews: guardar la URL de Google confirma solo si res.ok", () => {
+  // La URL de Google ya no se escribe a mano: se conecta el Place desde
+  // `google-connect-modal.tsx`. `readJson` tira si `!res.ok`, así que el
+  // success solo puede llegar después de una respuesta confirmada.
+  it("Reviews: conectar Google confirma solo después de que el backend respondió ok", () => {
     const source = readFileSync(
-      join(root, "reviews", "reviews-client.tsx"),
+      join(root, "reviews", "google-connect-modal.tsx"),
       "utf-8",
     );
-    const block = source.slice(
-      source.indexOf("async function saveGoogleUrl"),
-      source.indexOf("if (error && !data)"),
-    );
-    expect(block.indexOf("if (res.ok)")).toBeLessThan(
-      block.indexOf('toast.success("Cambios guardados")'),
+    const helper = source.slice(source.indexOf("async function readJson"));
+    expect(helper).toContain("if (!res.ok)");
+    const block = source.slice(source.indexOf("async function connect("));
+    expect(block.indexOf("await readJson(res)")).toBeGreaterThan(-1);
+    expect(block.indexOf("await readJson(res)")).toBeLessThan(
+      block.indexOf('toast.success("Local de Google vinculado")'),
     );
     expect(block).toContain("toast.error");
   });

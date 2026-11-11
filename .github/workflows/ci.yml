@@ -48,6 +48,11 @@ jobs:
       - name: Lint (api)
         run: npm run lint:check --workspace=apps/api
 
+      # Tests de frontend (jest, sin base ni red). Antes de las migraciones
+      # para que un problema de base no los oculte.
+      - name: Run tests (web)
+        run: npm test --workspace=apps/web -- --ci
+
       - name: Run migrations
         working-directory: apps/api
         env:

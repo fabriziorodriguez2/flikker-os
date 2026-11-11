@@ -25,7 +25,21 @@
 -- toca la tabla, no se re-crea el índice, no se usa `migrate resolve` de
 -- nuevo. Es una migración nueva y aditiva que Prisma aplicará normalmente
 -- porque nunca fue registrada en el historial.
-ALTER TABLE "message_templates"
-  ADD CONSTRAINT "message_templates_business_id_fkey"
-  FOREIGN KEY ("business_id") REFERENCES "Business"("id")
-  ON DELETE CASCADE ON UPDATE CASCADE;
+--
+-- Idempotente (auditoría pre-release de Intelligence): en una base creada
+-- desde cero, `20260713120000_add_message_template` YA crea esta FK, y el
+-- ADD CONSTRAINT sin condición rompía el replay completo de migraciones
+-- (P3018, 42710) — que es justo lo que hace CI. En producción, donde la FK
+-- falta, se crea igual que antes.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'message_templates_business_id_fkey'
+  ) THEN
+    ALTER TABLE "message_templates"
+      ADD CONSTRAINT "message_templates_business_id_fkey"
+      FOREIGN KEY ("business_id") REFERENCES "Business"("id")
+      ON DELETE CASCADE ON UPDATE CASCADE;
+  END IF;
+END $$;
