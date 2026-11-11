@@ -22,8 +22,10 @@ import { JwtGuard } from '../auth/guards/jwt.guard';
 import { PolicyService } from './policy.service';
 import { PolicyGateService } from './policy-gate.service';
 import { ConsentService } from './consent.service';
+import { ConsentAuditService } from './consent-audit.service';
 import {
   AcceptPolicyDto,
+  LegacyConsentImportDto,
   RecordConsentDto,
   SetMessageCostDto,
   UpdatePolicyDto,
@@ -38,11 +40,24 @@ import {
 @Controller('policy')
 @UseGuards(JwtGuard, TenantGuard, RolesGuard)
 export class PolicyController {
-  constructor(private readonly policies: PolicyService) {}
+  constructor(
+    private readonly policies: PolicyService,
+    private readonly consentAudit: ConsentAuditService,
+  ) {}
 
   @Get()
   view(@Req() req: AuthenticatedRequest) {
     return this.policies.view(req.currentBusinessId!);
+  }
+
+  /**
+   * A cuántos clientes se les puede escribir promociones y por qué al resto
+   * no. Solo conteos: ningún dato de clientes.
+   */
+  @Get('consent-audit')
+  @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
+  consentAuditView(@Req() req: AuthenticatedRequest) {
+    return this.consentAudit.audit(req.currentBusinessId!);
   }
 
   @Post('accept')
@@ -136,7 +151,29 @@ export class ConsentController {
 @Controller('platform/businesses')
 @UseGuards(JwtGuard, PlatformAdminGuard)
 export class PolicyPlatformController {
-  constructor(private readonly policies: PolicyService) {}
+  constructor(
+    private readonly policies: PolicyService,
+    private readonly consentAudit: ConsentAuditService,
+  ) {}
+
+  @Get(':businessId/consent-audit')
+  consentAuditView(@Param('businessId', ParseUUIDPipe) businessId: string) {
+    return this.consentAudit.audit(businessId);
+  }
+
+  /**
+   * Autorizaciones anteriores con prueba verificable. Sin `confirm`, solo
+   * vista previa (cuántas entran y por qué quedan afuera las demás).
+   */
+  @Post(':businessId/consent-import')
+  @HttpCode(200)
+  importLegacyConsent(
+    @Req() req: AuthenticatedRequest,
+    @Param('businessId', ParseUUIDPipe) businessId: string,
+    @Body() dto: LegacyConsentImportDto,
+  ) {
+    return this.consentAudit.importLegacy(businessId, req.user.id, dto);
+  }
 
   @Get(':businessId/policy')
   view(@Param('businessId', ParseUUIDPipe) businessId: string) {

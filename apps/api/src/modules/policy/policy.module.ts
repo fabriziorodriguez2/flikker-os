@@ -4,6 +4,7 @@ import { RetentionSettingsService } from '../retention-v2/retention-settings.ser
 import { PolicyService } from './policy.service';
 import { PolicyGateService } from './policy-gate.service';
 import { ConsentService } from './consent.service';
+import { ConsentAuditService } from './consent-audit.service';
 import {
   ConsentController,
   PolicyController,
@@ -21,9 +22,15 @@ import {
     PolicyService,
     PolicyGateService,
     ConsentService,
+    ConsentAuditService,
     RetentionSettingsService,
     AuditService,
   ],
-  exports: [PolicyService, PolicyGateService, ConsentService],
+  exports: [
+    PolicyService,
+    PolicyGateService,
+    ConsentService,
+    ConsentAuditService,
+  ],
 })
 export class PolicyModule {}

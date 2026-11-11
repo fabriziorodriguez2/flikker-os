@@ -1,5 +1,11 @@
+import { ConsentChannel } from '@prisma/client';
+import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  IsArray,
   IsBoolean,
+  IsEnum,
+  IsISO8601,
   IsIn,
   IsInt,
   IsNumber,
@@ -11,6 +17,7 @@ import {
   MaxLength,
   Min,
   ValidateIf,
+  ValidateNested,
 } from 'class-validator';
 
 /**
@@ -125,4 +132,51 @@ export class RecordConsentDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+}
+
+export class LegacyEvidenceDto {
+  /** Cómo se obtuvo: "planilla de mostrador firmada", "formulario web", ... */
+  @IsString()
+  @MaxLength(300)
+  collectedVia!: string;
+
+  /** Dónde está la prueba (archivo, carpeta, sistema anterior). */
+  @IsString()
+  @MaxLength(300)
+  documentRef!: string;
+
+  /** El texto que aceptó el cliente, tal cual: define el alcance. */
+  @IsString()
+  @MaxLength(1000)
+  consentTextShown!: string;
+}
+
+export class LegacyConsentRowDto {
+  @IsString()
+  @MaxLength(30)
+  phone!: string;
+
+  /** Fecha en que el cliente aceptó (ISO 8601). */
+  @IsISO8601()
+  grantedAt!: string;
+}
+
+/** Importación de autorizaciones anteriores con prueba (Platform Admin). */
+export class LegacyConsentImportDto {
+  @IsEnum(ConsentChannel)
+  channel!: ConsentChannel;
+
+  @ValidateNested()
+  @Type(() => LegacyEvidenceDto)
+  evidence!: LegacyEvidenceDto;
+
+  @IsArray()
+  @ArrayMaxSize(5000)
+  @ValidateNested({ each: true })
+  @Type(() => LegacyConsentRowDto)
+  rows!: LegacyConsentRowDto[];
+
+  /** Sin esto, solo vista previa. */
+  @IsBoolean()
+  confirm!: boolean;
 }
