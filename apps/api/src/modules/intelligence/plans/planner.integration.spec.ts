@@ -461,6 +461,24 @@ describe('PlannerService (integration)', () => {
     expect(provider.requests).toHaveLength(0);
   });
 
+  it('un modelo que solo explora es obligado a entregar en las últimas rondas', async () => {
+    if (!available) return;
+    const businessId = await business();
+    const provider = new ScriptedProvider((req) =>
+      typeof req.toolChoice === 'object'
+        ? [submit([planArgs()]), done()]
+        : [call('preview_segment', { rule: ONE_VISIT }), done()],
+    );
+    const { run } = await makePlanner(provider).run(businessId, {
+      trigger: 'MANUAL',
+      now: NOW,
+    });
+    expect(run.status).toBe('SIMULATED');
+    const trace = (run.analysis as { trace: { tools: string[] }[] }).trace;
+    expect(trace.at(-1)!.tools).toEqual(['submit_plans']);
+    expect(trace.length).toBeLessThanOrEqual(8);
+  });
+
   it('si el modelo nunca entrega, la corrida falla sin contactar a nadie', async () => {
     if (!available) return;
     const businessId = await business();

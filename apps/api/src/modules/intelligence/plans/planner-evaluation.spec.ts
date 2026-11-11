@@ -352,6 +352,19 @@ describe('evaluateSubmission', () => {
     expect(inSummary.repairable).toBe(true);
   });
 
+  it('un resumen con claves técnicas se devuelve para reescribir', () => {
+    const result = evaluateSubmission(
+      submission([plan()], {
+        ownerSummary:
+          'customers.single_visit_lapsed_30d = 12: hay que invitarlos.',
+      }),
+      ctx(),
+    );
+    expect(result.summaryHasJargon).toBe(true);
+    expect(result.repairable).toBe(true);
+    expect(feedbackForModel(result)).toContain('sin claves técnicas');
+  });
+
   it('decidir no actuar exige motivo y no admite planes elegidos', () => {
     const result = evaluateSubmission(
       submission([plan()], { decision: 'NO_ACTION', noActionReason: null }),

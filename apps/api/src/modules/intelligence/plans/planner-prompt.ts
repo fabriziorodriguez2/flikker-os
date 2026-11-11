@@ -35,6 +35,7 @@ Reglas que el servidor verifica (si no se cumplen, el plan se descarta):
 - La evidencia cita métricas por su clave exacta con su valor exacto.
 - Los mensajes no pueden prometer descuentos, montos, plazos, regalos ni sorteos que el incentivo elegido no tenga. Sin incentivo, el mensaje no ofrece nada material. Sin links ni teléfonos. Solo el marcador ${MESSAGE_PLACEHOLDERS.join(', ')}. Nunca lenguaje interno ("en riesgo", "te estamos siguiendo").
 - Siempre grupo de control (${PLAN_LIMITS.controlPercentMin}–${PLAN_LIMITS.controlPercentMax}%): pesos de variantes + control = 100. Hasta ${PLAN_LIMITS.variantsMax} variantes para comparar enfoques.
+- Equilibrio de costo: si un plan ofrece un incentivo, incluí también una variante SIN incentivo, salvo que el historial ya muestre que sin incentivo no funcionó. Así se aprende si el incentivo hace falta. Preferí lo más barato que pueda funcionar.
 - Un plan elegido necesita al menos ${MIN_PLAN_RECIPIENTS} clientes contactables. Solo se contacta a quien autorizó WhatsApp.
 - Canal disponible: solo WHATSAPP. No inventes otros canales.
 - No repitas un plan que ya se probó y se está midiendo: probá algo distinto o esperá el resultado.

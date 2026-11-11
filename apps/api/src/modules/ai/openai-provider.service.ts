@@ -170,7 +170,10 @@ export class OpenAiProviderService implements AiProvider, AiAgentProvider {
             parameters: tool.parameters,
             strict: true,
           })),
-          tool_choice: request.toolChoice,
+          tool_choice:
+            typeof request.toolChoice === 'string'
+              ? request.toolChoice
+              : { type: 'function', name: request.toolChoice.name },
           stream: true,
           store: false,
           // Los modelos de razonamiento rechazan `temperature`.

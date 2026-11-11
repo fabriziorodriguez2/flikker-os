@@ -26,9 +26,10 @@ export interface AgentTurnRequest {
   tools: AgentToolDefinition[];
   /**
    * `none` en la última ronda: el modelo tiene que responder con lo que ya
-   * tiene. `required`: tiene que pedir al menos una herramienta.
+   * tiene. `required`: tiene que pedir al menos una herramienta. `{ name }`:
+   * tiene que llamar a ESA herramienta.
    */
-  toolChoice: 'auto' | 'none' | 'required';
+  toolChoice: 'auto' | 'none' | 'required' | { name: string };
   maxOutputTokens: number;
   /**
    * Modelo para este pedido; por defecto el de `AI_MODEL`. El planificador

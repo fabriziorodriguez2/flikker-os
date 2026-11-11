@@ -243,6 +243,12 @@ export class PlannerService {
     let evaluation: SubmissionEvaluation | null = null;
     let repairs = 0;
     let stopReason: string | null = null;
+    /** Qué pasó en cada ronda: herramientas y veredicto. Sin datos de clientes. */
+    const trace: {
+      round: number;
+      tools: string[];
+      verdict?: string;
+    }[] = [];
 
     try {
       for (let round = 1; round <= PLANNER_MAX_ROUNDS; round += 1) {
@@ -256,7 +262,12 @@ export class PlannerService {
           instructions: PLANNER_INSTRUCTIONS,
           input,
           tools: PLANNER_TOOLS,
-          toolChoice: 'required',
+          // Las dos últimas rondas obligan a entregar: un modelo que solo
+          // explora nunca termina.
+          toolChoice:
+            round >= PLANNER_MAX_ROUNDS - 1
+              ? { name: 'submit_plans' }
+              : 'required',
           maxOutputTokens: MAX_OUTPUT_TOKENS,
           model: this.config.plannerModel,
           signal: controller.signal,
@@ -268,6 +279,11 @@ export class PlannerService {
             outputTokens += event.outputTokens ?? 0;
           }
         }
+        const step: (typeof trace)[number] = {
+          round,
+          tools: calls.map((c) => c.name),
+        };
+        trace.push(step);
         if (calls.length === 0) {
           stopReason = 'El modelo no entregó un plan.';
           break;
@@ -285,10 +301,12 @@ export class PlannerService {
           if (call.name === 'submit_plans') {
             submission = parseSubmission(call.arguments);
             if (!submission) {
+              step.verdict = 'INVALID_JSON';
               output =
                 'La entrega no es JSON válido con la forma pedida. Volvé a enviarla.';
             } else {
               evaluation = evaluateSubmission(submission, ctx);
+              step.verdict = traceVerdict(evaluation);
               if (
                 evaluation.repairable &&
                 repairs < PLANNER_MAX_REPAIRS &&
@@ -341,6 +359,7 @@ export class PlannerService {
           status: AutonomousRunStatus.FAILED,
           explanation: `El planificador no llegó a una propuesta válida${stopReason ? `: ${stopReason}` : '.'} No se contactó a nadie.`,
           facts: snapshot.facts,
+          analysis: { trace, stopReason, repairs },
           plannerModel: model,
           aiCostUsd: costUsd,
         }),
@@ -388,6 +407,7 @@ export class PlannerService {
     // El resumen del modelo solo se muestra si no inventa números.
     const summary =
       evaluation.ungroundedSummaryNumbers.length === 0 &&
+      !evaluation.summaryHasJargon &&
       submission.ownerSummary?.trim()
         ? submission.ownerSummary.trim()
         : fallbackSummary(evaluation, submission);
@@ -408,6 +428,7 @@ export class PlannerService {
           noActionReason: submission.noActionReason,
           repairs,
           stopReason,
+          trace,
           summaryReplaced: summary !== submission.ownerSummary?.trim(),
         },
         plannerModel: model,
@@ -618,6 +639,17 @@ export class PlannerService {
     });
     return run;
   }
+}
+
+/** "PROPOSE: 2 SIMULATED, 1 INVALID(COPY_UNAUTHORIZED_PERCENTAGE)" */
+function traceVerdict(evaluation: SubmissionEvaluation): string {
+  const parts = evaluation.plans.map((p) =>
+    p.issues.length
+      ? `${p.status}(${[...new Set(p.issues.map((i) => i.code))].join(',')})`
+      : p.status,
+  );
+  const top = evaluation.issues.map((i) => i.code);
+  return [...top, ...parts].join(', ') || 'SIN_PLANES';
 }
 
 function parseSubmission(raw: string): PlannerSubmission | null {

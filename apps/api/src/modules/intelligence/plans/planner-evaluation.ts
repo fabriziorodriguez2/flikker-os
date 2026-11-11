@@ -99,7 +99,12 @@ export interface SubmissionEvaluation {
   repairable: boolean;
   /** Números del resumen para el dueño que no salen de ningún dato. */
   ungroundedSummaryNumbers: number[];
+  /** El resumen para el dueño usa claves técnicas de métricas. */
+  summaryHasJargon: boolean;
 }
+
+/** Claves de métricas ("visits.last_28d"): el dueño no las entiende. */
+const METRIC_KEY = /\b(?:customers|visits|redemptions)\.[a-z0-9_.]+/i;
 
 function issue(path: string, code: string, message: string): PlanIssue {
   return { path, code, message };
@@ -379,6 +384,7 @@ export function evaluateSubmission(
     ],
   );
 
+  const summaryHasJargon = METRIC_KEY.test(submission.ownerSummary ?? '');
   const selectedInvalid = evaluated.some(
     (e) => e.submitted.selected && e.status === 'INVALID',
   );
@@ -393,8 +399,10 @@ export function evaluateSubmission(
       topIssues.length > 0 ||
       selectedInvalid ||
       nothingUsable ||
-      summaryNumbers.length > 0,
+      summaryNumbers.length > 0 ||
+      summaryHasJargon,
     ungroundedSummaryNumbers: summaryNumbers,
+    summaryHasJargon,
   };
 }
 
@@ -419,6 +427,11 @@ export function feedbackForModel(evaluation: SubmissionEvaluation): string {
   if (evaluation.ungroundedSummaryNumbers.length) {
     lines.push(
       `- ownerSummary/nextSteps/observations: números que no salen de los datos: ${evaluation.ungroundedSummaryNumbers.join(', ')}.`,
+    );
+  }
+  if (evaluation.summaryHasJargon) {
+    lines.push(
+      '- ownerSummary: escribilo para el dueño, sin claves técnicas como "visits.last_28d".',
     );
   }
   return lines.join('\n');

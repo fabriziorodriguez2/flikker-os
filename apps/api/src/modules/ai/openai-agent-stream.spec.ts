@@ -230,6 +230,27 @@ describe('OpenAiProviderService.streamAgentTurn', () => {
     expect(bodies[1]).toMatchObject({ model: 'gpt-4.1', temperature: 0.3 });
   });
 
+  it('puede obligar a llamar una herramienta puntual', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValue(
+        streamResponse([
+          'data: {"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1}}}\n\n',
+        ]),
+      );
+    global.fetch = fetchMock;
+    await collect(
+      provider().streamAgentTurn({
+        ...request(),
+        toolChoice: { name: 'submit_plans' },
+      }),
+    );
+    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(JSON.parse(init.body as string)).toMatchObject({
+      tool_choice: { type: 'function', name: 'submit_plans' },
+    });
+  });
+
   it('un HTTP de error es AiProviderError, sin exponer la key', async () => {
     global.fetch = jest
       .fn()
