@@ -228,25 +228,50 @@ describe('CheckoutLeadsService (integration)', () => {
     haría que las métricas cuenten formularios en vez de clientes.
   */
   it('no crea User, Business, Membership, Subscription ni FlikkerAccount', async () => {
-    const before = {
-      users: await prisma.user.count(),
-      businesses: await prisma.business.count(),
-      memberships: await prisma.membership.count(),
-      subscriptions: await prisma.subscription.count(),
-      accounts: await prisma.flikkerAccount.count(),
-      customers: await prisma.customer.count(),
-    };
+    // Datos únicos de este formulario: se busca SOLO lo que él podría haber
+    // creado. Contar toda la tabla fallaba cuando otro spec creaba filas en
+    // paralelo.
+    const tag = randomUUID().slice(0, 8);
+    const email = `lead-${tag}@ejemplo.com`;
+    const businessName = `Café Lead ${tag}`;
+    const phone = `099${String(Math.floor(100_000 + Math.random() * 899_999))}`;
+    const phoneE164 = `+598${phone.slice(1)}`;
+    const since = new Date();
 
-    await create();
+    await create(payload({ email, businessName, phone }));
 
+    const users = await prisma.user.findMany({ where: { email } });
+    const businesses = await prisma.business.findMany({
+      where: { name: businessName },
+      select: { id: true },
+    });
+    const businessIds = businesses.map((b) => b.id);
     expect({
-      users: await prisma.user.count(),
-      businesses: await prisma.business.count(),
-      memberships: await prisma.membership.count(),
-      subscriptions: await prisma.subscription.count(),
-      accounts: await prisma.flikkerAccount.count(),
-      customers: await prisma.customer.count(),
-    }).toEqual(before);
+      users: users.length,
+      businesses: businesses.length,
+      memberships: await prisma.membership.count({
+        where: {
+          OR: [
+            { userId: { in: users.map((u) => u.id) } },
+            { businessId: { in: businessIds } },
+          ],
+        },
+      }),
+      subscriptions: await prisma.subscription.count({
+        where: { businessId: { in: businessIds } },
+      }),
+      accounts: await prisma.flikkerAccount.count({ where: { phoneE164 } }),
+      customers: await prisma.customer.count({
+        where: { phoneE164, createdAt: { gte: since } },
+      }),
+    }).toEqual({
+      users: 0,
+      businesses: 0,
+      memberships: 0,
+      subscriptions: 0,
+      accounts: 0,
+      customers: 0,
+    });
   });
 
   /*

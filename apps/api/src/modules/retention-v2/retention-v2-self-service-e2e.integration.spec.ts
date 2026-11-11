@@ -255,7 +255,7 @@ describe('Retention V2 self-service — onboarding to WhatsApp (e2e)', () => {
       );
       await makeInactiveCustomer(businessId, customerId);
 
-      await evaluateService.runDaily(NOW);
+      await evaluateService.runDaily(NOW, { onlyBusinessIds: [businessId] });
 
       const assignment = await prisma.retentionAssignment.findFirstOrThrow({
         where: { businessId, customerId },
@@ -388,7 +388,7 @@ describe('Retention V2 self-service — onboarding to WhatsApp (e2e)', () => {
         },
       });
 
-      await evaluateService.runDaily(NOW);
+      await evaluateService.runDaily(NOW, { onlyBusinessIds: [businessId] });
       const assignment = await prisma.retentionAssignment.findFirstOrThrow({
         where: { businessId, customerId },
       });
@@ -504,7 +504,7 @@ describe('Retention V2 self-service — onboarding to WhatsApp (e2e)', () => {
         });
       }
 
-      await evaluateService.runDaily(NOW);
+      await evaluateService.runDaily(NOW, { onlyBusinessIds: [businessId] });
 
       const winnerAssignment =
         await prisma.retentionAssignment.findFirstOrThrow({
@@ -659,7 +659,7 @@ describe('Retention V2 self-service — onboarding to WhatsApp (e2e)', () => {
         });
       }
 
-      await evaluateService.runDaily(NOW);
+      await evaluateService.runDaily(NOW, { onlyBusinessIds: [businessId] });
       const assignment = await prisma.retentionAssignment.findFirstOrThrow({
         where: { businessId, customerId, experimentId: experiment.id },
       });

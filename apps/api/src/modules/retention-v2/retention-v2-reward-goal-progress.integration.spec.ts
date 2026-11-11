@@ -206,7 +206,7 @@ describe('RetentionV2EvaluateService — REWARD_GOAL_PROGRESS recruitment (integ
       return;
     }
 
-    await service.runDaily(NOW);
+    await service.runDaily(NOW, { onlyBusinessIds: [businessId] });
 
     const assignments = await prisma.retentionAssignment.findMany({
       where: { experimentId },
@@ -262,7 +262,7 @@ describe('RetentionV2EvaluateService — REWARD_GOAL_PROGRESS recruitment (integ
       },
     });
 
-    await service.runDaily(NOW);
+    await service.runDaily(NOW, { onlyBusinessIds: [businessId] });
 
     const assignments = await prisma.retentionAssignment.findMany({
       where: { experimentId },
@@ -283,8 +283,8 @@ describe('RetentionV2EvaluateService — REWARD_GOAL_PROGRESS recruitment (integ
       return;
     }
 
-    await service.runDaily(NOW);
-    await service.runDaily(NOW);
+    await service.runDaily(NOW, { onlyBusinessIds: [businessId] });
+    await service.runDaily(NOW, { onlyBusinessIds: [businessId] });
 
     const count = await prisma.retentionAssignment.count({
       where: { experimentId, customerId: customerIdByLabel.active },

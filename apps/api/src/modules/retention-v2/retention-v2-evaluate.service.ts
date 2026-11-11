@@ -73,9 +73,10 @@ export class RetentionV2EvaluateService {
   ) {}
 
   /** Businesses this engine owns. The mirror image of the legacy exclusion. */
-  private findOwnedBusinesses() {
+  private findOwnedBusinesses(onlyBusinessIds?: string[]) {
     return this.prisma.business.findMany({
       where: {
+        ...(onlyBusinessIds ? { id: { in: onlyBusinessIds } } : {}),
         // Los tres campos del archivado, no solo `isActive`. Archivar los
         // escribe juntos, pero un estado intermedio (una migración, un fix
         // manual) volvería a habilitar envíos si se mirara uno solo.
@@ -96,9 +97,16 @@ export class RetentionV2EvaluateService {
     });
   }
 
-  async runDaily(now: Date = new Date()) {
+  /**
+   * `onlyBusinessIds` acota la corrida (tests, diagnósticos). El cron diario
+   * nunca lo pasa: recorre todos los negocios habilitados.
+   */
+  async runDaily(
+    now: Date = new Date(),
+    opts: { onlyBusinessIds?: string[] } = {},
+  ) {
     const startedAt = Date.now();
-    const businesses = await this.findOwnedBusinesses();
+    const businesses = await this.findOwnedBusinesses(opts.onlyBusinessIds);
     let assigned = 0;
     let dryRunCandidates = 0;
 

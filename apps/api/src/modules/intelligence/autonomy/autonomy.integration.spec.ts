@@ -346,7 +346,7 @@ describe('Intelligence — modo autónomo (integration)', () => {
         consented: 40,
         policy: null,
       });
-      await evaluate.runDaily(NOW);
+      await evaluate.runDaily(NOW, { onlyBusinessIds: [pilot.id, regular.id] });
       expect(await assignmentsOf(pilot.id)).toHaveLength(0);
       expect((await assignmentsOf(regular.id)).length).toBeGreaterThan(0);
       // Y el modo autónomo nunca toca un negocio sin modo prendido.
