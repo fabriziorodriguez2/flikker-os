@@ -28,6 +28,8 @@ export const AI_USE_CASES = {
   // Un turno completo del agente de Intelligence (todas sus rondas de
   // herramientas) cuenta como UN uso, igual que el chatbot.
   INTELLIGENCE_AGENT_TURN: 'INTELLIGENCE_AGENT_TURN',
+  // Una corrida completa del planificador comercial (todas sus rondas).
+  INTELLIGENCE_PLANNER_RUN: 'INTELLIGENCE_PLANNER_RUN',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASES)[keyof typeof AI_USE_CASES];

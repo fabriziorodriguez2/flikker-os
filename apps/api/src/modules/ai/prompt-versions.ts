@@ -14,3 +14,4 @@ export const INSIGHT_EXPLANATION_PROMPT_VERSION = 'insight-explanation-v1';
 export const CHATBOT_CLASSIFY_PROMPT_VERSION = 'chatbot-classify-v1';
 export const CHATBOT_DATA_ANSWER_PROMPT_VERSION = 'chatbot-data-answer-v1';
 export const INTELLIGENCE_AGENT_PROMPT_VERSION = 'intelligence-agent-v3';
+export const INTELLIGENCE_PLANNER_PROMPT_VERSION = 'intelligence-planner-v1';

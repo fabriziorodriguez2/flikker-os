@@ -10,6 +10,10 @@ const DEFAULT_AGENT_TURN_TIMEOUT_MS = 45_000;
 /** USD por millón de tokens — precio público de `gpt-4o-mini`, el modelo por defecto. */
 const DEFAULT_PRICE_INPUT_PER_MILLION_USD = 0.15;
 const DEFAULT_PRICE_OUTPUT_PER_MILLION_USD = 0.6;
+/** Corridas del planificador por negocio y día (diaria + a pedido). */
+const DEFAULT_PLANNER_MAX_RUNS_PER_DAY = 3;
+/** Tope de gasto del planificador por negocio y mes, en USD. */
+const DEFAULT_PLANNER_MONTHLY_USD_CAP = 2;
 
 /**
  * Fase F §3/§4 — reads every AI-related env var once, with safe defaults, and
@@ -43,6 +47,16 @@ export class AiConfigService {
   readonly agentTurnTimeoutMs: number;
   readonly priceInputPerMillionUsd: number;
   readonly priceOutputPerMillionUsd: number;
+  /**
+   * Planificador comercial: modelo y precios propios (puede ser uno más capaz
+   * que el del chat), y topes propios por negocio para que un modelo caro
+   * nunca se coma el presupuesto de nada más.
+   */
+  readonly plannerModel: string;
+  readonly plannerPriceInputPerMillionUsd: number;
+  readonly plannerPriceOutputPerMillionUsd: number;
+  readonly plannerMaxRunsPerDay: number;
+  readonly plannerMonthlyUsdCapPerBusiness: number;
 
   constructor() {
     this.apiKey = process.env.OPENAI_API_KEY?.trim() || null;
@@ -82,6 +96,34 @@ export class AiConfigService {
       DEFAULT_PRICE_OUTPUT_PER_MILLION_USD,
     );
 
+    this.plannerModel = process.env.AI_PLANNER_MODEL?.trim() || this.model;
+    // Sin precios propios, los del modelo general: correcto solo si el
+    // planificador usa el mismo modelo, por eso se avisa abajo.
+    this.plannerPriceInputPerMillionUsd = parsePositiveNumber(
+      process.env.AI_PLANNER_PRICE_INPUT_PER_MILLION_USD,
+      this.priceInputPerMillionUsd,
+    );
+    this.plannerPriceOutputPerMillionUsd = parsePositiveNumber(
+      process.env.AI_PLANNER_PRICE_OUTPUT_PER_MILLION_USD,
+      this.priceOutputPerMillionUsd,
+    );
+    this.plannerMaxRunsPerDay = parsePositiveInt(
+      process.env.AI_PLANNER_MAX_RUNS_PER_DAY,
+      DEFAULT_PLANNER_MAX_RUNS_PER_DAY,
+    );
+    this.plannerMonthlyUsdCapPerBusiness = parsePositiveNumber(
+      process.env.AI_PLANNER_MONTHLY_USD_CAP,
+      DEFAULT_PLANNER_MONTHLY_USD_CAP,
+    );
+    if (
+      this.plannerModel !== this.model &&
+      !process.env.AI_PLANNER_PRICE_INPUT_PER_MILLION_USD
+    ) {
+      this.logger.warn(
+        `AI_PLANNER_MODEL=${this.plannerModel} sin AI_PLANNER_PRICE_*: el costo del planificador se estima con los precios de ${this.model}.`,
+      );
+    }
+
     if (this.globallyEnabled && !this.apiKey) {
       // Not fatal — every caller still falls back to the deterministic
       // template — but worth a loud boot-time warning, since it means the
@@ -95,6 +137,15 @@ export class AiConfigService {
   /** Whether the provider has enough configuration to ever be called. */
   get providerConfigured(): boolean {
     return Boolean(this.apiKey);
+  }
+
+  /** Costo estimado de una corrida del planificador, con sus precios. */
+  estimatePlannerCostUsd(inputTokens: number, outputTokens: number): number {
+    const cost =
+      (inputTokens * this.plannerPriceInputPerMillionUsd +
+        outputTokens * this.plannerPriceOutputPerMillionUsd) /
+      1_000_000;
+    return Math.round(cost * 1_000_000) / 1_000_000;
   }
 
   /** Costo estimado, con el precio configurado — nunca la factura real del proveedor. */

@@ -160,7 +160,7 @@ export class OpenAiProviderService implements AiProvider, AiAgentProvider {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: this.config.model,
+          model: request.model ?? this.config.model,
           instructions: request.instructions,
           input: request.input,
           tools: request.tools.map((tool) => ({
@@ -173,7 +173,10 @@ export class OpenAiProviderService implements AiProvider, AiAgentProvider {
           tool_choice: request.toolChoice,
           stream: true,
           store: false,
-          temperature: 0.3,
+          // Los modelos de razonamiento rechazan `temperature`.
+          ...(supportsTemperature(request.model ?? this.config.model)
+            ? { temperature: 0.3 }
+            : {}),
           max_output_tokens: request.maxOutputTokens,
           parallel_tool_calls: true,
         }),
@@ -218,7 +221,10 @@ export class OpenAiProviderService implements AiProvider, AiAgentProvider {
           }
           if (!isRecord(event)) continue;
 
-          const mapped = mapResponsesEvent(event, this.config.model);
+          const mapped = mapResponsesEvent(
+            event,
+            request.model ?? this.config.model,
+          );
           if (mapped) {
             yield mapped;
             if (mapped.type === 'completed') finished = true;
@@ -236,6 +242,11 @@ export class OpenAiProviderService implements AiProvider, AiAgentProvider {
       );
     }
   }
+}
+
+/** Familias de razonamiento (o1/o3/o4, gpt-5): no aceptan `temperature`. */
+export function supportsTemperature(model: string): boolean {
+  return !/^(o\d|gpt-5)/i.test(model.trim());
 }
 
 function toProviderError(error: unknown, signal: AbortSignal): AiProviderError {

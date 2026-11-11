@@ -30,6 +30,11 @@ export interface AgentTurnRequest {
    */
   toolChoice: 'auto' | 'none' | 'required';
   maxOutputTokens: number;
+  /**
+   * Modelo para este pedido; por defecto el de `AI_MODEL`. El planificador
+   * usa el suyo (`AI_PLANNER_MODEL`).
+   */
+  model?: string;
   /** Corta la llamada: interrupción del usuario o timeout del turno. */
   signal: AbortSignal;
 }

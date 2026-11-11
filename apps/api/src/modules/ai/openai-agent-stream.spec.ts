@@ -200,6 +200,36 @@ describe('OpenAiProviderService.streamAgentTurn', () => {
     ]);
   });
 
+  it('usa el modelo del pedido y omite temperature en modelos de razonamiento', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockImplementation(() =>
+        Promise.resolve(
+          streamResponse([
+            'data: {"type":"response.completed","response":{"usage":{"input_tokens":1,"output_tokens":1}}}\n\n',
+          ]),
+        ),
+      );
+    global.fetch = fetchMock;
+    const service = provider();
+
+    await collect(
+      service.streamAgentTurn({ ...request(), model: 'gpt-5-mini' }),
+    );
+    await collect(service.streamAgentTurn({ ...request(), model: 'gpt-4.1' }));
+
+    const bodies = fetchMock.mock.calls.map(
+      ([, init]) =>
+        JSON.parse((init as RequestInit).body as string) as Record<
+          string,
+          unknown
+        >,
+    );
+    expect(bodies[0].model).toBe('gpt-5-mini');
+    expect(bodies[0]).not.toHaveProperty('temperature');
+    expect(bodies[1]).toMatchObject({ model: 'gpt-4.1', temperature: 0.3 });
+  });
+
   it('un HTTP de error es AiProviderError, sin exponer la key', async () => {
     global.fetch = jest
       .fn()
