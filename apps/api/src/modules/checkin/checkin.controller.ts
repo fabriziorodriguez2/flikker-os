@@ -16,6 +16,7 @@ import {
   RecoverVerifyDto,
   CheckinDto,
   RegisterDto,
+  SetConsentDto,
   SubmitCheckinFeedbackDto,
 } from './dto/checkin.dto';
 
@@ -52,6 +53,16 @@ export class CheckinController {
     @Body() dto: SubmitCheckinFeedbackDto,
   ) {
     return this.service.submitFeedback(session, dto.score, dto.comment);
+  }
+
+  /** El cliente acepta o retira su consentimiento promocional por WhatsApp. */
+  @Post('session/consent')
+  @HttpCode(200)
+  setConsent(
+    @Headers('x-flikker-session') session: string | undefined,
+    @Body() dto: SetConsentDto,
+  ) {
+    return this.service.setConsent(session, dto.channel, dto.granted);
   }
 
   @Get(':token')

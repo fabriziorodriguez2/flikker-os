@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { PolicyModule } from '../policy/policy.module';
+import { MyFlikkerConsentService } from './my-flikker-consent.service';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { PublicModule } from '../public/public.module';
 import { RewardGoalsModule } from '../reward-goals/reward-goals.module';
@@ -22,6 +24,7 @@ import { MyFlikkerService } from './my-flikker.service';
     MissionsModule,
     StreaksModule,
     ReturnChallengesModule,
+    PolicyModule,
   ],
   controllers: [FlikkerAccountController, MyFlikkerController],
   providers: [
@@ -29,6 +32,7 @@ import { MyFlikkerService } from './my-flikker.service';
     FlikkerAccountSessionsRepository,
     FlikkerAccountVerificationsRepository,
     MyFlikkerService,
+    MyFlikkerConsentService,
   ],
   exports: [FlikkerAccountService, FlikkerAccountSessionsRepository],
 })

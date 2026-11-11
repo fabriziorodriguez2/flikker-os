@@ -3945,6 +3945,11 @@ enum ConsentSource {
   INBOUND_KEYWORD
   COMPLAINT
   PLATFORM
+  /// El cliente lo cambió desde Mi Flikker.
+  MI_FLIKKER
+  /// Autorización anterior a Flikker, importada con origen, alcance y fecha
+  /// verificables (ver ConsentAuditService).
+  LEGACY_IMPORT
 }
 
 /// Registro de solo agregar: el estado vigente es el último evento por canal.

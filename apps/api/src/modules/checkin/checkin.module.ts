@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PolicyModule } from '../policy/policy.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { BenefitsModule } from '../benefits/benefits.module';
 import { PublicModule } from '../public/public.module';
@@ -30,6 +31,8 @@ import { CustomerEventsRepository } from './customer-events.repository';
     ReturnChallengesModule,
     RetentionV2Module,
     FlikkerAccountModule,
+    // Consentimiento promocional (registro y decisión del cliente).
+    PolicyModule,
   ],
   controllers: [
     CheckinController,

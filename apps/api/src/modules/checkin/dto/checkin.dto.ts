@@ -1,5 +1,7 @@
+import { ConsentChannel } from '@prisma/client';
 import {
   IsBoolean,
+  IsEnum,
   IsInt,
   IsISO8601,
   IsNotEmpty,
@@ -85,4 +87,13 @@ export class SubmitCheckinFeedbackDto {
   @IsString()
   @MaxLength(1000)
   comment?: string;
+}
+
+/** El cliente acepta (true) o retira (false) su consentimiento promocional. */
+export class SetConsentDto {
+  @IsEnum(ConsentChannel)
+  channel!: ConsentChannel;
+
+  @IsBoolean()
+  granted!: boolean;
 }

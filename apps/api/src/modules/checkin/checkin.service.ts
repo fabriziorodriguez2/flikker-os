@@ -18,7 +18,8 @@ import {
   ReviewFlowMode,
   VisitVerificationType,
 } from '@prisma/client';
-import { CONSENT_TEXT_VERSION } from '../policy/policy-rules';
+import { CONSENT_TEXT_VERSIONS, consentText } from '../policy/consent-texts';
+import { ConsentService } from '../policy/consent.service';
 import { PrismaService } from '../../prisma/prisma.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
 import { resolveReviewFlow } from '../../common/utils/review-flow.util';
@@ -110,6 +111,7 @@ export class CheckinService {
     private readonly rewardGoalFeedback: RewardGoalFeedbackService,
     private readonly flikkerAccount: FlikkerAccountService,
     private readonly presence: PresenceChallengeService,
+    private readonly consent: ConsentService,
   ) {}
 
   // ── Landing (GET) ──────────────────────────────────────────────────────────
@@ -138,6 +140,9 @@ export class CheckinService {
       // cualquiera que abra el link desde su casa, que es justo lo que este
       // mecanismo evita.
       presence: this.presenceRequirement(business),
+      // El texto exacto de la casilla, con el nombre del comercio. Lo arma el
+      // servidor para que lo que se muestra y la versión guardada coincidan.
+      consentText: consentText(ConsentChannel.WHATSAPP, business.name),
     };
   }
 
@@ -203,7 +208,7 @@ export class CheckinService {
           channel: ConsentChannel.WHATSAPP,
           action: ConsentAction.GRANTED,
           source: ConsentSource.CHECKIN_FORM,
-          textVersion: CONSENT_TEXT_VERSION,
+          textVersion: CONSENT_TEXT_VERSIONS.WHATSAPP,
         },
       });
     }
@@ -395,6 +400,30 @@ export class CheckinService {
       session.customerId,
     );
     return this.buildPersonalSpace(business, customer.id, {});
+  }
+
+  // ── Consentimiento promocional, después del check-in ─────────────────────────
+
+  /**
+   * El cliente que vuelve decide en su espacio personal, sin formulario. La
+   * sesión define negocio y cliente: nunca un id del body.
+   */
+  async setConsent(
+    sessionRawToken: string | undefined,
+    channel: ConsentChannel,
+    granted: boolean,
+  ) {
+    const session = await this.sessions.resolveLive(sessionRawToken ?? '');
+    if (!session) throw new UnauthorizedException('No session');
+    const business = await this.getBusinessOrThrow(session.businessId);
+    const status = await this.consent.setByCustomer({
+      businessId: business.id,
+      customerId: session.customerId,
+      channel,
+      granted,
+      source: ConsentSource.CHECKIN_FORM,
+    });
+    return { channel, status, text: consentText(channel, business.name) };
   }
 
   // ── Feedback ("¿Cómo fue tu experiencia?") — Fase E §9 pilot ask ─────────────
@@ -942,6 +971,11 @@ export class CheckinService {
     // Otros beneficios ya otorgados (típicamente por una promoción manual)
     // que no son ni el activo del check-in ni el regalo de bienvenida —
     // deben verse igual, sin importar cuál sea hoy el `active`.
+    const whatsappStatus = await this.consent.channelStatus(
+      business.id,
+      customerId,
+      ConsentChannel.WHATSAPP,
+    );
     const otherBenefits = await this.benefits.getOtherAvailableBenefits(
       business.id,
       customerId,
@@ -981,6 +1015,16 @@ export class CheckinService {
         show: showReview,
         googleUrl: resolveReviewFlow(business).googleReviewUrl,
         mode: business.reviewFlowMode,
+      },
+      // Se pregunta solo si nunca respondió: a quien dijo que no, o pidió no
+      // ser contactado, no se le insiste en cada visita (lo cambia en Mi
+      // Flikker).
+      marketingConsent: {
+        whatsapp: {
+          status: whatsappStatus,
+          ask: whatsappStatus === 'UNKNOWN',
+          text: consentText(ConsentChannel.WHATSAPP, business.name),
+        },
       },
     };
   }

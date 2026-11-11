@@ -135,6 +135,11 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     // transparente — que es exactamente lo que estos tests deben seguir
     // demostrando.
     new PresenceChallengeService(deps.prisma as never),
+    // Consentimiento: el cliente nunca respondió.
+    {
+      channelStatus: jest.fn().mockResolvedValue('UNKNOWN'),
+      setByCustomer: jest.fn(),
+    } as never,
   );
 }
 

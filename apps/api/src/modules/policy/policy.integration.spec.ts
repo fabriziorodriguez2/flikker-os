@@ -506,7 +506,7 @@ describe('Policy & Budget Engine (integration)', () => {
       expect(again.body.events).toHaveLength(3);
       expect(again.body.events[0]).toMatchObject({
         source: 'STAFF',
-        textVersion: 'whatsapp-marketing-v1',
+        textVersion: 'whatsapp-marketing-v2',
       });
     });
 

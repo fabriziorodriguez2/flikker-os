@@ -7,11 +7,8 @@ import {
 } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
-import {
-  CONSENT_TEXT_VERSION,
-  effectiveConsent,
-  type ConsentStatus,
-} from './policy-rules';
+import { effectiveConsent, type ConsentStatus } from './policy-rules';
+import { CONSENT_TEXT_VERSIONS } from './consent-texts';
 
 export interface RecordConsentInput {
   businessId: string;
@@ -21,6 +18,13 @@ export interface RecordConsentInput {
   source: ConsentSource;
   actorUserId?: string | null;
   note?: string | null;
+  /** Versión del texto aceptado; por defecto la vigente del canal. */
+  textVersion?: string | null;
+  /**
+   * Cuándo ocurrió. Solo para importar una autorización anterior con su
+   * fecha real; en cualquier otro caso es "ahora".
+   */
+  occurredAt?: Date;
 }
 
 /**
@@ -52,9 +56,12 @@ export class ConsentService {
         action: input.action,
         source: input.source,
         textVersion:
-          input.action === ConsentAction.GRANTED ? CONSENT_TEXT_VERSION : null,
+          input.action === ConsentAction.GRANTED
+            ? (input.textVersion ?? CONSENT_TEXT_VERSIONS[input.channel])
+            : null,
         actorUserId: input.actorUserId ?? null,
         note: input.note?.slice(0, 500) ?? null,
+        ...(input.occurredAt ? { createdAt: input.occurredAt } : {}),
       },
     });
 
@@ -83,6 +90,60 @@ export class ConsentService {
       });
     }
     return fromEvents;
+  }
+
+  /** Estado vigente de un canal para un cliente (con el espejo `optedOut`). */
+  async channelStatus(
+    businessId: string,
+    customerId: string,
+    channel: ConsentChannel,
+  ): Promise<ConsentStatus> {
+    const [customer, events] = await Promise.all([
+      this.prisma.customer.findFirst({
+        where: { id: customerId, businessId },
+        select: { optedOut: true },
+      }),
+      this.prisma.customerConsentEvent.findMany({
+        where: { businessId, customerId, channel },
+        select: { action: true, createdAt: true },
+      }),
+    ]);
+    if (!customer) throw new NotFoundException('Cliente no encontrado');
+    return effectiveConsent(
+      events,
+      channel === ConsentChannel.WHATSAPP ? customer.optedOut : false,
+    );
+  }
+
+  /**
+   * El cliente decide desde una pantalla pública (check-in, Mi Flikker). Un
+   * sí nunca levanta una supresión (queja o pedido de no contactar): esa
+   * solo la levanta el comercio.
+   */
+  async setByCustomer(input: {
+    businessId: string;
+    customerId: string;
+    channel: ConsentChannel;
+    granted: boolean;
+    source: ConsentSource;
+  }): Promise<ConsentStatus> {
+    const current = await this.channelStatus(
+      input.businessId,
+      input.customerId,
+      input.channel,
+    );
+    if (current === 'SUPPRESSED') return current;
+    if (input.granted ? current === 'GRANTED' : current !== 'GRANTED') {
+      // Sin cambio: no se agregan eventos repetidos.
+      return current;
+    }
+    return this.record({
+      businessId: input.businessId,
+      customerId: input.customerId,
+      channel: input.channel,
+      action: input.granted ? ConsentAction.GRANTED : ConsentAction.REVOKED,
+      source: input.source,
+    });
   }
 
   /** Estado vigente y el historial completo de un cliente (más nuevo primero). */

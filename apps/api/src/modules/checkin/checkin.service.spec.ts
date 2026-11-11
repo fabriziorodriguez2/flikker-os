@@ -113,6 +113,11 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     // transparente — que es exactamente lo que estos tests deben seguir
     // demostrando.
     new PresenceChallengeService(deps.prisma as never),
+    // Consentimiento: el cliente nunca respondió.
+    {
+      channelStatus: jest.fn().mockResolvedValue('UNKNOWN'),
+      setByCustomer: jest.fn(),
+    } as never,
   );
 }
 
@@ -505,6 +510,79 @@ describe('CheckinService', () => {
 
       expect(deps.benefits.ensureRedemptionCode).not.toHaveBeenCalled();
       expect(deps.benefits.findRedemption).toHaveBeenCalled();
+    });
+  });
+
+  describe('consentimiento promocional después del check-in', () => {
+    function consentOf(service: CheckinService) {
+      return (
+        service as unknown as {
+          consent: { channelStatus: jest.Mock; setByCustomer: jest.Mock };
+        }
+      ).consent;
+    }
+
+    it('el espacio personal pregunta solo a quien nunca respondió, con el nombre del comercio', async () => {
+      const deps = makeDeps();
+      deps.sessions.resolveLive.mockResolvedValue({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+      });
+      deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+      deps.prisma.customer.findFirst.mockResolvedValue({
+        id: 'cust-1',
+        name: 'Ana',
+      });
+      const service = makeService(deps);
+
+      const unknown = await service.me('session-token');
+      expect(unknown.marketingConsent.whatsapp).toMatchObject({
+        status: 'UNKNOWN',
+        ask: true,
+      });
+      expect(unknown.marketingConsent.whatsapp.text).toContain(
+        fullBusiness.name,
+      );
+
+      consentOf(service).channelStatus.mockResolvedValue('REVOKED');
+      const revoked = await service.me('session-token');
+      expect(revoked.marketingConsent.whatsapp.ask).toBe(false);
+    });
+
+    it('setConsent usa el negocio y el cliente de la sesión, nunca del pedido', async () => {
+      const deps = makeDeps();
+      deps.sessions.resolveLive.mockResolvedValue({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+      });
+      deps.prisma.business.findFirst.mockResolvedValue(fullBusiness);
+      const service = makeService(deps);
+      consentOf(service).setByCustomer.mockResolvedValue('GRANTED');
+
+      const result = await service.setConsent(
+        'session-token',
+        'WHATSAPP',
+        true,
+      );
+
+      expect(consentOf(service).setByCustomer).toHaveBeenCalledWith({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+        channel: 'WHATSAPP',
+        granted: true,
+        source: 'CHECKIN_FORM',
+      });
+      expect(result).toMatchObject({ channel: 'WHATSAPP', status: 'GRANTED' });
+    });
+
+    it('sin sesión no se puede registrar nada', async () => {
+      const deps = makeDeps();
+      deps.sessions.resolveLive.mockResolvedValue(null);
+      const service = makeService(deps);
+      await expect(
+        service.setConsent(undefined, 'WHATSAPP', true),
+      ).rejects.toThrow('No session');
+      expect(consentOf(service).setByCustomer).not.toHaveBeenCalled();
     });
   });
 

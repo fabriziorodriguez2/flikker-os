@@ -16,8 +16,8 @@ import { getLocalDateTimeParts } from '../../common/utils/timezone.util';
 /** Sube cuando cambia el texto de la política: obliga a volver a aceptarla. */
 export const POLICY_VERSION = 1;
 
-/** Versión del texto de consentimiento que ve el cliente en el check-in. */
-export const CONSENT_TEXT_VERSION = 'whatsapp-marketing-v1';
+/** Versión vigente del texto de WhatsApp (ver consent-texts.ts). */
+export { CONSENT_TEXT_VERSIONS } from './consent-texts';
 
 /** Cuánto vive una reserva sin confirmarse antes de dejar de contar. */
 export const RESERVATION_TTL_MS = 60 * 60_000;

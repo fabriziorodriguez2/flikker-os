@@ -1,12 +1,29 @@
 import {
+  Body,
   Controller,
   Get,
   Headers,
+  HttpCode,
   Param,
+  Post,
   UnauthorizedException,
 } from '@nestjs/common';
+import { ConsentChannel } from '@prisma/client';
+import { IsBoolean, IsEnum, IsUUID } from 'class-validator';
+import { MyFlikkerConsentService } from './my-flikker-consent.service';
 import { FlikkerAccountService } from './flikker-account.service';
 import { MyFlikkerService } from './my-flikker.service';
+
+export class SetMyConsentDto {
+  @IsUUID()
+  businessId!: string;
+
+  @IsEnum(ConsentChannel)
+  channel!: ConsentChannel;
+
+  @IsBoolean()
+  granted!: boolean;
+}
 
 /**
  * Public, authenticated-by-global-session "Mi Flikker" read API. Every
@@ -19,6 +36,7 @@ export class MyFlikkerController {
   constructor(
     private readonly accounts: FlikkerAccountService,
     private readonly myFlikker: MyFlikkerService,
+    private readonly consents: MyFlikkerConsentService,
   ) {}
 
   @Get()
@@ -56,6 +74,31 @@ export class MyFlikkerController {
   async account(@Headers('x-flikker-account-session') session?: string) {
     const account = await this.requireAccount(session);
     return this.myFlikker.getAccountProfile(account.flikkerAccountId);
+  }
+
+  /**
+   * Preferencias de comunicación por comercio. Rutas literales ANTES de
+   * `:businessId`.
+   */
+  @Get('consents')
+  async listConsents(@Headers('x-flikker-account-session') session?: string) {
+    const account = await this.requireAccount(session);
+    return this.consents.list(account.flikkerAccountId);
+  }
+
+  @Post('consents')
+  @HttpCode(200)
+  async setConsent(
+    @Body() dto: SetMyConsentDto,
+    @Headers('x-flikker-account-session') session?: string,
+  ) {
+    const account = await this.requireAccount(session);
+    return this.consents.set(
+      account.flikkerAccountId,
+      dto.businessId,
+      dto.channel,
+      dto.granted,
+    );
   }
 
   @Get(':businessId')

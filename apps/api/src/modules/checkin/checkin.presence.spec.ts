@@ -130,6 +130,11 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.rewardGoalFeedback as never,
     deps.flikkerAccount as never,
     new PresenceChallengeService(deps.prisma as never),
+    // Consentimiento: el cliente nunca respondió.
+    {
+      channelStatus: jest.fn().mockResolvedValue('UNKNOWN'),
+      setByCustomer: jest.fn(),
+    } as never,
   );
 }
 
