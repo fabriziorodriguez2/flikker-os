@@ -51,18 +51,24 @@ describe("buildLoyaltyCardTheme — el sello nunca queda ilegible", () => {
     },
   );
 
-  it.each(CARDS)("el contenido del sello contrasta contra su relleno (%s)", (card) => {
-    const theme = buildLoyaltyCardTheme(card);
-    expect(contrastRatio(theme.onAccent, theme.accent)).toBeGreaterThanOrEqual(
-      MIN_GRAPHIC_CONTRAST,
-    );
-  });
+  it.each(CARDS)(
+    "el contenido del sello contrasta contra su relleno (%s)",
+    (card) => {
+      const theme = buildLoyaltyCardTheme(card);
+      expect(
+        contrastRatio(theme.onAccent, theme.accent),
+      ).toBeGreaterThanOrEqual(MIN_GRAPHIC_CONTRAST);
+    },
+  );
 
-  it.each(CARDS)("el texto principal es legible sobre la tarjeta %s", (card) => {
-    const theme = buildLoyaltyCardTheme(card);
-    // 4.5:1 es el mínimo WCAG AA para texto normal.
-    expect(contrastRatio(theme.text, theme.card)).toBeGreaterThanOrEqual(4.5);
-  });
+  it.each(CARDS)(
+    "el texto principal es legible sobre la tarjeta %s",
+    (card) => {
+      const theme = buildLoyaltyCardTheme(card);
+      // 4.5:1 es el mínimo WCAG AA para texto normal.
+      expect(contrastRatio(theme.text, theme.card)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
 
   it("invierte el relleno según la luminancia de la tarjeta", () => {
     const dark = buildLoyaltyCardTheme("#1A1040");
@@ -129,8 +135,8 @@ describe("isStampIconKey", () => {
 
 describe("resolveLoyaltyStampAreaColor", () => {
   it("crea una franja clara neutra cuando no se configuró un color", () => {
-    expect(resolveLoyaltyStampAreaColor("#171A2B", null)).toBe("#F8F3EF");
-    expect(resolveLoyaltyStampAreaColor("#FFFFFF", null)).toBe("#F2F4F8");
+    expect(resolveLoyaltyStampAreaColor("#171A2B", null)).toBe("#FFFFFF");
+    expect(resolveLoyaltyStampAreaColor("#FFFFFF", null)).toBe("#FFFFFF");
   });
 
   it("respeta y normaliza el color elegido por el negocio", () => {

@@ -1,5 +1,7 @@
 "use client";
 
+import { useId } from "react";
+
 import {
   Check,
   Coffee,
@@ -19,6 +21,8 @@ import {
 } from "lucide-react";
 import {
   buildLoyaltyCardTheme,
+  bestContrastOn,
+  normalizeHex,
   isStampIconKey,
   type StampIconKey,
 } from "@/lib/loyalty-card-theme";
@@ -70,11 +74,17 @@ export default function RewardGoalStamps({
 }) {
   if (target <= 0 || target > 12) return null;
 
-  const theme = buildLoyaltyCardTheme(stampAreaColor ?? cardColor, stampColor);
+  const base = buildLoyaltyCardTheme(stampAreaColor ?? cardColor, stampColor);
+  // A filled circle carries the exact configured color; its icon gets contrast
+  // against that circle. Low contrast against the outer surface is harmless:
+  // the circle outline and contrasting icon keep the stamp identifiable.
+  const accent =
+    normalizeHex(stampColor) ?? normalizeHex(cardColor) ?? base.accent;
+  const theme = { ...base, accent, onAccent: bestContrastOn(accent) };
   const Icon = isStampIconKey(icon) ? ICONS[icon] : Gift;
   const customIcon = typeof icon === "string" && icon.startsWith("data:image/");
   const stamps = Array.from({ length: target }, (_, i) => i < progress);
-  const columns = Math.min(target, 5);
+  const columns = target <= 6 ? target : Math.ceil(target / 2);
 
   return (
     <div
@@ -104,20 +114,19 @@ export default function RewardGoalStamps({
                   // círculo: nunca círculo dentro de círculo.
                   backgroundColor: theme.accent,
                   color: theme.onAccent,
+                  border: `1px solid ${theme.isDarkCard ? "#B7B9C233" : "#73768122"}`,
                 }
               : {
                   borderWidth: 1.5,
                   borderStyle: "solid",
-                  borderColor: theme.emptyBorder,
-                  backgroundColor: theme.emptyFill,
-                  color: theme.emptyContent,
+                  borderColor: theme.isDarkCard ? "#B7B9C2" : "#737681",
+                  backgroundColor: "transparent",
+                  color: theme.text,
                 }
           }
         >
-          {!filled ? (
-            <span className="text-[11px] font-semibold tabular-nums opacity-75">
-              {String(i + 1).padStart(2, "0")}
-            </span>
+          {customIcon && !filled ? (
+            <CustomStampOutline source={icon!} color={theme.text} />
           ) : customIcon ? (
             /*
               Sello propio del negocio (data:image). Mismo renderer de
@@ -144,12 +153,61 @@ export default function RewardGoalStamps({
           ) : (
             <Icon
               className="h-[56%] w-[56%]"
-              strokeWidth={2.4}
+              strokeWidth={filled ? 2.4 : 1.5}
               aria-hidden="true"
             />
           )}
         </span>
       ))}
     </div>
+  );
+}
+
+/** The custom image remains the source. Morphological edges outline its alpha
+ * silhouette, including interior holes, without replacing it with a stock icon.
+ * SVG images cannot run embedded scripts in this image context.
+ */
+function CustomStampOutline({
+  source,
+  color,
+}: {
+  source: string;
+  color: string;
+}) {
+  const filterId = `stamp-outline-${useId().replaceAll(":", "")}`;
+  return (
+    <svg
+      viewBox="-2 -2 68 68"
+      className="h-[56%] w-[56%]"
+      aria-hidden="true"
+      data-custom-stamp="outline"
+    >
+      <defs>
+        <filter id={filterId} x="-10%" y="-10%" width="120%" height="120%">
+          <feMorphology
+            in="SourceAlpha"
+            operator="dilate"
+            radius="0.8"
+            result="outer"
+          />
+          <feMorphology
+            in="SourceAlpha"
+            operator="erode"
+            radius="0.6"
+            result="inner"
+          />
+          <feComposite in="outer" in2="inner" operator="out" result="edge" />
+          <feFlood floodColor={color} />
+          <feComposite in2="edge" operator="in" />
+        </filter>
+      </defs>
+      <image
+        href={source}
+        width="64"
+        height="64"
+        preserveAspectRatio="xMidYMid meet"
+        filter={`url(#${filterId})`}
+      />
+    </svg>
   );
 }

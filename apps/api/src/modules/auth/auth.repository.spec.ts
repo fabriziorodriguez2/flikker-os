@@ -181,4 +181,81 @@ describe('AuthRepository', () => {
       });
     });
   });
+
+  describe('Continuar con Google', () => {
+    it('createGoogleUser: nace verificado, sin password, con googleSub y sin negocio', async () => {
+      const create = jest.fn().mockResolvedValue({ id: 'user-1' });
+      const repository = new AuthRepository({ user: { create } } as never);
+
+      await repository.createGoogleUser({
+        email: 'mateo@gmail.com',
+        googleSub: 'sub-1',
+        firstName: 'Mateo',
+        lastName: 'Gómez',
+        pendingUpgradePlan: 'MONTHLY' as never,
+      });
+
+      const { data } = create.mock.calls[0][0] as {
+        data: Record<string, unknown>;
+      };
+      expect(data).toEqual(
+        expect.objectContaining({
+          email: 'mateo@gmail.com',
+          googleSub: 'sub-1',
+          passwordHash: null,
+          isActive: true,
+          pendingUpgradePlan: 'MONTHLY',
+        }),
+      );
+      expect(data.emailVerifiedAt).toBeInstanceOf(Date);
+      expect(data).not.toHaveProperty('memberships');
+    });
+
+    it('linkGoogleSub: condicional a googleSub null y conserva la password de una cuenta verificada', async () => {
+      const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      const repository = new AuthRepository({ user: { updateMany } } as never);
+
+      await repository.linkGoogleSub('user-1', 'sub-1', {
+        discardUnverifiedPassword: false,
+      });
+
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { id: 'user-1', googleSub: null },
+        data: { googleSub: 'sub-1' },
+      });
+    });
+
+    it('linkGoogleSub sobre cuenta sin verificar: la verifica y descarta la password', async () => {
+      const updateMany = jest.fn().mockResolvedValue({ count: 1 });
+      const repository = new AuthRepository({ user: { updateMany } } as never);
+
+      await repository.linkGoogleSub('user-1', 'sub-1', {
+        discardUnverifiedPassword: true,
+      });
+
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { id: 'user-1', googleSub: null },
+        data: {
+          googleSub: 'sub-1',
+          emailVerifiedAt: expect.any(Date) as unknown,
+          passwordHash: null,
+        },
+      });
+    });
+
+    it('setPendingUpgradePlanIfEmpty nunca pisa una intención existente', async () => {
+      const updateMany = jest.fn().mockResolvedValue({ count: 0 });
+      const repository = new AuthRepository({ user: { updateMany } } as never);
+
+      await repository.setPendingUpgradePlanIfEmpty(
+        'user-1',
+        'YEARLY' as never,
+      );
+
+      expect(updateMany).toHaveBeenCalledWith({
+        where: { id: 'user-1', pendingUpgradePlan: null },
+        data: { pendingUpgradePlan: 'YEARLY' },
+      });
+    });
+  });
 });

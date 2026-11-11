@@ -10,6 +10,72 @@ export class AuthRepository {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
+  /** Identidad estable de Google — siempre se busca por acá ANTES que por email. */
+  findUserByGoogleSub(googleSub: string) {
+    return this.prisma.user.findUnique({ where: { googleSub } });
+  }
+
+  /**
+   * Alta vía "Continuar con Google": el correo ya viene verificado por
+   * Google (`email_verified`), así que nace con `emailVerifiedAt` y sin
+   * password. Igual que el signup tradicional, NO crea Business.
+   */
+  createGoogleUser(data: {
+    email: string;
+    googleSub: string;
+    firstName: string;
+    lastName: string;
+    pendingUpgradePlan?: CheckoutPlan | null;
+  }) {
+    return this.prisma.user.create({
+      data: {
+        email: data.email,
+        googleSub: data.googleSub,
+        passwordHash: null,
+        firstName: data.firstName,
+        lastName: data.lastName,
+        isActive: true,
+        emailVerifiedAt: new Date(),
+        pendingUpgradePlan: data.pendingUpgradePlan ?? null,
+      },
+    });
+  }
+
+  /**
+   * Asocia la identidad Google a un User existente. Condicional a
+   * `googleSub: null` para que dos callbacks concurrentes (o un User que ya
+   * tiene OTRA identidad Google) nunca pisen un link existente: `count === 0`
+   * significa "no se linkeó".
+   *
+   * `discardUnverifiedPassword`: una cuenta que nunca confirmó el correo no
+   * probó ser de quien es dueño del email — su password pudo haberla puesto
+   * cualquiera (pre-hijacking). Al probar Google la propiedad del email, esa
+   * password se descarta en vez de quedar como puerta trasera.
+   */
+  linkGoogleSub(
+    userId: string,
+    googleSub: string,
+    opts: { discardUnverifiedPassword: boolean },
+  ) {
+    return this.prisma.user.updateMany({
+      where: { id: userId, googleSub: null },
+      data: {
+        googleSub,
+        ...(opts.discardUnverifiedPassword
+          ? { emailVerifiedAt: new Date(), passwordHash: null }
+          : {}),
+      },
+    });
+  }
+
+  /** Nunca pisa una intención ya guardada. */
+  setPendingUpgradePlanIfEmpty(userId: string, plan: CheckoutPlan) {
+    return this.prisma.user.updateMany({
+      where: { id: userId, pendingUpgradePlan: null },
+      data: { pendingUpgradePlan: plan },
+    });
+  }
+
   findUserById(id: string) {
     return this.prisma.user.findUnique({
       where: { id },

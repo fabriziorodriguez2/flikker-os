@@ -1,12 +1,7 @@
 "use client";
 
 import { Gift } from "lucide-react";
-import {
-  BenefitRewardCard,
-  Shell,
-} from "@/app/(public)/check-in/[token]/checkin-client";
-import type { CheckinLanding } from "@/app/(public)/check-in/[token]/page";
-import PhoneFrame from "@/components/ui/phone-frame";
+import { BenefitRewardCard } from "@/app/(public)/check-in/[token]/checkin-client";
 import ProgramStampsSection from "./program-stamps-section";
 import ProgramFeedbackBonusSection from "./program-feedback-bonus-section";
 import ProgramDesignTab from "./program-design-tab";
@@ -69,31 +64,30 @@ export default function ProgramCardSection({
 
   if (neverConfiguredStamps) {
     const previewBenefit = benefits.find((b) => b.active) ?? benefits[0];
-    const previewLanding: CheckinLanding = {
-      source: { name: "Preview", type: "qr" },
-      business: {
-        businessName: businessName || "Tu negocio",
-        logoUrl: appearance.logoUrl,
-        primaryColor: appearance.primaryColor,
-        checkinBackgroundColor: null,
-        googleBusinessProfileUrl: null,
-        loyaltyCardColor: appearance.loyaltyCardColor,
-        loyaltyCardTextColor: appearance.loyaltyCardTextColor,
-        loyaltyCardBackgroundImage: appearance.loyaltyCardBackgroundImage,
-        loyaltyStampAreaColor: appearance.loyaltyStampAreaColor,
-        loyaltyStampColor: appearance.loyaltyStampColor,
-        loyaltyStampIcon: appearance.loyaltyStampIcon,
-        loyaltyShowBusinessName: appearance.loyaltyShowBusinessName,
-        loyaltyStampBackgroundPattern: appearance.loyaltyStampBackgroundPattern,
-        loyaltyStampBackgroundOpacity: appearance.loyaltyStampBackgroundOpacity,
-      },
-      benefit: null,
-      benefitText: null,
-      welcomeMessage: null,
-    };
-
     return (
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+      <ProgramDesignTab
+        appearance={appearance}
+        businessName={businessName}
+        rewardName={null}
+        stampsRequired={0}
+        canMutate={canMutate}
+        onSave={onSaveDesign}
+        previewExtra={
+          previewBenefit ? (
+            <div className="mt-5">
+              <BenefitRewardCard
+                benefit={{
+                  ...previewBenefit,
+                  description: previewBenefit.description ?? null,
+                  terms: previewBenefit.terms ?? null,
+                  redemption: { code: "ABC123", redeemed: false },
+                }}
+                brand={appearance.primaryColor ?? "#5C6BC0"}
+              />
+            </div>
+          ) : undefined
+        }
+      >
         <section className="overflow-hidden rounded-[16px] border border-[#E8EAF0] bg-white">
           <div className="border-b border-[#E8EAF0] p-5 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -140,33 +134,7 @@ export default function ProgramCardSection({
             </div>
           ) : null}
         </section>
-
-        <aside className="lg:sticky lg:top-6">
-          <p className="mb-3 text-xs font-semibold uppercase tracking-[0.12em] text-[#8891A4]">
-            Vista previa
-          </p>
-          <PhoneFrame>
-            <Shell landing={previewLanding} fill={false}>
-              <div className="w-full max-w-sm">
-                <BenefitRewardCard
-                  benefit={{
-                    type: previewBenefit?.type ?? "gift",
-                    title: previewBenefit?.title ?? "Tu beneficio",
-                    description: previewBenefit?.description ?? null,
-                    terms: previewBenefit?.terms ?? null,
-                    redemption: { code: "ABC123", redeemed: false },
-                  }}
-                  brand={appearance.primaryColor ?? "#5C6BC0"}
-                />
-              </div>
-            </Shell>
-          </PhoneFrame>
-          <p className="mt-3 text-xs text-[#8891A4]">
-            Así ve tu cliente el beneficio disponible, dentro del shell real de
-            Flikker.
-          </p>
-        </aside>
-      </div>
+      </ProgramDesignTab>
     );
   }
 
@@ -176,8 +144,8 @@ export default function ProgramCardSection({
         <ProgramDesignTab
           appearance={appearance}
           businessName={businessName}
-          rewardName={overview.reward?.name ?? "Tu recompensa"}
-          stampsRequired={overview.stampsRequired ?? 5}
+          rewardName={overview.reward?.name ?? null}
+          stampsRequired={overview.stampsRequired ?? 0}
           canMutate={canMutate}
           onSave={onSaveDesign}
         >

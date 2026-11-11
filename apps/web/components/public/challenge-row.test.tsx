@@ -89,10 +89,11 @@ describe("ChallengeRow — el negocio solo donde corresponde", () => {
 });
 
 describe("ChallengeRow — una sola implementación", () => {
-  it("las tres superficies usan este componente y ninguna dibuja el suyo", () => {
-    for (const src of [tabSource, detailSource, checkinSource]) {
+  it("el detalle del lugar y el check-in usan este componente; la pestaña Desafíos, la tarjeta wallet", () => {
+    for (const src of [detailSource, checkinSource]) {
       expect(src).toContain("<ChallengeRow");
     }
+    expect(tabSource).toContain("<WalletChallengeCard");
     // Los componentes viejos ya no existen.
     expect(tabSource).not.toMatch(/function (MissionRow|StreakCard|ReturnChallengeRow)\(/);
     expect(detailSource).not.toMatch(/function PlaceChallenges\(/);

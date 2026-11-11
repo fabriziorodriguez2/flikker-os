@@ -1,0 +1,26 @@
+{
+  "passed": true,
+  "checks": [
+    "real route hydration",
+    "failed next page preserves rows",
+    "retry loads next page",
+    "deduplicates overlapping page boundary",
+    "real total independent of loaded rows",
+    "last event clears fixed bottom nav",
+    "few/empty/error/unauthorized states"
+  ],
+  "requests": [
+    "/api/mi-flikker/places/visual-fixture",
+    "/api/mi-flikker/places/visual-fixture/activity",
+    "/api/mi-flikker/places/visual-fixture/activity?cursor=next-page",
+    "/api/mi-flikker/places/visual-fixture/activity?cursor=next-page",
+    "/api/mi-flikker/places/visual-fixture",
+    "/api/mi-flikker/places/visual-fixture/activity",
+    "/api/mi-flikker/places/visual-fixture",
+    "/api/mi-flikker/places/visual-fixture/activity",
+    "/api/mi-flikker/places/visual-fixture",
+    "/api/mi-flikker/places/visual-fixture/activity",
+    "/api/mi-flikker/places/visual-fixture",
+    "/api/mi-flikker/places/visual-fixture/activity"
+  ]
+}

@@ -6,6 +6,14 @@ import { useSearchParams } from "next/navigation";
 import { Eye, EyeOff, Lock, Mail, MailCheck, User } from "lucide-react";
 import { AuthSplitShell } from "@/components/auth/auth-split-shell";
 import { parsePendingUpgradePlanFromSearchParams } from "@/lib/pending-upgrade-plan";
+import {
+  AuthDivider,
+  GoogleAuthButton,
+} from "@/components/auth/google-auth-button";
+import {
+  buildGoogleStartHref,
+  GOOGLE_AUTH_ERROR_MESSAGE,
+} from "@/lib/google-oauth";
 
 const MIN_LENGTH = 8;
 
@@ -41,7 +49,10 @@ function SignupPageContent() {
   */
   const pendingUpgradePlan = parsePendingUpgradePlanFromSearchParams(searchParams);
 
-  const [error, setError] = useState<string | null>(null);
+  // Vuelta fallida de "Continuar con Google": copy genérico, sin internals.
+  const [error, setError] = useState<string | null>(() =>
+    searchParams.get("error") === "google" ? GOOGLE_AUTH_ERROR_MESSAGE : null,
+  );
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
@@ -132,6 +143,16 @@ function SignupPageContent() {
               QR listo para el mostrador.
             </p>
           </div>
+
+          {/*
+            Con Google no hace falta nombre/email/password: la intención PRO
+            viaja server-side (cookie httpOnly del flujo OAuth), igual que acá
+            viaja en el body del signup.
+          */}
+          <GoogleAuthButton
+            href={buildGoogleStartHref({ origin: "signup", pendingUpgradePlan })}
+          />
+          <AuthDivider />
 
           <form onSubmit={handleSubmit} className="space-y-5">
             <div>

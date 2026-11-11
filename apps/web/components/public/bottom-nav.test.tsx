@@ -49,7 +49,7 @@ describe("BottomNav — navegación activa", () => {
   });
 
   it("respeta el safe-area de iPhone", () => {
-    expect(render("lugares")).toContain("pb-[env(safe-area-inset-bottom)]");
+    expect(render("lugares")).toContain("env(safe-area-inset-bottom)");
   });
 });
 

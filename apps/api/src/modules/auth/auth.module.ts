@@ -6,6 +6,9 @@ import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
 import { PreOnboardingCheckoutService } from './pre-onboarding-checkout.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
+import { GoogleAuthService } from './google/google-auth.service';
+import { GoogleOAuthClient } from './google/google-oauth.client';
+import { GoogleIdTokenVerifier } from './google/google-id-token.verifier';
 import { EmailService } from '../../jobs/email.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { PlansModule } from '../plans/plans.module';
@@ -30,6 +33,9 @@ import { SubscriptionPaidNotificationService } from '../webhooks/subscription-pa
     EmailService,
     WhatsAppBspService,
     PreOnboardingCheckoutService,
+    GoogleAuthService,
+    GoogleOAuthClient,
+    GoogleIdTokenVerifier,
     // Checkout Pro pre-onboarding (Parte 5D) — sin estado propio, seguro de
     // instanciar acá también en vez de importar `PublicModule`/`WebhooksModule`
     // enteros (mismo patrón ya usado por BusinessesModule/WebhooksModule).

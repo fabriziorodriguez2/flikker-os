@@ -158,6 +158,7 @@ export interface MissionChallenge extends ChallengeBase, CustomerMissionView {
 }
 
 export interface ReturnChallengeCard extends ChallengeBase {
+  timezone: string;
   kind: 'return_challenge';
   challengeId: string;
   /** Domingo local — el último día para volver. */
@@ -165,6 +166,7 @@ export interface ReturnChallengeCard extends ChallengeBase {
 }
 
 export interface StreakChallenge extends ChallengeBase {
+  timezone: string;
   kind: 'streak';
   /** Semanas consecutivas. Nunca 0: una racha rota no llega a la pantalla. */
   currentWeeks: number;
@@ -299,6 +301,7 @@ export class MyFlikkerService {
         businessId: customer.businessId,
         businessName: customer.business.name,
         logoUrl: customer.business.logoUrl,
+        timezone: customer.business.timezone,
         deadlineDayKey: challenge.deadlineDayKey,
       });
     }
@@ -317,6 +320,7 @@ export class MyFlikkerService {
         logoUrl: customer.business.logoUrl,
         currentWeeks: streak.currentWeeks,
         state: streak.state === 'ACTIVE' ? 'ACTIVE' : 'AT_RISK',
+        timezone: customer.business.timezone,
         deadlineDayKey: streak.deadlineDayKey,
       });
     }

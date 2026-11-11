@@ -4,30 +4,60 @@ import {
   escapeHtml,
   renderEmailLayout,
 } from './email-design-system';
+import {
+  productEmailCard,
+  productEmailLabel,
+  productEmailParagraph,
+  PRODUCT_EMAIL_FOOTER,
+  renderProductEmailLayout,
+} from './product-email-layout';
 
-export function buildVerificationEmail(input: {
+interface VerificationEmailInput {
   firstName?: string | null;
   verifyUrl: string;
   expiresInHours: number;
-}) {
-  const name = input.firstName?.trim() || 'hola';
-  return renderEmailLayout({
+}
+
+function verificationCopy(input: VerificationEmailInput) {
+  const name = input.firstName?.trim();
+  return {
+    greeting: name ? `Hola ${name},` : 'Hola,',
+    intro:
+      'Creaste una cuenta en Flikker. Confirmá tu email para continuar y empezar a configurar tu negocio.',
+    expiry: `El enlace vence en ${input.expiresInHours} horas.`,
+    security: 'Si no creaste esta cuenta, podés ignorar este email.',
+  };
+}
+
+export function buildVerificationEmail(input: VerificationEmailInput) {
+  const copy = verificationCopy(input);
+  return renderProductEmailLayout({
     preheader: `Confirmá tu cuenta de Flikker. El enlace vence en ${input.expiresInHours} horas.`,
     eyebrow: 'Seguridad de tu cuenta',
     title: 'Confirmá tu cuenta',
     bodyHtml:
-      emailParagraph(
-        `Hola ${escapeHtml(name)}, te enviamos este enlace para confirmar tu cuenta de Flikker.`,
-      ) +
-      emailCallout({
-        label: 'Importante',
-        tone: 'neutral',
-        contentHtml: `El enlace vence en <strong>${input.expiresInHours} horas</strong>. Si no creaste esta cuenta, podés ignorar este email.`,
-      }),
+      productEmailParagraph(escapeHtml(copy.greeting)) +
+      productEmailParagraph(escapeHtml(copy.intro)),
     action: { label: 'Confirmar mi cuenta', url: input.verifyUrl },
-    footerNote:
-      'Por seguridad, no compartas este correo ni el enlace de confirmación.',
+    afterActionHtml: productEmailCard(
+      productEmailLabel('Importante') +
+        productEmailParagraph(`<strong>${escapeHtml(copy.expiry)}</strong>`) +
+        productEmailParagraph(escapeHtml(copy.security)),
+    ),
   });
+}
+
+export function buildVerificationEmailText(input: VerificationEmailInput) {
+  const copy = verificationCopy(input);
+  return [
+    'Confirmá tu cuenta',
+    copy.greeting,
+    copy.intro,
+    `Confirmar mi cuenta: ${input.verifyUrl}`,
+    copy.expiry,
+    copy.security,
+    PRODUCT_EMAIL_FOOTER,
+  ].join('\n\n');
 }
 
 export function buildPasswordResetEmail(input: {

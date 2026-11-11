@@ -41,26 +41,33 @@ function render(
  */
 const slots = (html: string) =>
   html
-    .split('<span data-stamp-state=')
+    .split("<span data-stamp-state=")
     .slice(1)
     .map((chunk) => `<span data-stamp-state=${chunk}`);
 const completedSlots = (html: string) =>
-  slots(html).filter((slot) => slot.startsWith('<span data-stamp-state="completed"'));
+  slots(html).filter((slot) =>
+    slot.startsWith('<span data-stamp-state="completed"'),
+  );
 const emptySlots = (html: string) =>
-  slots(html).filter((slot) => slot.startsWith('<span data-stamp-state="empty"'));
+  slots(html).filter((slot) =>
+    slot.startsWith('<span data-stamp-state="empty"'),
+  );
 const firstCompleted = (html: string) =>
   html.match(/<span data-stamp-state="completed"[^>]*>/)?.[0];
 const firstEmpty = (html: string) =>
   html.match(/<span data-stamp-state="empty"[^>]*>/)?.[0];
 
 describe("RewardGoalStamps — el círculo es el slot", () => {
-  it("slot vacío → círculo (con borde y número, sin ícono)", () => {
+  it("slot vacío → círculo outline con el mismo ícono y sin números", () => {
     const html = render("coffee");
     const empty = firstEmpty(html);
 
     expect(empty).toContain("rounded-full");
     expect(empty).toContain("border-width:1.5px");
-    expect(html).toContain("03"); // el número de esa posición
+    expect(emptySlots(html)[0]).toContain("lucide-coffee");
+    expect(emptySlots(html)[0]).toContain('stroke-width="1.5"');
+    expect(empty).toContain("background-color:transparent");
+    expect(html).not.toContain(">03<");
   });
 
   it("slot completado → TAMBIÉN círculo, no un ícono suelto", () => {
@@ -115,7 +122,10 @@ describe("RewardGoalStamps — el sello es del negocio", () => {
     expect(html).toContain("mask-image:url(&quot;data:image/svg+xml");
     // Nunca se convierte a un ícono de Lucide ni a un `<img>` aparte: es el
     // mismo renderer de máscara, no un segundo camino.
-    expect(html).not.toContain("<svg");
+    expect(html).not.toContain("lucide-");
+    expect(emptySlots(html)[0]).toContain('data-custom-stamp="outline"');
+    expect(emptySlots(html)[0]).toContain("feMorphology");
+    expect(emptySlots(html)[0]).toContain("data:image/svg+xml");
     expect(html).not.toContain("<img");
     // Y sigue viéndose: la máscara va en el color legible SOBRE el acento,
     // no en el acento mismo (sería invisible sobre su propio círculo).

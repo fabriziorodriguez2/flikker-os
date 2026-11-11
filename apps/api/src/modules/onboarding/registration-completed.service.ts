@@ -3,7 +3,10 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { DomainEventClaimService } from '../domain-events/domain-event-claim.service';
 import { EmailService } from '../../jobs/email.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
-import { renderWelcomeFreeEmail } from '../../jobs/registration-subscription-email-templates';
+import {
+  renderWelcomeFreeEmail,
+  type WelcomeEmailPlan,
+} from '../../jobs/registration-subscription-email-templates';
 import { getFlikkerOwnerNotificationPhone } from '../../config/owner-notifications';
 
 const EVENT_TYPE = 'REGISTRATION_COMPLETED';
@@ -63,7 +66,14 @@ export class RegistrationCompletedService {
       }),
       this.prisma.business.findUnique({
         where: { id: businessId },
-        select: { name: true },
+        select: {
+          name: true,
+          subscription: {
+            select: {
+              plan: { select: { slug: true, name: true, maxCustomers: true } },
+            },
+          },
+        },
       }),
     ]);
     if (!user || !business) {
@@ -74,16 +84,16 @@ export class RegistrationCompletedService {
     }
 
     if (!options.alreadyPro) {
-      await this.sendWelcomeEmail(user);
+      await this.sendWelcomeEmail(user, business.subscription?.plan);
       await this.sendWelcomeWhatsApp(user);
     }
     await this.sendOwnerNotification(user, business.name, businessId);
   }
 
-  private async sendWelcomeEmail(user: {
-    firstName: string;
-    email: string;
-  }): Promise<void> {
+  private async sendWelcomeEmail(
+    user: { firstName: string; email: string },
+    plan?: WelcomeEmailPlan,
+  ): Promise<void> {
     if (!this.email.isAvailable()) {
       this.logger.log(`${EVENT_TYPE}: email no configurado — se omite.`);
       return;
@@ -91,6 +101,7 @@ export class RegistrationCompletedService {
     try {
       const { subject, html } = renderWelcomeFreeEmail({
         firstName: user.firstName,
+        plan,
       });
       await this.email.send({ to: user.email, subject, html });
     } catch (error) {

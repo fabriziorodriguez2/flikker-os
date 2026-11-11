@@ -1,0 +1,17 @@
+{
+  "passed": true,
+  "checks": [
+    "all seven event types",
+    "tenant isolation",
+    "joined tenant isolation",
+    "one event per credited visit",
+    "activation/closure boundaries",
+    "no raffle unlock",
+    "redeemed benefit never expired",
+    "historic benefit name",
+    "real totals",
+    "stable pagination with identical timestamps",
+    "empty history"
+  ],
+  "paginatedRows": 57
+}

@@ -1,7 +1,13 @@
 import {
   buildPasswordResetEmail,
   buildVerificationEmail,
+  buildVerificationEmailText,
 } from './auth-email-templates';
+import {
+  renderWelcomeFreeEmail,
+  renderWelcomeProEmail,
+} from './registration-subscription-email-templates';
+import { renderWeeklyProductEmail } from './owner-product-email-templates';
 import {
   birthdayEmail,
   promotionEmail,
@@ -26,11 +32,78 @@ export interface EmailPreview {
   name: string;
   subject: string;
   html: string;
+  text?: string;
+}
+
+/** The four comparable scenarios use fixtures only, never real account tokens. */
+export function buildProductEmailPreviewCatalog(): EmailPreview[] {
+  const verification = {
+    firstName: 'Sofía',
+    verifyUrl:
+      'https://app.flikker.com/verify-email?token=preview&email=sofia%40example.com',
+    expiresInHours: 48,
+  };
+  return [
+    {
+      slug: '01-verificacion-cuenta',
+      family: 'seguridad',
+      name: 'Confirmación de cuenta',
+      subject: 'Confirmá tu cuenta de Flikker',
+      html: buildVerificationEmail(verification),
+      text: buildVerificationEmailText(verification),
+    },
+    {
+      slug: '16-bienvenida-base',
+      family: 'onboarding',
+      name: 'Bienvenida · Base',
+      ...renderWelcomeFreeEmail({
+        firstName: 'Sofía',
+        plan: {
+          slug: 'free',
+          name: 'Free — sellos y beneficios',
+          maxCustomers: 50,
+        },
+      }),
+    },
+    {
+      slug: '17-bienvenida-pro',
+      family: 'onboarding',
+      name: 'Bienvenida · Pro',
+      ...renderWelcomeProEmail({
+        firstName: 'Sofía',
+        businessName: 'Café Magnolia',
+      }),
+    },
+    {
+      slug: '18-tu-semana-producto',
+      family: 'operación',
+      name: 'Resumen semanal · Referencia visual',
+      ...renderWeeklyProductEmail({
+        businessName: 'Café Magnolia',
+        report: {
+          week_range: '12 oct. 2026 – 18 oct. 2026',
+          active_customers: 14,
+          returning_customers: 5,
+          total_interactions: 18,
+          new_customers: 7,
+          recurring_customers: 3,
+          top_benefit_name: null,
+          top_benefit_redemptions: 0,
+          best_day_name: 'mié',
+          best_day_count: 6,
+          days: ['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'].map(
+            (name, index) => ({ name, count: [1, 3, 6, 2, 0, 2, 4][index] }),
+          ),
+        },
+      }),
+    },
+  ];
 }
 
 export function buildEmailPreviewCatalog(): EmailPreview[] {
   const appUrl = 'https://app.flikker.com';
   const businessName = 'Café Magnolia';
+  const productPreviews = buildProductEmailPreviewCatalog();
   const withResult = (
     slug: string,
     family: EmailPreview['family'],
@@ -39,17 +112,7 @@ export function buildEmailPreviewCatalog(): EmailPreview[] {
   ): EmailPreview => ({ slug, family, name, ...result });
 
   return [
-    {
-      slug: '01-verificacion-cuenta',
-      family: 'seguridad',
-      name: 'Verificación de cuenta',
-      subject: 'Confirmá tu cuenta de Flikker',
-      html: buildVerificationEmail({
-        firstName: 'Sofía',
-        verifyUrl: `${appUrl}/verify-email?token=preview`,
-        expiresInHours: 48,
-      }),
-    },
+    productPreviews[0],
     {
       slug: '02-recuperacion-contrasena',
       family: 'seguridad',
@@ -230,5 +293,6 @@ export function buildEmailPreviewCatalog(): EmailPreview[] {
         panelUrl: `${appUrl}/dashboard`,
       }),
     },
+    ...productPreviews.slice(1),
   ];
 }

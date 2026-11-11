@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, Gift, History, Loader2, Lock } from "lucide-react";
 import { useLogoPalette } from "@/lib/use-logo-palette";
 import CustomerShell from "@/components/public/customer-shell";
+import PlaceActivity, {
+  type PlaceActivityPage,
+} from "@/components/public/place-activity";
 import LoyaltyCard from "@/components/public/loyalty-card";
 import BenefitCard from "@/components/public/benefit-card";
 import ChallengeRow from "@/components/public/challenge-row";
@@ -39,7 +42,7 @@ interface PlaceReturnChallenge {
   deadlineDayKey: string;
 }
 
-interface MyFlikkerPlace {
+export interface MyFlikkerPlace {
   businessId: string;
   businessName: string;
   logoUrl: string | null;
@@ -66,7 +69,11 @@ interface MyFlikkerPlace {
     targetAdditionalVisits: number;
     remainingVisits: number;
   } | null;
-  benefitAvailable: { name: string; code: string; expiresAt: string | null } | null;
+  benefitAvailable: {
+    name: string;
+    code: string;
+    expiresAt: string | null;
+  } | null;
   /**
    * El premio de la tarjeta anterior, ya vencido sin canjear — punto 7 de la
    * auditoría. Antes esto no existía como concepto y un premio vencido
@@ -108,6 +115,10 @@ export default function PlaceDetailClient({
   const [status, setStatus] = useState<
     "loading" | "ok" | "error" | "unauthorized"
   >("loading");
+  const [activity, setActivity] = useState<PlaceActivityPage | null>(null);
+  const [activityLoading, setActivityLoading] = useState(true);
+  const [activityError, setActivityError] = useState(false);
+  const activityRequest = useRef<AbortController | null>(null);
   const palette = useLogoPalette(
     place?.businessId ?? businessId,
     place?.logoUrl ?? null,
@@ -115,23 +126,76 @@ export default function PlaceDetailClient({
   );
 
   useEffect(() => {
-    void load();
+    const controller = new AbortController();
+    setStatus("loading");
+    setPlace(null);
+    setActivity(null);
+    void (async () => {
+      try {
+        const res = await fetch(
+          `/api/mi-flikker/places/${encodeURIComponent(businessId)}`,
+          { signal: controller.signal },
+        );
+        if (res.status === 401) {
+          setStatus("unauthorized");
+          return;
+        }
+        if (!res.ok) throw new Error();
+        const data = (await res.json()) as MyFlikkerPlace;
+        if (!controller.signal.aborted) {
+          setPlace(data);
+          setStatus("ok");
+        }
+      } catch {
+        if (!controller.signal.aborted) setStatus("error");
+      }
+    })();
+    void loadActivity();
+    return () => {
+      controller.abort();
+      activityRequest.current?.abort();
+    };
+    // The effect resets both resources for a different business.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId]);
 
-  async function load() {
-    setStatus("loading");
-    const res = await fetch(`/api/mi-flikker/places/${businessId}`);
-    if (res.status === 401) {
-      setStatus("unauthorized");
-      return;
+  async function loadActivity(cursor?: string) {
+    activityRequest.current?.abort();
+    const controller = new AbortController();
+    activityRequest.current = controller;
+    setActivityLoading(true);
+    setActivityError(false);
+    try {
+      const query = cursor ? `?${new URLSearchParams({ cursor })}` : "";
+      const res = await fetch(
+        `/api/mi-flikker/places/${encodeURIComponent(businessId)}/activity${query}`,
+        { signal: controller.signal },
+      );
+      if (res.status === 401) {
+        setStatus("unauthorized");
+        return;
+      }
+      if (!res.ok) throw new Error();
+      const page = (await res.json()) as PlaceActivityPage;
+      if (!controller.signal.aborted)
+        setActivity((previous) =>
+          cursor && previous
+            ? {
+                ...page,
+                items: [
+                  ...previous.items,
+                  ...page.items.filter(
+                    (item) => !previous.items.some((old) => old.id === item.id),
+                  ),
+                ],
+              }
+            : page,
+        );
+    } catch {
+      if (!controller.signal.aborted) setActivityError(true);
+    } finally {
+      if (!controller.signal.aborted) setActivityLoading(false);
     }
-    if (!res.ok) {
-      setStatus("error");
-      return;
-    }
-    setPlace((await res.json()) as MyFlikkerPlace);
-    setStatus("ok");
   }
 
   if (status === "unauthorized") {
@@ -172,9 +236,37 @@ export default function PlaceDetailClient({
     );
   }
 
-  const brand = palette.primary;
-  const challenges = placeChallenges(place);
+  return (
+    <PlaceDetailView
+      place={place}
+      brand={palette.primary}
+      activity={activity}
+      activityLoading={activityLoading}
+      activityError={activityError}
+      onMore={() => void loadActivity(activity?.nextCursor ?? undefined)}
+      onRetry={() => void loadActivity(activity?.nextCursor ?? undefined)}
+    />
+  );
+}
 
+export function PlaceDetailView({
+  place,
+  brand,
+  activity,
+  activityLoading,
+  activityError,
+  onMore,
+  onRetry,
+}: {
+  place: MyFlikkerPlace;
+  brand: string;
+  activity: PlaceActivityPage | null;
+  activityLoading?: boolean;
+  activityError?: boolean;
+  onMore?: () => void;
+  onRetry?: () => void;
+}) {
+  const challenges = placeChallenges(place);
   return (
     // 1. El negocio: avatar + nombre en el header del shell, no como fondo.
     <Shell
@@ -182,6 +274,31 @@ export default function PlaceDetailClient({
       business={{ name: place.businessName, logoUrl: place.logoUrl }}
       back={{ href: "/mi-flikker", label: "Mis lugares" }}
     >
+      {/* 3. La tarjeta activa, si existe. Sin RewardGoal no se dibuja
+             ninguna tarjeta decorativa. */}
+      {place.rewardGoal ? (
+        <LoyaltyCard
+          compact
+          rewardName={place.rewardGoal.incentiveName}
+          progress={place.rewardGoal.progressVisits}
+          target={place.rewardGoal.targetAdditionalVisits}
+          bonusStamps={place.rewardGoal.bonusStamps ?? 0}
+          appearance={{
+            cardColor: place.loyaltyCardColor ?? place.primaryColor ?? brand,
+            textColor: place.loyaltyCardTextColor,
+            backgroundImage: place.loyaltyCardBackgroundImage,
+            stampAreaColor: place.loyaltyStampAreaColor,
+            stampColor: place.loyaltyStampColor,
+            stampIcon: place.loyaltyStampIcon,
+            logoUrl: place.logoUrl,
+            businessName: place.businessName,
+            showBusinessName: place.loyaltyShowBusinessName,
+            stampBackgroundPattern: place.loyaltyStampBackgroundPattern,
+            stampBackgroundOpacity: place.loyaltyStampBackgroundOpacity,
+          }}
+        />
+      ) : null}
+
       {/* 2. Beneficios disponibles — lo accionable primero. Cada emisión es
              una card propia: dos beneficios con el mismo título y códigos
              distintos son dos cosas distintas y las dos se muestran. */}
@@ -262,29 +379,16 @@ export default function PlaceDetailClient({
         </div>
       ) : null}
 
-      {/* 3. La tarjeta activa, si existe. Sin RewardGoal no se dibuja
-             ninguna tarjeta decorativa. */}
-      {place.rewardGoal ? (
-        <LoyaltyCard
-          rewardName={place.rewardGoal.incentiveName}
-          progress={place.rewardGoal.progressVisits}
-          target={place.rewardGoal.targetAdditionalVisits}
-          bonusStamps={place.rewardGoal.bonusStamps ?? 0}
-          appearance={{
-            cardColor: place.loyaltyCardColor ?? brand,
-            textColor: place.loyaltyCardTextColor,
-            backgroundImage: place.loyaltyCardBackgroundImage,
-            stampAreaColor: place.loyaltyStampAreaColor,
-            stampColor: place.loyaltyStampColor,
-            stampIcon: place.loyaltyStampIcon,
-            logoUrl: place.logoUrl,
-            businessName: place.businessName,
-            showBusinessName: place.loyaltyShowBusinessName,
-            stampBackgroundPattern: place.loyaltyStampBackgroundPattern,
-            stampBackgroundOpacity: place.loyaltyStampBackgroundOpacity,
-          }}
-        />
-      ) : null}
+      <PlaceActivity
+        page={activity}
+        loading={activityLoading}
+        error={activityError}
+        businessName={place.businessName}
+        stampIcon={place.loyaltyStampIcon}
+        stampColor={place.loyaltyStampColor ?? place.loyaltyCardColor ?? brand}
+        onMore={onMore}
+        onRetry={onRetry}
+      />
 
       {/* 4. Desafíos de este lugar — sin encabezado de negocio: ya se sabe
              en cuál estamos. */}
@@ -403,6 +507,8 @@ function Shell({
   return (
     <CustomerShell
       business={business}
+      businessPresentation="detail"
+      compact
       eyebrow="Tu tarjeta en Flikker"
       brand={brand}
       back={back}
@@ -414,7 +520,9 @@ function Shell({
         a volver atrás solo para cambiar de sección. `pb-24` reserva su alto
         para que la última fila nunca quede tapada.
       */}
-      <div className="pb-24">{children}</div>
+      <div className="pb-[calc(6rem+env(safe-area-inset-bottom))]">
+        {children}
+      </div>
       <BottomNav active="lugares" />
     </CustomerShell>
   );

@@ -31,7 +31,9 @@ const render = (rewards: MyFlikkerReward[], loading = false) =>
   renderToStaticMarkup(<RewardsTab rewards={rewards} loading={loading} />);
 
 const cardOf = (html: string, status: string) =>
-  html.split("<li>").find((chunk) => chunk.includes(`data-reward-status="${status}"`)) ?? "";
+  html
+    .split("<li>")
+    .find((chunk) => chunk.includes(`data-reward-status="${status}"`)) ?? "";
 
 describe("RewardsTab — disponible", () => {
   it("muestra el premio, el negocio y el estado, y lleva a su detalle", () => {
@@ -104,7 +106,7 @@ describe("RewardsTab — vencido", () => {
     // El disponible va sobre superficie blanca; el cerrado sobre el gris
     // apagado del historial.
     expect(cardOf(html, "AVAILABLE")).toContain("bg-white");
-    expect(cardOf(html, "EXPIRED")).toContain("bg-[#FAFAFC]");
+    expect(cardOf(html, "EXPIRED")).toContain("border-dashed");
   });
 });
 
@@ -133,7 +135,7 @@ describe("RewardsTab — la lista", () => {
   it("sin premios: estado vacío con salida a Lugares", () => {
     const html = render([]);
 
-    expect(html).toContain("Todavía no tenés premios");
+    expect(html).toContain("No tenés premios disponibles");
     expect(html).toContain("Cuando desbloquees un beneficio, aparece acá.");
     expect(html).toContain("Ver mis lugares");
     expect(html).toContain('href="/mi-flikker"');

@@ -1,37 +1,136 @@
+import { escapeHtml, getEmailAppUrl } from './email-design-system';
 import {
-  emailCallout,
-  emailParagraph,
-  escapeHtml,
-  getEmailAppUrl,
-  renderEmailLayout,
-} from './email-design-system';
+  PRODUCT_EMAIL,
+  PRODUCT_EMAIL_FOOTER,
+  PRODUCT_EMAIL_SUPPORT,
+  productEmailCard,
+  productEmailLabel,
+  productEmailParagraph,
+  productEmailUrl,
+  renderProductEmailLayout,
+} from './product-email-layout';
 
-/**
- * Parte 5 — register-first, pago después: los dos emails transaccionales
- * nuevos de esta tanda. Mismo sistema de diseño que el resto de los emails
- * (`renderEmailLayout`), nunca otro mailer — ver §15 del pedido.
- *
- * `customerFacing: false`/`businessName: undefined` a propósito: son
- * emails del PRODUCTO Flikker hacia su propio usuario, no "en nombre de"
- * ningún Business — el footer de `renderEmailLayout` ya distingue esto.
- */
+/** Read-only presentation context from the business's actual subscription. */
+export interface WelcomeEmailPlan {
+  slug: string;
+  name: string;
+  maxCustomers: number | null;
+}
 
-export function renderWelcomeFreeEmail(input: { firstName: string }) {
+const FIRST_STEPS = [
+  'Personalizá tu tarjeta',
+  'Configurá tu primer beneficio',
+  'Probá tu QR',
+];
+
+function firstStepsHtml(): string {
+  return productEmailCard(
+    productEmailLabel('Empezá por acá') +
+      `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${FIRST_STEPS.map(
+        (step, index) =>
+          `<tr><td width="28" valign="top" style="padding:8px 0;font-size:15px;line-height:1.6;font-weight:bold;color:${PRODUCT_EMAIL.accent};">${index + 1}.</td><td style="padding:8px 0;font-size:15px;line-height:1.6;color:${PRODUCT_EMAIL.text};">${escapeHtml(step)}</td></tr>`,
+      ).join('')}</table>`,
+    PRODUCT_EMAIL.secondarySurface,
+  );
+}
+
+function renderAccountWelcomeEmail(input: {
+  firstName: string;
+  plan?: WelcomeEmailPlan | null;
+  pro?: boolean;
+  businessName?: string;
+  appUrl?: string;
+  gettingStartedPdfUrl?: string;
+}) {
+  // Free is a product tier named Base in the UI. Other names come from the plan.
+  const isFree = input.plan?.slug === 'free';
+  const isPro =
+    input.pro || ['pro', 'pro-selfservice'].includes(input.plan?.slug ?? '');
+  const planName = isFree
+    ? 'Plan Base'
+    : isPro
+      ? 'Flikker Pro'
+      : input.plan?.name;
+  const name = input.firstName.trim();
+  const title = `${name ? `Hola ${name}, tu` : 'Tu'} negocio ya está listo${isPro ? ' en Flikker Pro' : ''}.`;
+  const appUrl = input.appUrl ?? getEmailAppUrl();
+  const features: string[] = [];
+  if (input.plan?.maxCustomers != null) {
+    features.push(`Hasta ${input.plan.maxCustomers} clientes`);
+  } else if (isPro || input.plan?.maxCustomers === null) {
+    features.push('Sin tope de clientes');
+  }
+  if (isFree) features.push('Sin tarjeta', 'Sin vencimiento');
+  if (isPro) features.push('Beneficios sin límite de prueba');
+  const upgradeCopy = isFree
+    ? 'Cuando quieras, podés pasar a Pro desde Configuración → Suscripción.'
+    : '';
+  const intro = input.businessName
+    ? `${input.businessName} ya tiene su espacio en Flikker. Empezá a darle a tus clientes más motivos para volver.`
+    : 'Tu cuenta y tu negocio ya están listos. Empezá a darle a tus clientes más motivos para volver.';
+  const planCard = planName
+    ? productEmailCard(
+        productEmailLabel('Tu plan') +
+          `<h2 style="margin:0 0 14px;font-size:25px;line-height:1.3;color:${PRODUCT_EMAIL.text};">${escapeHtml(planName)}</h2>` +
+          features
+            .map(
+              (feature) =>
+                `<p style="margin:6px 0;font-size:15px;line-height:1.6;color:${PRODUCT_EMAIL.muted};">${escapeHtml(feature)}</p>`,
+            )
+            .join(''),
+      )
+    : '';
+  const guide = input.gettingStartedPdfUrl
+    ? productEmailParagraph(
+        `Si necesitás más detalle, consultá la <a href="${productEmailUrl(input.gettingStartedPdfUrl)}" style="color:${PRODUCT_EMAIL.accent};text-decoration:underline;">guía de primeros pasos</a>.`,
+      )
+    : '';
+
+  return {
+    html: renderProductEmailLayout({
+      preheader: planName
+        ? `Tu negocio ya está listo en ${planName}.`
+        : 'Tu cuenta y tu negocio ya están listos en Flikker.',
+      eyebrow: 'Bienvenido a Flikker',
+      title,
+      bodyHtml:
+        productEmailParagraph(escapeHtml(intro)) +
+        planCard +
+        (upgradeCopy ? productEmailParagraph(escapeHtml(upgradeCopy)) : ''),
+      action: { label: 'Ir a Flikker', url: appUrl },
+      afterActionHtml: firstStepsHtml() + guide,
+      support: true,
+    }),
+    text: [
+      'Bienvenido a Flikker',
+      title,
+      intro,
+      planName,
+      ...features,
+      upgradeCopy,
+      `Ir a Flikker: ${appUrl}`,
+      'EMPEZÁ POR ACÁ',
+      ...FIRST_STEPS.map((step, index) => `${index + 1}. ${step}`),
+      input.gettingStartedPdfUrl
+        ? `Guía de primeros pasos: ${input.gettingStartedPdfUrl}`
+        : '',
+      PRODUCT_EMAIL_SUPPORT,
+      PRODUCT_EMAIL_FOOTER,
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
+  };
+}
+
+/** Same sending contract and events; text is available without changing transport. */
+export function renderWelcomeFreeEmail(input: {
+  firstName: string;
+  plan?: WelcomeEmailPlan | null;
+  appUrl?: string;
+}) {
   return {
     subject: 'Bienvenido a Flikker',
-    html: renderEmailLayout({
-      preheader: 'Tu cuenta y tu negocio ya están listos en el plan Base.',
-      title: `Hola ${escapeHtml(input.firstName)}, bienvenido a Flikker`,
-      bodyHtml:
-        emailParagraph(
-          'Tu cuenta y tu negocio ya están listos, en el plan Base — hasta 50 clientes, sin tarjeta, sin vencimiento.',
-        ) +
-        emailParagraph(
-          'Cuando quieras, podés pasar a Pro desde Configuración → Suscripción.',
-          { muted: true, small: true },
-        ),
-      action: { label: 'Ir a Flikker', url: getEmailAppUrl() },
-    }),
+    ...renderAccountWelcomeEmail(input),
   };
 }
 
@@ -39,25 +138,10 @@ export function renderWelcomeProEmail(input: {
   firstName: string;
   businessName: string;
   gettingStartedPdfUrl?: string;
+  appUrl?: string;
 }) {
-  const pdfCallout = input.gettingStartedPdfUrl
-    ? emailCallout({
-        label: 'Primeros pasos',
-        tone: 'success',
-        contentHtml: `Preparamos una guía corta para sacarle el máximo provecho a Flikker Pro: <a href="${escapeHtml(input.gettingStartedPdfUrl)}" style="color:inherit;text-decoration:underline;">ver guía</a>.`,
-      })
-    : '';
-
   return {
     subject: 'Tu suscripción Pro está activa',
-    html: renderEmailLayout({
-      preheader: `${input.businessName} ya tiene Flikker Pro activo.`,
-      title: `${escapeHtml(input.firstName)}, tu suscripción Pro está activa`,
-      bodyHtml:
-        emailParagraph(
-          `Mercado Pago confirmó tu pago — <strong>${escapeHtml(input.businessName)}</strong> ya tiene Flikker Pro: sin tope de clientes y Beneficios sin límite de prueba.`,
-        ) + pdfCallout,
-      action: { label: 'Ir a Flikker', url: getEmailAppUrl() },
-    }),
+    ...renderAccountWelcomeEmail({ ...input, pro: true }),
   };
 }

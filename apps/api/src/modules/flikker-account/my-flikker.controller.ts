@@ -6,6 +6,7 @@ import {
   HttpCode,
   Param,
   Post,
+  Query,
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConsentChannel } from '@prisma/client';
@@ -13,6 +14,7 @@ import { IsBoolean, IsEnum, IsUUID } from 'class-validator';
 import { MyFlikkerConsentService } from './my-flikker-consent.service';
 import { FlikkerAccountService } from './flikker-account.service';
 import { MyFlikkerService } from './my-flikker.service';
+import { PlaceActivityService } from './place-activity.service';
 
 export class SetMyConsentDto {
   @IsUUID()
@@ -37,6 +39,7 @@ export class MyFlikkerController {
     private readonly accounts: FlikkerAccountService,
     private readonly myFlikker: MyFlikkerService,
     private readonly consents: MyFlikkerConsentService,
+    private readonly activity: PlaceActivityService,
   ) {}
 
   @Get()
@@ -108,6 +111,16 @@ export class MyFlikkerController {
   ) {
     const account = await this.requireAccount(session);
     return this.myFlikker.placeDetail(account.flikkerAccountId, businessId);
+  }
+
+  @Get(':businessId/activity')
+  async placeActivity(
+    @Param('businessId') businessId: string,
+    @Headers('x-flikker-account-session') session?: string,
+    @Query('cursor') cursor?: string,
+  ) {
+    const account = await this.requireAccount(session);
+    return this.activity.list(account.flikkerAccountId, businessId, cursor);
   }
 
   /**

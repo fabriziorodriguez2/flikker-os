@@ -24,12 +24,18 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PreOnboardingCheckoutService } from './pre-onboarding-checkout.service';
 import { CreateProCheckoutDto } from '../businesses/dto/create-pro-checkout.dto';
 import { UpdateNotificationWhatsAppDto } from './dto/update-notification-whatsapp.dto';
+import {
+  GoogleAuthorizationUrlDto,
+  GoogleCallbackDto,
+} from './dto/google-auth.dto';
+import { GoogleAuthService } from './google/google-auth.service';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly preOnboardingCheckout: PreOnboardingCheckoutService,
+    private readonly googleAuth: GoogleAuthService,
   ) {}
 
   @Post('signup')
@@ -58,6 +64,25 @@ export class AuthController {
   @Throttle({ default: { limit: 5, ttl: 60000 } })
   login(@Body() dto: LoginDto, @Req() req: Request) {
     return this.authService.login(dto, req.headers['user-agent'], req.ip);
+  }
+
+  /**
+   * "Continuar con Google" — los llama SOLO el BFF de la web (server-to-
+   * server). El callback de Google vive en la web porque es quien escribe la
+   * cookie de sesión; acá se arma la URL y se canjea el code.
+   */
+  @Post('google/authorization-url')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 30, ttl: 60000 } })
+  googleAuthorizationUrl(@Body() dto: GoogleAuthorizationUrlDto) {
+    return this.googleAuth.createAuthorizationUrl(dto);
+  }
+
+  @Post('google/callback')
+  @UseGuards(ThrottlerGuard)
+  @Throttle({ default: { limit: 10, ttl: 60000 } })
+  googleCallback(@Body() dto: GoogleCallbackDto, @Req() req: Request) {
+    return this.googleAuth.authenticate(dto, req.headers['user-agent'], req.ip);
   }
 
   @Post('refresh')

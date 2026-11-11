@@ -23,9 +23,7 @@ function returnChallenge(
   };
 }
 
-function streak(
-  overrides: Partial<StreakChallenge> = {},
-): StreakChallenge {
+function streak(overrides: Partial<StreakChallenge> = {}): StreakChallenge {
   return {
     kind: "streak",
     businessId: "b-1",
@@ -73,7 +71,7 @@ describe("ChallengesTab — solo muestra desafíos reales", () => {
   it("sin desafíos NO inventa un progreso: no aparece ningún 0 de N", () => {
     const html = render([]);
 
-    expect(html).toContain("Todavía no tenés desafíos");
+    expect(html).toContain("No tenés desafíos activos");
     expect(html).not.toMatch(/\d+ de \d+ visitas/);
     // Y tampoco una racha en 0 ni una tarjeta de premio decorativa.
     expect(html).not.toMatch(/racha/i);
@@ -93,7 +91,7 @@ describe("ChallengesTab — solo muestra desafíos reales", () => {
     // Se cuentan los puntitos, no las apariciones del color: el acento lo
     // usan también el icono de la fila y el del premio.
     const dots = html.match(/class="h-2\.5 w-2\.5 rounded-full"/g) ?? [];
-    const vacíos = html.match(/var\(--pub-surface-border, #E2E4EF\)/g) ?? [];
+    const vacíos = html.match(/background-color:#FFFFFF55/g) ?? [];
 
     expect(dots).toHaveLength(3);
     expect(vacíos).toHaveLength(1);
@@ -114,9 +112,7 @@ describe("ChallengesTab — solo muestra desafíos reales", () => {
 
 describe("ChallengesTab — premio secreto", () => {
   it("oculta el nombre del premio y dice cuántas visitas faltan", () => {
-    const html = render([
-      challenge({ rewardHidden: true, rewardName: null }),
-    ]);
+    const html = render([challenge({ rewardHidden: true, rewardName: null })]);
 
     expect(html).toContain("Premio secreto");
     expect(html).toContain("te falta 1 visita para descubrirlo");
@@ -153,9 +149,7 @@ describe("ChallengesTab — premio secreto", () => {
 
 describe("ChallengesTab — una misión sin premio", () => {
   it("no muestra ninguna fila de premio", () => {
-    const html = render([
-      challenge({ rewardName: null, rewardHidden: false }),
-    ]);
+    const html = render([challenge({ rewardName: null, rewardHidden: false })]);
 
     expect(html).toContain("2 de 3 visitas");
     expect(html).not.toContain("Premio secreto");
@@ -179,10 +173,7 @@ describe("ChallengesTab — fecha límite", () => {
     // (UTC+9) caería el 1 de octubre. Como el día ya viene resuelto en
     // `lastDayKey`, la pantalla muestra el 30 sin importar dónde esté.
     const html = renderToStaticMarkup(
-      <ChallengesTab
-        challenges={[challenge()]}
-        loading={false}
-      />,
+      <ChallengesTab challenges={[challenge()]} loading={false} />,
     );
 
     expect(html).toContain("30 de setiembre");
@@ -214,10 +205,7 @@ describe("ChallengesTab — fecha límite", () => {
 });
 
 describe("Mi Flikker — cableado de la pestaña Desafíos", () => {
-  const source = readFileSync(
-    join(__dirname, "mi-flikker-client.tsx"),
-    "utf8",
-  );
+  const source = readFileSync(join(__dirname, "mi-flikker-client.tsx"), "utf8");
 
   /*
     La intención no cambió — los desafíos se piden recién al abrir SU
@@ -225,16 +213,18 @@ describe("Mi Flikker — cableado de la pestaña Desafíos", () => {
     superior, que ya no existe; ahora la pestaña activa viene de la URL y la
     carga la dispara un efecto sobre `view`.
   */
-  it("pide los desafíos recién al abrir la pestaña, no al cargar la pantalla", () => {
+  it("pide los desafíos para su pestaña y para el resumen de Cuenta", () => {
     expect(source).toMatch(
-      /if \(view === "desafios"\) void loadChallenges\(\);/,
+      /if \(view === "desafios" \|\| view === "cuenta"\) void loadChallenges\(\);/,
     );
     // El load inicial sigue pidiendo solo lugares.
     expect(source).toContain('fetch("/api/mi-flikker/places")');
   });
 
   it("no vuelve a pedirlos si ya los tiene", () => {
-    expect(source).toMatch(/if \(challengesLoaded \|\| challengesLoading\) return;/);
+    expect(source).toMatch(
+      /if \(challengesLoaded \|\| challengesLoading\) return;/,
+    );
   });
 });
 
@@ -271,7 +261,7 @@ describe("ChallengesTab — racha", () => {
     const html = render([]);
 
     expect(html).not.toContain("Racha de 3 semanas");
-    expect(html).toContain("Todavía no tenés desafíos");
+    expect(html).toContain("No tenés desafíos activos");
   });
 
   it("no muestra ningún premio: en esta fase la racha no da nada", () => {
@@ -349,7 +339,7 @@ describe("ChallengesTab — desafío de vuelta", () => {
     const html = render([]);
 
     expect(html).not.toContain("Desafío de vuelta");
-    expect(html).toContain("Todavía no tenés desafíos");
+    expect(html).toContain("No tenés desafíos activos");
   });
 
   it("convive con misión y racha en la misma lista", () => {

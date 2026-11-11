@@ -88,12 +88,13 @@ describe("Check-in — jerarquía de la pantalla", () => {
    * El orden es la decisión de producto de esta pantalla: qué pasó con la
    * visita → premio si se desbloqueó → tarjeta activa → desafíos → feedback.
    */
-  it("el premio recién desbloqueado va antes que la tarjeta y que los desafíos", () => {
+  it("el premio recién desbloqueado está dentro de la experiencia compartida y antes de los desafíos", () => {
     const premio = source.indexOf("<RewardUnlockedHero");
     const tarjeta = source.indexOf("<LoyaltyCard");
     const desafio = source.indexOf("<ChallengeRow");
     expect(premio).toBeGreaterThan(-1);
-    expect(premio).toBeLessThan(tarjeta);
+    expect(premio).toBeGreaterThan(tarjeta);
+    expect(premio).toBeLessThan(source.indexOf("</LoyaltyCard>"));
     expect(premio).toBeLessThan(desafio);
   });
 
