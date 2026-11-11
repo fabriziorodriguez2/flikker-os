@@ -3,6 +3,7 @@ import { getSession } from "@/lib/auth";
 import SettingsTabs from "@/components/panel/settings-tabs";
 import PageHeader from "@/components/ui/page-header";
 import PolicyClient from "./policy-client";
+import ConsentAuditCard from "./consent-audit-card";
 
 /** Configuración → Políticas: topes de envíos y costos, y el kill switch. */
 export default async function PolicySettingsPage() {
@@ -17,6 +18,7 @@ export default async function PolicySettingsPage() {
       />
       <SettingsTabs />
       <PolicyClient />
+      <ConsentAuditCard />
     </div>
   );
 }

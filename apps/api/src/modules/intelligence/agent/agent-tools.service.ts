@@ -830,13 +830,133 @@ export class AgentToolsService {
                 explanation: run.explanation,
                 suggestions: run.suggestions,
                 metrics: run.metrics,
+                engine: run.engine,
+                analysis: run.analysis,
               })),
             },
           };
         },
       },
+      {
+        definition: {
+          name: 'commercial_plans',
+          description:
+            'Planes comerciales que pensó el planificador con IA (últimos 60 días): estado (simulado, en ejecución, midiendo, terminado, detenido, descartado), hipótesis, a quién apuntaba, cuántos entraban y cuántos se podían contactar, por qué se eligió o por qué se descartó, y el resultado medido con su lectura de evidencia. También lo que vio cada corrida y cuántos clientes se pueden contactar. Usalo para "¿por qué elegiste esa campaña?", "¿qué estás haciendo para recuperar clientes?", "¿por qué no hiciste nada?" o "¿qué funcionó?".',
+          parameters: NO_ARGS,
+        },
+        label: 'Consultó los planes comerciales',
+        roles: MANAGERS,
+        parseArgs: parseNoArgs,
+        run: async (ctx) => ({
+          data: await this.commercialPlans(ctx.businessId),
+        }),
+      },
       ...this.actionTools(),
     ];
+  }
+
+  /**
+   * Planes del planificador y sus resultados, del negocio de la sesión. Sin
+   * datos de clientes: reglas, mensajes, conteos y lecturas.
+   */
+  private async commercialPlans(businessId: string) {
+    const since = new Date(Date.now() - 60 * 86_400_000);
+    const [runs, plans] = await Promise.all([
+      this.prisma.autonomousRun.findMany({
+        where: { businessId, engine: 'PLANNER', createdAt: { gte: since } },
+        orderBy: { createdAt: 'desc' },
+        take: 5,
+        select: {
+          id: true,
+          runKey: true,
+          mode: true,
+          status: true,
+          explanation: true,
+          analysis: true,
+          suggestions: true,
+        },
+      }),
+      this.prisma.intelligencePlan.findMany({
+        where: { businessId, createdAt: { gte: since } },
+        orderBy: { createdAt: 'desc' },
+        take: 15,
+        select: {
+          runId: true,
+          createdAt: true,
+          status: true,
+          title: true,
+          objective: true,
+          hypothesis: true,
+          plan: true,
+          issues: true,
+          selectionReason: true,
+          matched: true,
+          reachable: true,
+          simulation: true,
+          results: true,
+          stopReason: true,
+        },
+      }),
+    ]);
+    const analysisOf = (value: unknown) => {
+      const a = (value ?? {}) as Record<string, unknown>;
+      return {
+        observations: a.observations ?? [],
+        hypotheses: a.hypotheses ?? [],
+        decision: a.decision ?? null,
+        noActionReason: a.noActionReason ?? null,
+        contactability: a.contactability ?? null,
+      };
+    };
+    return {
+      note: 'SIMULATED no contactó a nadie. "results.evidence": SIGNAL_ONLY = señal sin prueba (muestra chica); INCREMENTAL = el plan sumó vueltas frente al grupo de control; NO_DIFFERENCE = sin diferencia. Nunca digas que un cliente volvió gracias a Flikker si "evidence" no es INCREMENTAL.',
+      runs: runs.map((r) => ({
+        day: r.runKey.split('#')[0],
+        mode: r.mode,
+        status: r.status,
+        explanation: r.explanation,
+        suggestions: r.suggestions,
+        ...analysisOf(r.analysis),
+      })),
+      plans: plans.map((p) => {
+        const contract = (p.plan ?? {}) as {
+          segment?: { description?: string };
+          variants?: {
+            key: string;
+            message: string;
+            incentiveId: string | null;
+            weightPercent: number;
+          }[];
+          controlPercent?: number;
+          rationale?: string;
+        };
+        return {
+          date: p.createdAt.toISOString().slice(0, 10),
+          status: p.status,
+          title: p.title,
+          objective: p.objective,
+          hypothesis: p.hypothesis,
+          rationale: contract.rationale ?? null,
+          selectionReason: p.selectionReason,
+          segment: contract.segment?.description ?? null,
+          matched: p.matched,
+          reachable: p.reachable,
+          controlPercent: contract.controlPercent ?? null,
+          variants: (contract.variants ?? []).map((v) => ({
+            key: v.key,
+            message: v.message,
+            withIncentive: v.incentiveId !== null,
+            weightPercent: v.weightPercent,
+          })),
+          discardedBecause: ((p.issues ?? []) as { message?: string }[])
+            .map((i) => i.message)
+            .filter(Boolean),
+          simulation: p.simulation,
+          results: p.results,
+          stopReason: p.stopReason,
+        };
+      }),
+    };
   }
 
   /**

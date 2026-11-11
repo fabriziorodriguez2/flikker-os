@@ -16,6 +16,7 @@ import {
   type ActivityView,
   type AutonomousRunView,
 } from "./activity-view";
+import PlannerRunCard from "./planner-run-card";
 
 const BASE = "/api/proxy/intelligence/autonomy";
 
@@ -48,7 +49,7 @@ export default function ActivityClient() {
   const [view, setView] = useState<ActivityView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewView | null>(null);
-  const [busy, setBusy] = useState<"preview" | "disable" | null>(null);
+  const [busy, setBusy] = useState<"preview" | "disable" | "planner" | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -69,6 +70,20 @@ export default function ActivityClient() {
       setPreview(await readJson<PreviewView>(await fetch(`${BASE}/preview`, { method: "POST" })));
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No pudimos simular.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  /** El planificador piensa ahora (cuenta para los topes diarios y de gasto). */
+  async function runPlanner() {
+    setBusy("planner");
+    try {
+      await readJson<unknown>(await fetch(`${BASE}/planner/run`, { method: "POST" }));
+      await load();
+      toast.success("Listo: abajo está lo que pensó.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No pudimos correr el planificador.");
     } finally {
       setBusy(null);
     }
@@ -117,6 +132,13 @@ export default function ActivityClient() {
                 {view.mode === "PILOT" ? ` · hasta ${view.pilotGroupSize} clientes por día` : ""}
               </p>
               <p className="mt-1 text-sm text-[color:var(--panel-text-secondary)]">{MODE_LABELS[view.mode].detail}</p>
+              {view.plannerEnabled ? (
+                <p className="mt-1 text-xs text-[color:var(--panel-text-muted)]">
+                  {view.plannerExecutionEnabled
+                    ? "Planificador con IA: piensa planes propios y ejecuta los elegidos por Autopilot."
+                    : "Planificador con IA: piensa planes propios. Por ahora solo simula: no contacta a nadie."}
+                </p>
+              ) : null}
               {view.mode === "OFF" ? (
                 <p className="mt-1 text-xs text-[color:var(--panel-text-muted)]">
                   Lo activa el equipo de Flikker cuando tu negocio está listo para el piloto.
@@ -124,9 +146,15 @@ export default function ActivityClient() {
               ) : null}
             </div>
             <div className="flex flex-wrap gap-2">
-              <Button onClick={() => void runPreview()} loading={busy === "preview"} disabled={busy !== null}>
-                Simular ahora
-              </Button>
+              {view.plannerEnabled ? (
+                <Button onClick={() => void runPlanner()} loading={busy === "planner"} disabled={busy !== null}>
+                  Pensar ahora
+                </Button>
+              ) : (
+                <Button onClick={() => void runPreview()} loading={busy === "preview"} disabled={busy !== null}>
+                  Simular ahora
+                </Button>
+              )}
               {view.mode !== "OFF" ? (
                 <Button
                   variant="danger"
@@ -161,7 +189,13 @@ export default function ActivityClient() {
               </p>
             </SectionCard>
           ) : (
-            view.runs.map((run) => <RunCard key={run.id} run={run} />)
+            view.runs.map((run) =>
+              run.engine === "PLANNER" ? (
+                <PlannerRunCard key={run.id} run={run} />
+              ) : (
+                <RunCard key={run.id} run={run} />
+              ),
+            )
           )}
         </>
       ) : !error ? (
