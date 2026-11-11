@@ -14,6 +14,7 @@ import { REDIS_CONFIGURED } from '../../jobs/redis-connection';
 import { computeVisitFrequency } from './visit-frequency';
 import { segmentCustomer } from './segmentation';
 import { evaluateEligibility } from './eligibility';
+import { customersWithWhatsappMarketingConsent } from '../policy/marketing-consent';
 import { resolveEffectiveAutomationState } from './effective-automation-state';
 import { RetentionExperimentService } from './retention-experiment.service';
 import { RetentionSettingsService } from './retention-settings.service';
@@ -138,6 +139,11 @@ export class AutopilotDiagnosisService {
     };
     const outcomes: Record<string, number> = {};
     let eligibleNow = 0;
+    const consented = await customersWithWhatsappMarketingConsent(
+      this.prisma,
+      businessId,
+      customers.map((c) => c.id),
+    );
 
     for (const customer of customers) {
       const frequency = computeVisitFrequency(
@@ -175,7 +181,10 @@ export class AutopilotDiagnosisService {
           ...settings,
           automationEnabled: settings.automaticCampaignsEnabled,
         },
-        customer,
+        customer: {
+          ...customer,
+          hasMarketingConsent: consented.has(customer.id),
+        },
         segment,
         lastRetentionMessageAt: lastInterventionAt,
         retentionMessagesLast30Days: sent.filter(
@@ -232,6 +241,8 @@ export class AutopilotDiagnosisService {
       runningExperiments: running.length,
       queuesConfigured: REDIS_CONFIGURED,
       eligibleNow,
+      contactableCustomers: customers.length,
+      consentedCustomers: consented.size,
       pendingAssignments: assignmentStatus.PENDING,
       dailyRunWithinSendingWindow,
     });
@@ -258,6 +269,7 @@ export class AutopilotDiagnosisService {
       },
       customers: {
         activeContactable: customers.length,
+        withWhatsappConsent: consented.size,
         inactiveOrOptedOut,
         segments,
         evaluationToday: outcomes,

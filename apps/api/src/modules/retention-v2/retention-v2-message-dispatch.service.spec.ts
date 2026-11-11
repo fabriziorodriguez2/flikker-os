@@ -2,6 +2,21 @@ import { MessageStatus, RetentionObjective } from '@prisma/client';
 import { RetentionV2MessageDispatchService } from './retention-v2-message-dispatch.service';
 import { buildMiFlikkerLink } from '../public/public-messaging.service';
 
+// Consentimiento de WhatsApp: autorizado por defecto; cada test que quiera
+// probar su ausencia lo cambia con `consentMock`.
+jest.mock('../policy/marketing-consent', () => ({
+  ...jest.requireActual<object>('../policy/marketing-consent'),
+  hasWhatsappMarketingConsent: jest.fn(() => Promise.resolve(true)),
+  customersWithWhatsappMarketingConsent: jest.fn(
+    (_db: unknown, _businessId: string, ids: string[]) =>
+      Promise.resolve(new Set(ids)),
+  ),
+}));
+const consentMock = jest.requireMock<{
+  hasWhatsappMarketingConsent: jest.Mock;
+  customersWithWhatsappMarketingConsent: jest.Mock;
+}>('../policy/marketing-consent');
+
 const NOW = new Date('2026-09-02T15:00:00.000Z');
 /** Se agrega al final de CUALQUIER WhatsApp que este servicio manda — ver el `sendText` real. */
 const miFlikkerSuffix = `\n\nVas todos tus premios y lugares en Mi Flikker: ${buildMiFlikkerLink()}`;
@@ -854,6 +869,26 @@ describe('RetentionV2MessageDispatchService — motor de políticas', () => {
         }),
       }),
       expect.objectContaining({ idempotencyKey: 'autopilot:msg-1' }),
+    );
+  });
+
+  it('sin consentimiento de WhatsApp no manda aunque la política no esté aceptada', async () => {
+    const deps = makeDeps();
+    // NOT_GOVERNED = el negocio no aceptó la política: antes salía igual.
+    const gate = makeGate({ status: 'NOT_GOVERNED' });
+    consentMock.hasWhatsappMarketingConsent.mockResolvedValueOnce(false);
+
+    const outcome = await makeService(deps, gate).dispatch('msg-1', NOW);
+
+    expect(outcome).toEqual({
+      status: 'skipped',
+      reasonCode: 'NO_MARKETING_CONSENT',
+    });
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+    expect(consentMock.hasWhatsappMarketingConsent).toHaveBeenCalledWith(
+      expect.anything(),
+      'biz-1',
+      'cust-1',
     );
   });
 

@@ -14,6 +14,8 @@ const healthy: DiagnosisFacts = {
   runningExperiments: 3,
   queuesConfigured: true,
   eligibleNow: 4,
+  contactableCustomers: 10,
+  consentedCustomers: 6,
   pendingAssignments: 0,
   dailyRunWithinSendingWindow: true,
 };
@@ -21,6 +23,27 @@ const healthy: DiagnosisFacts = {
 describe('deriveBlockers', () => {
   it('sin bloqueos cuando todo está en orden', () => {
     expect(deriveBlockers(healthy)).toEqual([]);
+  });
+
+  it('sin ningún consentimiento de WhatsApp, lo dice en vez de "nadie cumple las condiciones"', () => {
+    expect(
+      deriveBlockers({
+        ...healthy,
+        consentedCustomers: 0,
+        eligibleNow: 0,
+      }),
+    ).toEqual(['NO_WHATSAPP_CONSENT']);
+  });
+
+  it('sin clientes contactables no culpa al consentimiento', () => {
+    expect(
+      deriveBlockers({
+        ...healthy,
+        contactableCustomers: 0,
+        consentedCustomers: 0,
+        eligibleNow: 0,
+      }),
+    ).toEqual(['NO_ELIGIBLE_CUSTOMERS']);
   });
 
   it('ordena por lo que hay que resolver primero', () => {

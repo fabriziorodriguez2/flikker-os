@@ -8,6 +8,21 @@ import {
 import { CustomerSegment } from '@prisma/client';
 import { RetentionV2SendService } from './retention-v2-send.service';
 
+// Consentimiento de WhatsApp: autorizado por defecto; cada test que quiera
+// probar su ausencia lo cambia con `consentMock`.
+jest.mock('../policy/marketing-consent', () => ({
+  ...jest.requireActual<object>('../policy/marketing-consent'),
+  hasWhatsappMarketingConsent: jest.fn(() => Promise.resolve(true)),
+  customersWithWhatsappMarketingConsent: jest.fn(
+    (_db: unknown, _businessId: string, ids: string[]) =>
+      Promise.resolve(new Set(ids)),
+  ),
+}));
+const consentMock = jest.requireMock<{
+  hasWhatsappMarketingConsent: jest.Mock;
+  customersWithWhatsappMarketingConsent: jest.Mock;
+}>('../policy/marketing-consent');
+
 const NOW = new Date('2026-09-02T15:00:00.000Z'); // Wednesday, 12:00 Montevideo
 
 const DEFAULT_SETTINGS = {
@@ -456,6 +471,19 @@ describe('RetentionV2SendService — re-validation right before sending', () => 
       reasonCode: 'OPTED_OUT',
     });
     expect(loggedCodes(deps)).toContain('SKIPPED_OPT_OUT');
+  });
+
+  it('skips a customer whose WhatsApp consent is no longer valid before creating the message', async () => {
+    const deps = makeDeps();
+    consentMock.hasWhatsappMarketingConsent.mockResolvedValueOnce(false);
+    const service = makeService(deps);
+
+    expect(await service.processAssignment('assign-1', NOW)).toEqual({
+      status: 'skipped',
+      reasonCode: 'NO_MARKETING_CONSENT',
+    });
+    expect(deps.prisma.tx.message.create).not.toHaveBeenCalled();
+    expect(loggedCodes(deps)).toContain('SKIPPED_NO_CONSENT');
   });
 
   it('skips while the cooldown is running', async () => {

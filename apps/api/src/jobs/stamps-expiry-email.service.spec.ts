@@ -1,6 +1,21 @@
 import { ExperienceVersion, RewardGoalStatus } from '@prisma/client';
 import { StampsExpiryEmailService } from './stamps-expiry-email.service';
 
+// Consentimiento de WhatsApp: autorizado por defecto; cada test que quiera
+// probar su ausencia lo cambia con `consentMock`.
+jest.mock('../modules/policy/marketing-consent', () => ({
+  ...jest.requireActual<object>('../modules/policy/marketing-consent'),
+  hasWhatsappMarketingConsent: jest.fn(() => Promise.resolve(true)),
+  customersWithWhatsappMarketingConsent: jest.fn(
+    (_db: unknown, _businessId: string, ids: string[]) =>
+      Promise.resolve(new Set(ids)),
+  ),
+}));
+const consentMock = jest.requireMock<{
+  hasWhatsappMarketingConsent: jest.Mock;
+  customersWithWhatsappMarketingConsent: jest.Mock;
+}>('../modules/policy/marketing-consent');
+
 const NOW = new Date('2026-09-01T12:00:00.000Z');
 
 const OPEN_SETTINGS = {
@@ -214,6 +229,19 @@ describe('StampsExpiryEmailService — eligibility window', () => {
       sent: 1,
       suppressed: 0,
     });
+  });
+
+  it('without WhatsApp consent, sends only the email', async () => {
+    const deps = makeDeps();
+    consentMock.hasWhatsappMarketingConsent.mockResolvedValueOnce(false);
+    const service = makeService(deps);
+
+    await service.runDaily(NOW);
+
+    const channels = deps.lifecycleEmails.sendOnce.mock.calls.map(
+      (c) => (c[0] as { channel: string }).channel,
+    );
+    expect(channels).toEqual(['email']);
   });
 
   it('skips a goal whose benefit has no expiresAt or redemption code, without crashing', async () => {

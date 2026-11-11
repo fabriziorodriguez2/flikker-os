@@ -8,6 +8,7 @@ import { MessageStatus } from '@prisma/client';
 import { Job, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { PrismaService } from '../../prisma/prisma.service';
+import { hasWhatsappMarketingConsent } from '../../modules/policy/marketing-consent';
 import { createRedisConnection, REDIS_CONFIGURED } from '../redis-connection';
 import {
   RETENTION_QUEUE,
@@ -83,6 +84,19 @@ export class RetentionWorker implements OnModuleInit, OnModuleDestroy {
     }
 
     if (send.customer.optedOut) {
+      await this.markFailed(send.id, send.message.id);
+      return;
+    }
+
+    // Mensaje promocional automático: solo con consentimiento de WhatsApp
+    // vigente (ver policy/marketing-consent).
+    if (
+      !(await hasWhatsappMarketingConsent(
+        this.prisma,
+        send.businessId,
+        send.customerId,
+      ))
+    ) {
       await this.markFailed(send.id, send.message.id);
       return;
     }

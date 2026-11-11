@@ -120,6 +120,15 @@ describe('RetentionV2EvaluateService — REWARD_GOAL_PROGRESS recruitment (integ
       for (const label of labels) {
         const customer = await prisma.customer.create({
           data: {
+            // Consentimiento de WhatsApp: sin él, Autopilot no recluta ni envía.
+            consentEvents: {
+              create: {
+                businessId,
+                channel: 'WHATSAPP',
+                action: 'GRANTED',
+                source: 'CHECKIN_FORM',
+              },
+            },
             businessId,
             name: `Customer ${label}`,
             phoneE164: `+5989901${labels.indexOf(label)}000`,

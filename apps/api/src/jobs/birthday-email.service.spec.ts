@@ -1,6 +1,21 @@
 import { ExperienceVersion } from '@prisma/client';
 import { BirthdayEmailService } from './birthday-email.service';
 
+// Consentimiento de WhatsApp: autorizado por defecto; cada test que quiera
+// probar su ausencia lo cambia con `consentMock`.
+jest.mock('../modules/policy/marketing-consent', () => ({
+  ...jest.requireActual<object>('../modules/policy/marketing-consent'),
+  hasWhatsappMarketingConsent: jest.fn(() => Promise.resolve(true)),
+  customersWithWhatsappMarketingConsent: jest.fn(
+    (_db: unknown, _businessId: string, ids: string[]) =>
+      Promise.resolve(new Set(ids)),
+  ),
+}));
+const consentMock = jest.requireMock<{
+  hasWhatsappMarketingConsent: jest.Mock;
+  customersWithWhatsappMarketingConsent: jest.Mock;
+}>('../modules/policy/marketing-consent');
+
 // 2026-09-01T12:00:00Z is 2026-09-01 09:00 in America/Montevideo (UTC-3) —
 // same calendar day in both, so this fixture stays timezone-agnostic.
 const NOW = new Date('2026-09-01T12:00:00.000Z');
@@ -192,6 +207,19 @@ describe('BirthdayEmailService — send + dedupe', () => {
         to: '+59891111111',
       }),
     );
+  });
+
+  it('without WhatsApp consent, sends only the email', async () => {
+    const deps = makeDeps();
+    consentMock.hasWhatsappMarketingConsent.mockResolvedValueOnce(false);
+    const service = makeService(deps);
+
+    await service.runDaily(NOW);
+
+    const channels = deps.lifecycleEmails.sendOnce.mock.calls.map(
+      (c) => (c[0] as { channel: string }).channel,
+    );
+    expect(channels).toEqual(['email']);
   });
 
   it('a customer with no birthday match today is never emailed', async () => {

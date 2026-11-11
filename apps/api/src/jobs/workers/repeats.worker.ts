@@ -15,6 +15,7 @@ import {
   SEND_REPEAT_MESSAGE_JOB,
   SendRepeatMessageJobData,
 } from '../repeats.queue';
+import { hasWhatsappMarketingConsent } from '../../modules/policy/marketing-consent';
 import { RepeatsProcessor } from '../repeats.processor';
 import { WhatsAppBspService } from '../whatsapp-bsp.service';
 import { isBusinessOperational } from '../business-operational.guard';
@@ -89,6 +90,19 @@ export class RepeatsWorker implements OnModuleInit, OnModuleDestroy {
     }
 
     if (execution.customer.optedOut) {
+      await this.markFailed(execution.id, execution.message.id);
+      return;
+    }
+
+    // Mensaje promocional automático: solo con consentimiento de WhatsApp
+    // vigente (ver policy/marketing-consent).
+    if (
+      !(await hasWhatsappMarketingConsent(
+        this.prisma,
+        execution.businessId,
+        execution.customerId,
+      ))
+    ) {
       await this.markFailed(execution.id, execution.message.id);
       return;
     }

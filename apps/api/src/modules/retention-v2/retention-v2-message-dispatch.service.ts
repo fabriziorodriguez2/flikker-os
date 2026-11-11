@@ -9,6 +9,10 @@ import { RetentionSettingsService } from './retention-settings.service';
 import { PlansService } from '../plans/plans.service';
 import { AutomationCooldownService } from '../../jobs/automation-cooldown.service';
 import { PolicyGateService } from '../policy/policy-gate.service';
+import {
+  NO_MARKETING_CONSENT,
+  hasWhatsappMarketingConsent,
+} from '../policy/marketing-consent';
 import { policyBlockerCode } from './retention-v2-send.service';
 import {
   DECISION_CODES,
@@ -141,6 +145,19 @@ export class RetentionV2MessageDispatchService {
 
     if (message.customer.optedOut) {
       return this.skipTerminal(message, 'OPTED_OUT');
+    }
+
+    // Segunda capa del consentimiento (la primera es la elegibilidad al
+    // reclutar y al crear el mensaje): se mira justo antes de llamar al
+    // proveedor, con o sin política aceptada.
+    if (
+      !(await hasWhatsappMarketingConsent(
+        this.prisma,
+        message.businessId,
+        message.customerId,
+      ))
+    ) {
+      return this.skipTerminal(message, NO_MARKETING_CONSENT);
     }
 
     // Ventana horaria, revalidada acá y no solo al crear el Message

@@ -15,6 +15,7 @@ import { evaluateEligibility } from './eligibility';
 import { pickVariant } from './allocation';
 import { RetentionAssignmentService } from './retention-assignment.service';
 import { ReturnChallengeService } from '../return-challenges/return-challenge.service';
+import { customersWithWhatsappMarketingConsent } from '../policy/marketing-consent';
 import { RetentionSettingsService } from './retention-settings.service';
 import { RetentionExperimentService } from './retention-experiment.service';
 import {
@@ -177,6 +178,12 @@ export class RetentionV2EvaluateService {
       },
     });
 
+    const consented = await customersWithWhatsappMarketingConsent(
+      this.prisma,
+      business.id,
+      customers.map((c) => c.id),
+    );
+
     let assigned = 0;
     let dryRunCandidates = 0;
 
@@ -208,7 +215,10 @@ export class RetentionV2EvaluateService {
           // automáticas.
           automationEnabled: settings.automaticCampaignsEnabled,
         },
-        customer,
+        customer: {
+          ...customer,
+          hasMarketingConsent: consented.has(customer.id),
+        },
         segment,
         lastRetentionMessageAt: lastInterventionAt,
         retentionMessagesLast30Days: messagesLast30Days,
@@ -406,6 +416,12 @@ export class RetentionV2EvaluateService {
       },
     });
 
+    const consented = await customersWithWhatsappMarketingConsent(
+      this.prisma,
+      business.id,
+      customers.map((c) => c.id),
+    );
+
     let assigned = 0;
     let dryRunCandidates = 0;
 
@@ -443,7 +459,10 @@ export class RetentionV2EvaluateService {
           // recuperación no puede apagar los recordatorios de "te falta poco".
           automationEnabled: settings.progressReminderEnabled,
         },
-        customer,
+        customer: {
+          ...customer,
+          hasMarketingConsent: consented.has(customer.id),
+        },
         segment: null,
         lastRetentionMessageAt: lastInterventionAt,
         retentionMessagesLast30Days: messagesLast30Days,

@@ -12,6 +12,21 @@ import {
 } from './retention-experiment.service';
 import { pickVariant } from './allocation';
 
+// Consentimiento de WhatsApp: autorizado por defecto; cada test que quiera
+// probar su ausencia lo cambia con `consentMock`.
+jest.mock('../policy/marketing-consent', () => ({
+  ...jest.requireActual<object>('../policy/marketing-consent'),
+  hasWhatsappMarketingConsent: jest.fn(() => Promise.resolve(true)),
+  customersWithWhatsappMarketingConsent: jest.fn(
+    (_db: unknown, _businessId: string, ids: string[]) =>
+      Promise.resolve(new Set(ids)),
+  ),
+}));
+const consentMock = jest.requireMock<{
+  hasWhatsappMarketingConsent: jest.Mock;
+  customersWithWhatsappMarketingConsent: jest.Mock;
+}>('../policy/marketing-consent');
+
 const NOW = new Date('2026-09-02T15:00:00.000Z');
 
 /** A customer whose visits are `every` days apart, last one `ago` days back. */
@@ -335,6 +350,24 @@ describe('RetentionV2EvaluateService — recruitment', () => {
       (c) => (c[0] as { decisionCode: string }).decisionCode,
     );
     expect(codes).toContain('SKIPPED_OPT_OUT');
+    expect(deps.assignments.assign).not.toHaveBeenCalled();
+  });
+
+  it('never recruits a customer without explicit WhatsApp consent', async () => {
+    const deps = makeDeps({
+      customers: [customer('c1', visits(7, 5, 20))],
+    });
+    consentMock.customersWithWhatsappMarketingConsent.mockResolvedValueOnce(
+      new Set<string>(),
+    );
+    const service = makeService(deps);
+
+    await service.runDaily(NOW);
+
+    const codes = deps.decisions.record.mock.calls.map(
+      (c) => (c[0] as { decisionCode: string }).decisionCode,
+    );
+    expect(codes).toContain('SKIPPED_NO_CONSENT');
     expect(deps.assignments.assign).not.toHaveBeenCalled();
   });
 });

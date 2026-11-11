@@ -15,7 +15,12 @@ function facts(overrides: Partial<EligibilityFacts> = {}): EligibilityFacts {
       minimumDaysBetweenRetentionMessages: 14,
       maximumRetentionMessagesPer30Days: 2,
     },
-    customer: { isActive: true, optedOut: false, phoneE164: '+59891111111' },
+    customer: {
+      isActive: true,
+      optedOut: false,
+      phoneE164: '+59891111111',
+      hasMarketingConsent: true,
+    },
     segment: CustomerSegment.AT_RISK,
     lastRetentionMessageAt: null,
     retentionMessagesLast30Days: 0,
@@ -116,7 +121,43 @@ describe('evaluateEligibility — consent and reachability', () => {
   it('rejects an opted-out customer', () => {
     const result = evaluateEligibility(
       facts({
-        customer: { isActive: true, optedOut: true, phoneE164: '+59891111111' },
+        customer: {
+          isActive: true,
+          optedOut: true,
+          phoneE164: '+59891111111',
+          hasMarketingConsent: true,
+        },
+      }),
+    );
+    expect(result).toEqual({ eligible: false, reasonCode: 'OPTED_OUT' });
+  });
+
+  it('rejects a customer without explicit WhatsApp consent, even if never opted out', () => {
+    const result = evaluateEligibility(
+      facts({
+        customer: {
+          isActive: true,
+          optedOut: false,
+          phoneE164: '+59891111111',
+          hasMarketingConsent: false,
+        },
+      }),
+    );
+    expect(result).toEqual({
+      eligible: false,
+      reasonCode: 'NO_MARKETING_CONSENT',
+    });
+  });
+
+  it('an opt-out is reported as OPTED_OUT, not as missing consent', () => {
+    const result = evaluateEligibility(
+      facts({
+        customer: {
+          isActive: true,
+          optedOut: true,
+          phoneE164: '+59891111111',
+          hasMarketingConsent: false,
+        },
       }),
     );
     expect(result).toEqual({ eligible: false, reasonCode: 'OPTED_OUT' });
@@ -126,7 +167,12 @@ describe('evaluateEligibility — consent and reachability', () => {
     expect(
       evaluateEligibility(
         facts({
-          customer: { isActive: true, optedOut: false, phoneE164: null },
+          customer: {
+            isActive: true,
+            optedOut: false,
+            phoneE164: null,
+            hasMarketingConsent: true,
+          },
         }),
       ),
     ).toEqual({ eligible: false, reasonCode: 'NO_CONTACT_CHANNEL' });
@@ -134,7 +180,12 @@ describe('evaluateEligibility — consent and reachability', () => {
     expect(
       evaluateEligibility(
         facts({
-          customer: { isActive: true, optedOut: false, phoneE164: '   ' },
+          customer: {
+            isActive: true,
+            optedOut: false,
+            phoneE164: '   ',
+            hasMarketingConsent: true,
+          },
         }),
       ),
     ).toEqual({ eligible: false, reasonCode: 'NO_CONTACT_CHANNEL' });
@@ -147,6 +198,7 @@ describe('evaluateEligibility — consent and reachability', () => {
           isActive: false,
           optedOut: false,
           phoneE164: '+59891111111',
+          hasMarketingConsent: true,
         },
       }),
     );

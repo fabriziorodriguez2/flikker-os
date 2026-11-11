@@ -138,6 +138,15 @@ describe('Retention V2 self-service — onboarding to WhatsApp (e2e)', () => {
   async function makeInactiveCustomer(businessId: string, id: string) {
     await prisma.customer.create({
       data: {
+        // Consentimiento de WhatsApp: sin él, Autopilot no recluta ni envía.
+        consentEvents: {
+          create: {
+            businessId,
+            channel: 'WHATSAPP',
+            action: 'GRANTED',
+            source: 'CHECKIN_FORM',
+          },
+        },
         id,
         businessId,
         name: 'Cliente Viejo',
@@ -325,6 +334,15 @@ describe('Retention V2 self-service — onboarding to WhatsApp (e2e)', () => {
       );
       await prisma.customer.create({
         data: {
+          // Consentimiento de WhatsApp: sin él, Autopilot no recluta ni envía.
+          consentEvents: {
+            create: {
+              businessId,
+              channel: 'WHATSAPP',
+              action: 'GRANTED',
+              source: 'CHECKIN_FORM',
+            },
+          },
           id: customerId,
           businessId,
           name: 'Cliente Con Beneficio',
@@ -432,6 +450,15 @@ describe('Retention V2 self-service — onboarding to WhatsApp (e2e)', () => {
       ] as const) {
         await prisma.customer.create({
           data: {
+            // Consentimiento de WhatsApp: sin él, Autopilot no recluta ni envía.
+            consentEvents: {
+              create: {
+                businessId,
+                channel: 'WHATSAPP',
+                action: 'GRANTED',
+                source: 'CHECKIN_FORM',
+              },
+            },
             id,
             businessId,
             name,
@@ -557,6 +584,15 @@ describe('Retention V2 self-service — onboarding to WhatsApp (e2e)', () => {
       );
       await prisma.customer.create({
         data: {
+          // Consentimiento de WhatsApp: sin él, Autopilot no recluta ni envía.
+          consentEvents: {
+            create: {
+              businessId,
+              channel: 'WHATSAPP',
+              action: 'GRANTED',
+              source: 'CHECKIN_FORM',
+            },
+          },
           id: customerId,
           businessId,
           name: 'Cliente Cerca Del Premio',

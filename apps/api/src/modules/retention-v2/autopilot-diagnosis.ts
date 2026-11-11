@@ -13,6 +13,7 @@ export type AutopilotBlocker =
   | 'NO_RUNNING_EXPERIMENTS'
   | 'QUEUES_NOT_CONFIGURED'
   | 'DRY_RUN_ENABLED'
+  | 'NO_WHATSAPP_CONSENT'
   | 'NO_ELIGIBLE_CUSTOMERS'
   | 'PENDING_OUTSIDE_SENDING_WINDOW'
   | 'DAILY_RUN_OUTSIDE_SENDING_WINDOW';
@@ -31,6 +32,8 @@ export const BLOCKER_DESCRIPTIONS: Record<AutopilotBlocker, string> = {
     'El servidor no tiene configuradas las tareas programadas: el motor no corre.',
   DRY_RUN_ENABLED:
     'Está en modo prueba: el motor decide pero nunca envía mensajes.',
+  NO_WHATSAPP_CONSENT:
+    'Ningún cliente autorizó recibir promociones por WhatsApp: sin eso, ningún mensaje automático sale.',
   NO_ELIGIBLE_CUSTOMERS:
     'Hoy ningún cliente cumple las condiciones para ser contactado.',
   PENDING_OUTSIDE_SENDING_WINDOW:
@@ -49,6 +52,10 @@ export interface DiagnosisFacts {
   runningExperiments: number;
   queuesConfigured: boolean;
   eligibleNow: number;
+  /** Clientes activos, sin baja y con teléfono. */
+  contactableCustomers: number;
+  /** De esos, cuántos tienen consentimiento de WhatsApp vigente. */
+  consentedCustomers: number;
   pendingAssignments: number;
   /** null = no se pudo calcular (cron no estándar). */
   dailyRunWithinSendingWindow: boolean | null;
@@ -65,7 +72,9 @@ export function deriveBlockers(facts: DiagnosisFacts): AutopilotBlocker[] {
   if (facts.runningExperiments === 0) blockers.push('NO_RUNNING_EXPERIMENTS');
   if (!facts.queuesConfigured) blockers.push('QUEUES_NOT_CONFIGURED');
   if (facts.dryRunEnabled) blockers.push('DRY_RUN_ENABLED');
-  if (facts.eligibleNow === 0 && facts.pendingAssignments === 0) {
+  if (facts.contactableCustomers > 0 && facts.consentedCustomers === 0) {
+    blockers.push('NO_WHATSAPP_CONSENT');
+  } else if (facts.eligibleNow === 0 && facts.pendingAssignments === 0) {
     blockers.push('NO_ELIGIBLE_CUSTOMERS');
   }
   if (facts.dailyRunWithinSendingWindow === false) {

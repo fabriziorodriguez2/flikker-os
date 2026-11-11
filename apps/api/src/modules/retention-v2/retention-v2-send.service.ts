@@ -26,6 +26,7 @@ import {
   type CopySource,
 } from '../ai/retention-ai-copy.service';
 import { PolicyGateService } from '../policy/policy-gate.service';
+import { hasWhatsappMarketingConsent } from '../policy/marketing-consent';
 
 /**
  * Sends (or deliberately does not send) one assignment.
@@ -98,16 +99,27 @@ export class RetentionV2SendService {
       );
     }
 
-    const [returnedSince, lastRetentionMessageAt, messagesLast30Days] =
-      await Promise.all([
-        this.hasReturnedSince(
-          assignment.businessId,
-          assignment.customerId,
-          assignment.assignedAt,
-        ),
-        this.lastRetentionMessageAt(assignment.customerId, assignment.id),
-        this.retentionMessagesLast30Days(assignment.customerId, now),
-      ]);
+    const [
+      returnedSince,
+      lastRetentionMessageAt,
+      messagesLast30Days,
+      hasMarketingConsent,
+    ] = await Promise.all([
+      this.hasReturnedSince(
+        assignment.businessId,
+        assignment.customerId,
+        assignment.assignedAt,
+      ),
+      this.lastRetentionMessageAt(assignment.customerId, assignment.id),
+      this.retentionMessagesLast30Days(assignment.customerId, now),
+      // Revalidado acá: el cliente pudo darse de baja entre el reclutamiento
+      // y el envío.
+      hasWhatsappMarketingConsent(
+        this.prisma,
+        assignment.businessId,
+        assignment.customerId,
+      ),
+    ]);
 
     const isProgressReminder =
       assignment.experiment.objective ===
@@ -125,7 +137,7 @@ export class RetentionV2SendService {
           ? settings.progressReminderEnabled
           : settings.automaticCampaignsEnabled,
       },
-      customer: assignment.customer,
+      customer: { ...assignment.customer, hasMarketingConsent },
       // Pre-piloto fix (§1/§2) — REWARD_GOAL_PROGRESS recruitment never
       // gated on segment in the first place (it recruits by "has an active
       // reward goal", which in practice is NEW/REPEAT/FREQUENT/RECOVERED —

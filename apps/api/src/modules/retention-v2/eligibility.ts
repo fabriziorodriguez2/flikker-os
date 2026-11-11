@@ -33,6 +33,12 @@ export interface EligibilityFacts {
     isActive: boolean;
     optedOut: boolean;
     phoneE164: string | null;
+    /**
+     * Consentimiento de WhatsApp vigente (GRANTED), con o sin política
+     * aceptada. Obligatorio a propósito: ningún camino puede reclutar o
+     * enviar sin haberlo resuelto (ver `policy/marketing-consent.ts`).
+     */
+    hasMarketingConsent: boolean;
   };
   /**
    * `null` means the caller already resolved population eligibility upstream
@@ -68,6 +74,7 @@ export type EligibilityRejection =
   | 'AUTOMATION_DISABLED'
   | 'CUSTOMER_INACTIVE'
   | 'OPTED_OUT'
+  | 'NO_MARKETING_CONSENT'
   | 'NO_CONTACT_CHANNEL'
   | 'SEGMENT_NOT_TARGETABLE'
   | 'COOLDOWN_ACTIVE'
@@ -107,6 +114,9 @@ export function evaluateEligibility(
   }
   if (facts.customer.optedOut) {
     return { eligible: false, reasonCode: 'OPTED_OUT' };
+  }
+  if (!facts.customer.hasMarketingConsent) {
+    return { eligible: false, reasonCode: 'NO_MARKETING_CONSENT' };
   }
   if (!facts.customer.phoneE164?.trim()) {
     return { eligible: false, reasonCode: 'NO_CONTACT_CHANNEL' };
