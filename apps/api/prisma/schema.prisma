@@ -383,23 +383,23 @@ enum CustomerEventType {
 // ---------------------------------------------------------------------------
 
 model User {
-  id                    String    @id @default(uuid())
-  email                 String    @unique
-  notificationEmail     String?   @map("notification_email")
-  notificationWhatsapp  String?   @map("notification_whatsapp")
+  id                    String        @id @default(uuid())
+  email                 String        @unique
+  notificationEmail     String?       @map("notification_email")
+  notificationWhatsapp  String?       @map("notification_whatsapp")
   passwordHash          String
   firstName             String
   lastName              String
-  isPlatformAdmin       Boolean   @default(false)
-  isActive              Boolean   @default(true)
-  onboardingCompletedAt DateTime? @map("onboarding_completed_at")
+  isPlatformAdmin       Boolean       @default(false)
+  isActive              Boolean       @default(true)
+  onboardingCompletedAt DateTime?     @map("onboarding_completed_at")
   /// Null = correo sin confirmar todavía. Alta self-service arranca en null;
   /// las cuentas que ya existían antes de que esta columna existiera se
   /// migran con `emailVerifiedAt = createdAt` (backfill en la migración) para
   /// no bloquear a nadie que ya venía usando Flikker. Las cuentas que crea
   /// Platform Admin (`platform.repository.ts`) se marcan verificadas en el
   /// momento: nunca pasan por el flujo de confirmación por correo.
-  emailVerifiedAt       DateTime? @map("email_verified_at")
+  emailVerifiedAt       DateTime?     @map("email_verified_at")
   /// Intención de upgrade capturada en `/signup?plan=PRO&billing=...`, NO
   /// autoridad de billing: nunca activa Pro ni crea una Subscription por sí
   /// sola. Vive en el User (no en cookie/sessionStorage) justamente para
@@ -408,25 +408,28 @@ model User {
   /// Se consume (vuelve a null) la primera vez que, ya con el Business
   /// creado, se confirma su estado real de plan — ver `AuthService`.
   pendingUpgradePlan    CheckoutPlan? @map("pending_upgrade_plan")
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 
-  memberships             Membership[]             @relation("UserMemberships")
-  invitedMemberships      Membership[]             @relation("InvitedByUser")
-  sessions                Session[]
-  passwordResetTokens     PasswordResetToken[]
-  emailVerificationTokens EmailVerificationToken[]
-  impersonationLogs       ImpersonationLog[]
-  auditLogs               AuditLog[]
-  createdCampaigns        Campaign[]               @relation("CampaignCreator")
-  createdReviews          Review[]                 @relation("ReviewCreator")
-  respondedReviews        Review[]                 @relation("ReviewResponder")
-  authoredResponses       Response[]               @relation("ResponseAuthor")
-  statusChanges           ReviewStatusHistory[]    @relation("StatusChanger")
-  businessPlansCreated    BusinessPlan[]           @relation("BusinessPlanCreator")
-  simulationRuns          SimulationRun[]          @relation("SimulationRunCreator")
-  programAuditEvents      ProgramAuditEvent[]
-  requestedCheckoutLeads  CheckoutLead[]
+  memberships               Membership[]               @relation("UserMemberships")
+  invitedMemberships        Membership[]               @relation("InvitedByUser")
+  sessions                  Session[]
+  passwordResetTokens       PasswordResetToken[]
+  emailVerificationTokens   EmailVerificationToken[]
+  impersonationLogs         ImpersonationLog[]
+  auditLogs                 AuditLog[]
+  createdCampaigns          Campaign[]                 @relation("CampaignCreator")
+  createdReviews            Review[]                   @relation("ReviewCreator")
+  respondedReviews          Review[]                   @relation("ReviewResponder")
+  authoredResponses         Response[]                 @relation("ResponseAuthor")
+  statusChanges             ReviewStatusHistory[]      @relation("StatusChanger")
+  businessPlansCreated      BusinessPlan[]             @relation("BusinessPlanCreator")
+  simulationRuns            SimulationRun[]            @relation("SimulationRunCreator")
+  programAuditEvents        ProgramAuditEvent[]
+  requestedCheckoutLeads    CheckoutLead[]
+  intelligenceConversations IntelligenceConversation[]
+  intelligenceReports       IntelligenceReport[]
+  intelligenceActions       IntelligenceAction[]
 }
 
 // ---------------------------------------------------------------------------
@@ -695,6 +698,13 @@ model Business {
   reactivationFunnelSummary     ReactivationFunnelSummary?
   ownerLifecycleEmailLogs       OwnerLifecycleEmailLog[]
   checkoutLeads                 CheckoutLead[]
+  intelligenceConversations     IntelligenceConversation[]
+  intelligenceReports           IntelligenceReport[]
+  intelligenceActions           IntelligenceAction[]
+  policy                        BusinessPolicy?
+  consentEvents                 CustomerConsentEvent[]
+  policyReservations            PolicyReservation[]
+  autonomousRuns                AutonomousRun[]
 }
 
 // ---------------------------------------------------------------------------
@@ -1190,9 +1200,14 @@ model RetentionAssignment {
   /// The one individual reward issued for this assignment, when the variant
   /// carries an incentive. Unique for the same reason.
   benefitParticipationId String? @unique @map("benefit_participation_id")
+  /// Corrida de Intelligence (modo autónomo) que reclutó a este cliente. Null
+  /// = lo reclutó Autopilot por su cuenta. Sirve para medir qué es atribuible
+  /// a cada corrida; nunca cambia cómo se envía.
+  autonomousRunId        String? @map("autonomous_run_id")
 
   business             Business               @relation(fields: [businessId], references: [id], onDelete: Cascade)
   customer             Customer               @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  autonomousRun        AutonomousRun?         @relation(fields: [autonomousRunId], references: [id], onDelete: SetNull)
   experiment           RetentionExperiment    @relation(fields: [experimentId], references: [id], onDelete: Cascade)
   variant              RetentionVariant       @relation(fields: [variantId], references: [id], onDelete: Cascade)
   message              Message?               @relation(fields: [messageId], references: [id], onDelete: SetNull)
@@ -1207,6 +1222,7 @@ model RetentionAssignment {
   @@index([customerId])
   @@index([variantId])
   @@index([status, exposedAt])
+  @@index([autonomousRunId])
   @@map("retention_assignments")
 }
 
@@ -1988,6 +2004,7 @@ model Customer {
   returnChallenges         ReturnChallenge[]
   emailLogs                EmailLog[]
   automationContact        CustomerAutomationContact?
+  consentEvents            CustomerConsentEvent[]
 
   @@index([businessId])
   @@index([businessId, isActive])
@@ -3621,4 +3638,453 @@ model DomainEvent {
 
   @@unique([eventType, entityId])
   @@map("domain_events")
+}
+
+// ---------------------------------------------------------------------------
+// Flikker Intelligence — conversaciones persistentes
+// ---------------------------------------------------------------------------
+//
+// Privacidad: una conversación es PRIVADA de quien la creó dentro de ese
+// negocio. Ningún otro miembro (tampoco OWNER, tampoco Platform Admin
+// impersonando) la lista ni la lee. Retención: el borrado del dueño es lógico
+// (`deletedAt`) y la oculta en el acto; borrar el Business o el User borra
+// todo en cascada. El contenido puede incluir PII que el dueño escribe
+// (nombres de clientes): nunca se loguea ni sale de esta tabla.
+
+enum IntelligenceConversationStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum IntelligenceTitleSource {
+  /// Derivado del primer mensaje del usuario; se pisa solo mientras siga AUTO.
+  AUTO
+  /// Renombrado a mano: nunca se vuelve a recalcular.
+  MANUAL
+}
+
+enum IntelligenceMessageRole {
+  USER
+  ASSISTANT
+  TOOL
+}
+
+enum IntelligenceMessageKind {
+  TEXT
+  TOOL_RESULT
+  ACTION
+}
+
+model IntelligenceConversation {
+  id              String                         @id @default(uuid())
+  businessId      String                         @map("business_id")
+  createdByUserId String                         @map("created_by_user_id")
+  title           String
+  titleSource     IntelligenceTitleSource        @default(AUTO) @map("title_source")
+  status          IntelligenceConversationStatus @default(ACTIVE)
+  /// Orden del listado — se actualiza con cada mensaje nuevo.
+  lastActivityAt  DateTime                       @default(now()) @map("last_activity_at")
+  archivedAt      DateTime?                      @map("archived_at")
+  deletedAt       DateTime?                      @map("deleted_at")
+  createdAt       DateTime                       @default(now()) @map("created_at")
+  updatedAt       DateTime                       @updatedAt @map("updated_at")
+
+  business  Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdBy User                  @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  messages  IntelligenceMessage[]
+  reports   IntelligenceReport[]
+  actions   IntelligenceAction[]
+
+  /// Destino de la FK compuesta de IntelligenceMessage: un mensaje nunca puede
+  /// apuntar a una conversación de otro negocio.
+  @@unique([id, businessId])
+  @@index([businessId, createdByUserId, lastActivityAt])
+  @@map("intelligence_conversations")
+}
+
+model IntelligenceMessage {
+  id             String                  @id @default(uuid())
+  conversationId String                  @map("conversation_id")
+  businessId     String                  @map("business_id")
+  role           IntelligenceMessageRole
+  kind           IntelligenceMessageKind @default(TEXT)
+  content        String
+  /// Objeto JSON acotado (ver `message-metadata.ts`). Nunca teléfono/email.
+  metadata       Json?
+  createdAt      DateTime                @default(now()) @map("created_at")
+
+  conversation IntelligenceConversation @relation(fields: [conversationId, businessId], references: [id, businessId], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("intelligence_messages")
+}
+
+// ---------------------------------------------------------------------------
+// Flikker Intelligence — reportes
+// ---------------------------------------------------------------------------
+//
+// Cada reporte es una foto reproducible: qué se calculó, para qué período (en
+// hora local del negocio), con qué fuentes y cuándo. Las métricas guardan su
+// numerador, denominador y definición. Solo agregados: nunca datos de
+// contacto de clientes. Mismo criterio de privacidad que las conversaciones:
+// lo ve quien lo generó.
+
+enum IntelligenceReportKind {
+  PERIOD_SUMMARY
+  PERIOD_COMPARISON
+  CUSTOMER_COHORT
+  MONTHLY
+}
+
+model IntelligenceReport {
+  id              String                 @id @default(uuid())
+  businessId      String                 @map("business_id")
+  createdByUserId String                 @map("created_by_user_id")
+  /// La conversación donde se pidió; null si se borró en forma definitiva.
+  conversationId  String?                @map("conversation_id")
+  kind            IntelligenceReportKind
+  title           String
+  /// [desde, hasta) en hora local del negocio, como instantes UTC.
+  periodFrom      DateTime?              @map("period_from")
+  periodTo        DateTime?              @map("period_to")
+  timezone        String
+  params          Json
+  metrics         Json
+  sources         Json
+  notes           Json
+  computedAt      DateTime               @default(now()) @map("computed_at")
+
+  business     Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdBy    User                      @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  conversation IntelligenceConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@index([businessId, createdByUserId, computedAt])
+  @@map("intelligence_reports")
+}
+
+// ---------------------------------------------------------------------------
+// Flikker Intelligence — acciones del agente
+// ---------------------------------------------------------------------------
+//
+// Todo lo que el agente prepara o propone queda acá, con sus parámetros
+// exactos. El modelo nunca escribe: pide una operación con schema cerrado y el
+// servidor la valida y la ejecuta con los servicios de dominio de siempre.
+//
+// DRAFT: borradores sin efecto para clientes (campaña en borrador, beneficio
+// inactivo, misión en borrador): se ejecutan al pedirlos.
+// CONFIRM: cambios con impacto (programar, pausar, reglas del programa): quedan
+// PROPOSED hasta que el dueño confirma desde la tarjeta. La confirmación va
+// atada a `planHash` (parámetros + `dataVersion`); si los datos cambiaron
+// desde la propuesta, la aprobación caduca.
+// DRY_RUN: lo que en esta etapa no se ejecuta nunca (envíos por WhatsApp):
+// se calcula el impacto y nada más.
+
+enum IntelligenceActionKind {
+  CREATE_SEGMENT
+  CREATE_CAMPAIGN_DRAFT
+  UPDATE_CAMPAIGN_DRAFT
+  CREATE_REWARD_DRAFT
+  CREATE_MISSION_DRAFT
+  SCHEDULE_CAMPAIGN
+  PAUSE_CAMPAIGN
+  UPDATE_STAMPS_CARD
+  ACTIVATE_BENEFIT
+  SET_MISSION_STATUS
+  SEND_PROMOTION
+}
+
+enum IntelligenceActionMode {
+  DRAFT
+  CONFIRM
+  DRY_RUN
+}
+
+enum IntelligenceActionStatus {
+  PROPOSED
+  EXECUTING
+  EXECUTED
+  CANCELLED
+  EXPIRED
+  FAILED
+  DRY_RUN
+}
+
+model IntelligenceAction {
+  id              String                   @id @default(uuid())
+  businessId      String                   @map("business_id")
+  createdByUserId String                   @map("created_by_user_id")
+  /// La conversación donde se pidió; null si se borró en forma definitiva.
+  conversationId  String?                  @map("conversation_id")
+  kind            IntelligenceActionKind
+  mode            IntelligenceActionMode
+  status          IntelligenceActionStatus
+  params          Json
+  /// Antes/después, destinatarios, fecha, canal, costo máximo y riesgos.
+  impact          Json
+  /// Huella del estado de los datos afectados al momento de proponer.
+  dataVersion     String?                  @map("data_version")
+  planHash        String                   @map("plan_hash")
+  /// Mismo pedido (mensaje + operación + parámetros) = misma acción.
+  idempotencyKey  String                   @map("idempotency_key")
+  expiresAt       DateTime?                @map("expires_at")
+  decidedAt       DateTime?                @map("decided_at")
+  executedAt      DateTime?                @map("executed_at")
+  result          Json?
+  errorCode       String?                  @map("error_code")
+  errorMessage    String?                  @map("error_message")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+
+  business     Business                  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  createdBy    User                      @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+  conversation IntelligenceConversation? @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, createdByUserId, createdAt])
+  @@map("intelligence_actions")
+}
+
+// ---------------------------------------------------------------------------
+// Policy & Budget Engine (Intelligence Prompt 6)
+// ---------------------------------------------------------------------------
+// Las reglas duras de cualquier efecto externo gobernado (mensajes de
+// marketing, premios con costo, cambios de programa desde el agente). Lo que
+// ya existía NO se duplica acá: la frecuencia por cliente, la ventana horaria
+// y el tope de costo de incentivos siguen viviendo en `RetentionSettings`;
+// esta fila guarda solo lo que no tenía hogar.
+//
+// Una fila sin `acceptedAt` no gobierna nada: los negocios existentes siguen
+// exactamente igual hasta que el dueño acepta la política. Intelligence, en
+// cambio, exige la política aceptada para cualquier cambio con impacto.
+
+enum PolicyPauseReason {
+  MANUAL
+  AUTO_SEND_ERRORS
+  AUTO_OPT_OUTS
+  AUTO_COMPLAINTS
+}
+
+model BusinessPolicy {
+  id         String @id @default(uuid())
+  businessId String @unique @map("business_id")
+
+  /// Tope mensual de mensajería de marketing, en la moneda confirmada.
+  messagingBudgetMonthly     Decimal? @map("messaging_budget_monthly") @db.Decimal(12, 2)
+  maxUniqueRecipientsPerWeek Int?     @map("max_unique_recipients_per_week")
+  maxNewCampaignsPerWeek     Int?     @map("max_new_campaigns_per_week")
+  /// % de (mensajería + incentivos) que puede usar UNA campaña. Además de
+  /// esto, ninguna bolsa individual puede pasarse.
+  maxCampaignSharePercent    Int?     @map("max_campaign_share_percent")
+
+  /// Costo estimado de un mensaje. Lo fija Platform Admin (el proveedor
+  /// actual no informa precio); null = no se puede estimar = no se envía.
+  messageUnitCost         Decimal?  @map("message_unit_cost") @db.Decimal(12, 4)
+  messageUnitCostCurrency String?   @map("message_unit_cost_currency")
+  messageUnitCostSetAt    DateTime? @map("message_unit_cost_set_at")
+
+  /// Versión del texto de la política que el dueño aceptó.
+  acceptedVersion   Int?      @map("accepted_version")
+  acceptedAt        DateTime? @map("accepted_at")
+  /// Sin FK a propósito: la aceptación tiene que sobrevivir aunque se borre
+  /// el usuario. El detalle completo queda en AuditLog.
+  acceptedByUserId  String?   @map("accepted_by_user_id")
+  /// Moneda y zona horaria que el dueño confirmó al aceptar. `Business`
+  /// siempre tiene valores (USD por defecto), así que solo esta confirmación
+  /// distingue "configurado" de "default". Si el negocio cambia, se vuelve a
+  /// aceptar.
+  confirmedCurrency String?   @map("confirmed_currency")
+  confirmedTimezone String?   @map("confirmed_timezone")
+
+  /// Kill switch. Bloquea todo efecto externo gobernado.
+  paused         Boolean            @default(false)
+  pausedReason   PolicyPauseReason? @map("paused_reason")
+  pausedAt       DateTime?          @map("paused_at")
+  pausedByUserId String?            @map("paused_by_user_id")
+
+  /// Rollout del modo autónomo de Intelligence. OFF por defecto; PILOT (que
+  /// recluta de verdad vía Autopilot) solo lo activa Platform Admin con
+  /// confirmación explícita. Ver docs/intelligence-autonomy-rollout.md.
+  autonomyMode            AutonomyMode @default(OFF) @map("autonomy_mode")
+  /// Máximo de clientes que una corrida autónoma puede reclutar.
+  autonomyPilotGroupSize  Int          @default(10) @map("autonomy_pilot_group_size")
+  autonomyModeSetAt       DateTime?    @map("autonomy_mode_set_at")
+  autonomyModeSetByUserId String?      @map("autonomy_mode_set_by_user_id")
+
+  /// Sube en cada cambio: concurrencia optimista de la pantalla.
+  version   Int      @default(1)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@map("business_policies")
+}
+
+enum ConsentChannel {
+  WHATSAPP
+  EMAIL
+}
+
+enum ConsentAction {
+  GRANTED
+  REVOKED
+  /// Bloqueo duro (queja, pedido de no contactar nunca). Un GRANTED posterior
+  /// no lo levanta; solo UNSUPPRESSED.
+  SUPPRESSED
+  UNSUPPRESSED
+}
+
+enum ConsentSource {
+  CHECKIN_FORM
+  STAFF
+  INBOUND_KEYWORD
+  COMPLAINT
+  PLATFORM
+}
+
+/// Registro de solo agregar: el estado vigente es el último evento por canal.
+/// `Customer.optedOut` se mantiene como espejo de compatibilidad (los caminos
+/// viejos lo siguen leyendo) y una baja de WhatsApp siempre lo prende. La
+/// ausencia de eventos NO es autorización.
+model CustomerConsentEvent {
+  id          String         @id @default(uuid())
+  businessId  String         @map("business_id")
+  customerId  String         @map("customer_id")
+  channel     ConsentChannel
+  action      ConsentAction
+  source      ConsentSource
+  /// Versión del texto que el cliente aceptó (solo GRANTED).
+  textVersion String?        @map("text_version")
+  actorUserId String?        @map("actor_user_id")
+  note        String?
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, customerId, channel, createdAt])
+  @@index([businessId, action, createdAt])
+  @@map("customer_consent_events")
+}
+
+enum PolicyReservationStatus {
+  HELD
+  COMMITTED
+  RELEASED
+  EXPIRED
+}
+
+enum PolicyEffectSource {
+  PROMOTION
+  INTELLIGENCE
+  AUTOPILOT
+}
+
+/// Una reserva de gasto tomada ANTES de comprometerlo, bajo el advisory lock
+/// del negocio. HELD cuenta contra las bolsas hasta que se confirma (con lo
+/// que realmente salió), se libera o vence. Lo ya materializado (contactos
+/// de promociones, mensajes de Autopilot, emisiones de premios) se cuenta
+/// desde sus propias tablas; esta tabla solo agrega lo que está en vuelo.
+model PolicyReservation {
+  id              String                  @id @default(uuid())
+  businessId      String                  @map("business_id")
+  source          PolicyEffectSource
+  /// ManualCampaign, Message o IntelligenceAction, según `source`.
+  sourceRef       String?                 @map("source_ref")
+  idempotencyKey  String                  @map("idempotency_key")
+  status          PolicyReservationStatus @default(HELD)
+  /// Mes y semana locales del negocio en que se reservó.
+  monthKey        String                  @map("month_key")
+  weekKey         String                  @map("week_key")
+  currency        String
+  messageCount    Int                     @map("message_count")
+  messagingAmount Decimal                 @map("messaging_amount") @db.Decimal(12, 2)
+  incentiveCount  Int                     @map("incentive_count")
+  incentiveAmount Decimal                 @map("incentive_amount") @db.Decimal(12, 2)
+  customerIds     String[]                @map("customer_ids")
+  createsCampaign Boolean                 @default(false) @map("creates_campaign")
+  /// Lo que devolvió el efecto, para que un reintento con la misma clave
+  /// reciba la misma respuesta sin repetir el envío.
+  result          Json?
+  createdByUserId String?                 @map("created_by_user_id")
+  expiresAt       DateTime                @map("expires_at")
+  committedAt     DateTime?               @map("committed_at")
+  releasedAt      DateTime?               @map("released_at")
+  createdAt       DateTime                @default(now()) @map("created_at")
+  updatedAt       DateTime                @updatedAt @map("updated_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, idempotencyKey])
+  @@index([businessId, status, monthKey])
+  @@index([businessId, status, expiresAt])
+  @@map("policy_reservations")
+}
+
+// ---------------------------------------------------------------------------
+// Intelligence — modo autónomo (Prompt 7)
+// ---------------------------------------------------------------------------
+// Una corrida por negocio y día local: detecta oportunidades, elige UNA
+// estrategia y, solo en PILOT, recluta un grupo chico en el experimento de
+// Autopilot que ya existe. Nunca envía: el envío sigue siendo de Retention V2
+// (con la reserva del motor de políticas por mensaje). Cada corrida queda
+// guardada, también cuando no hace nada, con el motivo y los conteos reales.
+
+enum AutonomyMode {
+  OFF
+  DRY_RUN
+  PILOT
+}
+
+enum AutonomousRunStatus {
+  /// Tomada por un worker y en curso (o caída a mitad: se retoma).
+  RUNNING
+  /// DRY_RUN: dejó registrado qué habría hecho, sin reclutar a nadie.
+  SIMULATED
+  /// PILOT: reclutó el grupo en el experimento de Autopilot.
+  EXECUTED
+  /// Había oportunidades pero una regla (política, presupuesto, topes) frenó.
+  BLOCKED
+  /// No había ninguna oportunidad accionable.
+  NO_ACTION
+  FAILED
+}
+
+model AutonomousRun {
+  id                 String              @id @default(uuid())
+  businessId         String              @map("business_id")
+  /// Día local del negocio (AAAA-MM-DD). Único con el negocio: un doble
+  /// cron o un reintento del mismo día nunca crean otra corrida.
+  runKey             String              @map("run_key")
+  mode               AutonomyMode
+  status             AutonomousRunStatus @default(RUNNING)
+  /// Estrategia elegida (null si no hubo).
+  strategy           String?             @map("strategy")
+  objective          RetentionObjective?
+  /// 1 sin descuento, 2 progreso/beneficio ya adquirido, 3 catálogo.
+  incentiveLevel     Int?                @map("incentive_level")
+  /// Todas las oportunidades detectadas, con conteos y confianza.
+  opportunities      Json                @default("[]")
+  /// Descartadas, con motivo.
+  discarded          Json                @default("[]")
+  blockers           Json                @default("[]")
+  /// Conteos reales que explican la corrida (clientes, consentimiento, etc.).
+  facts              Json                @default("{}")
+  explanation        String              @default("")
+  suggestions        Json                @default("[]")
+  plannedCustomerIds String[]            @map("planned_customer_ids")
+  assignedCount      Int                 @default(0) @map("assigned_count")
+  estimatedCost      Decimal?            @map("estimated_cost") @db.Decimal(12, 2)
+  currency           String?
+  errorMessage       String?             @map("error_message")
+  startedAt          DateTime            @default(now()) @map("started_at")
+  finishedAt         DateTime?           @map("finished_at")
+  createdAt          DateTime            @default(now()) @map("created_at")
+
+  business    Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  assignments RetentionAssignment[]
+
+  @@unique([businessId, runKey])
+  @@index([businessId, createdAt])
+  @@map("autonomous_runs")
 }
