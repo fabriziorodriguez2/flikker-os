@@ -321,6 +321,24 @@ describe('Intelligence — modo autónomo (integration)', () => {
       ).toBe(1);
     });
 
+    it('con el planificador prendido, la corrida diaria es suya y solo simula aunque esté en PILOT', async () => {
+      const biz = await business('planner', {
+        customers: 40,
+        consented: 40,
+        policy: { autonomyPlannerEnabled: true },
+      });
+      const run = await autonomy.runForBusiness(biz.id, NOW);
+      // En este entorno la IA está apagada: queda bloqueada con el motivo,
+      // y las reglas fijas no corren en su lugar.
+      expect(run).toMatchObject({
+        engine: 'PLANNER',
+        mode: 'DRY_RUN',
+        status: 'BLOCKED',
+      });
+      expect(run!.explanation).toContain('IA');
+      expect(await assignmentsOf(biz.id)).toHaveLength(0);
+    });
+
     it('Autopilot no recluta por su cuenta un negocio en PILOT; los demás siguen igual', async () => {
       const pilot = await business('nodup', { customers: 40, consented: 40 });
       const regular = await business('regular', {
@@ -630,7 +648,11 @@ describe('Intelligence — modo autónomo (integration)', () => {
         .set(as(owner, biz.id, true))
         .send({ mode: 'PILOT', confirmPilot: true, pilotGroupSize: 5 });
       expect(ok.status).toBe(200);
-      expect(ok.body).toEqual({ mode: 'PILOT', pilotGroupSize: 5 });
+      expect(ok.body).toEqual({
+        mode: 'PILOT',
+        pilotGroupSize: 5,
+        plannerEnabled: false,
+      });
     });
 
     it('el dueño lo apaga en cualquier momento (rollback)', async () => {

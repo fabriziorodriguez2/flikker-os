@@ -32,6 +32,7 @@ export class AutonomyAdminService {
       mode: AutonomyMode;
       pilotGroupSize?: number;
       confirmPilot?: boolean;
+      plannerEnabled?: boolean;
     },
   ) {
     const business = await this.prisma.business.findUnique({
@@ -82,6 +83,7 @@ export class AutonomyAdminService {
         businessId,
         autonomyMode: input.mode,
         autonomyPilotGroupSize: input.pilotGroupSize ?? 10,
+        autonomyPlannerEnabled: input.plannerEnabled ?? false,
         autonomyModeSetAt: new Date(),
         autonomyModeSetByUserId: adminUserId,
       },
@@ -89,6 +91,9 @@ export class AutonomyAdminService {
         autonomyMode: input.mode,
         ...(input.pilotGroupSize !== undefined
           ? { autonomyPilotGroupSize: input.pilotGroupSize }
+          : {}),
+        ...(input.plannerEnabled !== undefined
+          ? { autonomyPlannerEnabled: input.plannerEnabled }
           : {}),
         autonomyModeSetAt: new Date(),
         autonomyModeSetByUserId: adminUserId,
@@ -105,11 +110,13 @@ export class AutonomyAdminService {
         before,
         after: input.mode,
         pilotGroupSize: policy.autonomyPilotGroupSize,
+        plannerEnabled: policy.autonomyPlannerEnabled,
       },
     });
     return {
       mode: policy.autonomyMode,
       pilotGroupSize: policy.autonomyPilotGroupSize,
+      plannerEnabled: policy.autonomyPlannerEnabled,
     };
   }
 
@@ -150,6 +157,7 @@ export class AutonomyAdminService {
           autonomyMode: true,
           autonomyPilotGroupSize: true,
           autonomyModeSetAt: true,
+          autonomyPlannerEnabled: true,
           messageUnitCost: true,
         },
       }),
@@ -166,6 +174,7 @@ export class AutonomyAdminService {
       mode: policy?.autonomyMode ?? AutonomyMode.OFF,
       pilotGroupSize: policy?.autonomyPilotGroupSize ?? 10,
       modeSetAt: policy?.autonomyModeSetAt ?? null,
+      plannerEnabled: policy?.autonomyPlannerEnabled ?? false,
       runs: runs.map((run) => this.runView(run, metrics.get(run.id), unitCost)),
     };
   }
@@ -176,18 +185,41 @@ export class AutonomyAdminService {
     });
     // Mismo 404 para "no existe" y "es de otro negocio".
     if (!run) throw new NotFoundException('Corrida no encontrada');
-    const [metrics, policy] = await Promise.all([
+    const [metrics, policy, plans] = await Promise.all([
       this.autonomy.metricsFor([run.id]),
       this.prisma.businessPolicy.findUnique({
         where: { businessId },
         select: { messageUnitCost: true },
       }),
+      this.prisma.intelligencePlan.findMany({
+        where: { runId: run.id, businessId },
+        orderBy: [{ rank: 'asc' }, { createdAt: 'asc' }],
+      }),
     ]);
-    return this.runView(
-      run,
-      metrics.get(run.id),
-      policy?.messageUnitCost == null ? null : Number(policy.messageUnitCost),
-    );
+    return {
+      ...this.runView(
+        run,
+        metrics.get(run.id),
+        policy?.messageUnitCost == null ? null : Number(policy.messageUnitCost),
+      ),
+      // Planes del planificador: la regla y los mensajes, nunca clientes.
+      plans: plans.map((p) => ({
+        id: p.id,
+        status: p.status,
+        rank: p.rank,
+        title: p.title,
+        objective: p.objective,
+        hypothesis: p.hypothesis,
+        plan: p.plan,
+        issues: p.issues,
+        selectionReason: p.selectionReason,
+        matched: p.matched,
+        reachable: p.reachable,
+        simulation: p.simulation,
+        estimatedCost: p.estimatedCost == null ? null : Number(p.estimatedCost),
+        currency: p.currency,
+      })),
+    };
   }
 
   private runView(
@@ -200,6 +232,10 @@ export class AutonomyAdminService {
       id: run.id,
       day: run.runKey,
       mode: run.mode,
+      engine: run.engine,
+      analysis: run.analysis,
+      plannerModel: run.plannerModel,
+      aiCostUsd: run.aiCostUsd == null ? null : Number(run.aiCostUsd),
       status: run.status,
       strategy: run.strategy,
       strategyLabel: strategyLabel(run.strategy),

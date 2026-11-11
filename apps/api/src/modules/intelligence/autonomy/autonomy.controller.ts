@@ -27,6 +27,7 @@ import type { AuthenticatedRequest } from '../../../common/types/request.types';
 import { JwtGuard } from '../../auth/guards/jwt.guard';
 import { AutonomyService } from './autonomy.service';
 import { AutonomyAdminService } from './autonomy-admin.service';
+import { PlannerService } from '../plans/planner.service';
 
 export class SetAutonomyModeDto {
   @IsEnum(AutonomyMode)
@@ -43,6 +44,11 @@ export class SetAutonomyModeDto {
   @IsOptional()
   @IsBoolean()
   confirmPilot?: boolean;
+
+  /** La corrida diaria la piensa el planificador con IA (solo simula). */
+  @IsOptional()
+  @IsBoolean()
+  plannerEnabled?: boolean;
 }
 
 /**
@@ -57,6 +63,7 @@ export class AutonomyController {
   constructor(
     private readonly admin: AutonomyAdminService,
     private readonly autonomy: AutonomyService,
+    private readonly planner: PlannerService,
   ) {}
 
   @Get()
@@ -77,6 +84,19 @@ export class AutonomyController {
   @HttpCode(200)
   preview(@Req() req: AuthenticatedRequest) {
     return this.autonomy.preview(req.currentBusinessId!);
+  }
+
+  /**
+   * Corre el planificador con IA ahora, en simulación: propone y elige
+   * planes sin contactar a nadie. Cuenta para los topes diarios y de gasto.
+   */
+  @Post('planner/run')
+  @HttpCode(200)
+  async runPlanner(@Req() req: AuthenticatedRequest) {
+    const { run } = await this.planner.run(req.currentBusinessId!, {
+      trigger: 'MANUAL',
+    });
+    return this.admin.run(req.currentBusinessId!, run.id);
   }
 
   @Post('disable')

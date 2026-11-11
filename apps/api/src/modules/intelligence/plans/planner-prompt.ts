@@ -1,0 +1,274 @@
+import type { AgentToolDefinition } from '../../ai/ai-agent-provider.interface';
+import {
+  MESSAGE_PLACEHOLDERS,
+  PLAN_LIMITS,
+  PLAN_OBJECTIVES,
+  SUCCESS_METRICS,
+  type AuthorizedIncentive,
+} from './commercial-plan';
+import { FACT_DESCRIPTIONS, type BusinessSnapshot } from './business-snapshot';
+import { FIELD_DESCRIPTIONS } from './segment-rules';
+import {
+  MAX_SELECTED_PLANS,
+  MIN_PLAN_RECIPIENTS,
+  type PlannerBudget,
+} from './planner-evaluation';
+
+/**
+ * Instrucciones y herramientas del planificador comercial. El modelo piensa
+ * con libertad (qué mirar, qué hipótesis, qué segmentos, qué mensajes, cuál
+ * elegir); el servidor valida todo lo que propone antes de que exista.
+ */
+
+export const PLANNER_INSTRUCTIONS = `Sos el estratega comercial de Flikker para UN comercio físico (cafetería, peluquería, local). Tu trabajo: mirar los datos reales del negocio, descubrir oportunidades de retención y crecimiento, y diseñar campañas propias para aprovecharlas.
+
+Ciclo de trabajo:
+1. Observar: leé las métricas y el historial de planes.
+2. Analizar y formular hipótesis comerciales concretas, citando métricas.
+3. Diseñar estrategias: armá segmentos con la regla que haga falta (no hay una lista cerrada de campañas), mensajes originales en el tono del negocio e incentivos SOLO del catálogo autorizado (o ninguno).
+4. Evaluar: usá preview_segment para ver cuántos clientes entran y cuántos se pueden contactar. Compará alternativas.
+5. Decidir: elegí hasta ${MAX_SELECTED_PLANS} planes (los más prometedores, con clientes distintos), o decidí NO actuar si los datos no lo justifican.
+6. Entregá todo con submit_plans. Es la única forma de terminar.
+
+Reglas que el servidor verifica (si no se cumplen, el plan se descarta):
+- Cada número que escribas (hipótesis, evidencia, resumen) tiene que salir de las métricas, de una vista previa o de los datos del catálogo. No redondees ni estimes cifras nuevas.
+- La evidencia cita métricas por su clave exacta con su valor exacto.
+- Los mensajes no pueden prometer descuentos, montos, plazos, regalos ni sorteos que el incentivo elegido no tenga. Sin incentivo, el mensaje no ofrece nada material. Sin links ni teléfonos. Solo el marcador ${MESSAGE_PLACEHOLDERS.join(', ')}. Nunca lenguaje interno ("en riesgo", "te estamos siguiendo").
+- Siempre grupo de control (${PLAN_LIMITS.controlPercentMin}–${PLAN_LIMITS.controlPercentMax}%): pesos de variantes + control = 100. Hasta ${PLAN_LIMITS.variantsMax} variantes para comparar enfoques.
+- Un plan elegido necesita al menos ${MIN_PLAN_RECIPIENTS} clientes contactables. Solo se contacta a quien autorizó WhatsApp.
+- Canal disponible: solo WHATSAPP. No inventes otros canales.
+- No repitas un plan que ya se probó y se está midiendo: probá algo distinto o esperá el resultado.
+- Con pocos clientes no hay significancia estadística: decilo y proponé pruebas chicas y prudentes. No afirmes causalidad.
+
+La regla del segmento va como JSON en texto. Forma: una condición {"field": rasgo, "op": operador, "value": valor} o combinaciones {"all": [...]}, {"any": [...]}, {"not": {...}}. Operadores numéricos: eq, neq, gt, gte, lt, lte, between ([min, max]), is_null, not_null. Para "segment": eq, neq, in (lista).
+
+ownerSummary: 2 a 5 oraciones para el dueño, en castellano rioplatense simple, sin jerga técnica: qué viste, qué harías y por qué (o por qué no hacés nada). Esto es una SIMULACIÓN: no digas que enviaste ni que vas a enviar nada todavía.`;
+
+export function buildPlannerContext(input: {
+  businessName: string;
+  timezone: string;
+  currency: string;
+  today: string;
+  snapshot: BusinessSnapshot;
+  incentives: AuthorizedIncentive[];
+  budget: PlannerBudget;
+  policy: {
+    accepted: boolean;
+    minDaysBetweenPromotions: number;
+    maxPromotionsPer30Days: number;
+    sendingHours: string;
+  };
+}): string {
+  const facts = Object.fromEntries(
+    Object.entries(input.snapshot.facts).map(([key, value]) => [
+      key,
+      { value, meaning: FACT_DESCRIPTIONS[key] ?? '' },
+    ]),
+  );
+  return JSON.stringify(
+    {
+      business: {
+        name: input.businessName,
+        timezone: input.timezone,
+        currency: input.currency,
+        today: input.today,
+      },
+      metrics: facts,
+      segmentFeatures: FIELD_DESCRIPTIONS,
+      incentiveCatalog: input.incentives.map((i) => ({
+        id: i.id,
+        label: i.label,
+        estimatedCostPerIssue: i.unitCost,
+        percentage: i.percentageValue,
+        fixedAmount: i.fixedValue,
+        validDays: i.expiresInDays,
+        usable: i.unitCost !== null,
+      })),
+      limits: {
+        policyAccepted: input.policy.accepted,
+        messageCost: input.budget.messageUnitCost,
+        messagingBudgetLeftThisMonth: input.budget.messagingRemaining,
+        incentiveBudgetLeftThisMonth: input.budget.incentiveRemaining,
+        newRecipientsLeftThisWeek: input.budget.weeklyRecipientsRemaining,
+        minDaysBetweenMessagesToSameCustomer:
+          input.policy.minDaysBetweenPromotions,
+        maxMessagesPer30DaysPerCustomer: input.policy.maxPromotionsPer30Days,
+        sendingHours: input.policy.sendingHours,
+      },
+    },
+    null,
+    1,
+  );
+}
+
+const nullable = (type: string) => ({ type: [type, 'null'] });
+
+const PLAN_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: [
+    'schemaVersion',
+    'title',
+    'objective',
+    'hypothesis',
+    'evidence',
+    'segment',
+    'channel',
+    'variants',
+    'controlPercent',
+    'schedule',
+    'successMetric',
+    'stopConditions',
+    'rationale',
+    'selected',
+    'rank',
+    'selectionReason',
+  ],
+  properties: {
+    schemaVersion: { type: 'integer', enum: [1] },
+    title: { type: 'string' },
+    objective: { type: 'string', enum: [...PLAN_OBJECTIVES] },
+    hypothesis: { type: 'string' },
+    evidence: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['metric', 'value', 'statement'],
+        properties: {
+          metric: { type: 'string', description: 'Clave exacta de metrics.' },
+          value: { type: 'number' },
+          statement: { type: 'string' },
+        },
+      },
+    },
+    segment: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['description', 'rule', 'maxRecipients'],
+      properties: {
+        description: { type: 'string' },
+        rule: { type: 'string', description: 'Regla del segmento en JSON.' },
+        maxRecipients: { type: 'integer' },
+      },
+    },
+    channel: { type: 'string', enum: ['WHATSAPP'] },
+    variants: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['key', 'message', 'incentiveId', 'weightPercent'],
+        properties: {
+          key: { type: 'string', description: 'Una letra: A, B, C.' },
+          message: { type: 'string' },
+          incentiveId: {
+            ...nullable('string'),
+            description: 'Id del catálogo o null.',
+          },
+          weightPercent: { type: 'integer' },
+        },
+      },
+    },
+    controlPercent: { type: 'integer' },
+    schedule: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['startOn', 'sendWithinDays'],
+      properties: {
+        startOn: { type: 'string', description: "'ASAP' o AAAA-MM-DD." },
+        sendWithinDays: { type: 'integer' },
+      },
+    },
+    successMetric: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['kind', 'windowDays'],
+      properties: {
+        kind: { type: 'string', enum: [...SUCCESS_METRICS] },
+        windowDays: { type: 'integer' },
+      },
+    },
+    stopConditions: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['maxOptOutPercent', 'maxFailurePercent'],
+      properties: {
+        maxOptOutPercent: { type: 'integer' },
+        maxFailurePercent: { type: 'integer' },
+      },
+    },
+    rationale: { type: 'string' },
+    selected: { type: 'boolean' },
+    rank: {
+      ...nullable('integer'),
+      description: '1 = el primero; null si no se elige.',
+    },
+    selectionReason: nullable('string'),
+  },
+};
+
+export const PLANNER_TOOLS: AgentToolDefinition[] = [
+  {
+    name: 'preview_segment',
+    description:
+      'Cuántos clientes entran en una regla de segmento y cuántos se pueden contactar (con WhatsApp autorizado). Valida la regla. No devuelve datos de clientes.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      required: ['rule'],
+      properties: {
+        rule: { type: 'string', description: 'Regla del segmento en JSON.' },
+      },
+    },
+  },
+  {
+    name: 'plan_history',
+    description:
+      'Planes que propusiste antes para este negocio (últimos 60 días): objetivo, segmento, estado y resultado si existe. Usalo para no repetir y aprender.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      required: [],
+      properties: {},
+    },
+  },
+  {
+    name: 'submit_plans',
+    description:
+      'Entrega final: observaciones, hipótesis, decisión, planes (elegidos y descartados) y el resumen para el dueño. El servidor lo valida y te devuelve problemas si los hay.',
+    parameters: {
+      type: 'object',
+      additionalProperties: false,
+      required: [
+        'observations',
+        'hypotheses',
+        'decision',
+        'noActionReason',
+        'ownerSummary',
+        'nextSteps',
+        'plans',
+      ],
+      properties: {
+        observations: { type: 'array', items: { type: 'string' } },
+        hypotheses: {
+          type: 'array',
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['statement', 'metrics'],
+            properties: {
+              statement: { type: 'string' },
+              metrics: { type: 'array', items: { type: 'string' } },
+            },
+          },
+        },
+        decision: { type: 'string', enum: ['PROPOSE', 'NO_ACTION'] },
+        noActionReason: nullable('string'),
+        ownerSummary: { type: 'string' },
+        nextSteps: { type: 'array', items: { type: 'string' } },
+        plans: { type: 'array', items: PLAN_SCHEMA },
+      },
+    },
+  },
+];

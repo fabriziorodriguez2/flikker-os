@@ -19,6 +19,7 @@ import { computeVisitFrequency } from '../../retention-v2/visit-frequency';
 import { estimateIncentiveCost } from '../../retention-v2/incentive-cost';
 import { PolicyService } from '../../policy/policy.service';
 import { PolicyGateService } from '../../policy/policy-gate.service';
+import { PlannerService } from '../plans/planner.service';
 import { loadUsage, whatsappConsent } from '../../policy/policy-usage';
 import type { PolicyBlocker, PolicyEffect } from '../../policy/policy-rules';
 import {
@@ -104,6 +105,7 @@ export class AutonomyService {
     private readonly experiments: RetentionExperimentService,
     private readonly assignments: RetentionAssignmentService,
     private readonly audit: AuditService,
+    private readonly planner: PlannerService,
   ) {}
 
   /** Todos los negocios con el modo autónomo prendido. Uno roto no frena al resto. */
@@ -152,7 +154,11 @@ export class AutonomyService {
       }),
       this.prisma.businessPolicy.findUnique({
         where: { businessId },
-        select: { autonomyMode: true, autonomyPilotGroupSize: true },
+        select: {
+          autonomyMode: true,
+          autonomyPilotGroupSize: true,
+          autonomyPlannerEnabled: true,
+        },
       }),
     ]);
     if (!business || !policy || policy.autonomyMode === AutonomyMode.OFF) {
@@ -166,6 +172,17 @@ export class AutonomyService {
       return this.prisma.autonomousRun.findUnique({
         where: { businessId_runKey: { businessId, runKey } },
       });
+    }
+
+    // Con el planificador prendido, la corrida del día la piensa la IA. Por
+    // ahora solo simula: no recluta aunque el modo sea PILOT.
+    if (policy.autonomyPlannerEnabled) {
+      const outcome = await this.planner.run(businessId, {
+        trigger: 'DAILY',
+        runId: run.id,
+        now,
+      });
+      return outcome.run;
     }
 
     try {

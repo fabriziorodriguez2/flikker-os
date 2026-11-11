@@ -2,6 +2,9 @@ import { Module } from '@nestjs/common';
 import { AuditService } from '../../../common/services/audit.service';
 import { RetentionV2Module } from '../../retention-v2/retention-v2.module';
 import { PolicyModule } from '../../policy/policy.module';
+import { AiModule } from '../../ai/ai.module';
+import { PlannerService } from '../plans/planner.service';
+import { BusinessSnapshotService } from '../plans/business-snapshot.service';
 import { AutonomyService } from './autonomy.service';
 import { AutonomyAdminService } from './autonomy-admin.service';
 import {
@@ -15,9 +18,16 @@ import {
  * JobsModule: así JobsModule no arrastra todo el chat.
  */
 @Module({
-  imports: [RetentionV2Module, PolicyModule],
+  imports: [RetentionV2Module, PolicyModule, AiModule],
   controllers: [AutonomyController, AutonomyPlatformController],
-  providers: [AutonomyService, AutonomyAdminService, AuditService],
-  exports: [AutonomyService, AutonomyAdminService],
+  providers: [
+    AutonomyService,
+    AutonomyAdminService,
+    AuditService,
+    // Planificador con IA (simulación).
+    PlannerService,
+    BusinessSnapshotService,
+  ],
+  exports: [AutonomyService, AutonomyAdminService, PlannerService],
 })
 export class AutonomyModule {}

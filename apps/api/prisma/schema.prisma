@@ -706,6 +706,7 @@ model Business {
   policyReservations            PolicyReservation[]
   autonomousRuns                AutonomousRun[]
   deliveryAttempts              MessageDeliveryAttempt[]
+  intelligencePlans             IntelligencePlan[]
 }
 
 // ---------------------------------------------------------------------------
@@ -3908,6 +3909,9 @@ model BusinessPolicy {
   autonomyMode            AutonomyMode @default(OFF) @map("autonomy_mode")
   /// Máximo de clientes que una corrida autónoma puede reclutar.
   autonomyPilotGroupSize  Int          @default(10) @map("autonomy_pilot_group_size")
+  /// La corrida diaria usa el planificador con IA en vez de las reglas fijas.
+  /// Por ahora solo simula: no recluta ni envía, aunque el modo sea PILOT.
+  autonomyPlannerEnabled  Boolean      @default(false) @map("autonomy_planner_enabled")
   autonomyModeSetAt       DateTime?    @map("autonomy_mode_set_at")
   autonomyModeSetByUserId String?      @map("autonomy_mode_set_by_user_id")
 
@@ -4080,10 +4084,17 @@ model AutonomousRun {
   errorMessage       String?             @map("error_message")
   startedAt          DateTime            @default(now()) @map("started_at")
   finishedAt         DateTime?           @map("finished_at")
+  /// RULES (reglas fijas) o PLANNER (planificador con IA).
+  engine             String              @default("RULES")
+  /// PLANNER: observaciones, hipótesis y decisión del modelo.
+  analysis           Json                @default("{}")
+  plannerModel       String?             @map("planner_model")
+  aiCostUsd          Decimal?            @map("ai_cost_usd") @db.Decimal(10, 6)
   createdAt          DateTime            @default(now()) @map("created_at")
 
   business    Business              @relation(fields: [businessId], references: [id], onDelete: Cascade)
   assignments RetentionAssignment[]
+  plans       IntelligencePlan[]
 
   @@unique([businessId, runKey])
   @@index([businessId, createdAt])
@@ -4139,4 +4150,56 @@ model MessageDeliveryAttempt {
   @@index([senderSession, createdAt])
   @@index([idempotencyKey])
   @@map("message_delivery_attempts")
+}
+
+// ---------------------------------------------------------------------------
+// Planes comerciales del planificador con IA (ver intelligence/plans).
+// ---------------------------------------------------------------------------
+
+/// Qué pasó con cada plan que propuso el planificador en una corrida.
+enum IntelligencePlanStatus {
+  /// No cumple el contrato: nunca se ejecuta.
+  INVALID
+  /// Repite un plan que todavía se está midiendo.
+  DUPLICATE
+  /// Válido, pero hoy no entra: sin alcance, presupuesto o topes.
+  INFEASIBLE
+  /// Válido y factible; el planificador eligió otro.
+  NOT_SELECTED
+  /// Elegido. En simulación: qué habría pasado, sin contactar a nadie.
+  SIMULATED
+}
+
+model IntelligencePlan {
+  id              String                 @id @default(uuid())
+  businessId      String                 @map("business_id")
+  runId           String                 @map("run_id")
+  status          IntelligencePlanStatus
+  /// Orden de preferencia del planificador (1 = el primero); null si no lo eligió.
+  rank            Int?
+  title           String
+  objective       String
+  hypothesis      String
+  /// Huella de "qué se le ofrece a quién" para no repetir planes.
+  fingerprint     String?
+  /// El plan tal como lo propuso el modelo (sin datos personales).
+  plan            Json
+  /// Problemas del validador o motivos de descarte.
+  issues          Json                   @default("[]")
+  selectionReason String?                @map("selection_reason")
+  matched         Int?
+  reachable       Int?
+  /// Simulación: destinatarios, control, reparto por variante y costo.
+  simulation      Json?
+  estimatedCost   Decimal?               @map("estimated_cost") @db.Decimal(12, 2)
+  currency        String?
+  createdAt       DateTime               @default(now()) @map("created_at")
+
+  business Business      @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  run      AutonomousRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@index([businessId, fingerprint])
+  @@index([runId])
+  @@map("intelligence_plans")
 }
