@@ -65,6 +65,33 @@ const EXCLUSION_LABELS: Record<string, string> = {
   MONTHLY_PROMOTION_LIMIT: "con el máximo de promociones del mes",
 };
 
+/** Quién de la audiencia autorizó promociones, por canal (siempre viene). */
+export interface ConsentPreview {
+  audience: number;
+  whatsappEligible: number;
+  whatsappExcludedNoConsent: number;
+  emailEligible: number;
+  emailExcludedNoConsent: number;
+}
+
+/**
+ * La línea que explica a cuántos les llega y por qué al resto no. Tener
+ * teléfono no es autorización: lo decide el cliente en el check-in o en Mi
+ * Flikker.
+ */
+export function consentLine(consent: ConsentPreview): string {
+  const clients = (n: number) => `${n} ${n === 1 ? "cliente" : "clientes"}`;
+  if (consent.audience === 0) return "No hay clientes en esta audiencia.";
+  if (consent.whatsappEligible === 0) {
+    return `Ninguno de los ${clients(consent.audience)} autorizó recibir promociones por WhatsApp todavía. Se les pregunta en su próximo check-in.`;
+  }
+  const excluded =
+    consent.whatsappExcludedNoConsent > 0
+      ? ` ${clients(consent.whatsappExcludedNoConsent)} quedan afuera porque no autorizaron promociones.`
+      : "";
+  return `${consent.whatsappEligible} de ${clients(consent.audience)} autorizaron WhatsApp.${excluded}`;
+}
+
 export function exclusionSummary(excluded: Record<string, number>): string {
   const parts = Object.entries(excluded)
     .filter(([, n]) => n > 0)
@@ -83,6 +110,7 @@ export default function PromotionsTab() {
   const [benefits, setBenefits] = useState<Benefit[]>([]);
   const [recipientCount, setRecipientCount] = useState<number | null>(null);
   const [policy, setPolicy] = useState<PolicyPreview | null>(null);
+  const [consent, setConsent] = useState<ConsentPreview | null>(null);
   // Una por confirmación: el doble click y el reintento mandan la misma, y
   // el backend devuelve el primer resultado en vez de enviar de nuevo.
   const [attemptKey, setAttemptKey] = useState<string | null>(null);
@@ -122,6 +150,7 @@ export default function PromotionsTab() {
   const loadCount = useCallback(async (key: AudienceKey, benefit: string) => {
     setRecipientCount(null);
     setPolicy(null);
+    setConsent(null);
     try {
       const query = new URLSearchParams({ audience: key });
       if (benefit) query.set("benefitId", benefit);
@@ -132,9 +161,11 @@ export default function PromotionsTab() {
       const data = (await res.json()) as {
         recipientCount: number;
         policy?: PolicyPreview;
+        consent?: ConsentPreview;
       };
       setRecipientCount(data.recipientCount);
       setPolicy(data.policy ?? null);
+      setConsent(data.consent ?? null);
     } catch {
       /* el conteo es informativo: si falla, el envío sigue disponible */
     }
@@ -301,6 +332,12 @@ export default function PromotionsTab() {
                   : `${recipientCount} ${recipientCount === 1 ? "cliente" : "clientes"}`
               }
             />
+            {consent ? (
+              <Row
+                label="Autorizaron WhatsApp"
+                value={`${consent.whatsappEligible} ${consent.whatsappEligible === 1 ? "cliente" : "clientes"}`}
+              />
+            ) : null}
             <Row label="Beneficio" value={selectedBenefit?.title ?? "Sin beneficio"} />
             {policy ? (
               <Row
@@ -309,6 +346,11 @@ export default function PromotionsTab() {
               />
             ) : null}
           </dl>
+          {consent ? (
+            <p className="mt-3 text-xs leading-5 text-[#7F879C]">
+              {consentLine(consent)}
+            </p>
+          ) : null}
           {policy && exclusionSummary(policy.excluded) ? (
             <p className="mt-3 text-xs leading-5 text-[#7F879C]">
               {exclusionSummary(policy.excluded)}
@@ -344,7 +386,11 @@ export default function PromotionsTab() {
           <button
             type="button"
             onClick={() => void send()}
-            disabled={sending || (policy !== null && !policy.allowed)}
+            disabled={
+              sending ||
+              (policy !== null && !policy.allowed) ||
+              consent?.whatsappEligible === 0
+            }
             className="flk-glossy mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-60 sm:w-auto"
           >
             {sending ? (
@@ -417,7 +463,9 @@ export default function PromotionsTab() {
           <p className="mt-2 text-xs text-[#7F879C]">
             {policy
               ? `${policy.eligibleCount} de ${recipientCount} ${recipientCount === 1 ? "cliente" : "clientes"} cumplen la política y la recibirían.`
-              : `${recipientCount} ${recipientCount === 1 ? "cliente" : "clientes"} recibirían esta promoción.`}
+              : consent
+                ? consentLine(consent)
+                : `${recipientCount} ${recipientCount === 1 ? "cliente" : "clientes"} en esta audiencia.`}
           </p>
         ) : null}
       </section>

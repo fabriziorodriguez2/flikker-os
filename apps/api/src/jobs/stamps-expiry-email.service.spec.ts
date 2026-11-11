@@ -6,6 +6,7 @@ import { StampsExpiryEmailService } from './stamps-expiry-email.service';
 jest.mock('../modules/policy/marketing-consent', () => ({
   ...jest.requireActual<object>('../modules/policy/marketing-consent'),
   hasWhatsappMarketingConsent: jest.fn(() => Promise.resolve(true)),
+  hasEmailMarketingConsent: jest.fn(() => Promise.resolve(true)),
   customersWithWhatsappMarketingConsent: jest.fn(
     (_db: unknown, _businessId: string, ids: string[]) =>
       Promise.resolve(new Set(ids)),

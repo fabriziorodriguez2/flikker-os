@@ -8,6 +8,24 @@ import type { CustomerPublicUrlService } from '../public/customer-public-url.ser
 import type { PlansService } from '../plans/plans.service';
 import type { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 
+// Consentimiento: todos autorizados por defecto; cada test que quiera probar
+// su ausencia lo cambia con `consentMock`.
+jest.mock('../policy/marketing-consent', () => ({
+  ...jest.requireActual<object>('../policy/marketing-consent'),
+  customersWithWhatsappMarketingConsent: jest.fn(
+    (_db: unknown, _businessId: string, ids: string[]) =>
+      Promise.resolve(new Set(ids)),
+  ),
+  customersWithEmailMarketingConsent: jest.fn(
+    (_db: unknown, _businessId: string, ids: string[]) =>
+      Promise.resolve(new Set(ids)),
+  ),
+}));
+const consentMock = jest.requireMock<{
+  customersWithWhatsappMarketingConsent: jest.Mock;
+  customersWithEmailMarketingConsent: jest.Mock;
+}>('../policy/marketing-consent');
+
 /**
  * Promociones: lo que el dueño manda a mano.
  *
@@ -223,7 +241,62 @@ describe('Promociones — audiencia', () => {
 
     const preview = await service(deps).preview('biz-1', 'volvieron');
 
-    expect(preview).toEqual({ audience: 'volvieron', recipientCount: 3 });
+    expect(preview).toMatchObject({
+      audience: 'volvieron',
+      recipientCount: 3,
+      consent: {
+        audience: 3,
+        whatsappEligible: 3,
+        whatsappExcludedNoConsent: 0,
+      },
+    });
+  });
+
+  it('muestra cuántos quedan afuera por no haber autorizado, y solo les escribe a los demás', async () => {
+    const deps = makeDeps();
+    consentMock.customersWithWhatsappMarketingConsent.mockImplementation(
+      (_db: unknown, _biz: string, ids: string[]) =>
+        Promise.resolve(new Set(ids.slice(0, 1))),
+    );
+    try {
+      const preview = await service(deps).preview('biz-1', 'volvieron');
+      expect(preview.consent).toMatchObject({
+        whatsappEligible: 1,
+        whatsappExcludedNoConsent: 2,
+      });
+
+      await service(deps).send('biz-1', 'user-1', {
+        message: 'Este viernes 2x1.',
+        audience: 'volvieron',
+      });
+      const sent = (
+        deps.campaigns.sendManual.mock.calls[0] as [
+          string,
+          string,
+          { recipients: unknown[] },
+        ]
+      )[2];
+      expect(sent.recipients).toHaveLength(1);
+    } finally {
+      consentMock.customersWithWhatsappMarketingConsent.mockImplementation(
+        (_db: unknown, _biz: string, ids: string[]) =>
+          Promise.resolve(new Set(ids)),
+      );
+    }
+  });
+
+  it('si nadie de la audiencia autorizó, no se manda nada y lo explica', async () => {
+    const deps = makeDeps();
+    consentMock.customersWithWhatsappMarketingConsent.mockResolvedValueOnce(
+      new Set<string>(),
+    );
+    await expect(
+      service(deps).send('biz-1', 'user-1', {
+        message: 'Este viernes 2x1.',
+        audience: 'volvieron',
+      }),
+    ).rejects.toThrow('autorizó recibir promociones por WhatsApp');
+    expect(deps.campaigns.sendManual).not.toHaveBeenCalled();
   });
 });
 

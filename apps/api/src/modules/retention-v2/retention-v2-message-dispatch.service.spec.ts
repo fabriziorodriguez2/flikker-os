@@ -9,6 +9,7 @@ import { WhatsAppProviderError } from '../../jobs/whatsapp-provider';
 jest.mock('../policy/marketing-consent', () => ({
   ...jest.requireActual<object>('../policy/marketing-consent'),
   hasWhatsappMarketingConsent: jest.fn(() => Promise.resolve(true)),
+  hasEmailMarketingConsent: jest.fn(() => Promise.resolve(true)),
   customersWithWhatsappMarketingConsent: jest.fn(
     (_db: unknown, _businessId: string, ids: string[]) =>
       Promise.resolve(new Set(ids)),
@@ -16,6 +17,7 @@ jest.mock('../policy/marketing-consent', () => ({
 }));
 const consentMock = jest.requireMock<{
   hasWhatsappMarketingConsent: jest.Mock;
+  hasEmailMarketingConsent: jest.Mock;
   customersWithWhatsappMarketingConsent: jest.Mock;
 }>('../policy/marketing-consent');
 
@@ -747,6 +749,29 @@ describe('RetentionV2MessageDispatchService — email side-channel (Pro)', () =>
         to: 'cliente@test.com',
       }),
     );
+  });
+
+  it('sin consentimiento de email, el WhatsApp sale pero el email no', async () => {
+    const deps = makeDeps(
+      messageFixture({
+        customer: {
+          id: 'cust-1',
+          name: 'Cliente Test',
+          email: 'cliente@test.com',
+          optedOut: false,
+          phoneE164: '+59891111111',
+        },
+      }),
+    );
+    deps.plans.hasProAccess.mockResolvedValue(true);
+    consentMock.hasEmailMarketingConsent.mockResolvedValueOnce(false);
+    const service = makeService(deps);
+
+    const result = await service.dispatch('msg-1', NOW);
+    await flush();
+
+    expect(result.status).toBe('sent');
+    expect(deps.lifecycleEmails.sendOnce).not.toHaveBeenCalled();
   });
 
   it('never emails a Free business, even with a customer email on file', async () => {

@@ -583,15 +583,32 @@ describe('Policy & Budget Engine (integration)', () => {
 
   // ---------------------------------------------------------------------------
   describe('promociones', () => {
-    it('sin política aceptada, un negocio existente sigue enviando como siempre', async () => {
+    it('sin política aceptada: igual solo a quien autorizó WhatsApp', async () => {
       const biz = await business('legacy');
       const owner = await user('legacy-owner', biz, MembershipRole.OWNER);
       await customers(biz, 2, false);
+      await customers(biz, 1, true);
       const res = await promotion(owner, biz);
       expect(res.status).toBe(201);
-      expect(res.body).toMatchObject({ sent: 2 });
+      expect(res.body).toMatchObject({
+        sent: 1,
+        consent: {
+          audience: 3,
+          whatsappEligible: 1,
+          whatsappExcludedNoConsent: 2,
+        },
+      });
       expect(res.body.policy).toBeUndefined();
-      expect(whatsAppSend).toHaveBeenCalledTimes(2);
+      expect(whatsAppSend).toHaveBeenCalledTimes(1);
+    });
+
+    it('sin nadie que haya autorizado, no se manda nada', async () => {
+      const biz = await business('noconsent');
+      const owner = await user('noconsent-owner', biz, MembershipRole.OWNER);
+      await customers(biz, 2, false);
+      const res = await promotion(owner, biz);
+      expect(res.status).toBe(400);
+      expect(whatsAppSend).not.toHaveBeenCalled();
     });
 
     it('con política: solo a quienes dieron consentimiento, y queda conciliado', async () => {

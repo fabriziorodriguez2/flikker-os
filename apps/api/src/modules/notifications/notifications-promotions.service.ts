@@ -10,6 +10,10 @@ import {
   MembershipRole,
   PolicyEffectSource,
 } from '@prisma/client';
+import {
+  customersWithEmailMarketingConsent,
+  customersWithWhatsappMarketingConsent,
+} from '../policy/marketing-consent';
 import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BenefitsService } from '../benefits/benefits.service';
@@ -117,8 +121,14 @@ export class NotificationsPromotionsService {
     benefitId?: string,
   ) {
     const recipients = await this.resolveRecipients(businessId, audience);
-    const base = { audience, recipientCount: recipients.length };
-    // Sin política aceptada, la vista previa es la de siempre.
+    const { summary } = await this.consentSplit(businessId, recipients);
+    const base = {
+      audience,
+      recipientCount: recipients.length,
+      // Cuántos pueden recibirla de verdad y cuántos quedan afuera por no
+      // haber autorizado promociones (con o sin política aceptada).
+      consent: summary,
+    };
     if (!(await this.policies.isAccepted(businessId))) return base;
     const { decision } = await this.evaluateFor(businessId, {
       source: PolicyEffectSource.PROMOTION,
@@ -182,8 +192,21 @@ export class NotificationsPromotionsService {
     // Con la política aceptada, el envío pasa por el motor: reserva atómica
     // antes de gastar, solo a destinatarios elegibles, y confirmación con lo
     // que realmente salió. Sin política, el camino de siempre.
+    const split = await this.consentSplit(businessId, recipients);
+    if (split.whatsapp.length === 0) {
+      throw new BadRequestException(
+        `Ninguno de los ${recipients.length} clientes de esta audiencia autorizó recibir promociones por WhatsApp.`,
+      );
+    }
     if (!(await this.policies.isAccepted(businessId))) {
-      return (await this.deliver(businessId, userId, dto, recipients)).response;
+      const delivered = await this.deliver(
+        businessId,
+        userId,
+        dto,
+        split.whatsapp,
+        split.emailIds,
+      );
+      return { ...delivered.response, consent: split.summary };
     }
 
     const effect = await this.effectFor(businessId, {
@@ -206,7 +229,14 @@ export class NotificationsPromotionsService {
       throw new BadRequestException(denialMessage(outcome.decision));
     }
     if (outcome.status === 'NOT_GOVERNED') {
-      return (await this.deliver(businessId, userId, dto, recipients)).response;
+      const delivered = await this.deliver(
+        businessId,
+        userId,
+        dto,
+        split.whatsapp,
+        split.emailIds,
+      );
+      return { ...delivered.response, consent: split.summary };
     }
 
     const eligible = new Set(outcome.decision.eligibleCustomerIds);
@@ -217,6 +247,7 @@ export class NotificationsPromotionsService {
         userId,
         dto,
         recipients.filter((r) => eligible.has(r.customerId)),
+        split.emailIds,
       );
     } catch (error) {
       await this.gate.release(
@@ -228,6 +259,7 @@ export class NotificationsPromotionsService {
     const response = {
       ...delivered.response,
       policy: policyView(outcome.decision),
+      consent: split.summary,
     };
     await this.gate.commit(outcome.reservation.id, {
       messagesSent: delivered.response.sent,
@@ -279,6 +311,8 @@ export class NotificationsPromotionsService {
     userId: string,
     dto: SendPromotionDto,
     recipients: PromotionRecipient[],
+    /** Quién autorizó promociones por email (solo a ellos va el email). */
+    emailConsented: ReadonlySet<string>,
   ): Promise<DeliveryResult> {
     const rawMessage = dto.message.trim();
     let messageBody = rawMessage;
@@ -421,7 +455,7 @@ export class NotificationsPromotionsService {
     void this.maybeSendEmails({
       businessId,
       campaignId: result.campaignId,
-      recipients,
+      recipients: recipients.filter((r) => emailConsented.has(r.customerId)),
       rawMessage,
       benefitTitle,
       linkByCustomerId,
@@ -480,6 +514,37 @@ export class NotificationsPromotionsService {
         html,
       });
     }
+  }
+
+  /**
+   * Quién de la audiencia autorizó promociones, por canal. Tener teléfono o
+   * email, o no haberse dado de baja, no es una autorización.
+   */
+  private async consentSplit(
+    businessId: string,
+    recipients: PromotionRecipient[],
+  ) {
+    const ids = recipients.map((r) => r.customerId);
+    const [whatsappIds, emailIds] = await Promise.all([
+      customersWithWhatsappMarketingConsent(this.prisma, businessId, ids),
+      customersWithEmailMarketingConsent(
+        this.prisma,
+        businessId,
+        recipients.filter((r) => r.email?.trim()).map((r) => r.customerId),
+      ),
+    ]);
+    const withEmail = recipients.filter((r) => r.email?.trim()).length;
+    return {
+      whatsapp: recipients.filter((r) => whatsappIds.has(r.customerId)),
+      emailIds,
+      summary: {
+        audience: recipients.length,
+        whatsappEligible: whatsappIds.size,
+        whatsappExcludedNoConsent: recipients.length - whatsappIds.size,
+        emailEligible: emailIds.size,
+        emailExcludedNoConsent: withEmail - emailIds.size,
+      },
+    };
   }
 
   /**

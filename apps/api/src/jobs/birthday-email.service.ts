@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ExperienceVersion } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { hasWhatsappMarketingConsent } from '../modules/policy/marketing-consent';
+import {
+  hasEmailMarketingConsent,
+  hasWhatsappMarketingConsent,
+} from '../modules/policy/marketing-consent';
 import { LifecycleEmailsService } from './lifecycle-emails.service';
 import { birthdayEmail, birthdayWhatsAppText } from './email-templates';
 import { PlansService } from '../modules/plans/plans.service';
@@ -107,18 +110,25 @@ export class BirthdayEmailService {
           businessName: business.name,
           customerName: customer.name,
         });
-        const emailOutcome = await this.lifecycleEmails.sendOnce({
-          businessId: business.id,
-          customerId: customer.id,
-          kind: 'birthday',
-          channel: 'email',
-          // A lo sumo un mensaje de cumpleaños por año — reintentar el mismo
-          // día (o correr el sweep dos veces) nunca duplica.
-          dedupeKey: String(year),
-          to: customer.email,
-          subject,
-          html,
-        });
+        // Email promocional automático: solo con consentimiento de email.
+        const emailOutcome = (await hasEmailMarketingConsent(
+          this.prisma,
+          business.id,
+          customer.id,
+        ))
+          ? await this.lifecycleEmails.sendOnce({
+              businessId: business.id,
+              customerId: customer.id,
+              kind: 'birthday',
+              channel: 'email',
+              // A lo sumo un mensaje de cumpleaños por año — reintentar el mismo
+              // día (o correr el sweep dos veces) nunca duplica.
+              dedupeKey: String(year),
+              to: customer.email,
+              subject,
+              html,
+            })
+          : 'skipped_no_consent';
 
         const text = birthdayWhatsAppText({
           businessName: business.name,

@@ -14,6 +14,7 @@ import { AutomationCooldownService } from '../../jobs/automation-cooldown.servic
 import { PolicyGateService } from '../policy/policy-gate.service';
 import {
   NO_MARKETING_CONSENT,
+  hasEmailMarketingConsent,
   hasWhatsappMarketingConsent,
 } from '../policy/marketing-consent';
 import { policyBlockerCode } from './retention-v2-send.service';
@@ -515,6 +516,16 @@ export class RetentionV2MessageDispatchService {
   ): Promise<void> {
     if (!message.customer.email || !message.body) return;
     if (!(await this.plans.hasProAccess(message.businessId))) return;
+    // Email promocional: su propio consentimiento, no el de WhatsApp.
+    if (
+      !(await hasEmailMarketingConsent(
+        this.prisma,
+        message.businessId,
+        message.customerId,
+      ))
+    ) {
+      return;
+    }
 
     const { subject, html } = retentionMessageEmail({
       businessName: message.business.name,

@@ -6,6 +6,7 @@ import { BirthdayEmailService } from './birthday-email.service';
 jest.mock('../modules/policy/marketing-consent', () => ({
   ...jest.requireActual<object>('../modules/policy/marketing-consent'),
   hasWhatsappMarketingConsent: jest.fn(() => Promise.resolve(true)),
+  hasEmailMarketingConsent: jest.fn(() => Promise.resolve(true)),
   customersWithWhatsappMarketingConsent: jest.fn(
     (_db: unknown, _businessId: string, ids: string[]) =>
       Promise.resolve(new Set(ids)),
@@ -13,6 +14,7 @@ jest.mock('../modules/policy/marketing-consent', () => ({
 }));
 const consentMock = jest.requireMock<{
   hasWhatsappMarketingConsent: jest.Mock;
+  hasEmailMarketingConsent: jest.Mock;
   customersWithWhatsappMarketingConsent: jest.Mock;
 }>('../modules/policy/marketing-consent');
 
@@ -220,6 +222,19 @@ describe('BirthdayEmailService — send + dedupe', () => {
       (c) => (c[0] as { channel: string }).channel,
     );
     expect(channels).toEqual(['email']);
+  });
+
+  it('without email consent, sends only the WhatsApp', async () => {
+    const deps = makeDeps();
+    consentMock.hasEmailMarketingConsent.mockResolvedValueOnce(false);
+    const service = makeService(deps);
+
+    await service.runDaily(NOW);
+
+    const channels = deps.lifecycleEmails.sendOnce.mock.calls.map(
+      (c) => (c[0] as { channel: string }).channel,
+    );
+    expect(channels).toEqual(['whatsapp']);
   });
 
   it('a customer with no birthday match today is never emailed', async () => {

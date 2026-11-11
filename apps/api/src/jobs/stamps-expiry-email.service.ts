@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { ExperienceVersion, RewardGoalStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
-import { hasWhatsappMarketingConsent } from '../modules/policy/marketing-consent';
+import {
+  hasEmailMarketingConsent,
+  hasWhatsappMarketingConsent,
+} from '../modules/policy/marketing-consent';
 import { LifecycleEmailsService } from './lifecycle-emails.service';
 import { stampsExpiryEmail, stampsExpiryWhatsAppText } from './email-templates';
 import { RetentionSettingsService } from '../modules/retention-v2/retention-settings.service';
@@ -129,16 +132,23 @@ export class StampsExpiryEmailService {
           daysRemaining,
           redemptionCode: participation.redemptionCode,
         });
-        const emailOutcome = await this.lifecycleEmails.sendOnce({
-          businessId: business.id,
-          customerId: goal.customerId,
-          kind: 'stamps_expiry',
-          channel: 'email',
-          dedupeKey: participation.id,
-          to: goal.customer.email,
-          subject,
-          html,
-        });
+        // Email promocional automático: solo con consentimiento de email.
+        const emailOutcome = (await hasEmailMarketingConsent(
+          this.prisma,
+          business.id,
+          goal.customerId,
+        ))
+          ? await this.lifecycleEmails.sendOnce({
+              businessId: business.id,
+              customerId: goal.customerId,
+              kind: 'stamps_expiry',
+              channel: 'email',
+              dedupeKey: participation.id,
+              to: goal.customer.email,
+              subject,
+              html,
+            })
+          : 'skipped_no_consent';
 
         const text = stampsExpiryWhatsAppText({
           customerName: goal.customer.name,
