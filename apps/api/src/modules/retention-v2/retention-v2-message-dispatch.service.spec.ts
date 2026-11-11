@@ -1,6 +1,8 @@
 import { MessageStatus, RetentionObjective } from '@prisma/client';
 import { RetentionV2MessageDispatchService } from './retention-v2-message-dispatch.service';
 import { buildMiFlikkerLink } from '../public/public-messaging.service';
+import { classifyDeliveryError } from '../../jobs/messaging/delivery-errors';
+import { WhatsAppProviderError } from '../../jobs/whatsapp-provider';
 
 // Consentimiento de WhatsApp: autorizado por defecto; cada test que quiera
 // probar su ausencia lo cambia con `consentMock`.
@@ -78,6 +80,36 @@ function makeDeps(message: unknown = messageFixture()) {
     sendText: jest.fn().mockResolvedValue({ whatsappMessageId: 'wa-1' }),
     isChannelAvailable: jest.fn().mockResolvedValue(true),
   };
+  // La capa de mensajería real (MessagingService) tiene su propio spec: acá
+  // delega en el mock de WhatsApp y clasifica el error con la regla real,
+  // para que estos tests sigan mirando qué se manda y qué pasa cuando falla.
+  const messaging = {
+    isChannelAvailable: jest.fn(
+      () => whatsApp.isChannelAvailable() as Promise<boolean>,
+    ),
+    send: jest.fn(async (input: { to: string; text: string }) => {
+      try {
+        const r = (await whatsApp.sendText({
+          phone: input.to,
+          text: input.text,
+        })) as { whatsappMessageId: string };
+        return {
+          status: 'sent',
+          providerMessageId: r.whatsappMessageId,
+          attemptId: 'att-1',
+        };
+      } catch (error) {
+        const v = classifyDeliveryError(error);
+        return {
+          status: 'failed',
+          errorClass: v.errorClass,
+          retryable: v.retryable,
+          safeToResend: v.safeToResend,
+          message: v.message,
+        };
+      }
+    }),
+  };
   // El fixture de customer no trae `email`, así que `maybeSendEmail` corta
   // antes de llegar a preguntarle a `plans` — estos mocks solo existen para
   // satisfacer el constructor, no participan en las aserciones de arriba.
@@ -92,6 +124,7 @@ function makeDeps(message: unknown = messageFixture()) {
     settings,
     decisions,
     whatsApp,
+    messaging,
     lifecycleEmails,
     plans,
     cooldown,
@@ -116,7 +149,7 @@ function makeService(
     deps.prisma as never,
     deps.settings as never,
     deps.decisions as never,
-    deps.whatsApp as never,
+    deps.messaging as never,
     deps.lifecycleEmails as never,
     deps.plans as never,
     deps.cooldown as never,
@@ -584,16 +617,34 @@ describe('RetentionV2MessageDispatchService — channel', () => {
     });
   });
 
-  it('skips — without crashing — when the WhatsApp provider is not configured at all', async () => {
-    const deps = makeDeps();
+  it('con el canal caído no pierde el mensaje: lo difiere sin tocarlo', async () => {
+    const deps = makeDeps(messageFixture({ createdAt: NOW }));
     deps.whatsApp.isChannelAvailable.mockResolvedValue(false);
     const service = makeService(deps);
 
     const result = await service.dispatch('msg-1', NOW);
 
     expect(result).toEqual({
+      status: 'deferred',
+      reasonCode: 'CHANNEL_UNAVAILABLE',
+      retryDelayMs: 30 * 60_000,
+    });
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+    expect(deps.prisma.message.update).not.toHaveBeenCalled();
+  });
+
+  it('si el canal sigue caído pasadas 48 h, recién ahí lo da por perdido', async () => {
+    const deps = makeDeps(
+      messageFixture({
+        createdAt: new Date(NOW.getTime() - 49 * 60 * 60_000),
+      }),
+    );
+    deps.whatsApp.isChannelAvailable.mockResolvedValue(false);
+    const service = makeService(deps);
+
+    expect(await service.dispatch('msg-1', NOW)).toEqual({
       status: 'skipped',
-      reasonCode: 'CHANNEL_NOT_CONFIGURED',
+      reasonCode: 'CHANNEL_UNAVAILABLE',
     });
     expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
   });
@@ -781,12 +832,14 @@ describe('RetentionV2MessageDispatchService — email side-channel (Pro)', () =>
 });
 
 describe('RetentionV2MessageDispatchService — provider error / retry', () => {
-  it('reverts the claim back to queued and re-throws on a provider failure', async () => {
+  it('reverts the claim back to queued and re-throws on a transient provider failure', async () => {
     const deps = makeDeps();
-    deps.whatsApp.sendText.mockRejectedValue(new Error('whapi 500'));
+    deps.whatsApp.sendText.mockRejectedValue(
+      new WhatsAppProviderError('WaSenderAPI send failed: oops', 502),
+    );
     const service = makeService(deps);
 
-    await expect(service.dispatch('msg-1', NOW)).rejects.toThrow('whapi 500');
+    await expect(service.dispatch('msg-1', NOW)).rejects.toThrow('oops');
 
     expect(deps.prisma.message.update).toHaveBeenCalledWith({
       where: { id: 'msg-1' },
@@ -798,9 +851,11 @@ describe('RetentionV2MessageDispatchService — provider error / retry', () => {
   it('a later retry can succeed after the row was put back to queued', async () => {
     const deps = makeDeps();
     // First attempt: provider fails, service reverts the row to `queued`.
-    deps.whatsApp.sendText.mockRejectedValueOnce(new Error('whapi 500'));
+    deps.whatsApp.sendText.mockRejectedValueOnce(
+      new WhatsAppProviderError('WaSenderAPI send failed: oops', 502),
+    );
     const service = makeService(deps);
-    await expect(service.dispatch('msg-1', NOW)).rejects.toThrow('whapi 500');
+    await expect(service.dispatch('msg-1', NOW)).rejects.toThrow('oops');
 
     // Second attempt (BullMQ retry): everything re-validates fresh and the
     // provider call succeeds this time.
@@ -808,6 +863,95 @@ describe('RetentionV2MessageDispatchService — provider error / retry', () => {
     const result = await service.dispatch('msg-1', NOW);
 
     expect(result).toEqual({ status: 'sent', whatsappMessageId: 'wa-2' });
+  });
+
+  it('timeout: el mensaje pudo haber salido — nunca se reenvía y no se relanza', async () => {
+    const deps = makeDeps();
+    deps.whatsApp.sendText.mockRejectedValue(
+      new WhatsAppProviderError('WaSenderAPI request timed out'),
+    );
+    const service = makeService(deps);
+
+    expect(await service.dispatch('msg-1', NOW)).toEqual({
+      status: 'skipped',
+      reasonCode: 'PROVIDER_OUTCOME_UNKNOWN',
+    });
+    expect(deps.prisma.message.update).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: { status: MessageStatus.failed },
+    });
+    expect(deps.prisma.message.update).not.toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: { status: MessageStatus.queued },
+    });
+  });
+
+  it('sesión de WhatsApp caída al enviar: vuelve a la cola y se difiere, sin gastar reintentos', async () => {
+    const deps = makeDeps();
+    deps.whatsApp.sendText.mockRejectedValue(
+      new WhatsAppProviderError(
+        'WaSenderAPI send failed: Session is not connected',
+        400,
+      ),
+    );
+    const service = makeService(deps);
+
+    expect(await service.dispatch('msg-1', NOW)).toEqual({
+      status: 'deferred',
+      reasonCode: 'SESSION_UNAVAILABLE',
+      retryDelayMs: 30 * 60_000,
+    });
+    expect(deps.prisma.message.update).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: { status: MessageStatus.queued },
+    });
+  });
+
+  it('número inválido: fallido definitivo, sin reintento', async () => {
+    const deps = makeDeps();
+    deps.whatsApp.sendText.mockRejectedValue(
+      new WhatsAppProviderError(
+        'WaSenderAPI send failed: The to field must be a valid phone number',
+        422,
+      ),
+    );
+    const service = makeService(deps);
+
+    expect(await service.dispatch('msg-1', NOW)).toEqual({
+      status: 'skipped',
+      reasonCode: 'PROVIDER_RECIPIENT_INVALID',
+    });
+    expect(deps.prisma.message.update).toHaveBeenCalledWith({
+      where: { id: 'msg-1' },
+      data: { status: MessageStatus.failed },
+    });
+  });
+
+  it('si ya hay un intento vivo para este mensaje, no vuelve a llamar al proveedor', async () => {
+    const deps = makeDeps();
+    deps.messaging.send.mockResolvedValueOnce({ status: 'duplicate' } as never);
+    const service = makeService(deps);
+
+    expect(await service.dispatch('msg-1', NOW)).toEqual({
+      status: 'already_processed',
+    });
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+    expect(loggedCodes(deps)).not.toContain('MESSAGE_SENT');
+  });
+
+  it('usa una clave de idempotencia estable por mensaje', async () => {
+    const deps = makeDeps();
+    await makeService(deps).dispatch('msg-1', NOW);
+    expect(deps.messaging.send).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: 'biz-1',
+        customerId: 'cust-1',
+        messageId: 'msg-1',
+        purpose: 'AUTOPILOT',
+        idempotencyKey: 'retention-v2:msg-1',
+      }),
+      NOW,
+    );
   });
 
   it('markPermanentlyFailed moves a still-queued message to failed and logs it', async () => {
@@ -921,14 +1065,30 @@ describe('RetentionV2MessageDispatchService — motor de políticas', () => {
 
   it('falla del proveedor: la reserva se libera y se mide la salud del negocio', async () => {
     const deps = makeDeps();
-    deps.whatsApp.sendText.mockRejectedValue(new Error('provider down'));
+    deps.whatsApp.sendText.mockRejectedValue(
+      new WhatsAppProviderError('WaSenderAPI send failed: provider down', 503),
+    );
     const gate = makeGate(reserved);
     await expect(
       makeService(deps, gate).dispatch('msg-1', NOW),
     ).rejects.toThrow('provider down');
-    expect(gate.release).toHaveBeenCalledWith('res-1', 'provider down');
+    expect(gate.release).toHaveBeenCalledWith('res-1', 'PROVIDER_ERROR');
     expect(gate.checkHealth).toHaveBeenCalledWith('biz-1', NOW);
     expect(gate.commit).not.toHaveBeenCalled();
+  });
+
+  it('resultado desconocido: la reserva se confirma (el costo pudo haberse gastado)', async () => {
+    const deps = makeDeps();
+    deps.whatsApp.sendText.mockRejectedValue(
+      new WhatsAppProviderError('WaSenderAPI request timed out'),
+    );
+    const gate = makeGate(reserved);
+    await makeService(deps, gate).dispatch('msg-1', NOW);
+    expect(gate.commit).toHaveBeenCalledWith(
+      'res-1',
+      expect.objectContaining({ messagesSent: 1 }),
+    );
+    expect(gate.release).not.toHaveBeenCalled();
   });
 
   it('si otra automatización tiene el turno, la reserva se libera', async () => {

@@ -1,7 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { MessageStatus, RetentionObjective } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
-import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import {
+  MessagingService,
+  type SendMessageOutcome,
+} from '../../jobs/messaging/messaging.service';
 import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 import { retentionMessageEmail } from '../../jobs/email-templates';
 import { buildMiFlikkerLink } from '../public/public-messaging.service';
@@ -63,6 +66,22 @@ const WINDOW_RETRY_DELAY_MS = 30 * 60_000;
  * misma es corta (`AutomationCooldownService.gracePeriodMs`).
  */
 const PRIORITY_RETRY_DELAY_MS = 2 * 60_000;
+/** Canal caído: se reintenta cada tanto y se abandona pasado este plazo. */
+const CHANNEL_RETRY_DELAY_MS = 30 * 60_000;
+const CHANNEL_GIVE_UP_MS = 48 * 60 * 60_000;
+
+type FailedSend = Extract<SendMessageOutcome, { status: 'failed' }>;
+/**
+ * Fallas que no son del mensaje sino del remitente: se reintentan más tarde
+ * sin gastar los reintentos de BullMQ.
+ */
+const RETRY_LATER_DELAY_MS: Partial<Record<FailedSend['errorClass'], number>> =
+  {
+    RATE_LIMITED: 60_000,
+    SESSION_UNAVAILABLE: CHANNEL_RETRY_DELAY_MS,
+    ACCOUNT_RESTRICTED: CHANNEL_RETRY_DELAY_MS,
+    SENDER_PAUSED: CHANNEL_RETRY_DELAY_MS,
+  };
 
 interface SkippableMessage {
   id: string;
@@ -79,7 +98,7 @@ export class RetentionV2MessageDispatchService {
     private readonly prisma: PrismaService,
     private readonly settings: RetentionSettingsService,
     private readonly decisions: RetentionDecisionLogService,
-    private readonly whatsApp: WhatsAppBspService,
+    private readonly messaging: MessagingService,
     private readonly lifecycleEmails: LifecycleEmailsService,
     private readonly plans: PlansService,
     private readonly cooldown: AutomationCooldownService,
@@ -294,13 +313,20 @@ export class RetentionV2MessageDispatchService {
       return this.skipTerminal(message, 'NO_CONTACT_CHANNEL');
     }
 
-    // Migración WHAPI → WaSenderAPI: antes miraba `WHAPI_TOKEN` directo, con
-    // el proveedor hardcodeado en el nombre del check. Ahora le pregunta a
-    // la abstracción — el proveedor activo decide qué significa "disponible"
-    // (ver `WhatsAppProvider.isAvailable()`).
-    if (!(await this.whatsApp.isChannelAvailable())) {
-      await releasePolicy('CHANNEL_NOT_CONFIGURED');
-      return this.skipTerminal(message, 'CHANNEL_NOT_CONFIGURED');
+    // Canal caído (sesión de WaSender desconectada o remitente en pausa por
+    // un error reciente): "todavía no", no "nunca". Se reintenta y recién se
+    // abandona si el mensaje lleva demasiado esperando.
+    if (!(await this.messaging.isChannelAvailable(message.businessId, now))) {
+      await releasePolicy('CHANNEL_UNAVAILABLE');
+      const waitingMs = now.getTime() - new Date(message.createdAt).getTime();
+      if (waitingMs > CHANNEL_GIVE_UP_MS) {
+        return this.skipTerminal(message, 'CHANNEL_UNAVAILABLE');
+      }
+      return this.deferNonTerminal(
+        message,
+        'CHANNEL_UNAVAILABLE',
+        CHANNEL_RETRY_DELAY_MS,
+      );
     }
 
     if (
@@ -325,73 +351,148 @@ export class RetentionV2MessageDispatchService {
       return { status: 'already_processed' };
     }
 
-    try {
-      // El link de "Mi Flikker" se agrega ACÁ, al momento de mandar — nunca
-      // en `message.body` (eso pasó por el validador de grounding de la
-      // IA; agregarlo después de esa validación evita cualquier
-      // interacción con esa capa, y el reclamo atómico de más arriba ya
-      // garantiza que esto se ejecuta una sola vez por Message).
-      const text = `${message.body}\n\nVas todos tus premios y lugares en Mi Flikker: ${buildMiFlikkerLink()}`;
-      const result = await this.whatsApp.sendText({
-        phone: message.customer.phoneE164,
+    // El link de "Mi Flikker" se agrega ACÁ, al momento de mandar — nunca
+    // en `message.body` (eso pasó por el validador de grounding de la IA;
+    // agregarlo después de esa validación evita cualquier interacción con
+    // esa capa).
+    const text = `${message.body}\n\nVas todos tus premios y lugares en Mi Flikker: ${buildMiFlikkerLink()}`;
+    // Segunda llave anti-duplicados, además del reclamo de arriba: la clave
+    // de idempotencia del intento. Aunque algo falle DESPUÉS de que el
+    // proveedor aceptó (y la fila vuelva a `queued`), un reintento nunca
+    // vuelve a llamar al proveedor.
+    const outcome = await this.messaging.send(
+      {
+        businessId: message.businessId,
+        customerId: message.customerId,
+        messageId,
+        purpose: 'AUTOPILOT',
+        idempotencyKey: `retention-v2:${messageId}`,
+        to: message.customer.phoneE164,
         text,
-      });
+      },
+      now,
+    );
 
-      await this.prisma.$transaction([
-        this.prisma.message.update({
-          where: { id: messageId },
-          data: {
-            status: MessageStatus.sent,
-            sentAt: now,
-            whatsappMsgId: result.whatsappMessageId,
-          },
-        }),
-        this.prisma.business.update({
-          where: { id: message.businessId },
-          data: { messageCountCurrentMonth: { increment: 1 } },
-        }),
-      ]);
-
+    if (outcome.status === 'duplicate') {
+      await releasePolicy('DUPLICATE_SEND');
       await this.decisions.record({
         businessId: message.businessId,
         customerId: message.customerId,
         assignmentId: message.retentionAssignment.id,
-        decisionCode: DECISION_CODES.MESSAGE_SENT,
-        metadata: { whatsappMessageId: result.whatsappMessageId },
+        decisionCode: DECISION_CODES.MESSAGE_SEND_SKIPPED,
+        metadata: { reasonCode: 'DUPLICATE_SEND' },
       });
-      if (reservationId) {
-        await this.policyGate.commit(reservationId, {
+      return { status: 'already_processed' };
+    }
+
+    if (outcome.status === 'failed') {
+      return this.handleSendFailure(message, outcome, releasePolicy, {
+        reservationId,
+        now,
+      });
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.message.update({
+        where: { id: messageId },
+        data: {
+          status: MessageStatus.sent,
+          sentAt: now,
+          whatsappMsgId: outcome.providerMessageId,
+        },
+      }),
+      this.prisma.business.update({
+        where: { id: message.businessId },
+        data: { messageCountCurrentMonth: { increment: 1 } },
+      }),
+    ]);
+
+    await this.decisions.record({
+      businessId: message.businessId,
+      customerId: message.customerId,
+      assignmentId: message.retentionAssignment.id,
+      decisionCode: DECISION_CODES.MESSAGE_SENT,
+      metadata: { whatsappMessageId: outcome.providerMessageId },
+    });
+    if (reservationId) {
+      await this.policyGate.commit(reservationId, {
+        messagesSent: 1,
+        incentivesIssued: 0,
+        sourceRef: messageId,
+      });
+    }
+
+    return { status: 'sent', whatsappMessageId: outcome.providerMessageId };
+  }
+
+  /**
+   * Qué hacer cuando el proveedor no tomó (o no se sabe si tomó) el mensaje:
+   *
+   * - Resultado desconocido (timeout): pudo haber salido. Nunca se reenvía;
+   *   el mensaje queda fallido y el costo se cuenta como gastado.
+   * - Sesión caída, cuenta restringida, remitente en pausa o límite de
+   *   velocidad: "todavía no". Vuelve a `queued` y se reintenta más tarde.
+   * - Error transitorio del proveedor: vuelve a `queued` y se relanza para
+   *   que BullMQ reintente (comportamiento de siempre).
+   * - Destinatario inválido u otro rechazo definitivo: fallido, sin reintento.
+   */
+  private async handleSendFailure(
+    message: SkippableMessage,
+    outcome: FailedSend,
+    releasePolicy: (reason: string) => Promise<void>,
+    ctx: { reservationId: string | null; now: Date },
+  ): Promise<DispatchOutcome> {
+    const recordFailure = (terminal: boolean) =>
+      this.decisions.record({
+        businessId: message.businessId,
+        customerId: message.customerId,
+        assignmentId: message.retentionAssignment?.id ?? null,
+        decisionCode: DECISION_CODES.MESSAGE_SEND_FAILED,
+        metadata: {
+          errorClass: outcome.errorClass,
+          error: outcome.message,
+          terminal,
+        },
+      });
+    const setStatus = (status: MessageStatus) =>
+      this.prisma.message.update({
+        where: { id: message.id },
+        data: { status },
+      });
+
+    if (!outcome.safeToResend) {
+      await setStatus(MessageStatus.failed);
+      await recordFailure(true);
+      if (ctx.reservationId) {
+        await this.policyGate.commit(ctx.reservationId, {
           messagesSent: 1,
           incentivesIssued: 0,
-          sourceRef: messageId,
+          sourceRef: message.id,
         });
       }
-
-      return { status: 'sent', whatsappMessageId: result.whatsappMessageId };
-    } catch (error) {
-      // Transient: put the row back exactly where the claim found it so a
-      // retried job (see RetentionV2Worker) can re-validate everything fresh
-      // and try again — never left stuck in `sending`.
-      await this.prisma.message.update({
-        where: { id: messageId },
-        data: { status: MessageStatus.queued },
-      });
-      const errorMessage =
-        error instanceof Error ? error.message : String(error);
-      await this.decisions.record({
-        businessId: message.businessId,
-        customerId: message.customerId,
-        assignmentId: message.retentionAssignment.id,
-        decisionCode: DECISION_CODES.MESSAGE_SEND_FAILED,
-        metadata: { error: errorMessage, terminal: false },
-      });
-      this.logger.warn(
-        `Retention V2 WhatsApp send failed for message ${messageId}: ${errorMessage}`,
-      );
-      await releasePolicy(errorMessage);
-      await this.policyGate.checkHealth(message.businessId, now);
-      throw error;
+      await this.policyGate.checkHealth(message.businessId, ctx.now);
+      return { status: 'skipped', reasonCode: 'PROVIDER_OUTCOME_UNKNOWN' };
     }
+
+    await releasePolicy(outcome.errorClass);
+    const retryLater = RETRY_LATER_DELAY_MS[outcome.errorClass];
+    if (retryLater !== undefined || outcome.retryable) {
+      await setStatus(MessageStatus.queued);
+      await recordFailure(false);
+      await this.policyGate.checkHealth(message.businessId, ctx.now);
+      if (retryLater !== undefined) {
+        return this.deferNonTerminal(message, outcome.errorClass, retryLater);
+      }
+      this.logger.warn(
+        `Retention V2 WhatsApp send failed for message ${message.id}: ${outcome.message}`,
+      );
+      throw new Error(outcome.message);
+    }
+
+    await setStatus(MessageStatus.failed);
+    await recordFailure(true);
+    await this.policyGate.checkHealth(message.businessId, ctx.now);
+    return { status: 'skipped', reasonCode: `PROVIDER_${outcome.errorClass}` };
   }
 
   /**

@@ -17,6 +17,20 @@ import { RetentionV2BootstrapService } from './retention-v2-bootstrap.service';
 import { pickVariant, type AllocatableVariant } from './allocation';
 import { buildMiFlikkerLink } from '../public/public-messaging.service';
 
+// Autopilot manda por MessagingService, que le pide el proveedor a la
+// factory: se reemplaza acá para que ningún test pueda llegar a WhatsApp de
+// verdad. Delega en el mock de `WhatsAppBspService` de abajo, así las
+// aserciones sobre qué se mandó siguen siendo las mismas.
+const mockProviderSend = jest.fn();
+jest.mock('../../jobs/whatsapp-provider.factory', () => ({
+  getWhatsAppProvider: () => ({
+    name: 'fake-e2e',
+    isAvailable: () => Promise.resolve(true),
+    sendText: (input: { to: string; text: string }): unknown =>
+      mockProviderSend(input),
+  }),
+}));
+
 // Wednesday, 14:00 in America/Montevideo (UTC-3 year-round, no DST) — well
 // inside the default sending window (10:00-20:00, Mon-Sat) regardless of
 // when this suite actually runs. Every step below is passed this same `now`
@@ -55,6 +69,18 @@ describe('Retention V2 self-service — onboarding to WhatsApp (e2e)', () => {
       sendText: jest.fn().mockResolvedValue({ whatsappMessageId: 'wa-e2e-1' }),
       isChannelAvailable: jest.fn().mockResolvedValue(true),
     };
+    mockProviderSend.mockImplementation(
+      async (input: { to: string; text: string }) => {
+        const result = (await whatsApp.sendText({
+          phone: input.to,
+          text: input.text,
+        })) as { whatsappMessageId: string };
+        return {
+          providerMessageId: result.whatsappMessageId,
+          status: 'accepted',
+        };
+      },
+    );
 
     const moduleRef: TestingModule = await Test.createTestingModule({
       imports: [OnboardingModule],

@@ -705,6 +705,7 @@ model Business {
   consentEvents                 CustomerConsentEvent[]
   policyReservations            PolicyReservation[]
   autonomousRuns                AutonomousRun[]
+  deliveryAttempts              MessageDeliveryAttempt[]
 }
 
 // ---------------------------------------------------------------------------
@@ -4087,4 +4088,55 @@ model AutonomousRun {
   @@unique([businessId, runKey])
   @@index([businessId, createdAt])
   @@map("autonomous_runs")
+}
+
+// ---------------------------------------------------------------------------
+// Intentos de envío por el proveedor de mensajería (WaSender hoy).
+// ---------------------------------------------------------------------------
+
+/// IN_FLIGHT: se está llamando al proveedor. ACCEPTED: el proveedor lo tomó.
+/// FAILED: el proveedor lo rechazó y es seguro reintentar. UNKNOWN: no se
+/// sabe si salió (timeout, corte de red): nunca se reenvía solo.
+enum DeliveryAttemptStatus {
+  IN_FLIGHT
+  ACCEPTED
+  FAILED
+  UNKNOWN
+}
+
+/// Un intento por llamada al proveedor. Registra negocio, sesión remitente y
+/// destinatario de cada envío, y es la llave anti-duplicados: un índice
+/// único parcial (solo en la migración) impide dos intentos IN_FLIGHT,
+/// ACCEPTED o UNKNOWN con la misma `idempotency_key`.
+model MessageDeliveryAttempt {
+  id                String                @id @default(uuid())
+  businessId        String                @map("business_id")
+  /// Sin FK a propósito: el intento queda aunque se borre el cliente.
+  customerId        String?               @map("customer_id")
+  messageId         String?               @map("message_id")
+  /// Qué camino lo mandó (AUTOPILOT, PROMOTION, ...).
+  purpose           String
+  /// Mismo envío lógico = misma clave (p. ej. `retention-v2:<messageId>`).
+  idempotencyKey    String                @map("idempotency_key")
+  provider          String
+  /// Sesión/cuenta remitente. Hoy una compartida; mañana una por negocio.
+  senderSession     String                @map("sender_session")
+  /// SHA-256 del teléfono E.164: identifica al destinatario sin guardar el número.
+  recipientHash     String                @map("recipient_hash")
+  status            DeliveryAttemptStatus
+  providerMessageId String?               @map("provider_message_id")
+  errorClass        String?               @map("error_class")
+  httpStatus        Int?                  @map("http_status")
+  errorCode         String?               @map("error_code")
+  /// Recortado y sin secuencias largas de dígitos.
+  errorMessage      String?               @map("error_message")
+  createdAt         DateTime              @default(now()) @map("created_at")
+  finishedAt        DateTime?             @map("finished_at")
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@index([businessId, createdAt])
+  @@index([senderSession, createdAt])
+  @@index([idempotencyKey])
+  @@map("message_delivery_attempts")
 }

@@ -28,6 +28,7 @@ import { AiRecommendationExplanationService } from '../ai/recommendation-explana
 import { RetentionOptimizationService } from './retention-optimization.service';
 import { AutopilotDiagnosisService } from './autopilot-diagnosis.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { MessagingService } from '../../jobs/messaging/messaging.service';
 import { RetentionV2BootstrapService } from './retention-v2-bootstrap.service';
 import { PlansModule } from '../plans/plans.module';
 import { ReturnChallengesModule } from '../return-challenges/return-challenges.module';
@@ -72,6 +73,8 @@ import { AutomationCooldownService } from '../../jobs/automation-cooldown.servic
     // the workers. WhatsAppBspService is stateless, so a second instance
     // costs nothing.
     WhatsAppBspService,
+    // Capa de mensajería (intentos, anti-duplicados, salud del remitente).
+    MessagingService,
     // Mismo motivo que WhatsAppBspService arriba — "casi llegás"/"te
     // extrañamos" por email (Pro) se mandan desde
     // RetentionV2MessageDispatchService, en el mismo momento que el
