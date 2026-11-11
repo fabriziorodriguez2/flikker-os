@@ -442,6 +442,7 @@ export function RegisterFormFields({
     name: string;
     phone: string;
     birthdate?: string;
+    whatsappConsent?: boolean;
   }) => Promise<{ error?: string } | void>;
   onRecoverInstead?: (phone: string) => void;
   preview?: boolean;
@@ -451,6 +452,8 @@ export function RegisterFormFields({
   const [birthDay, setBirthDay] = useState("");
   const [birthMonth, setBirthMonth] = useState("");
   const [birthYear, setBirthYear] = useState("");
+  // Desmarcada por defecto: solo un sí explícito cuenta como consentimiento.
+  const [whatsappConsent, setWhatsappConsent] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -472,6 +475,7 @@ export function RegisterFormFields({
       name: name.trim(),
       phone,
       ...(birthdate ? { birthdate } : {}),
+      ...(whatsappConsent ? { whatsappConsent: true } : {}),
     });
     setSaving(false);
     if (result?.error) setError(result.error);
@@ -575,6 +579,19 @@ export function RegisterFormFields({
           </div>
         </div>
 
+        <label className="flex items-start gap-2.5 text-left text-xs leading-5 text-[color:var(--pub-text-muted)]">
+          <input
+            type="checkbox"
+            checked={whatsappConsent}
+            onChange={(e) => setWhatsappConsent(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 accent-[#5C6BC0]"
+          />
+          <span>
+            Quiero recibir promociones de este local por WhatsApp. Puedo darme
+            de baja cuando quiera respondiendo BAJA.
+          </span>
+        </label>
+
         {error && (
           <p className="rounded-xl bg-red-50 px-3 py-2 text-center text-xs text-red-600">
             {error}
@@ -633,6 +650,7 @@ export function RegisterScreenContent({
     name: string;
     phone: string;
     birthdate?: string;
+    whatsappConsent?: boolean;
   }) => Promise<{ error?: string } | void>;
   onRecoverInstead?: (phone: string) => void;
 }) {
@@ -720,6 +738,7 @@ function RegisterScreen({
     name: string;
     phone: string;
     birthdate?: string;
+    whatsappConsent?: boolean;
   }) {
     const result = await postJson(`/api/checkin/${token}/register`, {
       ...values,

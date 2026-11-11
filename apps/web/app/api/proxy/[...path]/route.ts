@@ -1,4 +1,8 @@
 import { clearSession, getSession, setSession } from "@/lib/auth";
+import {
+  buildProxyResponse,
+  buildStreamingProxyResponse,
+} from "@/lib/proxy-response";
 
 const API_URL = process.env.API_URL ?? "http://localhost:3000";
 
@@ -112,6 +116,9 @@ async function handler(
       method: request.method,
       headers: nextHeaders,
       body,
+      // Si el navegador corta (ej. "Detener" en Intelligence), se corta
+      // también el pedido a la API.
+      signal: request.signal,
     });
   };
 
@@ -141,6 +148,9 @@ async function handler(
     await clearSession();
   }
 
+  const streaming = buildStreamingProxyResponse(res);
+  if (streaming) return streaming;
+
   // `arrayBuffer` y no `text`: por acá también pasan respuestas binarias
   // (el PNG de `/visit-sources/{id}/qr`, por ejemplo). `res.text()` las
   // decodifica como UTF-8 y corrompe los bytes — el archivo descargado deja
@@ -155,10 +165,7 @@ async function handler(
   const disposition = res.headers.get("Content-Disposition");
   if (disposition) responseHeaders["Content-Disposition"] = disposition;
 
-  return new Response(data, {
-    status: res.status,
-    headers: responseHeaders,
-  });
+  return buildProxyResponse(res.status, data, responseHeaders);
 }
 
 export const GET = handler;

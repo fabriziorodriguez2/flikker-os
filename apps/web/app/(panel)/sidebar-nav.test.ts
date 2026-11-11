@@ -24,10 +24,11 @@ const owner = (
   });
 
 describe("Navegación CHECKIN_V2", () => {
-  it("muestra exactamente las ocho superficies del producto", () => {
+  it("muestra exactamente las nueve superficies del producto", () => {
     expect(hrefsOf(owner())).toEqual([
       "/dashboard",
       "/dashboard/insights",
+      "/dashboard/intelligence",
       "/dashboard/programa",
       "/dashboard/customers",
       "/dashboard/notificaciones",
@@ -133,6 +134,7 @@ describe("Navegación por rol", () => {
     expect(hrefs).toEqual([
       "/dashboard",
       "/dashboard/insights",
+      "/dashboard/intelligence",
       "/dashboard/customers",
       "/dashboard/notificaciones",
       "/dashboard/reviews",
@@ -279,7 +281,10 @@ describe("Platform Admin / impersonation", () => {
   });
 
   it("Platform Admin impersonando ve navegación normal + Herramientas Flikker", () => {
-    const productHrefs = hrefsOf(platformAdminImpersonating()).slice(0, 8);
+    const productHrefs = hrefsOf(platformAdminImpersonating()).slice(
+      0,
+      hrefsOf(owner()).length,
+    );
     expect(productHrefs).toEqual(hrefsOf(owner()));
   });
 

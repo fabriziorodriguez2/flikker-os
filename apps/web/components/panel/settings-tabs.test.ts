@@ -4,17 +4,19 @@ const hrefs = (isCheckinV2: boolean, canManage: boolean) =>
   resolveSettingsTabs(isCheckinV2, canManage).map((tab) => tab.href);
 
 describe("SettingsTabs por experiencia", () => {
-  it("CHECKIN_V2 muestra únicamente Negocio y Suscripción", () => {
+  it("CHECKIN_V2 muestra Negocio, Suscripción y Políticas", () => {
     expect(hrefs(true, true)).toEqual([
       "/dashboard/settings",
       "/dashboard/settings/suscripcion",
+      "/dashboard/settings/politicas",
     ]);
   });
 
-  it("CHECKIN_V2 conserva ambas tabs en modo lectura", () => {
+  it("CHECKIN_V2 conserva las tabs en modo lectura", () => {
     expect(hrefs(true, false)).toEqual([
       "/dashboard/settings",
       "/dashboard/settings/suscripcion",
+      "/dashboard/settings/politicas",
     ]);
   });
 
@@ -25,11 +27,15 @@ describe("SettingsTabs por experiencia", () => {
       "/dashboard/branches",
       "/dashboard/integrations",
       "/dashboard/settings/suscripcion",
+      "/dashboard/settings/politicas",
       "/dashboard/settings/cuenta",
     ]);
   });
 
-  it("LEGACY conserva solo Cuenta para roles sin permisos", () => {
-    expect(hrefs(false, false)).toEqual(["/dashboard/settings/cuenta"]);
+  it("LEGACY: sin permisos de gestión ve Políticas (lectura) y Cuenta", () => {
+    expect(hrefs(false, false)).toEqual([
+      "/dashboard/settings/politicas",
+      "/dashboard/settings/cuenta",
+    ]);
   });
 });

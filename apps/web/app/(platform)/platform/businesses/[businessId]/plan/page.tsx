@@ -3,6 +3,8 @@ import Link from "next/link";
 import { apiFetch, isUnauthorizedApiError } from "@/lib/api";
 import { getSession } from "@/lib/auth";
 import PlanClient, { type BusinessPlanRow } from "./plan-client";
+import MessageCostClient from "./message-cost-client";
+import AutonomyModeClient from "./autonomy-mode-client";
 
 export default async function BusinessPlanPage({
   params,
@@ -56,11 +58,15 @@ export default async function BusinessPlanPage({
           {error}
         </div>
       ) : (
-        <PlanClient
-          businessId={businessId}
-          initialCurrent={current}
-          initialHistory={history}
-        />
+        <>
+          <PlanClient
+            businessId={businessId}
+            initialCurrent={current}
+            initialHistory={history}
+          />
+          <MessageCostClient businessId={businessId} />
+          <AutonomyModeClient businessId={businessId} />
+        </>
       )}
     </div>
   );

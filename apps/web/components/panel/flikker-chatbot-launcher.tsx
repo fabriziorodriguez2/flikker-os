@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname } from "next/navigation";
 import { Sparkles } from "lucide-react";
 import FlikkerChatbotPanel from "./flikker-chatbot-panel";
 
@@ -12,6 +13,11 @@ import FlikkerChatbotPanel from "./flikker-chatbot-panel";
  */
 export default function FlikkerChatbotLauncher() {
   const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Intelligence ya es un chat a pantalla completa: dos asistentes en la
+  // misma vista confunden.
+  if (pathname?.startsWith("/dashboard/intelligence")) return null;
 
   return (
     <>

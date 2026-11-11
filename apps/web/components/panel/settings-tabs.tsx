@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useIsOwnerOrAdmin } from "@/app/(panel)/role-context";
 import { useIsCheckinV2 } from "@/app/(panel)/experience-context";
-import { Building2, CreditCard } from "lucide-react";
+import { Building2, CreditCard, ShieldCheck } from "lucide-react";
 
 /**
  * Barra de Configuración.
@@ -33,6 +33,13 @@ const TABS = [
     label: "Suscripción",
     managersOnly: true,
   },
+  // Topes de envíos y costos. Cualquier miembro la ve (todos tienen que
+  // poder entender por qué algo no salió); solo el dueño la cambia.
+  {
+    href: "/dashboard/settings/politicas",
+    label: "Políticas",
+    managersOnly: false,
+  },
   // La cuenta es de cada persona: cualquier miembro cambia su contraseña.
   { href: "/dashboard/settings/cuenta", label: "Cuenta", managersOnly: false },
 ];
@@ -40,7 +47,11 @@ const TABS = [
 export function resolveSettingsTabs(isCheckinV2: boolean, canManage: boolean) {
   const availableTabs = isCheckinV2
     ? TABS.filter((tab) =>
-        ["/dashboard/settings", "/dashboard/settings/suscripcion"].includes(tab.href),
+        [
+          "/dashboard/settings",
+          "/dashboard/settings/suscripcion",
+          "/dashboard/settings/politicas",
+        ].includes(tab.href),
       )
     : TABS;
 
@@ -93,6 +104,8 @@ export default function SettingsTabs() {
             {isCheckinV2 ? (
               tab.href === "/dashboard/settings" ? (
                 <Building2 className="h-4 w-4" aria-hidden="true" />
+              ) : tab.href === "/dashboard/settings/politicas" ? (
+                <ShieldCheck className="h-4 w-4" aria-hidden="true" />
               ) : (
                 <CreditCard className="h-4 w-4" aria-hidden="true" />
               )

@@ -48,6 +48,30 @@ interface Benefit {
   title: string;
 }
 
+/** La decisión del motor de políticas, solo si el negocio la aceptó. */
+interface PolicyPreview {
+  allowed: boolean;
+  eligibleCount: number;
+  excluded: Record<string, number>;
+  blockers: { code: string; message: string }[];
+  cost: { currency: string; total: number };
+}
+
+const EXCLUSION_LABELS: Record<string, string> = {
+  NO_CONSENT: "sin consentimiento de WhatsApp",
+  CONSENT_REVOKED: "dados de baja",
+  SUPPRESSED: "bloqueados por queja",
+  RECENT_PROMOTION: "con una promoción reciente",
+  MONTHLY_PROMOTION_LIMIT: "con el máximo de promociones del mes",
+};
+
+export function exclusionSummary(excluded: Record<string, number>): string {
+  const parts = Object.entries(excluded)
+    .filter(([, n]) => n > 0)
+    .map(([reason, n]) => `${n} ${EXCLUSION_LABELS[reason] ?? reason}`);
+  return parts.length > 0 ? `Quedan afuera: ${parts.join(", ")}.` : "";
+}
+
 export default function PromotionsTab() {
   const canSend = useCanMutate();
   const toast = useToast();
@@ -58,6 +82,10 @@ export default function PromotionsTab() {
   const [benefitId, setBenefitId] = useState("");
   const [benefits, setBenefits] = useState<Benefit[]>([]);
   const [recipientCount, setRecipientCount] = useState<number | null>(null);
+  const [policy, setPolicy] = useState<PolicyPreview | null>(null);
+  // Una por confirmación: el doble click y el reintento mandan la misma, y
+  // el backend devuelve el primer resultado en vez de enviar de nuevo.
+  const [attemptKey, setAttemptKey] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [sending, setSending] = useState(false);
   const [sentSummary, setSentSummary] = useState<{
@@ -91,23 +119,30 @@ export default function PromotionsTab() {
 
   // Cuántos van a recibirla. Es la misma consulta que después arma la lista,
   // no una estimación.
-  const loadCount = useCallback(async (key: AudienceKey) => {
+  const loadCount = useCallback(async (key: AudienceKey, benefit: string) => {
     setRecipientCount(null);
+    setPolicy(null);
     try {
+      const query = new URLSearchParams({ audience: key });
+      if (benefit) query.set("benefitId", benefit);
       const res = await fetch(
-        `/api/proxy/notifications/promotions/preview?audience=${key}`,
+        `/api/proxy/notifications/promotions/preview?${query.toString()}`,
       );
       if (!res.ok) return;
-      const data = (await res.json()) as { recipientCount: number };
+      const data = (await res.json()) as {
+        recipientCount: number;
+        policy?: PolicyPreview;
+      };
       setRecipientCount(data.recipientCount);
+      setPolicy(data.policy ?? null);
     } catch {
       /* el conteo es informativo: si falla, el envío sigue disponible */
     }
   }, []);
 
   useEffect(() => {
-    if (creating) void loadCount(audience);
-  }, [creating, audience, loadCount]);
+    if (creating) void loadCount(audience, benefitId);
+  }, [creating, audience, benefitId, loadCount]);
 
   async function send() {
     setSending(true);
@@ -120,6 +155,7 @@ export default function PromotionsTab() {
           message: message.trim(),
           audience,
           ...(benefitId ? { benefitId } : {}),
+          ...(attemptKey ? { idempotencyKey: attemptKey } : {}),
         }),
       });
       const data: unknown = await res.json().catch(() => null);
@@ -161,6 +197,7 @@ export default function PromotionsTab() {
   function reset() {
     setCreating(false);
     setConfirming(false);
+    setAttemptKey(null);
     setSentSummary(null);
     setMessage("");
     setBenefitId("");
@@ -265,7 +302,34 @@ export default function PromotionsTab() {
               }
             />
             <Row label="Beneficio" value={selectedBenefit?.title ?? "Sin beneficio"} />
+            {policy ? (
+              <Row
+                label="Cumplen la política"
+                value={`${policy.eligibleCount} ${policy.eligibleCount === 1 ? "cliente" : "clientes"} · ${policy.cost.currency} ${policy.cost.total}`}
+              />
+            ) : null}
           </dl>
+          {policy && exclusionSummary(policy.excluded) ? (
+            <p className="mt-3 text-xs leading-5 text-[#7F879C]">
+              {exclusionSummary(policy.excluded)}
+            </p>
+          ) : null}
+          {policy && !policy.allowed ? (
+            <div className="mt-4 rounded-[10px] border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm text-[#8A5A00]">
+              <p className="font-semibold">La política de tu negocio no permite este envío</p>
+              <ul className="mt-1 list-disc space-y-0.5 pl-5">
+                {[...new Set(policy.blockers.map((b) => b.message))].map((m) => (
+                  <li key={m}>{m}</li>
+                ))}
+              </ul>
+              <Link
+                href="/dashboard/settings/politicas"
+                className="mt-1 inline-block font-semibold underline"
+              >
+                Ver Políticas
+              </Link>
+            </div>
+          ) : null}
           <div className="mt-4 rounded-[12px] bg-[#F7F8FC] px-4 py-3 text-sm leading-6 text-[#5F6780]">
             {message}
             {selectedBenefit ? `\n\n🎁 ${selectedBenefit.title}` : ""}
@@ -280,7 +344,7 @@ export default function PromotionsTab() {
           <button
             type="button"
             onClick={() => void send()}
-            disabled={sending}
+            disabled={sending || (policy !== null && !policy.allowed)}
             className="flk-glossy mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:opacity-60 sm:w-auto"
           >
             {sending ? (
@@ -351,9 +415,9 @@ export default function PromotionsTab() {
         </div>
         {recipientCount !== null ? (
           <p className="mt-2 text-xs text-[#7F879C]">
-            {recipientCount}{" "}
-            {recipientCount === 1 ? "cliente" : "clientes"} recibirían esta
-            promoción.
+            {policy
+              ? `${policy.eligibleCount} de ${recipientCount} ${recipientCount === 1 ? "cliente" : "clientes"} cumplen la política y la recibirían.`
+              : `${recipientCount} ${recipientCount === 1 ? "cliente" : "clientes"} recibirían esta promoción.`}
           </p>
         ) : null}
       </section>
@@ -393,7 +457,10 @@ export default function PromotionsTab() {
 
       <button
         type="button"
-        onClick={() => setConfirming(true)}
+        onClick={() => {
+          setAttemptKey(crypto.randomUUID());
+          setConfirming(true);
+        }}
         disabled={message.trim().length < 5}
         className="flk-glossy inline-flex h-11 w-full items-center justify-center rounded-[11px] bg-[#5C6BC0] px-5 text-sm font-semibold text-white hover:bg-[#4f5eb0] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
       >

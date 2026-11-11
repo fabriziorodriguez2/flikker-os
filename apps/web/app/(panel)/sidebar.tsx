@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, Sparkles, X } from "lucide-react";
+import { Bell, MessagesSquare, Sparkles, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 import type { SessionMembership } from "@/lib/auth";
 import BusinessLogo from "@/components/business/business-logo";
@@ -215,6 +215,13 @@ const CHECKIN_V2_NAV: NavSection[] = [
         label: "Insights",
         icon: <Sparkles className="h-[18px] w-[18px]" strokeWidth={1.8} />,
         proFeature: "insights",
+      },
+      {
+        // Sin `roles`: cada miembro tiene sus propias conversaciones (privadas);
+        // la política la aplica el backend.
+        href: "/dashboard/intelligence",
+        label: "Intelligence",
+        icon: <MessagesSquare className="h-[18px] w-[18px]" strokeWidth={1.8} />,
       },
     ],
   },

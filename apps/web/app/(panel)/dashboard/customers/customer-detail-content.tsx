@@ -16,6 +16,7 @@ import RewardGoalStamps from "@/components/public/reward-goal-stamps";
 import RouteProgressBar from "@/components/ui/route-progress-bar";
 import { useIsCheckinV2 } from "../../experience-context";
 import type { LoyaltyAppearance } from "../programa/types";
+import ConsentPanel from "./consent-panel";
 import {
   MESSAGE_LABEL,
   RECURRENCE,
@@ -245,6 +246,7 @@ export default function CustomerDetailContent({
             Pidió no recibir mensajes.
           </p>
         ) : null}
+        <ConsentPanel customerId={customer.id} />
       </header>
 
       {/* ── 1. Tarjeta actual — solo si el negocio usa sellos ───────────── */}
