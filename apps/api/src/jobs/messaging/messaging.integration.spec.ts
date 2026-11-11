@@ -107,6 +107,7 @@ describe('MessagingService (integration)', () => {
     expect((await messaging.send(input('dup'), NOW)).status).toBe('sent');
     expect(await messaging.send(input('dup'), NOW)).toEqual({
       status: 'duplicate',
+      previous: 'ACCEPTED',
     });
     expect(mockSendText).toHaveBeenCalledTimes(1);
   });
@@ -166,6 +167,7 @@ describe('MessagingService (integration)', () => {
     });
     expect(await messaging.send(input('timeout'), NOW)).toEqual({
       status: 'duplicate',
+      previous: 'UNKNOWN',
     });
     expect(mockSendText).toHaveBeenCalledTimes(1);
     const row = await prisma.messageDeliveryAttempt.findFirstOrThrow({

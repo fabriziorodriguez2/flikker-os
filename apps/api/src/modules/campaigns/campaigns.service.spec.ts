@@ -11,7 +11,8 @@ import { CampaignsRepository } from './campaigns.repository';
 import { BranchesRepository } from '../branches/branches.repository';
 import { PlansService } from '../plans/plans.service';
 import { AuditService } from '../../common/services/audit.service';
-import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { MessagingService } from '../../jobs/messaging/messaging.service';
+import { classifyDeliveryError } from '../../jobs/messaging/delivery-errors';
 import { WhatsAppProviderError } from '../../jobs/whatsapp-provider';
 
 const BUSINESS_ID = 'biz-1';
@@ -79,6 +80,33 @@ const mockAuditService = {
 const mockWhatsAppBspService = {
   sendText: jest.fn().mockResolvedValue(undefined),
 };
+// El envío pasa por MessagingService (intentos registrados, sin duplicados),
+// que tiene su propio spec. Acá delega en el mock de WhatsApp y clasifica el
+// error con la regla real, para que estos tests sigan mirando qué se manda.
+const mockMessaging = {
+  send: jest.fn(async (input: { to: string; text: string }) => {
+    try {
+      const result = (await mockWhatsAppBspService.sendText({
+        phone: input.to,
+        text: input.text,
+      })) as { whatsappMessageId?: string } | undefined;
+      return {
+        status: 'sent',
+        providerMessageId: result?.whatsappMessageId ?? 'wa',
+        attemptId: 'att',
+      };
+    } catch (error) {
+      const v = classifyDeliveryError(error);
+      return {
+        status: 'failed',
+        errorClass: v.errorClass,
+        retryable: v.retryable,
+        safeToResend: v.safeToResend,
+        message: v.message,
+      };
+    }
+  }),
+};
 
 describe('CampaignsService', () => {
   let service: CampaignsService;
@@ -94,7 +122,7 @@ describe('CampaignsService', () => {
         { provide: BranchesRepository, useValue: mockBranchesRepo },
         { provide: PlansService, useValue: mockPlansService },
         { provide: AuditService, useValue: mockAuditService },
-        { provide: WhatsAppBspService, useValue: mockWhatsAppBspService },
+        { provide: MessagingService, useValue: mockMessaging },
       ],
     }).compile();
 

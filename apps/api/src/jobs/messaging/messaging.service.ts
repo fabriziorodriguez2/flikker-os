@@ -34,8 +34,11 @@ export interface SendMessageInput {
 
 export type SendMessageOutcome =
   | { status: 'sent'; providerMessageId: string; attemptId: string }
-  /** Ya hay un intento vivo (en curso, aceptado o desconocido) con esta clave. */
-  | { status: 'duplicate' }
+  /**
+   * Ya hay un intento vivo con esta clave. `previous` dice cuál: ACCEPTED =
+   * ya salió; IN_FLIGHT = otro lo está mandando; UNKNOWN = no se sabe.
+   */
+  | { status: 'duplicate'; previous: DeliveryAttemptStatus | null }
   | {
       status: 'failed';
       errorClass: DeliveryErrorClass | 'SENDER_PAUSED';
@@ -132,7 +135,20 @@ export class MessagingService {
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === 'P2002'
       ) {
-        return { status: 'duplicate' };
+        const live = await this.prisma.messageDeliveryAttempt.findFirst({
+          where: {
+            idempotencyKey: input.idempotencyKey,
+            status: {
+              in: [
+                DeliveryAttemptStatus.IN_FLIGHT,
+                DeliveryAttemptStatus.ACCEPTED,
+                DeliveryAttemptStatus.UNKNOWN,
+              ],
+            },
+          },
+          select: { status: true },
+        });
+        return { status: 'duplicate', previous: live?.status ?? null };
       }
       throw error;
     }

@@ -78,4 +78,11 @@ export interface WhatsAppProvider {
    * responderla; el caller nunca asume nada sobre el costo.
    */
   isAvailable(): Promise<boolean>;
+
+  /**
+   * Olvida el estado de sesión guardado en memoria, para que el próximo
+   * `isAvailable()` lo vuelva a consultar. Opcional: solo lo implementa un
+   * adapter que cachea (WaSenderAPI).
+   */
+  invalidateAvailability?(): void;
 }

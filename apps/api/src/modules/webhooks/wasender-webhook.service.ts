@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { MessageStatus } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { WhatsAppInboundQueue } from '../../jobs/whatsapp-inbound.queue';
+import { getWhatsAppProvider } from '../../jobs/whatsapp-provider.factory';
 
 /**
  * Webhook de WaSenderAPI — Fase 1 de la migración (§11/§13/§17).
@@ -74,10 +75,13 @@ export class WaSenderWebhookService {
         // ignora explícitamente, no por omisión.
         return;
       case 'session.status':
-        // §9/§10 — la disponibilidad del canal se resuelve consultando
-        // `GET /api/status` bajo demanda (con cache), no escuchando este
-        // evento. Ignorado a propósito: no hay UI ni alerta que dependa de
-        // enterarse en tiempo real acá todavía.
+        // La disponibilidad se sigue resolviendo con `GET /api/status` (con
+        // cache). Este aviso solo invalida ese cache: si la sesión se cayó o
+        // volvió, el próximo envío lo sabe ya, no hasta 60 s después.
+        getWhatsAppProvider().invalidateAvailability?.();
+        this.logger.log(
+          `WaSender session.status: ${stringValue((body.data as Record<string, unknown> | undefined)?.status) ?? 'desconocido'}`,
+        );
         return;
       default:
         // Ignorar eventos que no usamos — literal (§11).

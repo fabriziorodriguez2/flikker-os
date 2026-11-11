@@ -100,6 +100,10 @@ export class WaSenderApiProvider implements WhatsAppProvider {
     }
   }
 
+  invalidateAvailability(): void {
+    this.cached = null;
+  }
+
   async sendText(input: SendTextInput): Promise<SendTextResult> {
     const key = this.apiKey;
     if (!key) {

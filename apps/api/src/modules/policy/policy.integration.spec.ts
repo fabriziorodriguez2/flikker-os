@@ -39,6 +39,36 @@ import {
   type PolicyEffect,
 } from './policy-rules';
 
+// Los envíos pasan por MessagingService, que le pide el proveedor a la
+// factory: se reemplaza para que ningún test llegue a WhatsApp de verdad, y
+// delega en el espía de `WhatsAppBspService.sendText` de abajo para contar
+// qué se mandó.
+jest.mock('../../jobs/whatsapp-provider.factory', () => ({
+  getWhatsAppProvider: () => ({
+    name: 'fake-test',
+    isAvailable: () => Promise.resolve(true),
+    sendText: async (input: { to: string; text: string }) => {
+      const bsp = jest.requireActual<{
+        WhatsAppBspService: {
+          prototype: {
+            sendText: (i: { phone: string; text: string }) => Promise<{
+              whatsappMessageId: string;
+            }>;
+          };
+        };
+      }>('../../jobs/whatsapp-bsp.service');
+      const result = await bsp.WhatsAppBspService.prototype.sendText({
+        phone: input.to,
+        text: input.text,
+      });
+      return {
+        providerMessageId: result.whatsappMessageId,
+        status: 'accepted',
+      };
+    },
+  }),
+}));
+
 /**
  * El motor contra Postgres real y por HTTP: lo que se prueba es que ningún
  * camino (pantalla, reintento, concurrencia, otro negocio, otro rol) pueda

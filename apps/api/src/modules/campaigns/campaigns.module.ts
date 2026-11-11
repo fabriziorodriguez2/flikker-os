@@ -8,6 +8,7 @@ import { PlansModule } from '../plans/plans.module';
 import { JobsModule } from '../../jobs/jobs.module';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AuditService } from '../../common/services/audit.service';
+import { MessagingService } from '../../jobs/messaging/messaging.service';
 
 @Module({
   imports: [PlansModule, BranchesModule, JobsModule],
@@ -18,6 +19,8 @@ import { AuditService } from '../../common/services/audit.service';
     CampaignStatsService,
     RolesGuard,
     AuditService,
+    // Promociones manuales: intentos registrados y sin duplicados.
+    MessagingService,
   ],
   exports: [CampaignsService, CampaignsRepository, CampaignStatsService],
 })

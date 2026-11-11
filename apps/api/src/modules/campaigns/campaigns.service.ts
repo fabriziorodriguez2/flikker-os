@@ -15,7 +15,7 @@ import { UpdateCampaignDto } from './dto/update-campaign.dto';
 import { UpdateRepeatCampaignDto } from './dto/update-repeat-campaign.dto';
 import { UpdateCampaignStatusDto } from './dto/update-campaign-status.dto';
 import { SendManualCampaignDto } from './dto/send-manual-campaign.dto';
-import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
+import { MessagingService } from '../../jobs/messaging/messaging.service';
 import {
   WHATSAPP_MIN_SEND_INTERVAL_MS,
   WhatsAppProviderError,
@@ -67,7 +67,7 @@ export class CampaignsService {
     private readonly branchesRepository: BranchesRepository,
     private readonly plansService: PlansService,
     private readonly auditService: AuditService,
-    private readonly whatsApp: WhatsAppBspService,
+    private readonly messaging: MessagingService,
   ) {}
 
   async listForBusiness(
@@ -348,19 +348,38 @@ export class CampaignsService {
         }
         lastAttemptStartedAt = Date.now();
 
-        try {
-          await this.whatsApp.sendText({ phone: contact.phoneE164, text });
+        // Por la capa de mensajería: registra cada intento (comercio, sesión
+        // remitente, destinatario) y nunca manda dos veces el mismo contacto.
+        const outcome = await this.messaging.send({
+          businessId,
+          customerId: contact.customerId,
+          purpose: 'PROMOTION',
+          idempotencyKey: `promotion:${contact.id}`,
+          to: contact.phoneE164,
+          text,
+        });
+        if (outcome.status === 'sent') {
           delivered = true;
           break;
-        } catch (err) {
-          lastError = err;
-          const isLastAttempt = attempt >= MANUAL_CAMPAIGN_MAX_SEND_ATTEMPTS;
-          if (!isRetryableRateLimitError(err) || isLastAttempt) break;
-          // Backoff creciente (5s, 10s, ...) — también deja pasado el piso
-          // mínimo entre intentos, así que no hace falta esperar de nuevo.
-          await this.sleep(MANUAL_CAMPAIGN_MIN_SEND_INTERVAL_MS * attempt);
-          lastAttemptStartedAt = Date.now();
         }
+        if (outcome.status === 'duplicate') {
+          // Un intento anterior ya lo tomó: si fue aceptado salió; si no se
+          // sabe, no se reenvía (mejor uno menos que uno duplicado).
+          delivered = outcome.previous === 'ACCEPTED';
+          if (!delivered) {
+            lastError = new Error(
+              'Resultado incierto de un intento anterior: no se reenvía.',
+            );
+          }
+          break;
+        }
+        lastError = new Error(outcome.message);
+        const isLastAttempt = attempt >= MANUAL_CAMPAIGN_MAX_SEND_ATTEMPTS;
+        if (outcome.errorClass !== 'RATE_LIMITED' || isLastAttempt) break;
+        // Backoff creciente (5s, 10s, ...) — también deja pasado el piso
+        // mínimo entre intentos, así que no hace falta esperar de nuevo.
+        await this.sleep(MANUAL_CAMPAIGN_MIN_SEND_INTERVAL_MS * attempt);
+        lastAttemptStartedAt = Date.now();
       }
 
       if (delivered) {
