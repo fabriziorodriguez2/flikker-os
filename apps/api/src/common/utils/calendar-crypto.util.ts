@@ -39,7 +39,10 @@ export function decryptToken(encoded: string): string {
     encoded.slice(IV_BYTES * 2, (IV_BYTES + TAG_BYTES) * 2),
     'hex',
   );
-  const ciphertext = Buffer.from(encoded.slice((IV_BYTES + TAG_BYTES) * 2), 'hex');
+  const ciphertext = Buffer.from(
+    encoded.slice((IV_BYTES + TAG_BYTES) * 2),
+    'hex',
+  );
   const decipher = createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(tag);
   return decipher.update(ciphertext).toString('utf8') + decipher.final('utf8');

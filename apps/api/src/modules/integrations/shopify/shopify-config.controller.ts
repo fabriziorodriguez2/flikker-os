@@ -32,7 +32,10 @@ export class ShopifyConfigController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: UpsertShopifyIntegrationDto,
   ) {
-    return this.shopifyConfigService.upsertIntegration(req.currentBusinessId!, dto);
+    return this.shopifyConfigService.upsertIntegration(
+      req.currentBusinessId!,
+      dto,
+    );
   }
 
   @Delete()

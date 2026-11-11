@@ -39,7 +39,10 @@ import {
  */
 class FakeJwtGuard implements CanActivate {
   canActivate(context: ExecutionContext) {
-    const req = context.switchToHttp().getRequest();
+    const req = context.switchToHttp().getRequest<{
+      headers: Record<string, string | string[] | undefined>;
+      user?: unknown;
+    }>();
     const userId = req.headers['x-test-user-id'];
     req.user = {
       id: Array.isArray(userId) ? userId[0] : (userId ?? 'missing-user'),
@@ -135,8 +138,12 @@ describe('Clientes LEGACY — acceso al panel (e2e)', () => {
         .set(headers)
         .expect(200);
 
-      expect(res.body.experienceVersion).toBe('LEGACY');
-      expect(res.body.onboardingCompletedAt).toBeNull();
+      const body = res.body as {
+        experienceVersion: string;
+        onboardingCompletedAt: string | null;
+      };
+      expect(body.experienceVersion).toBe('LEGACY');
+      expect(body.onboardingCompletedAt).toBeNull();
     });
 
     it('GET /onboarding/state NUNCA trata al negocio LEGACY como un draft — la causa real del bug', async () => {
@@ -150,7 +157,7 @@ describe('Clientes LEGACY — acceso al panel (e2e)', () => {
       // Antes del fix esto devolvía el id del negocio LEGACY como si fuera
       // un borrador en curso, y eso era lo que disparaba el redirect a
       // `/comenzar` en cada navegación del panel.
-      expect(res.body.businessId).toBeNull();
+      expect((res.body as { businessId: string | null }).businessId).toBeNull();
     });
   });
 

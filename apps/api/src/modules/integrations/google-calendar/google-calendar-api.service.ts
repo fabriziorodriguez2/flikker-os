@@ -21,9 +21,7 @@ export interface GoogleCalendarEvent {
 export class GoogleCalendarApiService {
   private readonly logger = new Logger(GoogleCalendarApiService.name);
 
-  async listCalendars(
-    accessToken: string,
-  ): Promise<GoogleCalendarListEntry[]> {
+  async listCalendars(accessToken: string): Promise<GoogleCalendarListEntry[]> {
     const res = await fetch(`${BASE}/users/me/calendarList`, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
@@ -33,7 +31,7 @@ export class GoogleCalendarApiService {
       throw new Error('Failed to list calendars');
     }
 
-    const data = await res.json();
+    const data = (await res.json()) as { items?: Record<string, unknown>[] };
     return (data.items ?? []).map((item: Record<string, unknown>) => ({
       id: item.id as string,
       summary: (item.summary as string | undefined) ?? '',
@@ -68,7 +66,7 @@ export class GoogleCalendarApiService {
       throw new Error(`Failed to list events for calendar ${calendarId}`);
     }
 
-    const data = await res.json();
+    const data = (await res.json()) as { items?: Record<string, unknown>[] };
     return (data.items ?? []).map(
       (item: Record<string, unknown>): GoogleCalendarEvent => ({
         id: item.id as string,
@@ -91,7 +89,7 @@ export class GoogleCalendarApiService {
     });
     if (res.status === 404 || res.status === 410) return null;
     if (!res.ok) return null;
-    const data = await res.json();
+    const data = (await res.json()) as Record<string, unknown>;
     return {
       id: data.id as string,
       summary: (data.summary as string | undefined) ?? '',

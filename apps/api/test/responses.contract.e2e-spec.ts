@@ -22,9 +22,23 @@ import {
   makeTestSuffix,
 } from '../src/modules/reviews/reviews.test-helpers';
 
+/** Campos que estos tests leen de las respuestas JSON. */
+interface ResponseBody {
+  id: unknown;
+  status: unknown;
+  respondedByUserId: unknown;
+  respondedAt: unknown;
+  isHighlighted: unknown;
+  total: unknown;
+  data: unknown[];
+}
+
 class FakeJwtGuard implements CanActivate {
   canActivate(context: ExecutionContext) {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<{
+      headers: Record<string, string | string[] | undefined>;
+      user?: unknown;
+    }>();
     const userId = request.headers['x-test-user-id'];
 
     request.user = {
@@ -137,10 +151,10 @@ describe('Responses contract (e2e)', () => {
       reviewId: review.id,
       content: 'Thanks for training with us',
       respondedByUserId: user.id,
-      respondedAt: expect.any(String),
+      respondedAt: expect.any(String) as unknown,
     });
 
-    const responseId = createResponse.body.id as string;
+    const responseId = (createResponse.body as ResponseBody).id as string;
     createdIds.responseIds.push(responseId);
 
     const getByReview = await request(app.getHttpServer())
@@ -171,9 +185,13 @@ describe('Responses contract (e2e)', () => {
       .set(headers)
       .expect(200);
 
-    expect(syncedReview.body.status).toBe(ReviewStatus.RESPONDED);
-    expect(syncedReview.body.respondedByUserId).toBe(user.id);
-    expect(syncedReview.body.respondedAt).toEqual(expect.any(String));
+    expect((syncedReview.body as ResponseBody).status).toBe(
+      ReviewStatus.RESPONDED,
+    );
+    expect((syncedReview.body as ResponseBody).respondedByUserId).toBe(user.id);
+    expect((syncedReview.body as ResponseBody).respondedAt).toEqual(
+      expect.any(String) as unknown,
+    );
   });
 
   it('enforces tenant access for responses', async () => {

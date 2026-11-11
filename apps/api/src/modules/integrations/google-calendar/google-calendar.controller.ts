@@ -93,10 +93,7 @@ export class GoogleCalendarController {
   @Patch('events/:id/skip')
   @UseGuards(JwtGuard, TenantGuard, RolesGuard)
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
-  skipEvent(
-    @Req() req: AuthenticatedRequest,
-    @Param('id') id: string,
-  ) {
+  skipEvent(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
     return this.service.skipEvent(req.currentBusinessId!, id);
   }
 

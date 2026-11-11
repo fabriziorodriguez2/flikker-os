@@ -20,9 +20,9 @@ describe('GoogleCalendarParserService', () => {
   });
 
   it('parses international +598 format', () => {
-    const r = parse('María García +598912345678');
+    const r = parse('María García +59891234567');
     expect(r.customerName).toBe('María García');
-    expect(r.customerPhone).toBe('+598912345678');
+    expect(r.customerPhone).toBe('+59891234567');
   });
 
   it('parses phone with spaces', () => {

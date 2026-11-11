@@ -27,6 +27,32 @@ describe('Subscription — capacidades independientes de sellos/Beneficios (inte
       await prisma.$connect();
       plans = new PlansService(new PlansRepository(prisma));
 
+      // El 'pro' histórico lo crea el seed, que CI no corre: si falta, se crea
+      // con los mismos valores. `update: {}` = nunca se pisa uno existente.
+      await prisma.plan.upsert({
+        where: { slug: 'pro' },
+        update: {},
+        create: {
+          slug: 'pro',
+          name: 'Pro',
+          description:
+            'USD 129/mes + setup USD 99, incluye 600 mensajes WhatsApp/mes.',
+          maxBranches: 10,
+          maxMembers: 15,
+          maxCampaigns: 20,
+          maxReviewsPerMonth: 600,
+          priceMonthly: 12900,
+          priceUsd: 129,
+          currency: 'USD',
+          priceAmount: 129,
+          setupFeeUsd: 99,
+          messageQuotaMonthly: 600,
+          trialDays: 0,
+          displayOrder: 2,
+          isActive: true,
+        },
+      });
+
       const business = await prisma.business.create({
         data: {
           name: 'Café Capacidades',

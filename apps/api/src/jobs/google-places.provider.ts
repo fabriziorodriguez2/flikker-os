@@ -83,10 +83,15 @@ export class GooglePlacesProvider {
       return [];
     }
 
-    const body = await this.request(apiKey, SEARCH_ENDPOINT, SEARCH_FIELD_MASK, {
-      method: 'POST',
-      body: JSON.stringify({ textQuery: query, maxResultCount: MAX_RESULTS }),
-    });
+    const body = await this.request(
+      apiKey,
+      SEARCH_ENDPOINT,
+      SEARCH_FIELD_MASK,
+      {
+        method: 'POST',
+        body: JSON.stringify({ textQuery: query, maxResultCount: MAX_RESULTS }),
+      },
+    );
     if (!body) return [];
 
     const parsed = JSON.parse(body) as { places?: GooglePlaceApiShape[] };

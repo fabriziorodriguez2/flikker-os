@@ -166,7 +166,10 @@ describe('BenefitParticipation — múltiples emisiones del mismo Benefit (integ
     );
 
     // El canje de la primera nunca bloqueó ni afectó el de la segunda.
-    expect(secondRedeem).toMatchObject({ status: 'ok', participationId: p2.id });
+    expect(secondRedeem).toMatchObject({
+      status: 'ok',
+      participationId: p2.id,
+    });
   });
 
   it('un QR ya canjeado nunca vuelve a ser válido', async () => {

@@ -49,18 +49,20 @@ describe('GooglePlacesProvider', () => {
     it('searchText llama a Places Text Search con FieldMask y mapea los resultados', async () => {
       const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
         ok: true,
-        text: async () =>
-          JSON.stringify({
-            places: [
-              {
-                id: 'p1',
-                displayName: { text: 'Café Uno' },
-                formattedAddress: 'Av. Siempre Viva 123',
-                rating: 4.5,
-                userRatingCount: 10,
-              },
-            ],
-          }),
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              places: [
+                {
+                  id: 'p1',
+                  displayName: { text: 'Café Uno' },
+                  formattedAddress: 'Av. Siempre Viva 123',
+                  rating: 4.5,
+                  userRatingCount: 10,
+                },
+              ],
+            }),
+          ),
       } as Response);
 
       const result = await provider.searchText('Café Uno');
@@ -89,18 +91,20 @@ describe('GooglePlacesProvider', () => {
     it('getDetails devuelve writeAReviewUri/reviewsUri de googleMapsLinks', async () => {
       jest.spyOn(global, 'fetch').mockResolvedValue({
         ok: true,
-        text: async () =>
-          JSON.stringify({
-            id: 'p1',
-            displayName: { text: 'Café Uno' },
-            formattedAddress: 'Av. Siempre Viva 123',
-            rating: 4.5,
-            userRatingCount: 10,
-            googleMapsLinks: {
-              writeAReviewUri: 'https://g.co/write/p1',
-              reviewsUri: 'https://g.co/reviews/p1',
-            },
-          }),
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              id: 'p1',
+              displayName: { text: 'Café Uno' },
+              formattedAddress: 'Av. Siempre Viva 123',
+              rating: 4.5,
+              userRatingCount: 10,
+              googleMapsLinks: {
+                writeAReviewUri: 'https://g.co/write/p1',
+                reviewsUri: 'https://g.co/reviews/p1',
+              },
+            }),
+          ),
       } as Response);
 
       const result = await provider.getDetails('p1');
@@ -121,7 +125,7 @@ describe('GooglePlacesProvider', () => {
         ok: false,
         status: 400,
         statusText: 'Bad Request',
-        text: async () => '{}',
+        text: () => Promise.resolve('{}'),
       } as Response);
 
       expect(await provider.searchText('x')).toEqual([]);
@@ -130,20 +134,26 @@ describe('GooglePlacesProvider', () => {
 
     it('loguea el motivo real que devuelve Google (no solo el status code)', async () => {
       const warnSpy = jest
-        .spyOn((provider as unknown as { logger: { warn: () => void } }).logger, 'warn')
+        .spyOn(
+          (provider as unknown as { logger: { warn: () => void } }).logger,
+          'warn',
+        )
         .mockImplementation(() => undefined);
       jest.spyOn(global, 'fetch').mockResolvedValue({
         ok: false,
         status: 403,
         statusText: 'Forbidden',
-        text: async () =>
-          JSON.stringify({
-            error: {
-              code: 403,
-              message: 'Places API (New) has not been used in project ... or it is disabled.',
-              status: 'PERMISSION_DENIED',
-            },
-          }),
+        text: () =>
+          Promise.resolve(
+            JSON.stringify({
+              error: {
+                code: 403,
+                message:
+                  'Places API (New) has not been used in project ... or it is disabled.',
+                status: 'PERMISSION_DENIED',
+              },
+            }),
+          ),
       } as Response);
 
       await provider.searchText('x');

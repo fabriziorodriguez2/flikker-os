@@ -12,10 +12,9 @@ describe('validateChatbotDataAnswer', () => {
   });
 
   it('acepta números con coma decimal (es-UY) presentes en el payload', () => {
-    const result = validateChatbotDataAnswer(
-      'Vuelven 1,7 veces más seguido.',
-      { upliftFactor: 1.7 },
-    );
+    const result = validateChatbotDataAnswer('Vuelven 1,7 veces más seguido.', {
+      upliftFactor: 1.7,
+    });
     expect(result).toEqual({ valid: true });
   });
 

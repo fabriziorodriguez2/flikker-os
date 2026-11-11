@@ -189,7 +189,8 @@ export class GoogleCalendarService {
       where: { businessId },
       select: { id: true, encryptedRefreshToken: true },
     });
-    if (!integration) throw new NotFoundException('Google Calendar not connected');
+    if (!integration)
+      throw new NotFoundException('Google Calendar not connected');
     return integration;
   }
 

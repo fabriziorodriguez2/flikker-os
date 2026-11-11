@@ -48,7 +48,11 @@ export class ShopifyWebhookController {
       throw new UnauthorizedException('Missing HMAC signature');
     }
 
-    const valid = this.hmacService.verify(req.rawBody, hmacHeader, integration.webhookSecret);
+    const valid = this.hmacService.verify(
+      req.rawBody,
+      hmacHeader,
+      integration.webhookSecret,
+    );
     if (!valid) {
       this.logger.warn(`Invalid HMAC for shop: ${shopDomain}`);
       throw new UnauthorizedException('Invalid HMAC signature');
@@ -56,12 +60,14 @@ export class ShopifyWebhookController {
 
     const order = req.body as ShopifyOrderWebhookDto;
 
-    void this.webhookService.processOrder(shopDomain, order).catch((err: unknown) => {
-      this.logger.error(
-        `Shopify order processing failed for shop ${shopDomain}`,
-        err instanceof Error ? err.stack : String(err),
-      );
-    });
+    void this.webhookService
+      .processOrder(shopDomain, order)
+      .catch((err: unknown) => {
+        this.logger.error(
+          `Shopify order processing failed for shop ${shopDomain}`,
+          err instanceof Error ? err.stack : String(err),
+        );
+      });
 
     return { ok: true };
   }

@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { randomBytes } from 'crypto';
-import { MessageChannel, MessageStatus, ServiceEventCreatedVia } from '@prisma/client';
+import {
+  MessageChannel,
+  MessageStatus,
+  ServiceEventCreatedVia,
+} from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { ReviewRequestQueue } from '../../../jobs/review-request.queue';
 import { normalizeToE164 } from '../../../common/utils/phone.util';
@@ -15,7 +19,10 @@ export class ShopifyWebhookService {
     private readonly reviewRequestQueue: ReviewRequestQueue,
   ) {}
 
-  async processOrder(shopDomain: string, order: ShopifyOrderWebhookDto): Promise<void> {
+  async processOrder(
+    shopDomain: string,
+    order: ShopifyOrderWebhookDto,
+  ): Promise<void> {
     const integration = await this.prisma.shopifyIntegration.findUnique({
       where: { shopDomain },
     });
@@ -27,11 +34,18 @@ export class ShopifyWebhookService {
 
     const shopifyOrderId = String(order.id);
     const existing = await this.prisma.shopifyOrder.findUnique({
-      where: { integrationId_shopifyOrderId: { integrationId: integration.id, shopifyOrderId } },
+      where: {
+        integrationId_shopifyOrderId: {
+          integrationId: integration.id,
+          shopifyOrderId,
+        },
+      },
     });
 
     if (existing) {
-      this.logger.log(`Duplicate Shopify order ${shopifyOrderId} for integration ${integration.id} — skipping`);
+      this.logger.log(
+        `Duplicate Shopify order ${shopifyOrderId} for integration ${integration.id} — skipping`,
+      );
       return;
     }
 
@@ -42,13 +56,11 @@ export class ShopifyWebhookService {
       order.shipping_address?.phone ||
       '';
 
-    const customerName = [
-      order.customer?.first_name,
-      order.customer?.last_name,
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .trim() || 'Cliente';
+    const customerName =
+      [order.customer?.first_name, order.customer?.last_name]
+        .filter(Boolean)
+        .join(' ')
+        .trim() || 'Cliente';
 
     const customerEmail = order.customer?.email || order.email || undefined;
 
@@ -84,7 +96,9 @@ export class ShopifyWebhookService {
           skipReason: 'invalid_phone',
         },
       });
-      this.logger.log(`Shopify order ${shopifyOrderId}: invalid phone "${rawPhone}" — skipped`);
+      this.logger.log(
+        `Shopify order ${shopifyOrderId}: invalid phone "${rawPhone}" — skipped`,
+      );
       return;
     }
 
@@ -95,7 +109,10 @@ export class ShopifyWebhookService {
     const customer = existingCustomer
       ? await this.prisma.customer.update({
           where: { id: existingCustomer.id },
-          data: { name: customerName, ...(customerEmail ? { email: customerEmail } : {}) },
+          data: {
+            name: customerName,
+            ...(customerEmail ? { email: customerEmail } : {}),
+          },
         })
       : await this.prisma.customer.create({
           data: {
@@ -119,7 +136,9 @@ export class ShopifyWebhookService {
           skipReason: 'opted_out',
         },
       });
-      this.logger.log(`Shopify order ${shopifyOrderId}: customer opted out — skipped`);
+      this.logger.log(
+        `Shopify order ${shopifyOrderId}: customer opted out — skipped`,
+      );
       return;
     }
 
@@ -156,10 +175,15 @@ export class ShopifyWebhookService {
       },
     });
 
-    const delayHours = campaign?.reviewRequestDelayHours ?? integration.delayHours;
+    const delayHours =
+      campaign?.reviewRequestDelayHours ?? integration.delayHours;
     const delayMs = delayHours * 60 * 60 * 1000;
     await this.reviewRequestQueue.enqueue(
-      { messageId: message.id, customerId: customer.id, businessId: integration.businessId },
+      {
+        messageId: message.id,
+        customerId: customer.id,
+        businessId: integration.businessId,
+      },
       delayMs,
     );
 

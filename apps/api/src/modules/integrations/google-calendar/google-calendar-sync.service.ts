@@ -1,9 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { CalendarEventStatus, CalendarIntegrationStatus } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
-import {
-  decryptToken,
-} from '../../../common/utils/calendar-crypto.util';
+import { decryptToken } from '../../../common/utils/calendar-crypto.util';
 import { GoogleCalendarOAuthService } from './google-calendar-oauth.service';
 import {
   GoogleCalendarApiService,
@@ -224,10 +222,7 @@ export class GoogleCalendarSyncService {
       eventId = created.id;
     }
 
-    if (
-      status === CalendarEventStatus.pending &&
-      integration.autoSendEnabled
-    ) {
+    if (status === CalendarEventStatus.pending && integration.autoSendEnabled) {
       const effectiveEnd = endAt ?? startAt;
       const fireAt = new Date(
         effectiveEnd.getTime() + integration.sendDelayHours * 3_600_000,

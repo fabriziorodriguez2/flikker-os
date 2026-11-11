@@ -1,11 +1,5 @@
 import { BusinessGoalType } from '@prisma/client';
-import {
-  IsEnum,
-  IsInt,
-  IsISO8601,
-  IsOptional,
-  Min,
-} from 'class-validator';
+import { IsEnum, IsInt, IsISO8601, IsOptional, Min } from 'class-validator';
 
 export class CreateBusinessGoalDto {
   @IsEnum(BusinessGoalType)

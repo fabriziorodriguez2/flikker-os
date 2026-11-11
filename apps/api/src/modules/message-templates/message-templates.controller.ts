@@ -28,7 +28,10 @@ export class MessageTemplatesController {
   @Post()
   @UseGuards(RolesGuard)
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.OPERATOR)
-  create(@Req() req: AuthenticatedRequest, @Body() dto: CreateMessageTemplateDto) {
+  create(
+    @Req() req: AuthenticatedRequest,
+    @Body() dto: CreateMessageTemplateDto,
+  ) {
     return this.messageTemplatesService.create(req.currentBusinessId!, dto);
   }
 

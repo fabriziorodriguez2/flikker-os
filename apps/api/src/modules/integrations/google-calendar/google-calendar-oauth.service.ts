@@ -81,7 +81,7 @@ export class GoogleCalendarOAuthService {
       throw new Error('Failed to refresh access token');
     }
 
-    const data = await res.json();
+    const data = (await res.json()) as Record<string, unknown>;
     return this.parseTokenResponse({ ...data, refresh_token: refreshToken });
   }
 

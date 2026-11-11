@@ -183,7 +183,12 @@ export class TestLabService {
     await this.emailService.send({
       to: [email],
       subject: `Resumen semanal de ${business.name} (prueba)`,
-      html: renderWeeklySummaryEmail({ businessName: business.name, current, previous, panelUrl }),
+      html: renderWeeklySummaryEmail({
+        businessName: business.name,
+        current,
+        previous,
+        panelUrl,
+      }),
     });
 
     return { ok: true, sentTo: email };
@@ -206,7 +211,10 @@ export class TestLabService {
     const averageRating =
       ratingSample.length > 0
         ? Number(
-            (ratingSample.reduce((sum, r) => sum + r.stars, 0) / ratingSample.length).toFixed(1),
+            (
+              ratingSample.reduce((sum, r) => sum + r.stars, 0) /
+              ratingSample.length
+            ).toFixed(1),
           )
         : 0;
 

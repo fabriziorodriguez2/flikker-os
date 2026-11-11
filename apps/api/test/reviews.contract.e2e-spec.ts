@@ -24,9 +24,23 @@ import {
   makeTestSuffix,
 } from '../src/modules/reviews/reviews.test-helpers';
 
+/** Campos que estos tests leen de las respuestas JSON. */
+interface ResponseBody {
+  id: unknown;
+  status: unknown;
+  respondedByUserId: unknown;
+  respondedAt: unknown;
+  isHighlighted: unknown;
+  total: unknown;
+  data: unknown[];
+}
+
 class FakeJwtGuard implements CanActivate {
   canActivate(context: ExecutionContext) {
-    const request = context.switchToHttp().getRequest();
+    const request = context.switchToHttp().getRequest<{
+      headers: Record<string, string | string[] | undefined>;
+      user?: unknown;
+    }>();
     const userId = request.headers['x-test-user-id'];
 
     request.user = {
@@ -165,7 +179,7 @@ describe('Reviews contract (e2e)', () => {
       respondedByUserId: null,
     });
 
-    const createdReviewId = createResponse.body.id as string;
+    const createdReviewId = (createResponse.body as ResponseBody).id as string;
     createdIds.reviewIds.push(createdReviewId);
 
     const listResponse = await request(app.getHttpServer())
@@ -179,9 +193,9 @@ describe('Reviews contract (e2e)', () => {
       })
       .expect(200);
 
-    expect(listResponse.body.total).toBe(1);
-    expect(listResponse.body.data).toHaveLength(1);
-    expect(listResponse.body.data[0]).toMatchObject({
+    expect((listResponse.body as ResponseBody).total).toBe(1);
+    expect((listResponse.body as ResponseBody).data).toHaveLength(1);
+    expect((listResponse.body as ResponseBody).data[0]).toMatchObject({
       id: createdReviewId,
       businessId: business.id,
       campaign: { id: campaign.id, name: campaign.name },
@@ -203,9 +217,15 @@ describe('Reviews contract (e2e)', () => {
       .set(headers)
       .expect(201);
 
-    expect(respondedResponse.body.status).toBe(ReviewStatus.RESPONDED);
-    expect(respondedResponse.body.respondedByUserId).toBe(user.id);
-    expect(respondedResponse.body.respondedAt).toEqual(expect.any(String));
+    expect((respondedResponse.body as ResponseBody).status).toBe(
+      ReviewStatus.RESPONDED,
+    );
+    expect((respondedResponse.body as ResponseBody).respondedByUserId).toBe(
+      user.id,
+    );
+    expect((respondedResponse.body as ResponseBody).respondedAt).toEqual(
+      expect.any(String) as unknown,
+    );
 
     await request(app.getHttpServer())
       .post(`/reviews/${createdReviewId}/highlight`)
@@ -223,11 +243,11 @@ describe('Reviews contract (e2e)', () => {
       })
       .expect(200);
 
-    expect(highlightedList.body.total).toBe(1);
-    expect(highlightedList.body.data[0]).toMatchObject({
+    expect((highlightedList.body as ResponseBody).total).toBe(1);
+    expect((highlightedList.body as ResponseBody).data[0]).toMatchObject({
       id: createdReviewId,
       isHighlighted: true,
-      respondedAt: expect.any(String),
+      respondedAt: expect.any(String) as unknown,
     });
 
     const unhighlightedResponse = await request(app.getHttpServer())
@@ -235,7 +255,9 @@ describe('Reviews contract (e2e)', () => {
       .set(headers)
       .expect(201);
 
-    expect(unhighlightedResponse.body.isHighlighted).toBe(false);
+    expect((unhighlightedResponse.body as ResponseBody).isHighlighted).toBe(
+      false,
+    );
   });
 
   it('enforces tenant membership and cross-tenant access rules', async () => {

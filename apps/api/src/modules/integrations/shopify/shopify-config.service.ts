@@ -21,8 +21,14 @@ export class ShopifyConfigService {
     return { integration };
   }
 
-  async upsertIntegration(businessId: string, dto: UpsertShopifyIntegrationDto) {
-    const shopDomain = dto.shopDomain.toLowerCase().trim().replace(/^https?:\/\//, '');
+  async upsertIntegration(
+    businessId: string,
+    dto: UpsertShopifyIntegrationDto,
+  ) {
+    const shopDomain = dto.shopDomain
+      .toLowerCase()
+      .trim()
+      .replace(/^https?:\/\//, '');
 
     const integration = await this.prisma.shopifyIntegration.upsert({
       where: { businessId },

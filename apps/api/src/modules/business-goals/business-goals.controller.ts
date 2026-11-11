@@ -21,10 +21,7 @@ export class BusinessGoalsController {
   @Post()
   @UseGuards(RolesGuard)
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN)
-  create(
-    @Req() req: AuthenticatedRequest,
-    @Body() dto: CreateBusinessGoalDto,
-  ) {
+  create(@Req() req: AuthenticatedRequest, @Body() dto: CreateBusinessGoalDto) {
     return this.service.create(req.currentBusinessId!, dto);
   }
 }
