@@ -50,7 +50,6 @@ export const PLANNER_MAX_REPAIRS = 2;
 const MAX_OUTPUT_TOKENS = 6_000;
 /** Corte de consumo por corrida: con esto ni un modelo caro se dispara. */
 const MAX_INPUT_TOKENS_PER_RUN = 200_000;
-const RUN_TIMEOUT_MS = 180_000;
 /** Un plan simulado no se vuelve a proponer igual durante esta ventana. */
 const SIMULATED_DEDUPE_DAYS = 7;
 const HISTORY_DAYS = 60;
@@ -243,7 +242,10 @@ export class PlannerService {
     ];
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), RUN_TIMEOUT_MS);
+    const timer = setTimeout(
+      () => controller.abort(),
+      this.config.plannerTimeoutMs,
+    );
     const startedAt = Date.now();
     let inputTokens = 0;
     let outputTokens = 0;
@@ -675,6 +677,16 @@ export class PlannerService {
               0,
               config.maxUniqueRecipientsPerWeek - usage.recipientsThisWeek.size,
             ),
+      // La misma cuenta que la política: su parte de las dos bolsas juntas.
+      maxCostPerCampaign:
+        config.messagingBudgetMonthly === null ||
+        config.maxCampaignSharePercent === null
+          ? null
+          : Math.round(
+              (config.messagingBudgetMonthly +
+                (config.incentiveBudgetMonthly ?? 0)) *
+                config.maxCampaignSharePercent,
+            ) / 100,
     };
   }
 

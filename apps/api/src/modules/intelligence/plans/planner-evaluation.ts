@@ -55,6 +55,11 @@ export interface PlannerBudget {
   incentiveRemaining: number | null;
   /** Clientes nuevos que todavía se pueden contactar esta semana; null = sin tope. */
   weeklyRecipientsRemaining: number | null;
+  /**
+   * Lo máximo que puede costar UNA campaña según la política (su parte de
+   * los presupuestos). null o ausente = sin tope.
+   */
+  maxCostPerCampaign?: number | null;
 }
 
 export interface EvaluationContext {
@@ -146,9 +151,15 @@ export function groundedNumbers(
 /**
  * Números escritos en un texto que no salen de los datos. Los enteros chicos
  * (0 a 3) pasan: "una sola visita", "dos semanas", sin riesgo de inventar.
+ * Los nombres de métricas citados ("redemptions.last_90d") no son números
+ * del texto: el 90 es parte del nombre.
  */
 export function ungroundedNumbers(text: string, grounded: number[]): number[] {
-  return extractNumbers(text).filter(
+  const withoutMetricKeys = text.replace(
+    new RegExp(METRIC_KEY.source, 'gi'),
+    ' ',
+  );
+  return extractNumbers(withoutMetricKeys).filter(
     (n) =>
       !(Number.isInteger(n) && n >= 0 && n <= 3) &&
       !grounded.some((g) => isBackedBy(n, g)),
@@ -328,12 +339,29 @@ export function evaluateSubmission(
 
     const unit = ctx.budget.messageUnitCost ?? 0;
     let cost = estimatePlanCost(plan, size, ctx.incentives, unit);
-    // Si no entra en lo que queda del presupuesto, se achica; si ni así, no va.
+    // Si no entra en lo que queda del presupuesto o pasa el tope por campaña,
+    // se achica; si ni así, no va.
+    const campaignCap = ctx.budget.maxCostPerCampaign ?? null;
+    // El tope por campaña se controla como lo hace la política al ejecutar:
+    // en el peor caso, mensaje e incentivo más caro para todo el grupo.
+    const worstUnit =
+      unit +
+      Math.max(
+        0,
+        ...plan.variants.map((v) =>
+          v.incentiveId
+            ? (ctx.incentives.get(v.incentiveId)?.unitCost ?? 0)
+            : 0,
+        ),
+      );
+    const overCap = (n: number) =>
+      campaignCap !== null && n * worstUnit > campaignCap;
     while (
       size >= MIN_PLAN_RECIPIENTS &&
       ((messagingLeft !== null && cost.messaging > messagingLeft) ||
         (incentivesLeft !== null &&
-          cost.incentivesMaxLiability > incentivesLeft))
+          cost.incentivesMaxLiability > incentivesLeft) ||
+        overCap(size))
     ) {
       size -= 1;
       cost = estimatePlanCost(plan, size, ctx.incentives, unit);
@@ -344,7 +372,9 @@ export function evaluateSubmission(
         issue(
           path,
           'BUDGET',
-          'No entra en lo que queda del presupuesto del mes.',
+          overCap(MIN_PLAN_RECIPIENTS)
+            ? `Ni con ${MIN_PLAN_RECIPIENTS} clientes entra en el tope por campaña (${campaignCap}).`
+            : 'No entra en lo que queda del presupuesto del mes.',
         ),
       );
       continue;

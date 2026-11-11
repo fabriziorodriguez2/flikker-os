@@ -56,6 +56,7 @@ Medir y aprender son las fases siguientes (ver Pendientes).
 | Modelo del planificador | `AI_PLANNER_MODEL` (por defecto `AI_MODEL`) |
 | Precios para el costo | `AI_PLANNER_PRICE_INPUT_PER_MILLION_USD`, `AI_PLANNER_PRICE_OUTPUT_PER_MILLION_USD` |
 | Topes por negocio | `AI_PLANNER_MAX_RUNS_PER_DAY` (3), `AI_PLANNER_MONTHLY_USD_CAP` (USD 2) |
+| Tiempo máximo por corrida | `AI_PLANNER_TIMEOUT_MS` (300000; gpt-5-mini tarda 1 a 3 minutos) |
 | Negocio | `RetentionSettings.aiInsightsEnabled = true` |
 | Corrida diaria con IA | Platform: `PATCH /platform/businesses/:id/autonomy` con `{ "mode": "DRY_RUN", "plannerEnabled": true }` |
 | Corrida a pedido | Dueño o admin: `POST /intelligence/autonomy/planner/run` |

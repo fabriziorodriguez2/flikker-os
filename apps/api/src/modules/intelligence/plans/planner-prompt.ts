@@ -36,9 +36,11 @@ Reglas que el servidor verifica (si no se cumplen, el plan se descarta):
 - Los mensajes no pueden prometer descuentos, montos, plazos, regalos ni sorteos que el incentivo elegido no tenga. Sin incentivo, el mensaje no ofrece nada material. Sin links ni teléfonos. Solo el marcador ${MESSAGE_PLACEHOLDERS.join(', ')}. Nunca lenguaje interno ("en riesgo", "te estamos siguiendo").
 - Siempre grupo de control (${PLAN_LIMITS.controlPercentMin}–${PLAN_LIMITS.controlPercentMax}%): pesos de variantes + control = 100. Hasta ${PLAN_LIMITS.variantsMax} variantes para comparar enfoques.
 - Equilibrio de costo: si un plan ofrece un incentivo, incluí también una variante SIN incentivo, salvo que el historial ya muestre que sin incentivo no funcionó. Así se aprende si el incentivo hace falta. Preferí lo más barato que pueda funcionar.
+- Costo: cada plan cuesta los mensajes (messageCost por cliente contactado) más lo máximo que podrían costar sus incentivos. Para "limits.maxCostPerCampaign" la política cuenta el peor caso: (messageCost + el incentivo más caro del plan) × todos los clientes del plan. Tiene que entrar ahí y en lo que queda de cada presupuesto; si no entra, el servidor achica el grupo o lo descarta. Diseñá dentro de esos números (menos clientes, incentivo más barato o sin incentivo).
 - Un plan elegido necesita al menos ${MIN_PLAN_RECIPIENTS} clientes contactables. Solo se contacta a quien autorizó WhatsApp.
 - Canal disponible: solo WHATSAPP. No inventes otros canales.
 - No repitas un plan que ya se probó y se está midiendo: probá algo distinto o esperá el resultado.
+- Aprendé del historial: plan_history trae el resultado medido de cada plan ejecutado (cuántos contactados volvieron, frente al control, y su lectura de evidencia). Mencioná en "observations" lo que mostró el último resultado y usalo para decidir: si un enfoque dio señal, confirmalo con más clientes o en un grupo parecido; si no funcionó, cambiá de enfoque. Una señal con pocos clientes no es una prueba.
 - "contactability" dice cuántos clientes se pueden contactar y por qué el resto no. Si son pocos, decilo en el resumen: ampliar la base contactable (pidiendo autorización en el check-in) puede valer más que cualquier campaña.
 - Con pocos clientes no hay significancia estadística: decilo y proponé pruebas chicas y prudentes. No afirmes causalidad.
 
@@ -94,6 +96,7 @@ export function buildPlannerContext(input: {
         messagingBudgetLeftThisMonth: input.budget.messagingRemaining,
         incentiveBudgetLeftThisMonth: input.budget.incentiveRemaining,
         newRecipientsLeftThisWeek: input.budget.weeklyRecipientsRemaining,
+        maxCostPerCampaign: input.budget.maxCostPerCampaign ?? null,
         minDaysBetweenMessagesToSameCustomer:
           input.policy.minDaysBetweenPromotions,
         maxMessagesPer30DaysPerCustomer: input.policy.maxPromotionsPer30Days,

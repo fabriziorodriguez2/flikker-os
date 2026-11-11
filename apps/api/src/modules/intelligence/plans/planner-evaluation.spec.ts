@@ -260,6 +260,30 @@ describe('evaluateSubmission', () => {
     expect(tight.plans[0].cost!.messaging).toBeLessThanOrEqual(12);
   });
 
+  it('tope por campaña: achica el grupo hasta que entra; si ni el mínimo entra, lo explica', () => {
+    const wide = plan({
+      segment: { description: 'todos', rule: ANY_VISITS, maxRecipients: 50 },
+    });
+    const budget = (maxCostPerCampaign: number) => ({
+      budget: {
+        messageUnitCost: 2,
+        messagingRemaining: null,
+        incentiveRemaining: null,
+        weeklyRecipientsRemaining: null,
+        maxCostPerCampaign,
+      },
+    });
+    const capped = evaluateSubmission(submission([wide]), ctx(budget(14)));
+    expect(capped.plans[0].status).toBe('SIMULATED');
+    expect(capped.plans[0].cost!.total).toBeLessThanOrEqual(14);
+    // Peor caso de la política: mensaje para todo el grupo, control incluido.
+    expect(capped.plans[0].recipientIds.length * 2).toBeLessThanOrEqual(14);
+
+    const tooSmall = evaluateSubmission(submission([wide]), ctx(budget(1)));
+    expect(tooSmall.plans[0].issues[0]).toMatchObject({ code: 'BUDGET' });
+    expect(tooSmall.plans[0].issues[0].message).toContain('tope por campaña');
+  });
+
   it('respeta el tope semanal de clientes nuevos', () => {
     const result = evaluateSubmission(
       submission([
@@ -383,5 +407,18 @@ describe('ungroundedNumbers', () => {
     ).toEqual([]);
     expect(ungroundedNumbers('1.234 clientes', [1234])).toEqual([]);
     expect(ungroundedNumbers('40 clientes', [12])).toEqual([40]);
+  });
+
+  it('los nombres de métricas no son números inventados, sus valores sí se revisan', () => {
+    expect(
+      ungroundedNumbers(
+        'dado que redemptions.last_90d = 0 y customers.single_visit_lapsed_30d = 39',
+        [0, 39],
+      ),
+    ).toEqual([]);
+    expect(
+      ungroundedNumbers('visits.last_28d_vs_prev_change_pct = -39.4', [-39.4]),
+    ).toEqual([]);
+    expect(ungroundedNumbers('customers.near_reward = 45', [10])).toEqual([45]);
   });
 });

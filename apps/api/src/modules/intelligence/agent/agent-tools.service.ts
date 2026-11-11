@@ -21,6 +21,7 @@ import {
 } from '../reports/report-math';
 import { ACTION_ROLES, ActionsService } from '../actions/actions.service';
 import { AutonomyAdminService } from '../autonomy/autonomy-admin.service';
+import { ConsentAuditService } from '../../policy/consent-audit.service';
 import { actionJsonSchema, parseActionParams } from '../actions/action-plan';
 
 /** Siempre del servidor (JWT + TenantGuard), nunca del modelo. */
@@ -158,6 +159,11 @@ function parseNoArgs(raw: unknown) {
 }
 
 const MAX_TOOL_OUTPUT_CHARS = 7_000;
+/**
+ * Margen bajo el límite general para las herramientas que crecen con el
+ * historial (`commercial_plans`, `autonomy_activity`): nunca lo pasan.
+ */
+const COMMERCIAL_PLANS_BUDGET_CHARS = 6_500;
 const MAX_FEEDBACK_ITEMS = 5;
 const MAX_FEEDBACK_CHARS = 280;
 const WEEKDAYS_ES = [
@@ -201,6 +207,7 @@ export class AgentToolsService {
     private readonly reports: ReportsService,
     private readonly actions: ActionsService,
     private readonly autonomy: AutonomyAdminService,
+    private readonly consentAudit: ConsentAuditService,
   ) {
     const reportContext = (ctx: ToolContext) => ({
       scope: { businessId: ctx.businessId, userId: ctx.userId },
@@ -804,7 +811,7 @@ export class AgentToolsService {
         definition: {
           name: 'autonomy_activity',
           description:
-            'Actividad autónoma de Intelligence: modo (apagado, simulación o piloto), últimas corridas con la estrategia elegida, oportunidades encontradas y descartadas con motivo, bloqueos, explicación, sugerencias y lo medido (enviados, volvieron, canjes, costo). Usalo para "¿qué hizo Intelligence solo?" o "¿por qué no mandó nada?".',
+            'Actividad autónoma de Intelligence: modo (apagado, simulación o piloto), últimas corridas con la estrategia elegida, oportunidades encontradas y descartadas con motivo, bloqueos, explicación, sugerencias y lo medido por las reglas fijas (enviados, volvieron, canjes, costo). Usalo para "¿qué hizo Intelligence solo?" o "¿por qué no mandó nada?". No trae el resultado de los planes del planificador: para "¿funcionó la campaña?" o "¿qué aprendiste?" usá commercial_plans.',
           parameters: NO_ARGS,
         },
         label: 'Consultó la actividad autónoma',
@@ -812,29 +819,47 @@ export class AgentToolsService {
         parseArgs: parseNoArgs,
         run: async (ctx) => {
           const activity = await this.autonomy.activity(ctx.businessId, 5);
-          return {
-            data: {
-              mode: activity.mode,
-              pilotGroupSize: activity.pilotGroupSize,
-              runs: activity.runs.map((run) => ({
-                day: run.day,
-                mode: run.mode,
-                status: run.status,
-                strategy: run.strategyLabel,
-                plannedCount: run.plannedCount,
-                assignedCount: run.assignedCount,
-                opportunities: run.opportunities,
-                discarded: run.discarded,
-                blockers: run.blockers,
-                facts: run.facts,
-                explanation: run.explanation,
-                suggestions: run.suggestions,
-                metrics: run.metrics,
-                engine: run.engine,
-                analysis: run.analysis,
-              })),
-            },
+          const data = {
+            mode: activity.mode,
+            pilotGroupSize: activity.pilotGroupSize,
+            note: 'Las corridas con engine PLANNER son del planificador con IA: sus planes, motivos y resultados están en commercial_plans.',
+            runs: activity.runs.map((run) =>
+              run.engine === 'PLANNER'
+                ? {
+                    day: run.day,
+                    engine: run.engine,
+                    mode: run.mode,
+                    status: run.status,
+                    assignedCount: run.assignedCount,
+                    explanation: run.explanation,
+                    suggestions: run.suggestions,
+                  }
+                : {
+                    day: run.day,
+                    engine: run.engine,
+                    mode: run.mode,
+                    status: run.status,
+                    strategy: run.strategyLabel,
+                    plannedCount: run.plannedCount,
+                    assignedCount: run.assignedCount,
+                    opportunities: run.opportunities,
+                    discarded: run.discarded,
+                    blockers: run.blockers,
+                    facts: run.facts,
+                    explanation: run.explanation,
+                    suggestions: run.suggestions,
+                    metrics: run.metrics,
+                  },
+            ),
           };
+          // Las corridas más viejas se recortan antes de pasar el límite.
+          while (
+            JSON.stringify(data).length > COMMERCIAL_PLANS_BUDGET_CHARS &&
+            data.runs.length > 1
+          ) {
+            data.runs.pop();
+          }
+          return { data };
         },
       },
       {
@@ -851,6 +876,39 @@ export class AgentToolsService {
           data: await this.commercialPlans(ctx.businessId),
         }),
       },
+      {
+        definition: {
+          name: 'marketing_consent',
+          description:
+            'Cuántos clientes autorizaron recibir promociones por WhatsApp y por email, cuántos todavía no respondieron, cuántos dijeron que no o pidieron no ser contactados y cuántos no tienen teléfono o email. Usalo para "¿a cuántos les puedo mandar promociones?", "¿por qué no les llega a todos?" o "¿cómo sumo más contactables?". Tener teléfono o haber hecho check-in no es una autorización.',
+          parameters: NO_ARGS,
+        },
+        label: 'Consultó las autorizaciones de los clientes',
+        roles: MANAGERS,
+        parseArgs: parseNoArgs,
+        run: async (ctx) => {
+          const audit = await this.consentAudit.audit(ctx.businessId, ctx.now);
+          return {
+            data: {
+              note: 'Solo se pueden mandar promociones a quienes autorizaron ese canal. Los demás siguen siendo clientes con sus visitas y premios. A quienes no respondieron se les ofrece la casilla en su próximo check-in o en Mi Flikker; nunca se asume una autorización.',
+              meaning: {
+                granted: 'autorizaron: se les pueden mandar promociones',
+                revoked: 'dijeron que no o se dieron de baja',
+                suppressed: 'pidieron no ser contactados nunca',
+                neverAsked: 'todavía no respondieron: no se les puede escribir',
+                neverAskedVisitedLast30d:
+                  'de los que no respondieron, cuántos vinieron en los últimos 30 días (se les pregunta en su próxima visita)',
+                neverAskedWithMiFlikker:
+                  'de los que no respondieron, cuántos tienen Mi Flikker (pueden autorizarlo desde ahí)',
+                noPhone: 'sin teléfono',
+              },
+              customers: audit.customers,
+              whatsapp: audit.whatsapp,
+              email: audit.email,
+            },
+          };
+        },
+      },
       ...this.actionTools(),
     ];
   }
@@ -865,15 +923,13 @@ export class AgentToolsService {
       this.prisma.autonomousRun.findMany({
         where: { businessId, engine: 'PLANNER', createdAt: { gte: since } },
         orderBy: { createdAt: 'desc' },
-        take: 5,
+        take: 3,
         select: {
-          id: true,
           runKey: true,
           mode: true,
           status: true,
           explanation: true,
           analysis: true,
-          suggestions: true,
         },
       }),
       this.prisma.intelligencePlan.findMany({
@@ -881,7 +937,6 @@ export class AgentToolsService {
         orderBy: { createdAt: 'desc' },
         take: 15,
         select: {
-          runId: true,
           createdAt: true,
           status: true,
           title: true,
@@ -898,65 +953,117 @@ export class AgentToolsService {
         },
       }),
     ]);
-    const analysisOf = (value: unknown) => {
-      const a = (value ?? {}) as Record<string, unknown>;
+    const cut = (text: unknown, max: number) => {
+      if (typeof text !== 'string') return null;
+      return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+    };
+    const analysisOf = (value: unknown) =>
+      (value ?? {}) as {
+        observations?: string[];
+        hypotheses?: { statement?: string }[];
+        decision?: string;
+        noActionReason?: string | null;
+        contactability?: unknown;
+      };
+    // Lo ejecutado primero: es lo que el dueño pregunta ("¿funcionó?").
+    const EXECUTED = ['EXECUTING', 'MEASURING', 'COMPLETED', 'STOPPED'];
+    const ordered = [
+      ...plans.filter((p) => EXECUTED.includes(p.status)),
+      ...plans.filter((p) => !EXECUTED.includes(p.status)),
+    ];
+    const planView = (p: (typeof plans)[number]) => {
+      const contract = (p.plan ?? {}) as {
+        segment?: { description?: string };
+        variants?: {
+          key: string;
+          message: string;
+          incentiveId: string | null;
+          weightPercent: number;
+        }[];
+        controlPercent?: number;
+      };
+      const r = p.results as {
+        phase?: string;
+        evidence?: string;
+        readout?: string;
+        treated?: Record<string, number>;
+        control?: Record<string, number>;
+        liftPoints?: number | null;
+        byVariant?: { name: string; contacted: number; returned: number }[];
+        cost?: { total?: number };
+        optOuts?: number;
+      } | null;
       return {
-        observations: a.observations ?? [],
-        hypotheses: a.hypotheses ?? [],
-        decision: a.decision ?? null,
-        noActionReason: a.noActionReason ?? null,
-        contactability: a.contactability ?? null,
+        date: p.createdAt.toISOString().slice(0, 10),
+        status: p.status,
+        title: p.title,
+        objective: p.objective,
+        hypothesis: cut(p.hypothesis, 220),
+        whyChosen: cut(p.selectionReason, 200),
+        segment: cut(contract.segment?.description, 120),
+        matched: p.matched,
+        reachable: p.reachable,
+        controlPercent: contract.controlPercent ?? null,
+        variants: (contract.variants ?? []).map((v) => ({
+          key: v.key,
+          message: cut(v.message, 170),
+          withIncentive: v.incentiveId !== null,
+          weightPercent: v.weightPercent,
+        })),
+        discardedBecause: ((p.issues ?? []) as { message?: string }[])
+          .map((i) => cut(i.message, 170))
+          .filter(Boolean)
+          .slice(0, 2),
+        wouldReach:
+          (p.simulation as { recipients?: number } | null)?.recipients ?? null,
+        results: r
+          ? {
+              phase: r.phase,
+              evidence: r.evidence,
+              readout: r.readout,
+              treated: r.treated,
+              control: r.control,
+              liftPoints: r.liftPoints ?? null,
+              byVariant: r.byVariant,
+              cost: r.cost?.total ?? null,
+              optOuts: r.optOuts ?? 0,
+            }
+          : null,
+        stopReason: p.stopReason,
       };
     };
-    return {
-      note: 'SIMULATED no contactó a nadie. "results.evidence": SIGNAL_ONLY = señal sin prueba (muestra chica); INCREMENTAL = el plan sumó vueltas frente al grupo de control; NO_DIFFERENCE = sin diferencia. Nunca digas que un cliente volvió gracias a Flikker si "evidence" no es INCREMENTAL.',
-      runs: runs.map((r) => ({
-        day: r.runKey.split('#')[0],
-        mode: r.mode,
-        status: r.status,
-        explanation: r.explanation,
-        suggestions: r.suggestions,
-        ...analysisOf(r.analysis),
-      })),
-      plans: plans.map((p) => {
-        const contract = (p.plan ?? {}) as {
-          segment?: { description?: string };
-          variants?: {
-            key: string;
-            message: string;
-            incentiveId: string | null;
-            weightPercent: number;
-          }[];
-          controlPercent?: number;
-          rationale?: string;
-        };
+    const view = {
+      note: 'SIMULATED no contactó a nadie. "results.evidence": SIGNAL_ONLY = señal sin prueba (muestra chica); INCREMENTAL = el plan sumó vueltas frente al grupo de control; NO_DIFFERENCE = sin diferencia. Nunca digas que un cliente volvió gracias a Flikker si "evidence" no es INCREMENTAL. Cada corrida del planificador recibe estos resultados y los usa para decidir la siguiente.',
+      contactability: analysisOf(runs[0]?.analysis).contactability ?? null,
+      runs: runs.map((r) => {
+        const a = analysisOf(r.analysis);
         return {
-          date: p.createdAt.toISOString().slice(0, 10),
-          status: p.status,
-          title: p.title,
-          objective: p.objective,
-          hypothesis: p.hypothesis,
-          rationale: contract.rationale ?? null,
-          selectionReason: p.selectionReason,
-          segment: contract.segment?.description ?? null,
-          matched: p.matched,
-          reachable: p.reachable,
-          controlPercent: contract.controlPercent ?? null,
-          variants: (contract.variants ?? []).map((v) => ({
-            key: v.key,
-            message: v.message,
-            withIncentive: v.incentiveId !== null,
-            weightPercent: v.weightPercent,
-          })),
-          discardedBecause: ((p.issues ?? []) as { message?: string }[])
-            .map((i) => i.message)
-            .filter(Boolean),
-          simulation: p.simulation,
-          results: p.results,
-          stopReason: p.stopReason,
+          day: r.runKey.split('#')[0],
+          mode: r.mode,
+          status: r.status,
+          summary: cut(r.explanation, 320),
+          decision: a.decision ?? null,
+          noActionReason: cut(a.noActionReason, 200),
+          observations: (a.observations ?? [])
+            .slice(0, 4)
+            .map((o) => cut(o, 170)),
+          hypotheses: (a.hypotheses ?? [])
+            .slice(0, 3)
+            .map((h) => cut(h.statement, 170)),
         };
       }),
+      plans: ordered.map(planView),
     };
+    // Siempre entra en el límite de la herramienta: se recortan primero los
+    // planes del final (los no ejecutados más viejos) y después las corridas.
+    while (
+      JSON.stringify(view).length > COMMERCIAL_PLANS_BUDGET_CHARS &&
+      (view.plans.length > 1 || view.runs.length > 1)
+    ) {
+      if (view.plans.length > 1) view.plans.pop();
+      else view.runs.pop();
+    }
+    return view;
   }
 
   /**

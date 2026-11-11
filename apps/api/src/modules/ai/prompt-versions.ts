@@ -13,5 +13,5 @@ export const WEEKLY_REPORT_SUMMARY_PROMPT_VERSION = 'weekly-report-summary-v1';
 export const INSIGHT_EXPLANATION_PROMPT_VERSION = 'insight-explanation-v1';
 export const CHATBOT_CLASSIFY_PROMPT_VERSION = 'chatbot-classify-v1';
 export const CHATBOT_DATA_ANSWER_PROMPT_VERSION = 'chatbot-data-answer-v1';
-export const INTELLIGENCE_AGENT_PROMPT_VERSION = 'intelligence-agent-v4';
-export const INTELLIGENCE_PLANNER_PROMPT_VERSION = 'intelligence-planner-v2';
+export const INTELLIGENCE_AGENT_PROMPT_VERSION = 'intelligence-agent-v5';
+export const INTELLIGENCE_PLANNER_PROMPT_VERSION = 'intelligence-planner-v3';

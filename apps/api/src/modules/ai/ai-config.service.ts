@@ -14,6 +14,8 @@ const DEFAULT_PRICE_OUTPUT_PER_MILLION_USD = 0.6;
 const DEFAULT_PLANNER_MAX_RUNS_PER_DAY = 3;
 /** Tope de gasto del planificador por negocio y mes, en USD. */
 const DEFAULT_PLANNER_MONTHLY_USD_CAP = 2;
+/** Tiempo máximo de una corrida del planificador: los modelos que razonan tardan minutos. */
+const DEFAULT_PLANNER_TIMEOUT_MS = 300_000;
 
 /**
  * Fase F §3/§4 — reads every AI-related env var once, with safe defaults, and
@@ -57,6 +59,7 @@ export class AiConfigService {
   readonly plannerPriceOutputPerMillionUsd: number;
   readonly plannerMaxRunsPerDay: number;
   readonly plannerMonthlyUsdCapPerBusiness: number;
+  readonly plannerTimeoutMs: number;
 
   constructor() {
     this.apiKey = process.env.OPENAI_API_KEY?.trim() || null;
@@ -114,6 +117,10 @@ export class AiConfigService {
     this.plannerMonthlyUsdCapPerBusiness = parsePositiveNumber(
       process.env.AI_PLANNER_MONTHLY_USD_CAP,
       DEFAULT_PLANNER_MONTHLY_USD_CAP,
+    );
+    this.plannerTimeoutMs = parsePositiveInt(
+      process.env.AI_PLANNER_TIMEOUT_MS,
+      DEFAULT_PLANNER_TIMEOUT_MS,
     );
     if (
       this.plannerModel !== this.model &&
