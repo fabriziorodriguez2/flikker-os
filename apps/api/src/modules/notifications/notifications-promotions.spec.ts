@@ -130,6 +130,10 @@ const service = (d: ReturnType<typeof makeDeps>) =>
     d.publicUrls as unknown as CustomerPublicUrlService,
     d.plans as unknown as PlansService,
     d.lifecycleEmails as unknown as LifecycleEmailsService,
+    // Sin política aceptada: el envío sigue el camino de siempre. El motor
+    // tiene su propio test de integración.
+    { isAccepted: jest.fn().mockResolvedValue(false) } as never,
+    {} as never,
   );
 
 /** El envío de email es fire-and-forget — deja correr los microtasks pendientes. */

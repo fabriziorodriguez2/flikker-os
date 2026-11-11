@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { PolicyModule } from '../policy/policy.module';
 import { PrismaModule } from '../../prisma/prisma.module';
 import { RetentionSettingsService } from './retention-settings.service';
 import { RetentionExperimentService } from './retention-experiment.service';
@@ -25,6 +26,7 @@ import { ReactivationFunnelSummaryService } from './reactivation-funnel-summary.
 import { AiModule } from '../ai/ai.module';
 import { AiRecommendationExplanationService } from '../ai/recommendation-explanation.service';
 import { RetentionOptimizationService } from './retention-optimization.service';
+import { AutopilotDiagnosisService } from './autopilot-diagnosis.service';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { RetentionV2BootstrapService } from './retention-v2-bootstrap.service';
 import { PlansModule } from '../plans/plans.module';
@@ -40,7 +42,15 @@ import { AutomationCooldownService } from '../../jobs/automation-cooldown.servic
  * controllers only let the owner configure what the workers read.
  */
 @Module({
-  imports: [PrismaModule, AiModule, PlansModule, ReturnChallengesModule],
+  // PolicyModule: consentimiento, topes y kill switch para los negocios con
+  // la política aceptada (no importa este módulo de vuelta: sin ciclo).
+  imports: [
+    PrismaModule,
+    AiModule,
+    PlansModule,
+    ReturnChallengesModule,
+    PolicyModule,
+  ],
   controllers: [
     RetentionSettingsController,
     RetentionIncentivesController,
@@ -83,13 +93,17 @@ import { AutomationCooldownService } from '../../jobs/automation-cooldown.servic
     ReactivationFunnelSummaryService,
     AiRecommendationExplanationService,
     RetentionOptimizationService,
+    AutopilotDiagnosisService,
   ],
   exports: [
+    AutopilotDiagnosisService,
     RetentionV2EvaluateService,
     RetentionV2SendService,
     RetentionV2MessageDispatchService,
     RetentionV2BootstrapService,
     RetentionExperimentService,
+    // Intelligence (modo autónomo) recluta por el mismo camino que Autopilot.
+    RetentionAssignmentService,
     RetentionOutcomeService,
     RetentionDecisionLogService,
     RetentionSettingsService,

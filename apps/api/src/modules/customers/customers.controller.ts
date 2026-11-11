@@ -85,7 +85,11 @@ export class CustomersController {
   @UseGuards(RolesGuard)
   @Roles(MembershipRole.OWNER, MembershipRole.ADMIN, MembershipRole.OPERATOR)
   optOut(@Req() req: AuthenticatedRequest, @Param('id') id: string) {
-    return this.customersService.optOut(req.currentBusinessId!, id);
+    return this.customersService.optOut(
+      req.currentBusinessId!,
+      id,
+      req.user.id,
+    );
   }
 
   @Post(':id/notify-appointment')

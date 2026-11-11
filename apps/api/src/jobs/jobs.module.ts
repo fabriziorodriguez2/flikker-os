@@ -10,6 +10,8 @@ import { FeedbackRepository } from '../modules/feedback/feedback.repository';
 import { MissionsModule } from '../modules/missions/missions.module';
 import { ReturnChallengesModule } from '../modules/return-challenges/return-challenges.module';
 import { PublicModule } from '../modules/public/public.module';
+import { PolicyModule } from '../modules/policy/policy.module';
+import { AutonomyModule } from '../modules/intelligence/autonomy/autonomy.module';
 import { InsightsRepository } from '../modules/insights/insights.repository';
 import { OwnerLifecycleAiSummaryService } from '../modules/insights/owner-lifecycle-ai-summary.service';
 import { BusinessImpactService } from '../modules/insights/business-impact.service';
@@ -58,6 +60,10 @@ import { OwnerMilestoneWhatsAppService } from './owner-milestone-whatsapp.servic
   imports: [
     PrismaModule,
     RetentionV2Module,
+    // Baja por palabra clave en el WhatsApp entrante.
+    PolicyModule,
+    // Modo autónomo de Intelligence: corre dentro del job de Autopilot.
+    AutonomyModule,
     RewardGoalsModule,
     PlansModule,
     // Deliberadamente NO `InsightsModule` — ese módulo importa

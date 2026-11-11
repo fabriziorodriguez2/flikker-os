@@ -1,4 +1,5 @@
 import {
+  IsBoolean,
   IsInt,
   IsISO8601,
   IsNotEmpty,
@@ -39,6 +40,14 @@ export class RegisterDto extends PresenceCodeDto {
   @IsOptional()
   @IsISO8601()
   birthdate?: string;
+
+  /**
+   * La casilla "Quiero recibir promociones por WhatsApp", desmarcada por
+   * defecto. Solo `true` registra consentimiento: no marcarla no es un sí.
+   */
+  @IsOptional()
+  @IsBoolean()
+  whatsappConsent?: boolean;
 }
 
 export class RecoverStartDto {

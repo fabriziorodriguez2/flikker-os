@@ -102,7 +102,14 @@ function makeDeps(assignment: unknown = assignmentFixture()) {
   return { prisma, settings, experiments, issuer, decisions, aiCopy };
 }
 
-function makeService(deps: ReturnType<typeof makeDeps>) {
+function makeService(
+  deps: ReturnType<typeof makeDeps>,
+  // Por defecto: negocio sin política aceptada, el motor no gobierna.
+  policy: unknown = {
+    governed: false,
+    decision: { blockers: [], excluded: [] },
+  },
+) {
   return new RetentionV2SendService(
     deps.prisma as never,
     deps.settings as never,
@@ -112,6 +119,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.issuer as never,
     deps.decisions as never,
     deps.aiCopy as never,
+    { evaluate: jest.fn().mockResolvedValue(policy) } as never,
   );
 }
 
@@ -704,5 +712,43 @@ describe('RetentionV2SendService — PROGRESS_REMINDER (Fase E §25-27)', () => 
       status: 'skipped',
       reasonCode: 'SEGMENT_NOT_TARGETABLE',
     });
+  });
+});
+
+describe('RetentionV2SendService — motor de políticas', () => {
+  it('con la política aceptada, sin consentimiento no se emite premio ni se crea el mensaje', async () => {
+    const deps = makeDeps();
+    const service = makeService(deps, {
+      governed: true,
+      decision: {
+        blockers: [{ code: 'NO_ELIGIBLE_RECIPIENTS' }],
+        excluded: [{ customerId: 'cust-1', reason: 'NO_CONSENT' }],
+      },
+    });
+    const result = await service.processAssignment('assign-1', NOW);
+    expect(result).toEqual({
+      status: 'skipped',
+      reasonCode: 'POLICY_NO_CONSENT',
+    });
+    expect(deps.issuer.issueForAssignment).not.toHaveBeenCalled();
+    expect(deps.prisma.tx.message.create).not.toHaveBeenCalled();
+    expect(loggedCodes(deps)).toContain('SKIPPED_POLICY');
+  });
+
+  it('fuera de horario según el motor no es terminal: lo resuelve la ventana de siempre', async () => {
+    const deps = makeDeps();
+    const service = makeService(deps, {
+      governed: true,
+      decision: {
+        blockers: [{ code: 'OUTSIDE_SENDING_WINDOW' }],
+        excluded: [],
+      },
+    });
+    const result = await service.processAssignment('assign-1', NOW);
+    expect(result).not.toEqual(
+      expect.objectContaining({
+        reasonCode: expect.stringMatching(/^POLICY_/),
+      }),
+    );
   });
 });

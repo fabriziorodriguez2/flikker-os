@@ -43,6 +43,10 @@ function makeDeps(pending: { id: string }[] = []) {
     queue: {
       enqueueSendAssignment: jest.fn().mockResolvedValue(undefined),
       enqueueSendMessage: jest.fn().mockResolvedValue(undefined),
+      enqueueDeferredAssignment: jest.fn().mockResolvedValue(undefined),
+    },
+    autonomy: {
+      runForAll: jest.fn().mockResolvedValue({ businesses: 0, runs: 0 }),
     },
   };
 }
@@ -55,6 +59,7 @@ function makeWorker(deps: ReturnType<typeof makeDeps>) {
     deps.outcomes as never,
     deps.dispatch as never,
     deps.queue as never,
+    deps.autonomy as never,
   );
 }
 
@@ -82,7 +87,13 @@ describe('RetentionV2Worker — evaluate job', () => {
       [{ assignmentId: 'a1' }],
       [{ assignmentId: 'a2' }],
     ]);
-    expect(result).toEqual({ businesses: 1, assigned: 3, ms: 5, queued: 2 });
+    expect(result).toEqual({
+      businesses: 1,
+      assigned: 3,
+      ms: 5,
+      queued: 2,
+      autonomyRuns: 0,
+    });
   });
 
   it('never sends during the evaluate pass itself', async () => {
@@ -283,5 +294,61 @@ describe('RetentionV2Worker — outcomes job (Fase D)', () => {
 
     expect(deps.send.processAssignment).not.toHaveBeenCalled();
     expect(deps.evaluate.runDaily).not.toHaveBeenCalled();
+  });
+});
+
+describe('RetentionV2Worker — modo autónomo y ventana horaria', () => {
+  it('corre el modo autónomo dentro del mismo job, antes de encolar lo pendiente', async () => {
+    const deps = makeDeps([{ id: 'a-1' }]);
+    const order: string[] = [];
+    deps.autonomy.runForAll.mockImplementation(() => {
+      order.push('autonomy');
+      return Promise.resolve({ businesses: 1, runs: 1 });
+    });
+    deps.prisma.retentionAssignment.findMany.mockImplementation(() => {
+      order.push('pending');
+      return Promise.resolve([{ id: 'a-1' }]);
+    });
+    const result = await makeWorker(deps).process(
+      job(RUN_RETENTION_V2_EVALUATE_JOB),
+    );
+    expect(order).toEqual(['autonomy', 'pending']);
+    expect(result).toMatchObject({ queued: 1, autonomyRuns: 1 });
+  });
+
+  it('si el modo autónomo falla, igual se encola lo que Autopilot tenía pendiente', async () => {
+    const deps = makeDeps([{ id: 'a-1' }]);
+    deps.autonomy.runForAll.mockRejectedValue(new Error('db down'));
+    await makeWorker(deps).process(job(RUN_RETENTION_V2_EVALUATE_JOB));
+    expect(deps.queue.enqueueSendAssignment).toHaveBeenCalledWith({
+      assignmentId: 'a-1',
+    });
+  });
+
+  it('una asignación fuera de horario se reintenta en 30 minutos (no al día siguiente)', async () => {
+    const deps = makeDeps();
+    deps.send.processAssignment.mockResolvedValue({
+      status: 'skipped',
+      reasonCode: 'OUTSIDE_SENDING_WINDOW',
+    });
+    await makeWorker(deps).process(
+      job(SEND_RETENTION_V2_ASSIGNMENT_JOB, { assignmentId: 'a-1' }),
+    );
+    expect(deps.queue.enqueueDeferredAssignment).toHaveBeenCalledWith(
+      { assignmentId: 'a-1' },
+      30 * 60_000,
+    );
+  });
+
+  it('otros saltos no se reintentan', async () => {
+    const deps = makeDeps();
+    deps.send.processAssignment.mockResolvedValue({
+      status: 'skipped',
+      reasonCode: 'OPTED_OUT',
+    });
+    await makeWorker(deps).process(
+      job(SEND_RETENTION_V2_ASSIGNMENT_JOB, { assignmentId: 'a-1' }),
+    );
+    expect(deps.queue.enqueueDeferredAssignment).not.toHaveBeenCalled();
   });
 });

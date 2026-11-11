@@ -9,9 +9,11 @@ describe('CustomersService', () => {
       createMessage,
     } as unknown as CustomersRepository;
 
-    const service = new CustomersService(repository, {
-      sendText: jest.fn(),
-    } as never);
+    const service = new CustomersService(
+      repository,
+      { sendText: jest.fn() } as never,
+      { record: jest.fn() } as never,
+    );
 
     await expect(
       service.createMessageForCustomer('business-1', 'customer-1', 'token-1'),

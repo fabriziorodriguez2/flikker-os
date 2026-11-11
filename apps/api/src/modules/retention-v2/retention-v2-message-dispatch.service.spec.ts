@@ -83,7 +83,20 @@ function makeDeps(message: unknown = messageFixture()) {
   };
 }
 
-function makeService(deps: ReturnType<typeof makeDeps>) {
+/** Por defecto: negocio sin política aceptada, el motor no gobierna. */
+function makeGate(outcome: unknown = { status: 'NOT_GOVERNED' }) {
+  return {
+    reserve: jest.fn().mockResolvedValue(outcome),
+    release: jest.fn().mockResolvedValue(undefined),
+    commit: jest.fn().mockResolvedValue(undefined),
+    checkHealth: jest.fn().mockResolvedValue(null),
+  };
+}
+
+function makeService(
+  deps: ReturnType<typeof makeDeps>,
+  gate: ReturnType<typeof makeGate> = makeGate(),
+) {
   return new RetentionV2MessageDispatchService(
     deps.prisma as never,
     deps.settings as never,
@@ -92,6 +105,7 @@ function makeService(deps: ReturnType<typeof makeDeps>) {
     deps.lifecycleEmails as never,
     deps.plans as never,
     deps.cooldown as never,
+    gate as never,
   );
 }
 
@@ -808,5 +822,94 @@ describe('RetentionV2MessageDispatchService — provider error / retry', () => {
     await service.markPermanentlyFailed('msg-1', new Error('exhausted'));
 
     expect(deps.decisions.record).not.toHaveBeenCalled();
+  });
+});
+
+describe('RetentionV2MessageDispatchService — motor de políticas', () => {
+  const reserved = { status: 'RESERVED', reservation: { id: 'res-1' } };
+
+  it('sin consentimiento: no manda, y el motivo queda registrado', async () => {
+    const deps = makeDeps();
+    const gate = makeGate({
+      status: 'DENIED',
+      decision: {
+        blockers: [{ code: 'NO_ELIGIBLE_RECIPIENTS' }],
+        excluded: [{ customerId: 'cust-1', reason: 'NO_CONSENT' }],
+      },
+    });
+    const outcome = await makeService(deps, gate).dispatch('msg-1', NOW);
+    expect(outcome).toEqual({
+      status: 'skipped',
+      reasonCode: 'POLICY_NO_CONSENT',
+    });
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+    expect(gate.reserve).toHaveBeenCalledWith(
+      expect.objectContaining({
+        businessId: 'biz-1',
+        excludeMessageId: 'msg-1',
+        effect: expect.objectContaining({
+          source: 'AUTOPILOT',
+          actorRole: null,
+          candidateCustomerIds: ['cust-1'],
+        }),
+      }),
+      expect.objectContaining({ idempotencyKey: 'autopilot:msg-1' }),
+    );
+  });
+
+  it('kill switch: no manda', async () => {
+    const deps = makeDeps();
+    const gate = makeGate({
+      status: 'DENIED',
+      decision: { blockers: [{ code: 'POLICY_PAUSED' }], excluded: [] },
+    });
+    const outcome = await makeService(deps, gate).dispatch('msg-1', NOW);
+    expect(outcome).toEqual({
+      status: 'skipped',
+      reasonCode: 'POLICY_POLICY_PAUSED',
+    });
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+  });
+
+  it('enviado: la reserva se confirma con 1 mensaje', async () => {
+    const deps = makeDeps();
+    const gate = makeGate(reserved);
+    const outcome = await makeService(deps, gate).dispatch('msg-1', NOW);
+    expect(outcome.status).toBe('sent');
+    expect(gate.commit).toHaveBeenCalledWith('res-1', {
+      messagesSent: 1,
+      incentivesIssued: 0,
+      sourceRef: 'msg-1',
+    });
+    expect(gate.release).not.toHaveBeenCalled();
+  });
+
+  it('falla del proveedor: la reserva se libera y se mide la salud del negocio', async () => {
+    const deps = makeDeps();
+    deps.whatsApp.sendText.mockRejectedValue(new Error('provider down'));
+    const gate = makeGate(reserved);
+    await expect(
+      makeService(deps, gate).dispatch('msg-1', NOW),
+    ).rejects.toThrow('provider down');
+    expect(gate.release).toHaveBeenCalledWith('res-1', 'provider down');
+    expect(gate.checkHealth).toHaveBeenCalledWith('biz-1', NOW);
+    expect(gate.commit).not.toHaveBeenCalled();
+  });
+
+  it('si otra automatización tiene el turno, la reserva se libera', async () => {
+    const deps = makeDeps();
+    deps.cooldown.reserve.mockResolvedValue('blocked');
+    const gate = makeGate(reserved);
+    await makeService(deps, gate).dispatch('msg-1', NOW);
+    expect(gate.release).toHaveBeenCalledWith('res-1', 'RECENT_CONTACT');
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
+  });
+
+  it('un reintento del mismo mensaje ya enviado no vuelve a mandar', async () => {
+    const deps = makeDeps();
+    const gate = makeGate({ status: 'REPLAY', reservation: { id: 'res-1' } });
+    const outcome = await makeService(deps, gate).dispatch('msg-1', NOW);
+    expect(outcome).toEqual({ status: 'already_processed' });
+    expect(deps.whatsApp.sendText).not.toHaveBeenCalled();
   });
 });

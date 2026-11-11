@@ -27,6 +27,10 @@ import {
   WhatsAppInboundJobData,
 } from '../whatsapp-inbound.queue';
 import { WhatsAppBspService } from '../whatsapp-bsp.service';
+import {
+  ConsentService,
+  isOptOutKeyword,
+} from '../../modules/policy/consent.service';
 
 const DEDUPE_WINDOW_MS = 12 * 60 * 60 * 1000;
 const BOT_REVIEW_DELAY_MS = 24 * 60 * 60 * 1000;
@@ -41,6 +45,7 @@ export class WhatsAppInboundWorker implements OnModuleInit, OnModuleDestroy {
     private readonly prisma: PrismaService,
     private readonly whatsAppBspService: WhatsAppBspService,
     private readonly reviewRequestQueue: ReviewRequestQueue,
+    private readonly consent: ConsentService,
   ) {}
 
   onModuleInit() {
@@ -61,6 +66,18 @@ export class WhatsAppInboundWorker implements OnModuleInit, OnModuleDestroy {
 
   async process(data: WhatsAppInboundJobData) {
     const business = await this.findBusinessBySender(data.from);
+    // Un cliente que responde "BAJA" a cualquier mensaje: se registra la
+    // baja de WhatsApp en todos los negocios donde es cliente.
+    if (!business && isOptOutKeyword(data.text)) {
+      const revoked = await this.consent.revokeByPhone(data.from);
+      if (revoked > 0) {
+        await this.reply(
+          data.from,
+          'Listo, no vas a recibir más mensajes promocionales por WhatsApp. Si cambiás de idea, avisale al local.',
+        );
+        return;
+      }
+    }
     if (!business) {
       const tracked = await this.trackRepeatResponse(data.from, data.text);
       if (!tracked) {

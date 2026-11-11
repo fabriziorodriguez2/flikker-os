@@ -15,6 +15,8 @@ export interface RecordUsageInput {
   inputTokens?: number | null;
   outputTokens?: number | null;
   latencyMs?: number | null;
+  /** Estimado con `AiConfigService.estimateCostUsd` — costo por negocio. */
+  estimatedCostUsd?: number | null;
   /** Debugging only (Fase F §43) — never phone/email. */
   customerId?: string | null;
 }
@@ -164,6 +166,7 @@ export class AiUsageService {
           inputTokens: input.inputTokens ?? null,
           outputTokens: input.outputTokens ?? null,
           latencyMs: input.latencyMs ?? null,
+          estimatedCostUsd: input.estimatedCostUsd ?? null,
           customerId: input.customerId ?? null,
         },
         select: { id: true },

@@ -37,7 +37,8 @@ export type IssueOutcome =
         | 'LIMIT_REACHED'
         | 'NOT_VALID_TODAY'
         | 'MONTHLY_INCENTIVE_LIMIT'
-        | 'MONTHLY_BUDGET_LIMIT';
+        | 'MONTHLY_BUDGET_LIMIT'
+        | 'POLICY_PAUSED';
     };
 
 /**

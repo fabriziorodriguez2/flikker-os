@@ -13,6 +13,7 @@ import { NotificationsController } from './notifications.controller';
 import { NotificationsService } from './notifications.service';
 import { NotificationsPromotionsService } from './notifications-promotions.service';
 import { PlansModule } from '../plans/plans.module';
+import { PolicyModule } from '../policy/policy.module';
 
 /**
  * Notificaciones no tiene dominio propio: importa los cuatro sistemas que ya
@@ -39,6 +40,8 @@ import { PlansModule } from '../plans/plans.module';
     // Historial de "cambiaste el límite mensual de beneficios automáticos".
     ProgramAuditModule,
     PlansModule,
+    // Promociones pasa por el motor de políticas cuando el dueño la aceptó.
+    PolicyModule,
   ],
   controllers: [NotificationsController],
   providers: [
@@ -53,6 +56,7 @@ import { PlansModule } from '../plans/plans.module';
     LifecycleEmailsService,
   ],
   // Inicio reusa el overview de automatizaciones para no redefinir los flags.
-  exports: [NotificationsService],
+  // Intelligence reusa el conteo de audiencias de Promociones (solo lectura).
+  exports: [NotificationsService, NotificationsPromotionsService],
 })
 export class NotificationsModule {}

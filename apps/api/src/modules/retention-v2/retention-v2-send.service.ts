@@ -25,6 +25,7 @@ import {
   RetentionAiCopyService,
   type CopySource,
 } from '../ai/retention-ai-copy.service';
+import { PolicyGateService } from '../policy/policy-gate.service';
 
 /**
  * Sends (or deliberately does not send) one assignment.
@@ -58,6 +59,7 @@ export class RetentionV2SendService {
     private readonly issuer: IncentiveIssuerService,
     private readonly decisions: RetentionDecisionLogService,
     private readonly aiCopy: RetentionAiCopyService,
+    private readonly policyGate: PolicyGateService,
   ) {}
 
   async processAssignment(
@@ -170,6 +172,34 @@ export class RetentionV2SendService {
         metadata: { experimentId: assignment.experimentId },
       });
       return { status: 'control' };
+    }
+
+    // Motor de políticas, antes de emitir un premio o crear el mensaje: con
+    // la política aceptada, un cliente sin consentimiento de WhatsApp (o ya
+    // contactado por una promoción, o con el negocio pausado o sin
+    // presupuesto) no recibe nada. Sin política aceptada no aplica. La ventana
+    // horaria sigue resolviéndose abajo, como siempre (no es terminal).
+    const policy = await this.policyGate.evaluate({
+      businessId: assignment.businessId,
+      effect: {
+        source: 'AUTOPILOT',
+        actorRole: null,
+        kind: 'MESSAGE',
+        createsCampaign: false,
+        candidateCustomerIds: [assignment.customerId],
+        incentive: null,
+      },
+      now,
+    });
+    const policyBlocker = policy.governed
+      ? policyBlockerCode(policy.decision)
+      : null;
+    if (policyBlocker) {
+      return this.skip(
+        assignment,
+        `POLICY_${policyBlocker}`,
+        DECISION_CODES.SKIPPED_POLICY,
+      );
     }
 
     // Outside the owner's sending window: leave it PENDING so the next run can
@@ -608,4 +638,20 @@ export function weekdayLabelOf(dayKey: string): string {
     weekday: 'long',
     timeZone: 'UTC',
   }).format(new Date(Date.UTC(year, month - 1, day, 12)));
+}
+
+/**
+ * El primer motivo terminal del motor, o null. La ventana horaria no cuenta:
+ * es "todavía no", y ya la resuelven los reintentos de siempre.
+ */
+export function policyBlockerCode(decision: {
+  blockers: { code: string }[];
+  excluded: { reason: string }[];
+}): string | null {
+  const excluded = decision.excluded[0];
+  if (excluded) return excluded.reason;
+  const blocker = decision.blockers.find(
+    (b) => b.code !== 'OUTSIDE_SENDING_WINDOW',
+  );
+  return blocker?.code ?? null;
 }

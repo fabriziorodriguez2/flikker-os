@@ -6,7 +6,8 @@ type AuditLogParams = {
   action: string;
   entityType: string;
   entityId: string;
-  userId: string;
+  /** null = lo hizo el sistema (p. ej. una pausa automática). */
+  userId: string | null;
   businessId: string;
   metadata?: object;
 };

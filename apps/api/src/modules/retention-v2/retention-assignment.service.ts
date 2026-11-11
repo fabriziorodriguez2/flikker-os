@@ -10,6 +10,14 @@ export interface AssignmentInput {
   customerId: string;
   segment: CustomerSegment;
   frequency: VisitFrequency;
+  /**
+   * Intelligence (modo autónomo): la corrida que recluta, para medir lo
+   * atribuible, y las estrategias que NO puede recibir (la escalera de
+   * incentivos: sin descuento hasta que eso no alcance). Sin estos campos,
+   * todo sigue igual que siempre.
+   */
+  autonomousRunId?: string;
+  excludeStrategies?: RetentionStrategyType[];
 }
 
 export type AssignmentOutcome =
@@ -57,7 +65,14 @@ export class RetentionAssignmentService {
       return { status: 'skipped', reason: 'INVALID_ALLOCATION' };
     }
 
-    const variant = pickVariant(input.experimentId, input.customerId, variants);
+    const excluded = input.excludeStrategies ?? [];
+    const variant = pickVariant(
+      input.experimentId,
+      input.customerId,
+      excluded.length
+        ? variants.filter((v) => !excluded.includes(v.strategyType))
+        : variants,
+    );
     if (!variant) return { status: 'skipped', reason: 'NO_VARIANT' };
 
     try {
@@ -73,6 +88,7 @@ export class RetentionAssignmentService {
           visitCountAtAssignment: input.frequency.visitCount,
           daysSinceLastVisit: input.frequency.daysSinceLastVisit ?? 0,
           typicalIntervalDays: input.frequency.typicalIntervalDays,
+          autonomousRunId: input.autonomousRunId ?? null,
         },
         select: { id: true },
       });

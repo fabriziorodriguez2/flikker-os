@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { localPeriodKey } from '../../common/utils/timezone.util';
 import { estimateIncentiveCost } from './incentive-cost';
+import { promotionIncentiveLiability } from '../policy/policy-usage';
 
 /**
  * The owner's protection against a misconfigured experiment issuing unlimited
@@ -20,7 +21,10 @@ export type BudgetCheck =
   | { allowed: true }
   | {
       allowed: false;
-      reasonCode: 'MONTHLY_INCENTIVE_LIMIT' | 'MONTHLY_BUDGET_LIMIT';
+      reasonCode:
+        | 'MONTHLY_INCENTIVE_LIMIT'
+        | 'MONTHLY_BUDGET_LIMIT'
+        | 'POLICY_PAUSED';
       metadata: Record<string, unknown>;
     };
 
@@ -81,13 +85,41 @@ export class RetentionBudgetService {
       };
     }
 
-    const { count, cost } = await this.issuedThisMonth(
+    // Motor de políticas: con la política aceptada, el tope de costo es UNA
+    // bolsa compartida con las promociones (mismo campo, una sola fuente).
+    // Se toma también el lock del motor para verse con las reservas en vuelo,
+    // y el kill switch frena la emisión automática igual que los envíos.
+    const policy = await tx.businessPolicy.findUnique({
+      where: { businessId: params.businessId },
+      select: { acceptedAt: true, paused: true },
+    });
+    let sharedCost = 0;
+    if (policy?.acceptedAt) {
+      if (policy.paused) {
+        return {
+          allowed: false,
+          reasonCode: 'POLICY_PAUSED',
+          metadata: { limitType: 'POLICY_PAUSED' },
+        };
+      }
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`policy:${params.businessId}`}))`;
+      sharedCost = await promotionIncentiveLiability(tx, {
+        businessId: params.businessId,
+        timezone: params.timezone,
+        now: params.now,
+        averageTicketAmount: params.averageTicketAmount,
+      });
+    }
+
+    const issued = await this.issuedThisMonth(
       tx,
       params.businessId,
       params.timezone,
       params.now,
       params.averageTicketAmount,
     );
+    const count = issued.count;
+    const cost = issued.cost + sharedCost;
 
     if (
       caps.maxAutomatedIncentivesPerMonth !== null &&

@@ -18,6 +18,6 @@ import { MissionSweepService } from './mission-sweep.service';
   imports: [PrismaModule, BenefitsModule],
   controllers: [MissionsController],
   providers: [MissionService, MissionProgressService, MissionSweepService],
-  exports: [MissionProgressService, MissionSweepService],
+  exports: [MissionService, MissionProgressService, MissionSweepService],
 })
 export class MissionsModule {}

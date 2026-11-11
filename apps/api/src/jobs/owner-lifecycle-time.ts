@@ -120,7 +120,7 @@ function timezoneOffsetMs(date: Date, timezone: string): number {
 }
 
 /** El instante UTC real que corresponde a medianoche local de (year, month, day) en `timezone`. */
-function zonedMidnightToUtc(
+export function zonedMidnightToUtc(
   year: number,
   month: number,
   day: number,

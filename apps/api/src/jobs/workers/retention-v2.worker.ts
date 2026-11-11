@@ -23,6 +23,10 @@ import { RetentionV2EvaluateService } from '../../modules/retention-v2/retention
 import { RetentionV2SendService } from '../../modules/retention-v2/retention-v2-send.service';
 import { RetentionOutcomeService } from '../../modules/retention-v2/retention-outcome.service';
 import { RetentionV2MessageDispatchService } from '../../modules/retention-v2/retention-v2-message-dispatch.service';
+import { AutonomyService } from '../../modules/intelligence/autonomy/autonomy.service';
+
+/** Mismo criterio que el reintento de mensajes fuera de horario. */
+const ASSIGNMENT_WINDOW_RETRY_MS = 30 * 60_000;
 
 /**
  * Runs all four halves of the Retention V2 loop:
@@ -51,6 +55,7 @@ export class RetentionV2Worker implements OnModuleInit, OnModuleDestroy {
     private readonly outcomeService: RetentionOutcomeService,
     private readonly dispatchService: RetentionV2MessageDispatchService,
     private readonly queue: RetentionV2Queue,
+    private readonly autonomy: AutonomyService,
   ) {}
 
   onModuleInit() {
@@ -75,6 +80,17 @@ export class RetentionV2Worker implements OnModuleInit, OnModuleDestroy {
       // decision only and never depends on the queue.
       if (result.status === 'sent') {
         await this.queue.enqueueSendMessage({ messageId: result.messageId });
+      }
+      // Fuera de horario la asignación sigue PENDING: se reintenta en un
+      // rato en vez de esperar a la evaluación de mañana a las 09:00.
+      if (
+        result.status === 'skipped' &&
+        result.reasonCode === 'OUTSIDE_SENDING_WINDOW'
+      ) {
+        await this.queue.enqueueDeferredAssignment(
+          job.data as SendRetentionV2AssignmentJobData,
+          ASSIGNMENT_WINDOW_RETRY_MS,
+        );
       }
       return result;
     }
@@ -130,6 +146,19 @@ export class RetentionV2Worker implements OnModuleInit, OnModuleDestroy {
   private async runEvaluate() {
     const result = await this.evaluateService.runDaily();
 
+    // Modo autónomo de Intelligence: corre acá, en el mismo job (sin cron
+    // propio). Solo recluta; lo que recluta queda PENDING y se encola abajo
+    // junto con el resto, por el mismo camino de envío. Un error acá no puede
+    // frenar el envío de lo que Autopilot ya tenía pendiente.
+    const autonomy = await this.autonomy.runForAll().catch((error) => {
+      this.logger.error(
+        `Intelligence autonomy failed: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return { businesses: 0, runs: 0 };
+    });
+
     const pending = await this.prisma.retentionAssignment.findMany({
       where: {
         status: RetentionAssignmentStatus.PENDING,
@@ -150,9 +179,9 @@ export class RetentionV2Worker implements OnModuleInit, OnModuleDestroy {
     }
 
     this.logger.log(
-      `Retention V2 evaluate queued=${pending.length} assigned=${result.assigned}`,
+      `Retention V2 evaluate queued=${pending.length} assigned=${result.assigned} autonomyRuns=${autonomy.runs}`,
     );
-    return { ...result, queued: pending.length };
+    return { ...result, queued: pending.length, autonomyRuns: autonomy.runs };
   }
 
   async onModuleDestroy() {

@@ -8,6 +8,8 @@ import { buildMiFlikkerLink } from '../public/public-messaging.service';
 import { RetentionSettingsService } from './retention-settings.service';
 import { PlansService } from '../plans/plans.service';
 import { AutomationCooldownService } from '../../jobs/automation-cooldown.service';
+import { PolicyGateService } from '../policy/policy-gate.service';
+import { policyBlockerCode } from './retention-v2-send.service';
 import {
   DECISION_CODES,
   RetentionDecisionLogService,
@@ -77,6 +79,7 @@ export class RetentionV2MessageDispatchService {
     private readonly lifecycleEmails: LifecycleEmailsService,
     private readonly plans: PlansService,
     private readonly cooldown: AutomationCooldownService,
+    private readonly policyGate: PolicyGateService,
   ) {}
 
   private load(messageId: string) {
@@ -162,6 +165,50 @@ export class RetentionV2MessageDispatchService {
       );
     }
 
+    // Motor de políticas (solo con la política aceptada): reserva atómica del
+    // costo de ESTE mensaje, revalidando consentimiento, frecuencia entre
+    // canales, destinatarios por semana, presupuesto y kill switch. La clave
+    // es el mensaje: un reintento reusa la misma reserva, nunca suma otra.
+    const policy = await this.policyGate.reserve(
+      {
+        businessId: message.businessId,
+        effect: {
+          source: 'AUTOPILOT',
+          actorRole: null,
+          kind: 'MESSAGE',
+          createsCampaign: false,
+          candidateCustomerIds: [message.customerId],
+          incentive: null,
+        },
+        now,
+        excludeMessageId: message.id,
+      },
+      {
+        idempotencyKey: `autopilot:${message.id}`,
+        userId: null,
+        sourceRef: message.id,
+      },
+    );
+    if (policy.status === 'REPLAY' || policy.status === 'IN_PROGRESS') {
+      return { status: 'already_processed' };
+    }
+    if (policy.status === 'DENIED') {
+      const code = policyBlockerCode(policy.decision);
+      if (!code) {
+        return this.deferNonTerminal(
+          message,
+          'OUTSIDE_SENDING_WINDOW',
+          WINDOW_RETRY_DELAY_MS,
+        );
+      }
+      return this.skipTerminal(message, `POLICY_${code}`);
+    }
+    const reservationId =
+      policy.status === 'RESERVED' ? policy.reservation.id : null;
+    const releasePolicy = async (reason: string) => {
+      if (reservationId) await this.policyGate.release(reservationId, reason);
+    };
+
     // Cooldown global con prioridad determinística — Cumpleaños > Sellos
     // por vencer > Casi llegás > Te extrañamos (ver AutomationCooldownService).
     // Reservar primero: si algo de MAYOR prioridad reserva después,
@@ -174,6 +221,7 @@ export class RetentionV2MessageDispatchService {
       now,
     });
     if (reserved === 'blocked' || reserved === 'outranked') {
+      await releasePolicy('RECENT_CONTACT');
       return this.skipTerminal(message, 'RECENT_CONTACT');
     }
 
@@ -198,6 +246,7 @@ export class RetentionV2MessageDispatchService {
       skipGraceIfUncontested: !higherPriorityMayApply,
     });
     if (confirmed === 'not_ready') {
+      await releasePolicy('AWAITING_PRIORITY_WINDOW');
       return this.deferNonTerminal(
         message,
         'AWAITING_PRIORITY_WINDOW',
@@ -205,6 +254,7 @@ export class RetentionV2MessageDispatchService {
       );
     }
     if (confirmed === 'outranked') {
+      await releasePolicy('RECENT_CONTACT');
       return this.skipTerminal(message, 'RECENT_CONTACT');
     }
 
@@ -223,6 +273,7 @@ export class RetentionV2MessageDispatchService {
     });
 
     if (!message.customer.phoneE164) {
+      await releasePolicy('NO_CONTACT_CHANNEL');
       return this.skipTerminal(message, 'NO_CONTACT_CHANNEL');
     }
 
@@ -231,6 +282,7 @@ export class RetentionV2MessageDispatchService {
     // la abstracción — el proveedor activo decide qué significa "disponible"
     // (ver `WhatsAppProvider.isAvailable()`).
     if (!(await this.whatsApp.isChannelAvailable())) {
+      await releasePolicy('CHANNEL_NOT_CONFIGURED');
       return this.skipTerminal(message, 'CHANNEL_NOT_CONFIGURED');
     }
 
@@ -238,6 +290,7 @@ export class RetentionV2MessageDispatchService {
       message.business.messageCountCurrentMonth >=
       message.business.messageQuotaMonthly
     ) {
+      await releasePolicy('QUOTA_EXCEEDED');
       return this.skipTerminal(message, 'QUOTA_EXCEEDED');
     }
 
@@ -251,6 +304,7 @@ export class RetentionV2MessageDispatchService {
       data: { status: MessageStatus.sending },
     });
     if (claim.count === 0) {
+      await releasePolicy('ALREADY_PROCESSED');
       return { status: 'already_processed' };
     }
 
@@ -288,6 +342,13 @@ export class RetentionV2MessageDispatchService {
         decisionCode: DECISION_CODES.MESSAGE_SENT,
         metadata: { whatsappMessageId: result.whatsappMessageId },
       });
+      if (reservationId) {
+        await this.policyGate.commit(reservationId, {
+          messagesSent: 1,
+          incentivesIssued: 0,
+          sourceRef: messageId,
+        });
+      }
 
       return { status: 'sent', whatsappMessageId: result.whatsappMessageId };
     } catch (error) {
@@ -310,6 +371,8 @@ export class RetentionV2MessageDispatchService {
       this.logger.warn(
         `Retention V2 WhatsApp send failed for message ${messageId}: ${errorMessage}`,
       );
+      await releasePolicy(errorMessage);
+      await this.policyGate.checkHealth(message.businessId, now);
       throw error;
     }
   }

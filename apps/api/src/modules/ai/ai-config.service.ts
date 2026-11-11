@@ -5,6 +5,11 @@ const DEFAULT_TIMEOUT_MS = 6_000;
 const DEFAULT_MAX_DAILY_GENERATIONS = 50;
 const DEFAULT_MAX_MONTHLY_GENERATIONS = 1_000;
 const DEFAULT_MAX_DAILY_CHATBOT_MESSAGES = 40;
+const DEFAULT_MAX_DAILY_INTELLIGENCE_TURNS = 60;
+const DEFAULT_AGENT_TURN_TIMEOUT_MS = 45_000;
+/** USD por millón de tokens — precio público de `gpt-4o-mini`, el modelo por defecto. */
+const DEFAULT_PRICE_INPUT_PER_MILLION_USD = 0.15;
+const DEFAULT_PRICE_OUTPUT_PER_MILLION_USD = 0.6;
 
 /**
  * Fase F §3/§4 — reads every AI-related env var once, with safe defaults, and
@@ -32,6 +37,12 @@ export class AiConfigService {
    * chatbot podría agotar el presupuesto de todo lo demás, o viceversa.
    */
   readonly maxDailyChatbotMessagesPerBusiness: number;
+  /** Tope propio de turnos del agente de Intelligence, mismo criterio que el chatbot. */
+  readonly maxDailyIntelligenceTurnsPerBusiness: number;
+  /** Tiempo máximo de un turno completo del agente, sumando todas sus rondas. */
+  readonly agentTurnTimeoutMs: number;
+  readonly priceInputPerMillionUsd: number;
+  readonly priceOutputPerMillionUsd: number;
 
   constructor() {
     this.apiKey = process.env.OPENAI_API_KEY?.trim() || null;
@@ -54,6 +65,22 @@ export class AiConfigService {
       process.env.AI_MAX_DAILY_CHATBOT_MESSAGES,
       DEFAULT_MAX_DAILY_CHATBOT_MESSAGES,
     );
+    this.maxDailyIntelligenceTurnsPerBusiness = parsePositiveInt(
+      process.env.AI_MAX_DAILY_INTELLIGENCE_TURNS,
+      DEFAULT_MAX_DAILY_INTELLIGENCE_TURNS,
+    );
+    this.agentTurnTimeoutMs = parsePositiveInt(
+      process.env.AI_AGENT_TURN_TIMEOUT_MS,
+      DEFAULT_AGENT_TURN_TIMEOUT_MS,
+    );
+    this.priceInputPerMillionUsd = parsePositiveNumber(
+      process.env.AI_PRICE_INPUT_PER_MILLION_USD,
+      DEFAULT_PRICE_INPUT_PER_MILLION_USD,
+    );
+    this.priceOutputPerMillionUsd = parsePositiveNumber(
+      process.env.AI_PRICE_OUTPUT_PER_MILLION_USD,
+      DEFAULT_PRICE_OUTPUT_PER_MILLION_USD,
+    );
 
     if (this.globallyEnabled && !this.apiKey) {
       // Not fatal — every caller still falls back to the deterministic
@@ -69,6 +96,28 @@ export class AiConfigService {
   get providerConfigured(): boolean {
     return Boolean(this.apiKey);
   }
+
+  /** Costo estimado, con el precio configurado — nunca la factura real del proveedor. */
+  estimateCostUsd(
+    inputTokens: number | null,
+    outputTokens: number | null,
+  ): number | null {
+    if (inputTokens === null && outputTokens === null) return null;
+    const cost =
+      ((inputTokens ?? 0) * this.priceInputPerMillionUsd +
+        (outputTokens ?? 0) * this.priceOutputPerMillionUsd) /
+      1_000_000;
+    return Math.round(cost * 1_000_000) / 1_000_000;
+  }
+}
+
+function parsePositiveNumber(
+  raw: string | undefined,
+  fallback: number,
+): number {
+  if (!raw) return fallback;
+  const value = Number(raw);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
 function parsePositiveInt(raw: string | undefined, fallback: number): number {

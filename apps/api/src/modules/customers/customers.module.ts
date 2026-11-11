@@ -9,8 +9,11 @@ import { CustomersService } from './customers.service';
 import { CustomerLoyaltyRepository } from './loyalty/customer-loyalty.repository';
 import { CustomerLoyaltyService } from './loyalty/customer-loyalty.service';
 import { CustomerOverviewService } from './loyalty/customer-overview.service';
+import { PolicyModule } from '../policy/policy.module';
 
 @Module({
+  // La baja del staff pasa por el registro de consentimiento.
+  imports: [PolicyModule],
   controllers: [CustomersController, ContactsController],
   providers: [
     CustomersService,

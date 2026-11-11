@@ -90,6 +90,7 @@ export class RetentionV2EvaluateService {
         // Para resolver el deadline del desafío de vuelta con el reloj del
         // negocio — ver `ensureReturnChallenge`.
         timezone: true,
+        policy: { select: { autonomyMode: true } },
       },
     });
   }
@@ -101,6 +102,11 @@ export class RetentionV2EvaluateService {
     let dryRunCandidates = 0;
 
     for (const business of businesses) {
+      // Modo autónomo de Intelligence en PILOT: el reclutamiento de este
+      // negocio lo hace Intelligence (una estrategia, grupo chico). Si
+      // Autopilot también reclutara, el mismo negocio tendría dos
+      // reclutadores y los grupos chicos dejarían de serlo.
+      if (business.policy?.autonomyMode === 'PILOT') continue;
       try {
         // Fetched once and shared with both recruitment passes below — this
         // is the same business's settings row either way, and fetching it

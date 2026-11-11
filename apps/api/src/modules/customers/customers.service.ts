@@ -4,7 +4,12 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { AppointmentNotificationStatus } from '@prisma/client';
+import {
+  AppointmentNotificationStatus,
+  ConsentAction,
+  ConsentChannel,
+  ConsentSource,
+} from '@prisma/client';
 import * as XLSX from 'xlsx';
 import { WhatsAppBspService } from '../../jobs/whatsapp-bsp.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
@@ -13,6 +18,7 @@ import { ImportCsvDto } from './dto/import-csv.dto';
 import { NotifyAppointmentDto } from './dto/notify-appointment.dto';
 import { UpdateCustomerDto } from './dto/update-customer.dto';
 import { CustomersRepository } from './customers.repository';
+import { ConsentService } from '../policy/consent.service';
 
 interface CsvRow {
   rowNumber: number;
@@ -39,6 +45,7 @@ export class CustomersService {
   constructor(
     private readonly repository: CustomersRepository,
     private readonly whatsAppBspService: WhatsAppBspService,
+    private readonly consent: ConsentService,
   ) {}
 
   async list(
@@ -123,9 +130,25 @@ export class CustomersService {
     return { ok: true };
   }
 
-  async optOut(businessId: string, customerId: string) {
+  /**
+   * Baja de WhatsApp registrada por el staff. Pasa por el registro de
+   * consentimiento, que además prende `optedOut` (el espejo que leen los
+   * caminos de siempre) — una sola forma de dar de baja.
+   */
+  async optOut(
+    businessId: string,
+    customerId: string,
+    actorUserId: string | null = null,
+  ) {
     await this.assertExists(businessId, customerId);
-    await this.repository.update(businessId, customerId, { optedOut: true });
+    await this.consent.record({
+      businessId,
+      customerId,
+      channel: ConsentChannel.WHATSAPP,
+      action: ConsentAction.REVOKED,
+      source: ConsentSource.STAFF,
+      actorUserId,
+    });
     return this.repository.findOne(businessId, customerId);
   }
 

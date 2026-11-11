@@ -1,5 +1,16 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
-import { BenefitIssuanceSource } from '@prisma/client';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  BenefitIssuanceSource,
+  MembershipRole,
+  PolicyEffectSource,
+} from '@prisma/client';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { BenefitsService } from '../benefits/benefits.service';
 import { CampaignsService } from '../campaigns/campaigns.service';
@@ -13,6 +24,14 @@ import { LifecycleEmailsService } from '../../jobs/lifecycle-emails.service';
 import { promotionEmail } from '../../jobs/email-templates';
 import { buildMiFlikkerLink } from '../public/public-messaging.service';
 import type { SendPromotionDto } from './dto/send-promotion.dto';
+import { PolicyService } from '../policy/policy.service';
+import {
+  PolicyGateService,
+  denialMessage,
+  summarizeExclusions,
+} from '../policy/policy-gate.service';
+import { benefitIncentive } from '../policy/policy-usage';
+import type { PolicyDecision, PolicyEffect } from '../policy/policy-rules';
 
 /**
  * Promociones — lo que el dueño decide mandar, cuando quiere.
@@ -46,6 +65,31 @@ export type PromotionAudience = keyof typeof PROMOTION_AUDIENCES;
 /** Tope de destinatarios por envío. Igual que el que ya usa la lista. */
 const MAX_RECIPIENTS = 500;
 
+interface PromotionRecipient {
+  customerId: string;
+  name: string;
+  phoneE164: string;
+  email: string | null;
+}
+
+interface DeliveryResult {
+  response: {
+    campaignId: string;
+    sent: number;
+    failed: number;
+    audience: PromotionAudience;
+    benefitTitle: string | null;
+  };
+  issuedCount: number;
+}
+
+interface EffectParams {
+  source: PolicyEffectSource;
+  actorRole: MembershipRole | null;
+  recipientIds: string[];
+  benefitId?: string;
+}
+
 @Injectable()
 export class NotificationsPromotionsService {
   private readonly logger = new Logger(NotificationsPromotionsService.name);
@@ -58,6 +102,8 @@ export class NotificationsPromotionsService {
     private readonly publicUrls: CustomerPublicUrlService,
     private readonly plans: PlansService,
     private readonly lifecycleEmails: LifecycleEmailsService,
+    private readonly policies: PolicyService,
+    private readonly gate: PolicyGateService,
   ) {}
 
   /**
@@ -65,12 +111,61 @@ export class NotificationsPromotionsService {
    * confirmación antes de enviar — no una estimación: es la misma consulta
    * que después arma la lista real.
    */
-  async preview(businessId: string, audience: PromotionAudience) {
+  async preview(
+    businessId: string,
+    audience: PromotionAudience,
+    benefitId?: string,
+  ) {
     const recipients = await this.resolveRecipients(businessId, audience);
-    return { audience, recipientCount: recipients.length };
+    const base = { audience, recipientCount: recipients.length };
+    // Sin política aceptada, la vista previa es la de siempre.
+    if (!(await this.policies.isAccepted(businessId))) return base;
+    const { decision } = await this.evaluateFor(businessId, {
+      source: PolicyEffectSource.PROMOTION,
+      actorRole: MembershipRole.OWNER,
+      recipientIds: recipients.map((r) => r.customerId),
+      benefitId,
+    });
+    return { ...base, policy: policyView(decision) };
   }
 
-  async send(businessId: string, userId: string, dto: SendPromotionDto) {
+  /**
+   * La decisión del motor sobre una promoción hipotética, sin reservar nada.
+   * La usa la simulación de Intelligence, que siempre está gobernada.
+   */
+  async simulate(
+    businessId: string,
+    params: {
+      audience: PromotionAudience;
+      benefitId?: string | null;
+      source: PolicyEffectSource;
+      actorRole: MembershipRole | null;
+    },
+  ) {
+    const recipients = await this.resolveRecipients(
+      businessId,
+      params.audience,
+    );
+    const { decision, governed } = await this.evaluateFor(businessId, {
+      source: params.source,
+      actorRole: params.actorRole,
+      recipientIds: recipients.map((r) => r.customerId),
+      benefitId: params.benefitId ?? undefined,
+    });
+    return {
+      recipientCount: recipients.length,
+      governed,
+      decision,
+      policy: policyView(decision),
+    };
+  }
+
+  async send(
+    businessId: string,
+    userId: string,
+    dto: SendPromotionDto,
+    role: MembershipRole | null = null,
+  ) {
     const recipients = await this.resolveRecipients(businessId, dto.audience);
 
     if (recipients.length === 0) {
@@ -84,6 +179,107 @@ export class NotificationsPromotionsService {
       );
     }
 
+    // Con la política aceptada, el envío pasa por el motor: reserva atómica
+    // antes de gastar, solo a destinatarios elegibles, y confirmación con lo
+    // que realmente salió. Sin política, el camino de siempre.
+    if (!(await this.policies.isAccepted(businessId))) {
+      return (await this.deliver(businessId, userId, dto, recipients)).response;
+    }
+
+    const effect = await this.effectFor(businessId, {
+      source: PolicyEffectSource.PROMOTION,
+      actorRole: role,
+      recipientIds: recipients.map((r) => r.customerId),
+      benefitId: dto.benefitId,
+    });
+    const outcome = await this.gate.reserve(
+      { businessId, effect },
+      { idempotencyKey: dto.idempotencyKey ?? randomUUID(), userId },
+    );
+    if (outcome.status === 'REPLAY') {
+      return outcome.reservation.result as Record<string, unknown>;
+    }
+    if (outcome.status === 'IN_PROGRESS') {
+      throw new ConflictException('Esta promoción ya se está enviando.');
+    }
+    if (outcome.status === 'DENIED') {
+      throw new BadRequestException(denialMessage(outcome.decision));
+    }
+    if (outcome.status === 'NOT_GOVERNED') {
+      return (await this.deliver(businessId, userId, dto, recipients)).response;
+    }
+
+    const eligible = new Set(outcome.decision.eligibleCustomerIds);
+    let delivered: DeliveryResult;
+    try {
+      delivered = await this.deliver(
+        businessId,
+        userId,
+        dto,
+        recipients.filter((r) => eligible.has(r.customerId)),
+      );
+    } catch (error) {
+      await this.gate.release(
+        outcome.reservation.id,
+        error instanceof Error ? error.message : 'Error al enviar',
+      );
+      throw error;
+    }
+    const response = {
+      ...delivered.response,
+      policy: policyView(outcome.decision),
+    };
+    await this.gate.commit(outcome.reservation.id, {
+      messagesSent: delivered.response.sent,
+      incentivesIssued: delivered.issuedCount,
+      sourceRef: delivered.response.campaignId,
+      result: response,
+    });
+    void this.gate.checkHealth(businessId);
+    return response;
+  }
+
+  private async effectFor(
+    businessId: string,
+    params: EffectParams,
+  ): Promise<PolicyEffect> {
+    let incentive: PolicyEffect['incentive'] = null;
+    if (params.benefitId) {
+      const settings = await this.prisma.retentionSettings.findUnique({
+        where: { businessId },
+        select: { averageTicketAmount: true },
+      });
+      const resolved = await benefitIncentive(
+        this.prisma,
+        businessId,
+        params.benefitId,
+        settings?.averageTicketAmount ?? null,
+      );
+      if (!resolved) throw new NotFoundException('Beneficio no encontrado');
+      incentive = resolved.incentive;
+    }
+    return {
+      source: params.source,
+      actorRole: params.actorRole,
+      kind: 'MESSAGE',
+      createsCampaign: true,
+      candidateCustomerIds: params.recipientIds,
+      incentive,
+    };
+  }
+
+  private async evaluateFor(businessId: string, params: EffectParams) {
+    const effect = await this.effectFor(businessId, params);
+    return this.gate.evaluate({ businessId, effect });
+  }
+
+  /** El envío en sí: idéntico con o sin política, solo cambia a quiénes. */
+  private async deliver(
+    businessId: string,
+    userId: string,
+    dto: SendPromotionDto,
+    recipients: PromotionRecipient[],
+  ): Promise<DeliveryResult> {
     const rawMessage = dto.message.trim();
     let messageBody = rawMessage;
     let benefitTitle: string | null = null;
@@ -238,7 +434,10 @@ export class NotificationsPromotionsService {
       );
     });
 
-    return { ...result, audience: dto.audience, benefitTitle };
+    return {
+      response: { ...result, audience: dto.audience, benefitTitle },
+      issuedCount: issuedParticipationIds.length,
+    };
   }
 
   private async maybeSendEmails(input: {
@@ -327,7 +526,7 @@ export class NotificationsPromotionsService {
   private async resolveRecipients(
     businessId: string,
     audience: PromotionAudience,
-  ) {
+  ): Promise<PromotionRecipient[]> {
     const { data } = await this.loyalty.list(businessId, {
       filter: PROMOTION_AUDIENCES[audience],
       limit: MAX_RECIPIENTS + 1,
@@ -358,4 +557,15 @@ export class NotificationsPromotionsService {
         })),
       );
   }
+}
+
+/** Lo que el dueño (o el agente) ve de una decisión: sin ids de clientes. */
+function policyView(decision: PolicyDecision) {
+  return {
+    allowed: decision.allowed,
+    eligibleCount: decision.eligibleCustomerIds.length,
+    excluded: summarizeExclusions(decision),
+    blockers: decision.blockers,
+    cost: decision.cost,
+  };
 }

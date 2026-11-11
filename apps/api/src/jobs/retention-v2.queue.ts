@@ -81,6 +81,27 @@ export class RetentionV2Queue implements OnModuleInit, OnModuleDestroy {
     });
   }
 
+  /**
+   * Reencola una asignación que quedó PENDING por caer fuera del horario
+   * de envío. Antes solo la volvía a tomar la evaluación del día siguiente
+   * (09:00, de nuevo fuera de la ventana 10–20): con la configuración por
+   * defecto, nunca salía. `jobId` nuevo por el mismo motivo que
+   * `enqueueDeferredRetry`; la idempotencia real es de la asignación
+   * (estado PENDING y mensaje único).
+   */
+  async enqueueDeferredAssignment(
+    data: SendRetentionV2AssignmentJobData,
+    delayMs: number,
+  ) {
+    if (!this.queue) return null;
+    return this.queue.add(SEND_RETENTION_V2_ASSIGNMENT_JOB, data, {
+      delay: delayMs,
+      attempts: 3,
+      removeOnComplete: 100,
+      removeOnFail: false,
+    });
+  }
+
   async enqueueEvaluateRun() {
     if (!this.queue) return null;
     return this.queue.add(RUN_RETENTION_V2_EVALUATE_JOB, {}, { attempts: 1 });

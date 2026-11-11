@@ -108,8 +108,13 @@ export class NotificationsController {
   preview(
     @Req() req: AuthenticatedRequest,
     @Query('audience') audience: PromotionAudience,
+    @Query('benefitId') benefitId?: string,
   ) {
-    return this.promotions.preview(req.currentBusinessId!, audience);
+    return this.promotions.preview(
+      req.currentBusinessId!,
+      audience,
+      benefitId || undefined,
+    );
   }
 
   @Post('promotions')
@@ -119,6 +124,11 @@ export class NotificationsController {
     @Req() req: AuthenticatedRequest,
     @Body() dto: SendPromotionDto,
   ) {
-    return this.promotions.send(req.currentBusinessId!, req.user.id, dto);
+    return this.promotions.send(
+      req.currentBusinessId!,
+      req.user.id,
+      dto,
+      req.currentMembershipRole ?? null,
+    );
   }
 }

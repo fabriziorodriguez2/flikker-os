@@ -6,6 +6,7 @@ import { AiUsageService } from './ai-usage.service';
 import { AiGateService } from './ai-gate.service';
 import { RetentionAiCopyService } from './retention-ai-copy.service';
 import { AI_PROVIDER } from './ai-provider.interface';
+import { AI_AGENT_PROVIDER } from './ai-agent-provider.interface';
 import { AiUsageController } from './ai-usage.controller';
 
 /**
@@ -24,6 +25,9 @@ import { AiUsageController } from './ai-usage.controller';
   providers: [
     AiConfigService,
     { provide: AI_PROVIDER, useClass: OpenAiProviderService },
+    // La MISMA instancia del provider, expuesta con el contrato de agente:
+    // un solo lugar que habla con OpenAI, con la misma API key y config.
+    { provide: AI_AGENT_PROVIDER, useExisting: AI_PROVIDER },
     AiUsageService,
     AiGateService,
     RetentionAiCopyService,
@@ -34,6 +38,7 @@ import { AiUsageController } from './ai-usage.controller';
     AiGateService,
     RetentionAiCopyService,
     AI_PROVIDER,
+    AI_AGENT_PROVIDER,
   ],
 })
 export class AiModule {}

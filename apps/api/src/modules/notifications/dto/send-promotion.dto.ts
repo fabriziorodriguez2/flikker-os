@@ -1,5 +1,6 @@
 import {
   IsIn,
+  IsUUID,
   IsOptional,
   IsString,
   MaxLength,
@@ -27,4 +28,13 @@ export class SendPromotionDto {
   @IsOptional()
   @IsString()
   benefitId?: string;
+
+  /**
+   * Una por intento de envío (la genera la pantalla al abrir la
+   * confirmación). Con la política aceptada, el mismo valor dos veces
+   * devuelve el resultado del primero en vez de mandar de nuevo.
+   */
+  @IsOptional()
+  @IsUUID()
+  idempotencyKey?: string;
 }

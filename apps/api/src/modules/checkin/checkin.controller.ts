@@ -73,6 +73,7 @@ export class CheckinController {
         phone: dto.phone,
         birthdate: dto.birthdate,
         presenceCode: dto.presenceCode,
+        whatsappConsent: dto.whatsappConsent === true,
       },
       userAgent,
     );

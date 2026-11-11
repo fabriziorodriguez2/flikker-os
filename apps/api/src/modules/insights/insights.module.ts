@@ -46,6 +46,6 @@ import { PlansModule } from '../plans/plans.module';
     BusinessImpactService,
     ChatbotService,
   ],
-  exports: [InsightsService],
+  exports: [InsightsService, InsightsRepository],
 })
 export class InsightsModule {}

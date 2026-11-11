@@ -40,6 +40,8 @@ import { RewardGoalsModule } from './modules/reward-goals/reward-goals.module';
 import { SimulationModule } from './modules/simulation/simulation.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
+import { IntelligenceModule } from './modules/intelligence/intelligence.module';
+import { PolicyModule } from './modules/policy/policy.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -84,6 +86,8 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     SimulationModule,
     DashboardModule,
     OnboardingModule,
+    IntelligenceModule,
+    PolicyModule,
   ],
   controllers: [AppController],
 })

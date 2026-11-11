@@ -6,6 +6,9 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import {
+  ConsentAction,
+  ConsentChannel,
+  ConsentSource,
   Benefit,
   BenefitIssuanceSource,
   BenefitType,
@@ -15,6 +18,7 @@ import {
   ReviewFlowMode,
   VisitVerificationType,
 } from '@prisma/client';
+import { CONSENT_TEXT_VERSION } from '../policy/policy-rules';
 import { PrismaService } from '../../prisma/prisma.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
 import { resolveReviewFlow } from '../../common/utils/review-flow.util';
@@ -146,6 +150,7 @@ export class CheckinService {
       phone: string;
       birthdate?: string;
       presenceCode?: string;
+      whatsappConsent?: boolean;
     },
     userAgent?: string | null,
   ) {
@@ -186,6 +191,22 @@ export class CheckinService {
       },
       select: { id: true, name: true },
     });
+
+    // Consentimiento explícito de la casilla del formulario. Cliente recién
+    // creado: no hay espejo `optedOut` que corregir, alcanza con el evento
+    // (mismo registro de solo agregar que usa `ConsentService`).
+    if (input.whatsappConsent) {
+      await this.prisma.customerConsentEvent.create({
+        data: {
+          businessId: business.id,
+          customerId: customer.id,
+          channel: ConsentChannel.WHATSAPP,
+          action: ConsentAction.GRANTED,
+          source: ConsentSource.CHECKIN_FORM,
+          textVersion: CONSENT_TEXT_VERSION,
+        },
+      });
+    }
 
     const benefit = await this.benefits.resolveActiveBenefit(
       business.id,

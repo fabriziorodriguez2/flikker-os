@@ -25,6 +25,9 @@ export const AI_USE_CASES = {
   // 2 llamadas al provider) cuenta como UN uso — así "límite de mensajes
   // por día" es literal, no "límite de llamadas al modelo por día".
   CHATBOT_MESSAGE: 'CHATBOT_MESSAGE',
+  // Un turno completo del agente de Intelligence (todas sus rondas de
+  // herramientas) cuenta como UN uso, igual que el chatbot.
+  INTELLIGENCE_AGENT_TURN: 'INTELLIGENCE_AGENT_TURN',
 } as const;
 
 export type AiUseCase = (typeof AI_USE_CASES)[keyof typeof AI_USE_CASES];

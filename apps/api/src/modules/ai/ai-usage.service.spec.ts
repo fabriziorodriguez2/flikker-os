@@ -78,6 +78,7 @@ describe('AiUsageService — recording (Fase F §6/§43: no PII)', () => {
         inputTokens: 50,
         outputTokens: 20,
         latencyMs: 300,
+        estimatedCostUsd: null,
         customerId: null,
       },
       select: { id: true },

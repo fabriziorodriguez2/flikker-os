@@ -56,6 +56,8 @@ function makePrisma(
 ) {
   const tx = {
     $executeRaw: jest.fn().mockResolvedValue(undefined),
+    // Sin política aceptada: la bolsa de incentivos es solo la de Autopilot.
+    businessPolicy: { findUnique: jest.fn().mockResolvedValue(null) },
     benefitParticipation: {
       findMany: jest
         .fn()
