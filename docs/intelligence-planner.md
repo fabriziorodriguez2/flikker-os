@@ -91,19 +91,67 @@ Lecciones de la prueba que ya están corregidas en el código:
 - el resumen con claves técnicas se reescribe;
 - el prompt pide comparar cada incentivo contra una variante sin incentivo.
 
-## Pendientes antes de ejecutar de verdad
+## Ejecución, medición y memoria
 
-1. **Ejecución.** Convertir un plan simulado en un experimento de Autopilot
-   con textos por variante, que envíe por `MessagingService`. Requiere
-   autorización explícita y piloto.
-2. **Medición por plan.** Separar correlación, atribución (vuelta por link o
-   canje del mensaje) e incrementalidad contra el control, con etiquetas de
-   "sin evidencia" en muestras chicas.
-3. **Aprendizaje.** Pasar esos resultados a `plan_history`, que hoy devuelve
-   planes sin resultados.
-4. **Pantallas.** Actividad autónoma y chat: mostrar observaciones,
-   hipótesis, planes considerados y descartados con su motivo. La API ya los
-   devuelve.
-5. **Mensajería.** Pasar Promociones (`campaigns.service`) por
-   `MessagingService`, escuchar el evento `session.status` de WaSender y
-   resolver el remitente por negocio.
+**Cuándo ejecuta.** Un plan elegido se ejecuta solo si se cumplen todas estas
+condiciones:
+- el negocio está en PILOT;
+- el planificador está prendido;
+- `autonomyPlannerExecutionEnabled` está en `true`;
+- la autonomía no está pausada.
+
+Si falta alguna, queda SIMULATED. La autorización la da Platform con
+`PATCH /platform/businesses/:id/autonomy` y
+`{ "plannerExecutionEnabled": true, "confirmPlannerExecution": true }`, que
+exige PILOT, planificador, política y tope de costo. Salir de PILOT o el
+"Apagar" del dueño la apagan. El permiso se revisa de nuevo en cada envío.
+
+**Cómo ejecuta.** `PlanExecutorService` convierte el plan en un experimento
+de Autopilot:
+- objetivo `INTELLIGENCE_PLAN`;
+- una variante CONTROL más una variante por mensaje, con
+  `messageTemplate`;
+- asignaciones a los clientes alcanzables.
+
+El plan pasa a EXECUTING con `measureUntil`. El envío usa el pipeline normal:
+consentimiento de WhatsApp, horarios, topes de frecuencia y
+`MessagingService` con idempotencia. El texto se revalida antes de emitir
+cualquier incentivo. Las reglas fijas y el optimizador nunca reutilizan esos
+experimentos.
+
+**Medición.** `measurePlan` separa tres lecturas:
+- correlación: volvió después del mensaje;
+- atribución: la visita trae el `messageId` o hubo canje;
+- incrementalidad: test de dos proporciones contra el control.
+
+Con menos de 30 clientes por brazo la etiqueta es `SIGNAL_ONLY`: hay señal,
+pero no prueba. El plan se detiene solo (STOPPED) si las bajas o los fallos
+pasan su umbral. Si no, al vencer `measureUntil` pasa a COMPLETED. El worker
+refresca las mediciones antes de cada evaluación diaria.
+
+**Memoria.** `plan_history` devuelve los resultados de cada plan, así el
+planificador aprende qué funcionó. Los planes en curso cuentan para no
+repetir la misma idea.
+
+**Contactabilidad.** Cada corrida recibe la auditoría de consentimiento:
+cuántos autorizaron, cuántos no respondieron todavía y cuántos vinieron
+hace poco y se les puede preguntar. Cuando nadie es contactable, la corrida
+lo explica y sugiere cómo sumar autorizaciones. Nunca las asume.
+
+**Pantallas.** En Intelligence → Actividad autónoma se ve:
+- lo que vio el planificador;
+- los planes elegidos y descartados, con su motivo;
+- el alcance, la simulación y el resultado con su evidencia.
+
+El agente del chat lo consulta con la herramienta `commercial_plans`.
+Configuración → Políticas muestra la auditoría de autorizaciones.
+
+## Pendientes antes de producción
+
+1. Aplicar las migraciones en Railway (corren solas en el deploy, por el
+   `CMD` del Dockerfile).
+2. Una prueba piloto con autorización explícita, un solo negocio y remitente
+   compartido de WaSender.
+3. Remitente por negocio: el punto de extensión es
+   `MessagingService.resolveSender(businessId)`. Cada envío ya registra el
+   proveedor, la sesión y el negocio. Falta guardar las sesiones por negocio.
