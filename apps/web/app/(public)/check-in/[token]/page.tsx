@@ -34,6 +34,12 @@ export interface CheckinLanding {
   /** Programa → Página de inscripción. Encabezado propio, opcional. */
   welcomeMessage: string | null;
   /**
+   * Texto exacto de la casilla de consentimiento, con el nombre del
+   * comercio. Lo arma el servidor (y guarda su versión con el sí). Opcional:
+   * la preview del panel no lo trae y usa el mismo texto armado acá.
+   */
+  consentText?: string;
+  /**
    * Si este negocio exige el código rotativo que se muestra en el local.
    * Solo viaja el HECHO de que se exige, nunca el código: mandarlo acá lo
    * entregaría a cualquiera que abra el link desde su casa, que es

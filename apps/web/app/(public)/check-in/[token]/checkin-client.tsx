@@ -84,6 +84,13 @@ interface PersonalSpace {
    * excedente. El copy no debe prometer "+1 sello extra" en ese caso.
    */
   returnChallengeBonusApplied?: boolean;
+  /**
+   * Consentimiento promocional por WhatsApp. `ask` solo cuando nunca
+   * respondió: a quien dijo que no no se le insiste en cada visita.
+   */
+  marketingConsent?: {
+    whatsapp: { status: string; ask: boolean; text: string };
+  };
 }
 
 interface MissionView {
@@ -434,6 +441,7 @@ export function RegisterFormFields({
   onSubmit,
   onRecoverInstead,
   preview = false,
+  consentText,
 }: {
   benefit: CheckinLanding["benefit"];
   submitLabel: string;
@@ -446,6 +454,8 @@ export function RegisterFormFields({
   }) => Promise<{ error?: string } | void>;
   onRecoverInstead?: (phone: string) => void;
   preview?: boolean;
+  /** Texto de la casilla de consentimiento, con el nombre del comercio. */
+  consentText: string;
 }) {
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -586,10 +596,7 @@ export function RegisterFormFields({
             onChange={(e) => setWhatsappConsent(e.target.checked)}
             className="mt-0.5 h-4 w-4 shrink-0 accent-[#5C6BC0]"
           />
-          <span>
-            Quiero recibir promociones de este local por WhatsApp. Puedo darme
-            de baja cuando quiera respondiendo BAJA.
-          </span>
+          <span>{consentText}</span>
         </label>
 
         {error && (
@@ -706,9 +713,21 @@ export function RegisterScreenContent({
         onSubmit={onSubmit}
         onRecoverInstead={onRecoverInstead}
         preview={preview}
+        consentText={
+          landing.consentText ??
+          whatsappConsentText(landing.business.businessName)
+        }
       />
     </Shell>
   );
+}
+
+/**
+ * Mismo texto que arma el servidor (`consent-texts.ts`). Solo para la preview
+ * del panel, que no pasa por el endpoint del check-in.
+ */
+export function whatsappConsentText(businessName: string): string {
+  return `Quiero recibir promociones y beneficios de ${businessName.trim() || "este local"} por WhatsApp. Puedo darme de baja cuando quiera respondiendo BAJA.`;
 }
 
 function RegisterScreen({
@@ -1244,7 +1263,12 @@ function PersonalScreen({
           )
         )}
 
-        {/* ── 6. Navegación secundaria ───────────────────────────────────── */}
+        {/* ── 6. Promociones por WhatsApp (solo si nunca respondió) ─────── */}
+        {personal.marketingConsent?.whatsapp.ask ? (
+          <MarketingConsentPrompt text={personal.marketingConsent.whatsapp.text} />
+        ) : null}
+
+        {/* ── 7. Navegación secundaria ───────────────────────────────────── */}
         <Link
           href="/mi-flikker"
           className="checkin-enter-delay mt-4 inline-flex w-full items-center justify-center gap-2 rounded-[14px] py-3 text-sm font-bold"
@@ -1266,6 +1290,54 @@ function PersonalScreen({
         </button>
       </div>
     </Shell>
+  );
+}
+
+/**
+ * La misma casilla que el registro, para quien ya era cliente: desmarcada,
+ * opcional y sin bloquear nada. Guarda al marcarla; se puede desmarcar acá
+ * mismo o, después, desde Mi Flikker.
+ */
+export function MarketingConsentPrompt({ text }: { text: string }) {
+  const [checked, setChecked] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(false);
+
+  async function toggle(next: boolean) {
+    setSaving(true);
+    setError(false);
+    const result = await postJson("/api/checkin/session/consent", {
+      channel: "WHATSAPP",
+      granted: next,
+    });
+    setSaving(false);
+    if (result.ok) setChecked(next);
+    else setError(true);
+  }
+
+  return (
+    <div className="mt-4 w-full">
+      <label className="flex items-start gap-2.5 text-left text-xs leading-5 text-[color:var(--pub-text-muted)]">
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={saving}
+          onChange={(e) => void toggle(e.target.checked)}
+          className="mt-0.5 h-4 w-4 shrink-0 accent-[#5C6BC0]"
+        />
+        <span>{text}</span>
+      </label>
+      {checked ? (
+        <p className="mt-1 pl-[26px] text-left text-xs text-[color:var(--pub-text-muted)]">
+          Listo. Podés cambiarlo cuando quieras en Mi Flikker.
+        </p>
+      ) : null}
+      {error ? (
+        <p className="mt-1 pl-[26px] text-left text-xs text-red-600">
+          No pudimos guardarlo. Probá de nuevo.
+        </p>
+      ) : null}
+    </div>
   );
 }
 

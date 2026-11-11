@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Loader2, LogOut, Phone, User } from "lucide-react";
+import CommunicationPreferences from "./communication-preferences";
 
 interface AccountProfile {
   phone: string;
@@ -15,8 +16,8 @@ interface AccountProfile {
  * una barra de 4 pestañas, "Cuenta" es una pantalla más y no un menú
  * escondido. Lo que muestra es deliberadamente lo que YA existe — el
  * teléfono probado por OTP y, si el cliente alguna vez lo dio al
- * registrarse, su nombre. Nada de editar, nada de settings: no hay backend
- * para eso y no se inventa.
+ * registrarse, su nombre — y sus preferencias de comunicación por lugar
+ * (ver `communication-preferences.tsx`).
  */
 export default function AccountTab({
   onLogout,
@@ -85,6 +86,8 @@ export default function AccountTab({
           </div>
         </div>
       </div>
+
+      <CommunicationPreferences />
 
       <button
         type="button"
