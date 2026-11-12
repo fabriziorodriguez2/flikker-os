@@ -102,6 +102,14 @@ export interface PolicyEffect {
    * `isVerifiedZeroCost`); es lo único que sale sin presupuesto de incentivos.
    */
   incentive: { unitCost: number | null; zeroCostVerified?: boolean } | null;
+  /**
+   * El destinatario ya fue autorizado dentro de una campaña aprobada (un plan
+   * de Intelligence en curso): su lugar en el alcance semanal se contó al
+   * aprobarla, así que el tope semanal no lo recorta después (ni al cruzar a
+   * otra semana ni al pasar de 149 a 150 clientes). Consentimiento,
+   * frecuencia, presupuesto y pausa se revisan igual.
+   */
+  authorizedCampaign?: boolean;
 }
 
 /** Lo que ya está usado o en vuelo, leído por el servidor. */
@@ -122,6 +130,13 @@ export interface CustomerBase {
   registered: number;
   /** Clientes activos únicos que hoy pueden recibir promociones por WhatsApp. */
   contactable: number;
+  /**
+   * Registrados al empezar la semana local (activos hoy, creados antes del
+   * lunes). Decide el modo de TODA la semana: cruzar 150 a mitad de semana no
+   * cambia el cupo vigente; el % rige desde el lunes siguiente. Ausente = se
+   * usa `registered`.
+   */
+  registeredAtWeekStart?: number;
 }
 
 export interface WeeklyCap {
@@ -132,14 +147,17 @@ export interface WeeklyCap {
 }
 
 /**
- * Tope de clientes distintos por semana. Se recalcula en cada evaluación con
- * la base de ese momento: crece cuando crece la base contactable.
+ * Tope de clientes distintos por semana. El modo se fija con la base al
+ * empezar la semana (sin saltos a mitad de semana); el tope en modo % se
+ * recalcula en cada evaluación con la base contactable de ese momento, así
+ * que crece cuando crece la base.
  */
 export function weeklyRecipientCap(
   config: Pick<PolicyConfig, 'weeklyReachPercent'>,
   base: CustomerBase,
 ): WeeklyCap {
-  if (base.registered < SMALL_BUSINESS_CUSTOMER_THRESHOLD) {
+  const registered = base.registeredAtWeekStart ?? base.registered;
+  if (registered < SMALL_BUSINESS_CUSTOMER_THRESHOLD) {
     return { mode: 'ADAPTIVE', cap: null };
   }
   if (config.weeklyReachPercent === null) return { mode: 'PERCENT', cap: null };
@@ -510,6 +528,7 @@ export function evaluatePolicy(input: {
       (id) => !usage.recipientsThisWeek.has(id),
     ).length;
     if (
+      !effect.authorizedCampaign &&
       weekly.cap !== null &&
       usage.recipientsThisWeek.size + newRecipients > weekly.cap
     ) {

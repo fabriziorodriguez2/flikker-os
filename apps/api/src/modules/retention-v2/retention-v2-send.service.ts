@@ -217,6 +217,8 @@ export class RetentionV2SendService {
         createsCampaign: false,
         candidateCustomerIds: [assignment.customerId],
         incentive: null,
+        // Un plan ya contó a su grupo en el alcance semanal al aprobarse.
+        authorizedCampaign: isPlan,
       },
       now,
     });

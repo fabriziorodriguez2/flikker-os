@@ -73,6 +73,10 @@ export interface PolicyView {
     contactableCustomers: number;
     capThisWeek: number | null;
     contactedThisWeek: number;
+    /** Registrados al empezar la semana: fijan el modo de toda la semana. */
+    registeredAtWeekStart?: number;
+    /** Solo si desde el lunes cambia el modo (p. ej. al pasar de 149 a 150). */
+    nextWeek?: { mode: "ADAPTIVE" | "PERCENT"; estimatedCap: number | null } | null;
   };
   blockers: { code: string; message: string }[];
   missing: string[];
@@ -177,13 +181,24 @@ export const FIELD_HINTS: Partial<Record<keyof PolicyValues, string>> = {
 /** Qué tope semanal rige hoy, en palabras del dueño. */
 export function weeklyReachText(view: PolicyView): string {
   const w = view.weeklyReach;
+  const percent = view.values.weeklyReachPercent ?? "—";
+  let text: string;
   if (w.mode === "ADAPTIVE") {
-    return `Tu negocio tiene ${w.registeredCustomers} clientes registrados (menos de ${w.threshold}): no hay tope semanal por porcentaje. Intelligence decide cuántos contactar, siempre dentro del presupuesto, el consentimiento y la frecuencia por cliente.`;
+    const registered = w.registeredAtWeekStart ?? w.registeredCustomers;
+    text = `Esta semana arrancó con ${registered} clientes registrados (menos de ${w.threshold}): no hay tope semanal por porcentaje. Intelligence decide cuántos contactar, siempre dentro del presupuesto, el consentimiento y la frecuencia por cliente.`;
+  } else if (w.capThisWeek === null) {
+    text = "Definí el porcentaje para calcular el alcance semanal.";
+  } else {
+    text = `Esta semana: hasta ${w.capThisWeek} clientes distintos (${percent}% de ${w.contactableCustomers} con WhatsApp autorizado). Ya van ${w.contactedThisWeek}. Se recalcula a medida que crece tu base.`;
   }
-  if (w.capThisWeek === null) {
-    return "Definí el porcentaje para calcular el alcance semanal.";
+  if (w.nextWeek?.mode === "PERCENT") {
+    text += ` Ya tenés ${w.registeredCustomers} clientes registrados: desde el lunes rige el ${percent}% semanal${
+      w.nextWeek.estimatedCap !== null ? ` (hoy serían hasta ${w.nextWeek.estimatedCap} clientes distintos)` : ""
+    }. Las campañas en curso no se cortan por este cambio.`;
+  } else if (w.nextWeek?.mode === "ADAPTIVE") {
+    text += ` Hoy tenés ${w.registeredCustomers} clientes registrados (menos de ${w.threshold}): desde el lunes no hay tope semanal por porcentaje.`;
   }
-  return `Esta semana: hasta ${w.capThisWeek} clientes distintos (${view.values.weeklyReachPercent ?? "—"}% de ${w.contactableCustomers} con WhatsApp autorizado). Ya van ${w.contactedThisWeek}. Se recalcula a medida que crece tu base.`;
+  return text;
 }
 
 /**

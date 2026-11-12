@@ -128,6 +128,7 @@ describe("policy view", () => {
 
   it("explica el alcance semanal según el tamaño de la base", () => {
     expect(weeklyReachText(view())).toContain("105 clientes registrados (menos de 150)");
+    expect(weeklyReachText(view())).not.toContain("desde el lunes");
     const big = view({
       values: { ...preset },
       weeklyReach: {
@@ -142,6 +143,26 @@ describe("policy view", () => {
     expect(weeklyReachText(big)).toBe(
       "Esta semana: hasta 30 clientes distintos (25% de 120 con WhatsApp autorizado). Ya van 8. Se recalcula a medida que crece tu base.",
     );
+  });
+
+  it("al pasar de 149 a 150, el % rige desde el lunes y lo avisa", () => {
+    const crossing = view({
+      values: { ...preset },
+      weeklyReach: {
+        mode: "ADAPTIVE",
+        threshold: 150,
+        registeredCustomers: 150,
+        registeredAtWeekStart: 149,
+        contactableCustomers: 100,
+        capThisWeek: null,
+        contactedThisWeek: 40,
+        nextWeek: { mode: "PERCENT", estimatedCap: 25 },
+      },
+    });
+    const text = weeklyReachText(crossing);
+    expect(text).toContain("Esta semana arrancó con 149 clientes registrados");
+    expect(text).toContain("desde el lunes rige el 25% semanal (hoy serían hasta 25 clientes distintos)");
+    expect(text).toContain("Las campañas en curso no se cortan");
   });
 
   it("aceptada, muestra lo guardado", () => {

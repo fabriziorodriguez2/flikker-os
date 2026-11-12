@@ -222,6 +222,9 @@ export class RetentionV2MessageDispatchService {
           createsCampaign: false,
           candidateCustomerIds: [message.customerId],
           incentive: null,
+          // Un plan ya contó a su grupo en el alcance semanal al aprobarse:
+          // ni el cambio de semana ni pasar a 150 clientes lo recortan.
+          authorizedCampaign: isPlan,
         },
         now,
         excludeMessageId: message.id,

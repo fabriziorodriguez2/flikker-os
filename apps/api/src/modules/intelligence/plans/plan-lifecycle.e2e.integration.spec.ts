@@ -475,6 +475,48 @@ describe('Plan comercial de punta a punta (integration, simulación)', () => {
     expect(results!.readout).toContain('no demuestra');
   });
 
+  it('una campaña aprobada no se recorta después por el tope semanal', async () => {
+    if (!available) return;
+    const businessId = await business({ execute: true });
+    // 150 clientes más, registrados hace un mes y sin WhatsApp: la semana
+    // arranca en modo % (50% de 20 contactables = 10 por semana).
+    await prisma.customer.createMany({
+      data: Array.from({ length: 150 }, (_, i) => ({
+        id: randomUUID(),
+        businessId,
+        name: `Viejo${i}`,
+        phoneE164: `+5988${Math.floor(1_000_000 + Math.random() * 8_999_999)}`,
+        createdAt: ago(30),
+      })),
+    });
+    const { run } = await planner.run(businessId, {
+      trigger: 'MANUAL',
+      now: NOW,
+    });
+    expect(`${run.status}: ${run.explanation}`).toMatch(/^EXECUTED/);
+    const plan = await prisma.intelligencePlan.findFirstOrThrow({
+      where: { runId: run.id },
+    });
+    expect(plan.simulation).toMatchObject({ recipients: 10 });
+
+    // Después de aprobada, el dueño baja el alcance al 1% (tope 1). Lo ya
+    // autorizado sale igual: no se cancela ni se recorta a mitad de camino.
+    await prisma.businessPolicy.update({
+      where: { businessId },
+      data: { weeklyReachPercent: 1 },
+    });
+    await deliverAll(businessId, NOW);
+    const sent = await prisma.retentionAssignment.count({
+      where: { businessId, status: 'SENT' },
+    });
+    const skipped = await prisma.retentionAssignment.count({
+      where: { businessId, status: 'SKIPPED' },
+    });
+    expect(skipped).toBe(0);
+    expect(sent).toBeGreaterThan(1);
+    expect(mockProviderSend).toHaveBeenCalledTimes(sent);
+  });
+
   it('sin autorización de ejecución, el mismo plan solo se simula', async () => {
     if (!available) return;
     const businessId = await business({ execute: false });

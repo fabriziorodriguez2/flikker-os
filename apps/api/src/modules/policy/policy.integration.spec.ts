@@ -1234,7 +1234,14 @@ describe('Policy & Budget Engine (integration)', () => {
   // ---------------------------------------------------------------------------
   describe('v2: alcance semanal según la base y presupuesto del dueño', () => {
     /** Clientes de una sola vez, en bloque: `granted` de ellos con WhatsApp. */
-    async function bulk(businessId: string, total: number, granted: number) {
+    // Por defecto, clientes dados de alta hace 30 días: ya cuentan para el
+    // modo de la semana (que se fija con la base al empezar la semana).
+    async function bulk(
+      businessId: string,
+      total: number,
+      granted: number,
+      createdAt: Date = new Date(Date.now() - 30 * 86_400_000),
+    ) {
       const rows = Array.from({ length: total }, () => {
         phoneSeq += 1;
         return {
@@ -1242,6 +1249,7 @@ describe('Policy & Budget Engine (integration)', () => {
           businessId,
           name: `Cliente ${phoneSeq}`,
           phoneE164: `+5989${phonePrefix}${String(phoneSeq).padStart(4, '0')}`,
+          createdAt,
         };
       });
       await prisma.customer.createMany({ data: rows });
@@ -1271,6 +1279,27 @@ describe('Policy & Budget Engine (integration)', () => {
         registeredCustomers: 105,
         contactableCustomers: 70,
         capThisWeek: null,
+      });
+    });
+
+    it('de 149 a 150 a mitad de semana: el cupo vigente no cambia y se avisa el del lunes', async () => {
+      const biz = await business('crossing');
+      const owner = await user('crossing-owner', biz, MembershipRole.OWNER);
+      await accept(biz);
+      await bulk(biz, 149, 100);
+      // El cliente 150 se registra hoy.
+      await bulk(biz, 1, 1, new Date());
+      const res = await request(app.getHttpServer())
+        .get('/policy')
+        .set(as(owner, biz));
+      expect(res.body.weeklyReach).toMatchObject({
+        mode: 'ADAPTIVE',
+        registeredCustomers: 150,
+        registeredAtWeekStart: 149,
+        contactableCustomers: 101,
+        capThisWeek: null,
+        // 25% de 101 contactables, redondeado hacia arriba.
+        nextWeek: { mode: 'PERCENT', estimatedCap: 26 },
       });
     });
 

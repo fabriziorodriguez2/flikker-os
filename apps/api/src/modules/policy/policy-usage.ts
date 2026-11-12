@@ -313,16 +313,28 @@ export async function contactableWhatsappCount(
   return Number(rows[0]?.count ?? 0);
 }
 
-/** Registrados y contactables: la base sobre la que se calcula el tope semanal. */
+/**
+ * Registrados y contactables: la base sobre la que se calcula el tope
+ * semanal. Con `weekStart`, también los registrados al empezar la semana,
+ * que fijan el modo (ver `weeklyRecipientCap`).
+ */
 export async function customerBase(
   db: Db,
   businessId: string,
+  weekStart?: Date,
 ): Promise<CustomerBase> {
-  const [registered, contactable] = await Promise.all([
+  const [registered, contactable, registeredAtWeekStart] = await Promise.all([
     db.customer.count({ where: { businessId, isActive: true } }),
     contactableWhatsappCount(db, businessId),
+    weekStart
+      ? db.customer.count({
+          where: { businessId, isActive: true, createdAt: { lt: weekStart } },
+        })
+      : Promise.resolve(undefined),
   ]);
-  return { registered, contactable };
+  return registeredAtWeekStart === undefined
+    ? { registered, contactable }
+    : { registered, contactable, registeredAtWeekStart };
 }
 
 /**
@@ -448,7 +460,7 @@ export async function loadUsage(
         })
       : Promise.resolve([]),
     whatsappConsent(db, businessId, candidates),
-    customerBase(db, businessId),
+    customerBase(db, businessId, weekStart),
   ]);
 
   const currentWeek = weekKey(now, timezone);

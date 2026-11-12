@@ -22,7 +22,6 @@ import {
   type PolicyConfig,
 } from './policy-rules';
 import {
-  customerBase,
   heldAmounts,
   incentiveLiabilityThisMonth,
   loadUsage,
@@ -105,7 +104,7 @@ export class PolicyService {
     const { config, policy, averageTicketAmount } =
       await this.getConfig(businessId);
     const tz = config.businessTimezone;
-    const [sent, liability, held, base, week, campaigns] = await Promise.all([
+    const [sent, liability, held, week, campaigns] = await Promise.all([
       marketingMessagesSentThisMonth(this.prisma, businessId, tz, now),
       incentiveLiabilityThisMonth(this.prisma, {
         businessId,
@@ -115,7 +114,6 @@ export class PolicyService {
         includeReactivation: true,
       }),
       heldAmounts(this.prisma, businessId, tz, now),
-      customerBase(this.prisma, businessId),
       loadUsage(this.prisma, {
         businessId,
         timezone: tz,
@@ -146,7 +144,14 @@ export class PolicyService {
         },
       }),
     ]);
+    const { base } = week;
     const weekly = weeklyRecipientCap(config, base);
+    // Cómo queda desde el lunes con la base de hoy: si cambia el modo, el
+    // dueño lo ve antes de que pase.
+    const next = weeklyRecipientCap(config, {
+      registered: base.registered,
+      contactable: base.contactable,
+    });
     const missing: string[] = [];
     if (config.messageUnitCost === null) missing.push('MESSAGE_UNIT_COST');
     if (config.acceptedAt && config.messagingBudgetMonthly === null) {
@@ -221,6 +226,12 @@ export class PolicyService {
         contactableCustomers: base.contactable,
         capThisWeek: weekly.cap,
         contactedThisWeek: week.recipientsThisWeek.size,
+        registeredAtWeekStart: base.registeredAtWeekStart ?? base.registered,
+        /** Solo si la semana que viene cambia el modo (p. ej. de 149 a 150). */
+        nextWeek:
+          next.mode !== weekly.mode
+            ? { mode: next.mode, estimatedCap: next.cap }
+            : null,
       },
       blockers: configBlockers(config),
       missing,

@@ -520,6 +520,105 @@ describe('policy rules — tope semanal según el tamaño del negocio', () => {
   });
 });
 
+describe('policy rules — transición de 149 a 150 clientes', () => {
+  const base = (registered: number, registeredAtWeekStart: number) => ({
+    registered,
+    contactable: 100,
+    registeredAtWeekStart,
+  });
+
+  it('cruzar 150 a mitad de semana no cambia el cupo de esa semana', () => {
+    expect(
+      weeklyRecipientCap({ weeklyReachPercent: 25 }, base(150, 149)),
+    ).toEqual({ mode: 'ADAPTIVE', cap: null });
+    // Una semana que ya arrancó con 150: rige el %.
+    expect(
+      weeklyRecipientCap({ weeklyReachPercent: 25 }, base(151, 150)),
+    ).toEqual({ mode: 'PERCENT', cap: 25 });
+  });
+
+  it('bajar de 150 a mitad de semana tampoco: el % sigue hasta el lunes', () => {
+    expect(
+      weeklyRecipientCap({ weeklyReachPercent: 25 }, base(148, 150)),
+    ).toEqual({ mode: 'PERCENT', cap: 25 });
+  });
+
+  it('la semana del cruce, una campaña nueva no queda frenada por el %', () => {
+    // Ya van 60 en la semana (modo adaptativo); con el 25% serían 25.
+    const d = evaluatePolicy({
+      config: config({ messagingBudgetMonthly: 10_000 }),
+      effect: promo(ids(10)),
+      usage: usage(ids(10), {
+        base: base(150, 149),
+        recipientsThisWeek: new Set(ids(60, 'w')),
+      }),
+      now: NOW,
+    });
+    expect(codes(d)).not.toContain('WEEKLY_RECIPIENTS_LIMIT');
+  });
+
+  it('una campaña ya aprobada no se recorta por el tope semanal al enviarse', () => {
+    const effect = promo(['late'], {
+      source: 'AUTOPILOT',
+      actorRole: null,
+      createsCampaign: false,
+    });
+    const full = usage(['late'], {
+      base: base(400, 400),
+      recipientsThisWeek: new Set(ids(25, 'w')),
+    });
+    // Un mensaje suelto de Autopilot sí respeta el tope.
+    expect(
+      codes(evaluatePolicy({ config: config(), effect, usage: full, now: NOW })),
+    ).toEqual(['WEEKLY_RECIPIENTS_LIMIT']);
+    // El destinatario de un plan aprobado, no: su lugar ya se contó.
+    const planned = evaluatePolicy({
+      config: config(),
+      effect: { ...effect, authorizedCampaign: true },
+      usage: full,
+      now: NOW,
+    });
+    expect(planned.allowed).toBe(true);
+  });
+
+  it('una campaña aprobada igual respeta consentimiento, frecuencia y presupuesto', () => {
+    const d = evaluatePolicy({
+      config: config(),
+      effect: promo(['revoked', 'rested'], {
+        source: 'AUTOPILOT',
+        actorRole: null,
+        createsCampaign: false,
+        authorizedCampaign: true,
+      }),
+      usage: usage([], {
+        messagingSpentMonth: 500,
+        consentByCustomer: new Map<string, ConsentStatus>([
+          ['revoked', 'REVOKED'],
+          ['rested', 'GRANTED'],
+        ]),
+        contactsByCustomer: new Map([
+          ['rested', [new Date(NOW.getTime() - 2 * DAY)]],
+        ]),
+      }),
+      now: NOW,
+    });
+    expect(d.eligibleCustomerIds).toEqual([]);
+    expect(d.allowed).toBe(false);
+    const broke = evaluatePolicy({
+      config: config(),
+      effect: promo(['ok'], {
+        source: 'AUTOPILOT',
+        actorRole: null,
+        createsCampaign: false,
+        authorizedCampaign: true,
+      }),
+      usage: usage(['ok'], { messagingSpentMonth: 500 }),
+      now: NOW,
+    });
+    expect(codes(broke)).toEqual(['MESSAGING_BUDGET_EXCEEDED']);
+  });
+});
+
 describe('policy rules — topes semanales', () => {
   it('25 destinatarios únicos por semana: 25 entra, 26 no', () => {
     const already = new Set(ids(20, 'w'));
