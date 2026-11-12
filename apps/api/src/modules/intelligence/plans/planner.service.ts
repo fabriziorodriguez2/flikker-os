@@ -19,7 +19,10 @@ import {
   type AgentInputItem,
   type AiAgentProvider,
 } from '../../ai/ai-agent-provider.interface';
-import { estimateIncentiveCost } from '../../retention-v2/incentive-cost';
+import {
+  estimateIncentiveCost,
+  isVerifiedZeroCost,
+} from '../../retention-v2/incentive-cost';
 import { PolicyService } from '../../policy/policy.service';
 import { loadUsage } from '../../policy/policy-usage';
 import {
@@ -218,9 +221,12 @@ export class PlannerService {
       this.recentFingerprints(businessId, now),
     ]);
     const { budget, resting, base } = limits;
-    // Sin presupuesto de incentivos definido por el dueño, el planificador no
-    // ve ningún premio: diseña sin comprometer gasto.
-    const incentives = budget.incentiveBudgetSet ? catalog : [];
+    // Sin presupuesto de incentivos definido por el dueño, el planificador
+    // solo ve los premios de costo cero verificable: diseña sin comprometer
+    // gasto.
+    const incentives = budget.incentiveBudgetSet
+      ? catalog
+      : catalog.filter((i) => i.zeroCost);
     const baseView = {
       registered: base.registered,
       contactable: snapshot.consented.size,
@@ -679,6 +685,7 @@ export class PlannerService {
       fixedValue: d.fixedValue === null ? null : Number(d.fixedValue),
       expiresInDays: d.expiresInDays,
       allowFreeWording: d.type === 'gift' || d.type === 'upgrade',
+      zeroCost: isVerifiedZeroCost(d),
     }));
   }
 

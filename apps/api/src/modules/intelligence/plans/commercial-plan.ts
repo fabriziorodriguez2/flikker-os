@@ -126,6 +126,11 @@ export interface AuthorizedIncentive {
   expiresInDays: number | null;
   /** True solo si "gratis" es literalmente cierto (un regalo). */
   allowFreeWording: boolean;
+  /**
+   * Costo cero real y verificable (`isVerifiedZeroCost`): se puede usar sin
+   * presupuesto de incentivos y no lo consume.
+   */
+  zeroCost?: boolean;
 }
 
 export interface PlanValidationContext {

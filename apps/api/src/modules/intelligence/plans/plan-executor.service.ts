@@ -61,11 +61,15 @@ export class PlanExecutorService {
       };
     }
 
-    const unitCosts = plan.variants
-      .map((v) =>
-        v.incentiveId ? input.incentives.get(v.incentiveId)?.unitCost : null,
-      )
+    const used = plan.variants
+      .map((v) => (v.incentiveId ? input.incentives.get(v.incentiveId) : null))
+      .filter((i): i is AuthorizedIncentive => Boolean(i));
+    const unitCosts = used
+      .map((i) => i.unitCost)
       .filter((c): c is number => typeof c === 'number');
+    // Sin presupuesto, solo pasan si TODOS los premios del plan son de costo
+    // cero verificable.
+    const zeroCostVerified = used.every((i) => i.zeroCost === true);
     const { decision } = await this.gate.evaluate({
       businessId,
       effect: {
@@ -76,7 +80,7 @@ export class PlanExecutorService {
         candidateCustomerIds: input.recipientIds,
         // Peor caso: el incentivo más caro del plan para todos.
         incentive: unitCosts.length
-          ? { unitCost: Math.max(...unitCosts) }
+          ? { unitCost: Math.max(...unitCosts), zeroCostVerified }
           : null,
       },
       now,

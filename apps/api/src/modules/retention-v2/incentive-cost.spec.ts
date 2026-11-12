@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { estimateIncentiveCost } from './incentive-cost';
+import { estimateIncentiveCost, isVerifiedZeroCost } from './incentive-cost';
 
 function definition(overrides: Record<string, unknown> = {}) {
   return {
@@ -59,5 +59,31 @@ describe('estimateIncentiveCost — Fase D §19 (closing the C.5 percentage risk
       0,
     );
     expect(result).toEqual({ cost: 0, estimated: true });
+  });
+});
+
+describe('isVerifiedZeroCost', () => {
+  it('solo un costo 0 declarado y sin descuento es cero verificable', () => {
+    expect(isVerifiedZeroCost(definition({ estimatedCost: 0 }))).toBe(true);
+    expect(
+      isVerifiedZeroCost(definition({ estimatedCost: new Prisma.Decimal(0) })),
+    ).toBe(true);
+  });
+
+  it('sin costo declarado es desconocido, no cero', () => {
+    expect(isVerifiedZeroCost(definition())).toBe(false);
+  });
+
+  it('un costo declarado mayor a 0 no es cero', () => {
+    expect(isVerifiedZeroCost(definition({ estimatedCost: 1 }))).toBe(false);
+  });
+
+  it('un descuento (% o monto) nunca es cero verificable, aunque declare 0', () => {
+    expect(
+      isVerifiedZeroCost(definition({ estimatedCost: 0, percentageValue: 10 })),
+    ).toBe(false);
+    expect(
+      isVerifiedZeroCost(definition({ estimatedCost: 0, fixedValue: 100 })),
+    ).toBe(false);
   });
 });

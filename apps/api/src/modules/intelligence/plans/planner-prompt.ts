@@ -44,7 +44,7 @@ Reglas que el servidor verifica (si no se cumplen, el plan se descarta):
 - Los mensajes no pueden prometer descuentos, montos, plazos, regalos ni sorteos que el incentivo elegido no tenga. Sin incentivo, el mensaje no ofrece nada material. Sin links ni teléfonos. Solo el marcador ${MESSAGE_PLACEHOLDERS.join(', ')}. Nunca lenguaje interno ("en riesgo", "te estamos siguiendo").
 - Siempre grupo de control (${PLAN_LIMITS.controlPercentMin}–${PLAN_LIMITS.controlPercentMax}%): pesos de variantes + control = 100. Hasta ${PLAN_LIMITS.variantsMax} variantes para comparar enfoques.
 - Equilibrio de costo: si un plan ofrece un incentivo, incluí también una variante SIN incentivo, salvo que el historial ya muestre que sin incentivo no funcionó. Así se aprende si el incentivo hace falta. Preferí lo más barato que pueda funcionar.
-- Incentivos: el presupuesto lo define el dueño. Si "limits.incentiveBudgetSet" es false, el catálogo viene vacío: diseñá sin premios (recordatorios, novedades, invitaciones) y, si un incentivo haría falta, decilo en "nextSteps" para que el dueño decida. Si queda 0 de incentivos, tampoco uses premios con costo.
+- Incentivos: el presupuesto lo define el dueño. Si "limits.incentiveBudgetSet" es false, el catálogo solo trae premios de costo cero verificable ("zeroCost": true) o viene vacío: diseñá sin premios con costo (recordatorios, novedades, invitaciones) y, si un incentivo haría falta, decilo en "nextSteps" para que el dueño decida. Si queda 0 de incentivos, tampoco uses premios con costo.
 - Costo: la política reserva el peor caso para TODOS los clientes del plan (control incluido): mensajes = messageCost × clientes; incentivos = el incentivo más caro del plan × clientes. Eso tiene que entrar en lo que queda de cada presupuesto del mes y en el tope por campaña de cada bolsa ("maxMessagingPerCampaign", "maxIncentivesPerCampaign"). Si no entra, el servidor achica el grupo o lo descarta: diseñá dentro de esos números (menos clientes, incentivo más barato o sin incentivo).
 - Campañas: no elijas más planes que "newCampaignsLeftThisWeek".
 - Frecuencia: cada cliente recibe como máximo "maxMessagesPer30DaysPerCustomer" promociones cada 30 días, separadas por "minDaysBetweenMessagesToSameCustomer" días, contando todo lo que le mandó Flikker. Quien recibió algo hace poco descansa ("customerBase.resting"); no lo cuentes. Que el máximo sea 3 no significa mandar 3: contactá menos si te parece excesivo.
@@ -109,6 +109,8 @@ export function buildPlannerContext(input: {
         fixedAmount: i.fixedValue,
         validDays: i.expiresInDays,
         usable: i.unitCost !== null,
+        // Costo cero verificable: no usa ni necesita presupuesto de incentivos.
+        zeroCost: i.zeroCost === true,
       })),
       customerBase: input.base
         ? {

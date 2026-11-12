@@ -98,8 +98,10 @@ export interface PolicyEffect {
   /**
    * Premio emitido por destinatario. `unitCost: null` = no se puede estimar,
    * que bloquea: nunca se ofrece algo cuyo costo no se conoce.
+   * `zeroCostVerified`: el dueño declaró costo 0 y no lleva descuento (ver
+   * `isVerifiedZeroCost`); es lo único que sale sin presupuesto de incentivos.
    */
-  incentive: { unitCost: number | null } | null;
+  incentive: { unitCost: number | null; zeroCostVerified?: boolean } | null;
 }
 
 /** Lo que ya está usado o en vuelo, leído por el servidor. */
@@ -401,7 +403,10 @@ export function evaluatePolicy(input: {
           'No se puede estimar el costo de ese beneficio: cargale un costo estimado (Programa → Beneficios → Reactivación) antes de ofrecerlo.',
       });
     }
-    if (config.incentiveBudgetMonthly === null) {
+    const zeroCost =
+      effect.incentive.zeroCostVerified === true &&
+      effect.incentive.unitCost === 0;
+    if (config.incentiveBudgetMonthly === null && !zeroCost) {
       blockers.push({
         code: 'INCENTIVE_BUDGET_NOT_SET',
         message:

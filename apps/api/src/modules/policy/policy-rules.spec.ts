@@ -735,6 +735,45 @@ describe('policy rules — presupuesto de incentivos del dueño', () => {
     });
     expect(codes(d)).toEqual(['INCENTIVE_BUDGET_NOT_SET']);
   });
+
+  it('un premio de costo cero verificable sale sin presupuesto y no compromete nada', () => {
+    const d = evaluatePolicy({
+      config: config({ incentiveBudgetMonthly: null }),
+      effect: promo(ids(5), {
+        incentive: { unitCost: 0, zeroCostVerified: true },
+      }),
+      usage: usage(ids(5)),
+      now: NOW,
+    });
+    expect(d.allowed).toBe(true);
+    expect(d.cost?.incentives).toBe(0);
+    // Con presupuesto 0 también: no consume nada.
+    const zeroBudget = evaluatePolicy({
+      config: config({ incentiveBudgetMonthly: 0 }),
+      effect: promo(ids(5), {
+        incentive: { unitCost: 0, zeroCostVerified: true },
+      }),
+      usage: usage(ids(5)),
+      now: NOW,
+    });
+    expect(zeroBudget.allowed).toBe(true);
+  });
+
+  it('costo 0 sin verificar, o "verificado" con costo, sigue necesitando presupuesto', () => {
+    for (const incentive of [
+      { unitCost: 0 },
+      { unitCost: 0, zeroCostVerified: false },
+      { unitCost: 30, zeroCostVerified: true },
+    ]) {
+      const d = evaluatePolicy({
+        config: config({ incentiveBudgetMonthly: null }),
+        effect: promo(ids(2), { incentive }),
+        usage: usage(ids(2)),
+        now: NOW,
+      });
+      expect(codes(d)).toEqual(['INCENTIVE_BUDGET_NOT_SET']);
+    }
+  });
 });
 
 describe('policy rules — ventana horaria', () => {

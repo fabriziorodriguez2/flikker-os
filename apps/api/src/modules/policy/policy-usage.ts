@@ -10,7 +10,10 @@ import {
   startOfLocalWeek,
   startOfNextLocalMonth,
 } from '../../common/utils/timezone.util';
-import { estimateIncentiveCost } from '../retention-v2/incentive-cost';
+import {
+  estimateIncentiveCost,
+  isVerifiedZeroCost,
+} from '../retention-v2/incentive-cost';
 import {
   effectiveConsent,
   type ConsentStatus,
@@ -526,7 +529,9 @@ export async function benefitIncentive(
   businessId: string,
   benefitId: string,
   averageTicketAmount: Prisma.Decimal | number | null,
-): Promise<{ incentive: { unitCost: number | null } | null } | null> {
+): Promise<{
+  incentive: { unitCost: number | null; zeroCostVerified: boolean } | null;
+} | null> {
   const benefit = await db.benefit.findFirst({
     where: { id: benefitId, businessId, isInternalCarrier: false },
     select: {
@@ -550,5 +555,12 @@ export async function benefitIncentive(
         averageTicketAmount,
       )
     : null;
-  return { incentive: { unitCost: estimate ? estimate.cost : null } };
+  return {
+    incentive: {
+      unitCost: estimate ? estimate.cost : null,
+      zeroCostVerified: benefit.retentionIncentiveDefinition
+        ? isVerifiedZeroCost(benefit.retentionIncentiveDefinition)
+        : false,
+    },
+  };
 }

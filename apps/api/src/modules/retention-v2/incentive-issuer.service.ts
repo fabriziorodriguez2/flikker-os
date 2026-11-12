@@ -3,7 +3,7 @@ import { randomInt } from 'crypto';
 import { BenefitIssuanceSource, Prisma } from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { RetentionBudgetService } from './retention-budget.service';
-import { estimateIncentiveCost } from './incentive-cost';
+import { estimateIncentiveCost, isVerifiedZeroCost } from './incentive-cost';
 import { PlansService } from '../plans/plans.service';
 
 /**
@@ -192,8 +192,10 @@ export class IncentiveIssuerService {
     // Fase D §19: a percentage or fixed incentive with no explicit
     // `estimatedCost` is no longer silently treated as free — see
     // `incentive-cost.ts` for the exact priority order.
+    // Desconocido queda null: con la política aceptada no se emite (ver
+    // `checkWithinCaps`); sin política cuenta 0, como siempre.
     const estimatedCostOfThisIssue =
-      estimateIncentiveCost(definition, averageTicketAmount)?.cost ?? 0;
+      estimateIncentiveCost(definition, averageTicketAmount)?.cost ?? null;
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -218,6 +220,7 @@ export class IncentiveIssuerService {
                 ?.maxEstimatedIncentiveCostPerMonth ?? null,
           },
           estimatedCostOfThisIssue,
+          zeroCostVerified: isVerifiedZeroCost(definition),
           averageTicketAmount,
         });
 

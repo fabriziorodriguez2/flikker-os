@@ -1093,6 +1093,88 @@ describe('Policy & Budget Engine (integration)', () => {
       });
     });
 
+    describe('costo cero verificable y costo desconocido', () => {
+      const check = (
+        biz: string,
+        params: {
+          cost: number | null;
+          zeroCostVerified?: boolean;
+          countCap?: number | null;
+          costCap?: number | null;
+        },
+      ) =>
+        prisma.$transaction((tx) =>
+          budget.checkWithinCaps(tx, {
+            businessId: biz,
+            timezone: 'America/Montevideo',
+            now: new Date(),
+            caps: {
+              maxAutomatedIncentivesPerMonth: params.countCap ?? null,
+              maxEstimatedIncentiveCostPerMonth: params.costCap ?? null,
+            },
+            estimatedCostOfThisIssue: params.cost,
+            zeroCostVerified: params.zeroCostVerified,
+            averageTicketAmount: null,
+          }),
+        );
+
+      it('un premio de costo cero verificable sale sin presupuesto y no lo consume', async () => {
+        const biz = await business('zero-cost');
+        await accept(biz);
+        expect(await check(biz, { cost: 0, zeroCostVerified: true })).toEqual(
+          { allowed: true },
+        );
+        // El tope por cantidad del dueño sigue valiendo.
+        expect(
+          await check(biz, { cost: 0, zeroCostVerified: true, countCap: 0 }),
+        ).toMatchObject({
+          allowed: false,
+          reasonCode: 'MONTHLY_INCENTIVE_LIMIT',
+        });
+      });
+
+      it('costo 0 sin verificar (o con costo > 0) sigue necesitando presupuesto', async () => {
+        const biz = await business('zero-unverified');
+        await accept(biz);
+        expect(await check(biz, { cost: 0, countCap: 5 })).toMatchObject({
+          allowed: false,
+          metadata: { limitType: 'INCENTIVE_BUDGET_NOT_SET' },
+        });
+        expect(
+          await check(biz, { cost: 10, zeroCostVerified: true, countCap: 5 }),
+        ).toMatchObject({
+          allowed: false,
+          metadata: { limitType: 'INCENTIVE_BUDGET_NOT_SET' },
+        });
+      });
+
+      it('con la política aceptada, un premio de costo desconocido nunca se emite', async () => {
+        const biz = await business('unknown-cost');
+        await accept(biz);
+        expect(await check(biz, { cost: null, costCap: 1500 })).toMatchObject(
+          {
+            allowed: false,
+            reasonCode: 'MONTHLY_BUDGET_LIMIT',
+            metadata: { limitType: 'COST_UNKNOWN' },
+          },
+        );
+      });
+
+      it('sin política aceptada, Autopilot sigue como siempre (desconocido cuenta 0)', async () => {
+        const biz = await business('unknown-legacy');
+        expect(await check(biz, { cost: null, costCap: 100 })).toEqual({
+          allowed: true,
+        });
+        // Y sin ningún tope, nada sale (deny-by-default de siempre).
+        expect(
+          await check(biz, { cost: 0, zeroCostVerified: true }),
+        ).toMatchObject({
+          allowed: false,
+          metadata: { limitType: 'NOT_CONFIGURED' },
+        });
+      });
+    });
+
     it('la pantalla muestra lo comprometido, lo consumido y por qué incentivo', async () => {
       const biz = await business('breakdown');
       const owner = await user('breakdown-owner', biz, MembershipRole.OWNER);

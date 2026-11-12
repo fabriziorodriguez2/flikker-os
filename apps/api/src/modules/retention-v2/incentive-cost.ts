@@ -50,3 +50,22 @@ export function estimateIncentiveCost(
 
   return null;
 }
+
+/**
+ * Costo cero real y verificable: el dueño declaró explícitamente que cuesta 0
+ * y el incentivo no lleva ningún descuento (ni % ni monto) que pueda tener
+ * costo. Solo eso puede usarse sin presupuesto de incentivos; un regalo sin
+ * costo cargado es costo DESCONOCIDO, no cero.
+ */
+export function isVerifiedZeroCost(definition: {
+  estimatedCost: Prisma.Decimal | number | null;
+  percentageValue: number | null;
+  fixedValue: Prisma.Decimal | number | null;
+}): boolean {
+  return (
+    definition.estimatedCost != null &&
+    Number(definition.estimatedCost) === 0 &&
+    definition.percentageValue == null &&
+    definition.fixedValue == null
+  );
+}

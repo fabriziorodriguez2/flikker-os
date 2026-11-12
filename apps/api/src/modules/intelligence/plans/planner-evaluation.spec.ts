@@ -509,6 +509,38 @@ describe('evaluateSubmission — límites de la política', () => {
     expect(result.plans[1].status).toBe('SIMULATED');
   });
 
+  it('sin presupuesto, un premio de costo cero verificable sí va (y no consume nada)', () => {
+    const sticker: AuthorizedIncentive = {
+      id: 'inc-sticker',
+      label: 'Sticker de la casa',
+      unitCost: 0,
+      percentageValue: null,
+      fixedValue: null,
+      expiresInDays: 7,
+      allowFreeWording: true,
+      zeroCost: true,
+    };
+    const withSticker = plan({
+      variants: [
+        {
+          key: 'A',
+          message: 'Hola {nombre}, te guardamos un sticker de regalo.',
+          incentiveId: sticker.id,
+          weightPercent: 80,
+        },
+      ],
+    });
+    const result = evaluateSubmission(
+      submission([withSticker]),
+      ctx({
+        incentives: new Map([[sticker.id, sticker]]),
+        budget: budget({ incentiveBudgetSet: false, incentiveRemaining: 0 }),
+      }),
+    );
+    expect(result.plans[0].status).toBe('SIMULATED');
+    expect(result.plans[0].cost?.incentivesMaxLiability).toBe(0);
+  });
+
   it('presupuesto de incentivos insuficiente: achica con el peor caso; en 0, no va', () => {
     // 10 contactables × 60 = 600 > 300 → entran 5 (5 × 60 = 300).
     const tight = evaluateSubmission(

@@ -68,23 +68,15 @@ export class RetentionBudgetService {
       timezone: string;
       now: Date;
       caps: BudgetCaps;
-      estimatedCostOfThisIssue: number;
+      /** null = costo desconocido (sin costo cargado ni forma de estimarlo). */
+      estimatedCostOfThisIssue: number | null;
+      /** Costo 0 declarado y sin descuento — ver `isVerifiedZeroCost`. */
+      zeroCostVerified?: boolean;
       /** Needed to estimate a percentage incentive's cost — see `incentive-cost.ts`. */
       averageTicketAmount: Prisma.Decimal | number | null;
     },
   ): Promise<BudgetCheck> {
     const { caps } = params;
-    if (
-      caps.maxAutomatedIncentivesPerMonth === null &&
-      caps.maxEstimatedIncentiveCostPerMonth === null
-    ) {
-      return {
-        allowed: false,
-        reasonCode: 'MONTHLY_INCENTIVE_LIMIT',
-        metadata: { limitType: 'NOT_CONFIGURED' },
-      };
-    }
-
     // Motor de políticas: con la política aceptada, el tope de costo es UNA
     // bolsa compartida con las promociones (mismo campo, una sola fuente).
     // Se toma también el lock del motor para verse con las reservas en vuelo,
@@ -93,6 +85,23 @@ export class RetentionBudgetService {
       where: { businessId: params.businessId },
       select: { acceptedAt: true, paused: true },
     });
+    const governed = Boolean(policy?.acceptedAt);
+    const zeroCost =
+      governed &&
+      params.zeroCostVerified === true &&
+      params.estimatedCostOfThisIssue === 0;
+    if (
+      caps.maxAutomatedIncentivesPerMonth === null &&
+      caps.maxEstimatedIncentiveCostPerMonth === null &&
+      !zeroCost
+    ) {
+      return {
+        allowed: false,
+        reasonCode: 'MONTHLY_INCENTIVE_LIMIT',
+        metadata: { limitType: 'NOT_CONFIGURED' },
+      };
+    }
+
     let sharedCost = 0;
     if (policy?.acceptedAt) {
       if (policy.paused) {
@@ -100,6 +109,20 @@ export class RetentionBudgetService {
           allowed: false,
           reasonCode: 'POLICY_PAUSED',
           metadata: { limitType: 'POLICY_PAUSED' },
+        };
+      }
+      // Un incentivo de costo cero verificable no compromete dinero: no
+      // necesita presupuesto ni lo consume. El tope por cantidad, si el dueño
+      // lo puso, sigue valiendo.
+      if (zeroCost) {
+        return this.countCapCheck(tx, params);
+      }
+      // Costo desconocido: nunca se compromete algo que no se puede medir.
+      if (params.estimatedCostOfThisIssue === null) {
+        return {
+          allowed: false,
+          reasonCode: 'MONTHLY_BUDGET_LIMIT',
+          metadata: { limitType: 'COST_UNKNOWN' },
         };
       }
       // Con la política, el presupuesto de incentivos lo define el dueño: sin
@@ -150,7 +173,10 @@ export class RetentionBudgetService {
         ? null
         : Number(caps.maxEstimatedIncentiveCostPerMonth);
 
-    if (costCap !== null && cost + params.estimatedCostOfThisIssue > costCap) {
+    // Sin política, un costo desconocido sigue contando 0 (comportamiento de
+    // siempre de Autopilot; ver `issuedThisMonth`).
+    const thisIssue = params.estimatedCostOfThisIssue ?? 0;
+    if (costCap !== null && cost + thisIssue > costCap) {
       return {
         allowed: false,
         reasonCode: 'MONTHLY_BUDGET_LIMIT',
@@ -158,11 +184,41 @@ export class RetentionBudgetService {
           limitType: 'COST',
           spentThisMonth: cost,
           cap: costCap,
-          estimatedCostOfThisIssue: params.estimatedCostOfThisIssue,
+          estimatedCostOfThisIssue: thisIssue,
         },
       };
     }
 
+    return { allowed: true };
+  }
+
+  /** Solo el tope por cantidad (para incentivos de costo cero verificable). */
+  private async countCapCheck(
+    tx: Prisma.TransactionClient,
+    params: {
+      businessId: string;
+      timezone: string;
+      now: Date;
+      caps: BudgetCaps;
+      averageTicketAmount: Prisma.Decimal | number | null;
+    },
+  ): Promise<BudgetCheck> {
+    const cap = params.caps.maxAutomatedIncentivesPerMonth;
+    if (cap === null) return { allowed: true };
+    const { count } = await this.issuedThisMonth(
+      tx,
+      params.businessId,
+      params.timezone,
+      params.now,
+      params.averageTicketAmount,
+    );
+    if (count + 1 > cap) {
+      return {
+        allowed: false,
+        reasonCode: 'MONTHLY_INCENTIVE_LIMIT',
+        metadata: { limitType: 'COUNT', issuedThisMonth: count, cap },
+      };
+    }
     return { allowed: true };
   }
 

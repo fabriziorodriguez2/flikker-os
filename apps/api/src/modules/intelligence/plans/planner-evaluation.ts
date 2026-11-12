@@ -350,7 +350,11 @@ export function evaluateSubmission(
     let size = Math.min(free.length, plan.segment.maxRecipients);
     if (weeklyLeft !== null) size = Math.min(size, weeklyLeft);
 
-    const usesIncentive = plan.variants.some((v) => v.incentiveId);
+    // Un premio de costo cero verificable no compromete dinero: no necesita
+    // presupuesto de incentivos ni lo consume.
+    const usesIncentive = plan.variants.some(
+      (v) => v.incentiveId && !ctx.incentives.get(v.incentiveId)?.zeroCost,
+    );
     if (usesIncentive && budget.incentiveBudgetSet === false) {
       e.status = 'INFEASIBLE';
       e.issues.push(
