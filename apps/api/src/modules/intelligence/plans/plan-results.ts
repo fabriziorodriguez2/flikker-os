@@ -47,6 +47,8 @@ export interface ResultInput {
 
 export type Evidence =
   | 'NO_DATA'
+  /** Exploratoria, sin grupo de control: solo lo observado, nunca causa. */
+  | 'OBSERVED_ONLY'
   | 'SIGNAL_ONLY'
   | 'INCREMENTAL'
   | 'NO_DIFFERENCE';
@@ -73,6 +75,8 @@ export interface PlanResults {
   /** Diferencia en puntos porcentuales (contactados − control). */
   liftPoints: number | null;
   evidence: Evidence;
+  /** Campaña exploratoria: nadie quedó en el grupo de control. */
+  exploratory: boolean;
   /** Lo que se puede afirmar, en castellano y sin exagerar. */
   readout: string;
   optOuts: number;
@@ -182,8 +186,10 @@ export function measurePlan(input: ResultInput): PlanResults {
       ? Math.round((treatedRate - controlRate) * 10) / 10
       : null;
 
+  const exploratory = control.assigned === 0;
   let evidence: Evidence;
   if (treated.contacted === 0) evidence = 'NO_DATA';
+  else if (exploratory) evidence = 'OBSERVED_ONLY';
   else if (
     treated.contacted < MIN_ARM_FOR_EVIDENCE ||
     control.observed < MIN_ARM_FOR_EVIDENCE
@@ -250,6 +256,7 @@ export function measurePlan(input: ResultInput): PlanResults {
     controlReturnRate: controlRate,
     liftPoints: lift,
     evidence,
+    exploratory,
     readout: readoutFor(evidence, phase, treated, control, lift),
     optOuts,
     optOutPercent,
@@ -278,6 +285,9 @@ function readoutFor(
   }
   const open = phase !== 'COMPLETED' ? ' La medición sigue abierta.' : '';
   const base = `Volvieron ${t.returned} de ${t.contacted} contactados${c.observed ? ` y ${c.returned} de ${c.observed} del grupo de control` : ''}. ${t.attributed} volvieron por el mensaje (entraron por su link o canjearon el beneficio).`;
+  if (evidence === 'OBSERVED_ONLY') {
+    return `Campaña exploratoria, sin grupo de control. Lo observado: volvieron ${t.returned} de ${t.contacted} contactados y ${t.attributed} entraron por el mensaje o canjearon el beneficio. Es un registro de lo que pasó: no demuestra que el mensaje los hizo volver ni que sumó vueltas.${open}`;
+  }
   if (evidence === 'SIGNAL_ONLY') {
     return `${base} Con grupos tan chicos es una señal, no una prueba: no se puede afirmar que el mensaje los hizo volver.${open}`;
   }

@@ -36,7 +36,7 @@ Tu objetivo es que más clientes vuelvan, no mandar más mensajes. Los límites 
 Tamaño de los grupos:
 - "customerBase.weeklyLimitMode" = "ADAPTIVE" (menos de 150 clientes registrados): no hay tope semanal por porcentaje. Elegí el tamaño de cada grupo según cuántos clientes son realmente elegibles, su frecuencia de visita, el historial de campañas, la probabilidad de que vuelvan, el presupuesto que queda, el costo de los incentivos, el riesgo de saturar a los mismos clientes y la calidad de los datos. Puede ser un grupo chico o amplio: justificalo en "rationale". Una base chica no es motivo para no actuar.
 - "PERCENT": además, el total de clientes nuevos de la semana no puede pasar "newRecipientsLeftThisWeek".
-- Con pocos clientes elegibles (menos de ${SMALL_SAMPLE_RECIPIENTS}) igual podés proponer una acción chica si tiene sentido comercial: es un gesto, no un experimento. No le atribuyas resultados estadísticos ni la presentes como prueba.
+- Con pocos clientes elegibles (de 1 a ${SMALL_SAMPLE_RECIPIENTS - 1}) igual podés proponer una campaña exploratoria si hay una oportunidad real: todos reciben el mensaje y NO hay grupo de control (completá "controlPercent" igual; el servidor no lo aplica). Se registra lo observado: nunca le atribuyas causa, resultados estadísticos ni incrementalidad.
 
 Reglas que el servidor verifica (si no se cumplen, el plan se descarta):
 - Cada número que escribas (hipótesis, evidencia, resumen) tiene que salir de las métricas, de una vista previa o de los datos del catálogo. No redondees ni estimes cifras nuevas.

@@ -504,15 +504,19 @@ export interface PlanCostEstimate {
 /**
  * Costo estimado de un plan ya validado para un grupo de `recipients`. El
  * reparto entre variantes se hace con los pesos; redondeo a centavos.
+ * `withoutControl`: campaña exploratoria (grupo chico), todos reciben.
  */
 export function estimatePlanCost(
   plan: Pick<CommercialPlan, 'variants' | 'controlPercent'>,
   recipients: number,
   incentives: ReadonlyMap<string, AuthorizedIncentive>,
   messageUnitCost: number,
+  withoutControl = false,
 ): PlanCostEstimate {
   const money = (v: number) => Math.round(v * 100) / 100;
-  const control = Math.round((recipients * plan.controlPercent) / 100);
+  const control = withoutControl
+    ? 0
+    : Math.round((recipients * plan.controlPercent) / 100);
   const treated = recipients - control;
   const totalWeight =
     plan.variants.reduce((s, v) => s + v.weightPercent, 0) || 1;

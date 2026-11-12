@@ -28,9 +28,9 @@ import type { SegmentRule } from './segment-rules';
  */
 export const MIN_PLAN_RECIPIENTS = 1;
 /**
- * Por debajo de esto el plan es una prueba chica: se ejecuta igual, pero su
- * resultado es solo una señal y nadie (ni el modelo) puede presentarlo como
- * evidencia estadística.
+ * Por debajo de esto el plan es una campaña exploratoria: se ejecuta igual,
+ * pero sin grupo de control (con 1 a 4 clientes no se puede armar uno que
+ * sirva). Se registra lo observado, sin afirmar causalidad ni incrementalidad.
  */
 export const SMALL_SAMPLE_RECIPIENTS = 5;
 /** Máximo de planes elegidos por corrida. */
@@ -122,7 +122,10 @@ export interface EvaluatedPlan {
   recipientIds: string[];
   cost: PlanCostEstimate | null;
   costKnown: boolean;
-  /** Menos de SMALL_SAMPLE_RECIPIENTS: solo señal, nunca evidencia. */
+  /**
+   * Menos de SMALL_SAMPLE_RECIPIENTS: campaña exploratoria, sin grupo de
+   * control; solo lo observado, nunca evidencia.
+   */
   smallSample: boolean;
 }
 
@@ -466,12 +469,19 @@ export function evaluateSubmission(
       continue;
     }
 
-    const cost = estimatePlanCost(plan, size, ctx.incentives, unit);
+    const exploratory = size < SMALL_SAMPLE_RECIPIENTS;
+    const cost = estimatePlanCost(
+      plan,
+      size,
+      ctx.incentives,
+      unit,
+      exploratory,
+    );
     const r = reserved(size);
     e.status = 'SIMULATED';
     e.recipientIds = free.slice(0, size);
     e.cost = cost;
-    e.smallSample = size < SMALL_SAMPLE_RECIPIENTS;
+    e.smallSample = exploratory;
     e.recipientIds.forEach((id) => taken.add(id));
     if (messagingLeft !== null)
       messagingLeft = money(messagingLeft - r.messaging);
@@ -539,7 +549,7 @@ export function feedbackForModel(evaluation: SubmissionEvaluation): string {
       lines.push(
         `- ${label}: OK, ${e.recipientIds.length} destinatarios.${
           e.smallSample
-            ? ' Es una prueba chica: no presentes su resultado como evidencia.'
+            ? ' Es exploratoria (grupo chico, sin grupo de control): no presentes su resultado como evidencia ni como causa.'
             : ''
         }`,
       );

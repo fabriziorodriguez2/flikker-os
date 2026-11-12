@@ -67,6 +67,28 @@ describe('measurePlan', () => {
     expect(r.phase).toBe('MEASURING');
   });
 
+  it('exploratoria (sin grupo de control): registra lo observado, sin causalidad', () => {
+    const r = measurePlan(
+      input({
+        assignments: arm('t', 1, false),
+        messages: { sent: 1, failed: 0 },
+        visits: [{ customerId: 't0', occurredAt: days(2), messageId: 'msg-t0' }],
+      }),
+    );
+    expect(r.exploratory).toBe(true);
+    expect(r.evidence).toBe('OBSERVED_ONLY');
+    expect(r.treated).toMatchObject({ contacted: 1, returned: 1 });
+    expect(r.controlReturnRate).toBeNull();
+    expect(r.liftPoints).toBeNull();
+    expect(r.readout).toContain('sin grupo de control');
+    expect(r.readout).toContain('no demuestra que el mensaje los hizo volver');
+    expect(r.readout).not.toMatch(/sumó vueltas que no habrían pasado/);
+  });
+
+  it('con grupo de control no es exploratoria', () => {
+    expect(measurePlan(input()).exploratory).toBe(false);
+  });
+
   it('separa correlación de atribución: volver no es volver por el mensaje', () => {
     const r = measurePlan(
       input({

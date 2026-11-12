@@ -310,7 +310,7 @@ describe('evaluateSubmission', () => {
     expect(result.plans[0].recipientIds).toHaveLength(7);
   });
 
-  it('pocos clientes: se puede actuar, marcado como prueba chica (sin evidencia)', () => {
+  it('pocos clientes: exploratoria, todos reciben y no hay grupo de control', () => {
     const result = evaluateSubmission(
       submission([
         plan({
@@ -322,7 +322,43 @@ describe('evaluateSubmission', () => {
     expect(result.plans[0].status).toBe('SIMULATED');
     expect(result.plans[0].recipientIds).toHaveLength(3);
     expect(result.plans[0].smallSample).toBe(true);
-    expect(feedbackForModel(result)).toContain('prueba chica');
+    // Con 20% de control serían 0,6 personas: no se exige un control imposible.
+    expect(result.plans[0].cost).toMatchObject({ treated: 3, control: 0 });
+    expect(feedbackForModel(result)).toContain('sin grupo de control');
+  });
+
+  it('un único destinatario: exploratoria, recibe el mensaje', () => {
+    const result = evaluateSubmission(
+      submission([
+        plan({
+          segment: { description: 'h', rule: REGULARS, maxRecipients: 1 },
+        }),
+      ]),
+      ctx(),
+    );
+    expect(result.plans[0]).toMatchObject({
+      status: 'SIMULATED',
+      smallSample: true,
+    });
+    expect(result.plans[0].cost).toMatchObject({
+      recipients: 1,
+      treated: 1,
+      control: 0,
+      messaging: 2,
+    });
+  });
+
+  it('desde 5 clientes vuelve el grupo de control', () => {
+    const result = evaluateSubmission(
+      submission([
+        plan({
+          segment: { description: 'h', rule: ANY_VISITS, maxRecipients: 10 },
+        }),
+      ]),
+      ctx(),
+    );
+    expect(result.plans[0].smallSample).toBe(false);
+    expect(result.plans[0].cost?.control).toBeGreaterThan(0);
   });
 
   it(`un solo cliente disponible alcanza (mínimo ${MIN_PLAN_RECIPIENTS}); desde ${SMALL_SAMPLE_RECIPIENTS} deja de ser prueba chica`, () => {

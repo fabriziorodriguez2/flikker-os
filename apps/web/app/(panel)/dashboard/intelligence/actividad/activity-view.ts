@@ -152,7 +152,9 @@ export interface PlannerAnalysis {
 
 export interface PlanResultsView {
   phase: "SENDING" | "MEASURING" | "COMPLETED";
-  evidence: "NO_DATA" | "SIGNAL_ONLY" | "INCREMENTAL" | "NO_DIFFERENCE";
+  evidence: "NO_DATA" | "OBSERVED_ONLY" | "SIGNAL_ONLY" | "INCREMENTAL" | "NO_DIFFERENCE";
+  /** Campaña exploratoria: sin grupo de control. */
+  exploratory?: boolean;
   readout: string;
   treated: { contacted: number; returned: number; attributed: number; redeemed: number };
   control: { observed: number; returned: number };
@@ -179,7 +181,14 @@ export interface PlanView {
   selectionReason: string | null;
   matched: number | null;
   reachable: number | null;
-  simulation: { recipients: number; treated: number; control: number; cost: { total: number }; costKnown: boolean } | null;
+  simulation: {
+    recipients: number;
+    treated: number;
+    control: number;
+    cost: { total: number };
+    costKnown: boolean;
+    exploratory?: boolean;
+  } | null;
   results?: PlanResultsView | { assigned: number; recipients: number } | null;
   estimatedCost: number | null;
   currency: string | null;
@@ -199,6 +208,7 @@ export const PLAN_STATUS_LABELS: Record<PlanStatus, { label: string; tone: "ok" 
 
 export const EVIDENCE_LABELS: Record<PlanResultsView["evidence"], string> = {
   NO_DATA: "Sin datos todavía",
+  OBSERVED_ONLY: "Exploratoria: lo observado, sin grupo de control",
   SIGNAL_ONLY: "Señal (muestra chica, sin prueba)",
   INCREMENTAL: "Evidencia: el plan sumó vueltas",
   NO_DIFFERENCE: "Sin diferencia con el grupo de control",
@@ -229,6 +239,16 @@ export function contactabilityLines(c: Contactability): string[] {
 export function reachLine(plan: Pick<PlanView, "matched" | "reachable">): string {
   if (plan.matched === null) return "—";
   return `${plan.matched} entran en el segmento · ${plan.reachable ?? 0} se pueden contactar`;
+}
+
+/** "11 recibirían el mensaje · 3 en grupo de control · UYU 22". */
+export function simulationLine(plan: Pick<PlanView, "simulation" | "currency">): string {
+  const s = plan.simulation;
+  if (!s) return "—";
+  const cost = s.costKnown ? `${plan.currency ?? ""} ${s.cost.total}` : "costo desconocido";
+  const control =
+    s.exploratory || s.control === 0 ? "exploratoria, sin grupo de control" : `${s.control} en grupo de control`;
+  return `${s.treated} ${s.treated === 1 ? "recibiría" : "recibirían"} el mensaje · ${control} · ${cost}`;
 }
 
 export function isMeasured(results: PlanView["results"]): results is PlanResultsView {

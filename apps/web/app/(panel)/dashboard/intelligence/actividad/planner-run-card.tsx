@@ -9,6 +9,7 @@ import {
   contactabilityLines,
   isMeasured,
   reachLine,
+  simulationLine,
   type AutonomousRunView,
   type PlanView,
 } from "./activity-view";
@@ -163,9 +164,7 @@ export function PlanItem({ plan }: { plan: PlanView }) {
                 <span className="block text-xs text-[color:var(--panel-text-secondary)]">{measured.readout}</span>
               </>
             ) : plan.simulation ? (
-              `${plan.simulation.treated} recibirían el mensaje · ${plan.simulation.control} en grupo de control · ${
-                plan.simulation.costKnown ? `${plan.currency ?? ""} ${plan.simulation.cost.total}` : "costo desconocido"
-              }`
+              simulationLine(plan)
             ) : plan.issues.length ? (
               <ul className="list-disc pl-4 text-xs text-[color:var(--panel-text-secondary)]">
                 {[...new Set(plan.issues.map((i) => i.message))].map((m) => (

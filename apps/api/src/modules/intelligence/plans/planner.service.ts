@@ -448,6 +448,7 @@ export class PlannerService {
                   cost: e.cost,
                   costKnown: e.costKnown,
                   smallSample: e.smallSample,
+                  exploratory: e.smallSample,
                   startOn: e.submitted.schedule.startOn,
                 } as unknown as Prisma.InputJsonValue)
               : Prisma.JsonNull,
@@ -611,7 +612,7 @@ export class PlannerService {
       },
     });
     return JSON.stringify({
-      note: 'SIMULATED no contactó a nadie. EXECUTING/MEASURING/COMPLETED/STOPPED tienen resultados reales: "evidence" dice qué se puede afirmar (SIGNAL_ONLY = señal sin prueba; INCREMENTAL = el plan sumó vueltas frente al control; NO_DIFFERENCE = sin diferencia con el control). Aprendé de eso: no repitas lo que no funcionó y no afirmes más de lo que dice "evidence".',
+      note: 'SIMULATED no contactó a nadie. EXECUTING/MEASURING/COMPLETED/STOPPED tienen resultados reales: "evidence" dice qué se puede afirmar (OBSERVED_ONLY = exploratoria sin grupo de control, solo lo observado; SIGNAL_ONLY = señal sin prueba; INCREMENTAL = el plan sumó vueltas frente al control; NO_DIFFERENCE = sin diferencia con el control). Aprendé de eso: no repitas lo que no funcionó y no afirmes más de lo que dice "evidence".',
       plans: plans.map((p) => ({
         date: p.createdAt.toISOString().slice(0, 10),
         status: p.status,

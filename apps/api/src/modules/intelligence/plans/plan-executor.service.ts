@@ -14,12 +14,20 @@ import { computeVisitFrequency } from '../../retention-v2/visit-frequency';
 import type { AuthorizedIncentive } from './commercial-plan';
 import type { BusinessSnapshot } from './business-snapshot';
 import type { SubmittedPlan } from './planner-evaluation';
-import { MIN_PLAN_RECIPIENTS } from './planner-evaluation';
+import {
+  MIN_PLAN_RECIPIENTS,
+  SMALL_SAMPLE_RECIPIENTS,
+} from './planner-evaluation';
 
 const MS_PER_DAY = 86_400_000;
 
 export type ExecutionOutcome =
-  | { status: 'EXECUTING'; assigned: number; experimentId: string }
+  | {
+      status: 'EXECUTING';
+      assigned: number;
+      experimentId: string;
+      exploratory: boolean;
+    }
   | { status: 'BLOCKED'; code: string; messages: string[] };
 
 /**
@@ -160,6 +168,10 @@ export class PlanExecutorService {
       list.push(v.occurredAt);
       visitsBy.set(v.customerId, list);
     }
+    // Exploratoria (1 a 4 clientes): un grupo de control de 0 o 1 persona no
+    // permite comparar nada, así que todos reciben el mensaje y la medición
+    // registra solo lo observado (ver `measurePlan`, evidencia OBSERVED_ONLY).
+    const exploratory = eligible.length < SMALL_SAMPLE_RECIPIENTS;
     let assigned = 0;
     for (const customerId of eligible) {
       const outcome = await this.assignments.assign({
@@ -169,6 +181,9 @@ export class PlanExecutorService {
         segment: input.snapshot.features.get(customerId)!.segment,
         frequency: computeVisitFrequency(visitsBy.get(customerId) ?? [], now),
         autonomousRunId: input.runId,
+        ...(exploratory
+          ? { excludeStrategies: [RetentionStrategyType.CONTROL] }
+          : {}),
       });
       if (outcome.status === 'assigned') assigned += 1;
     }
@@ -186,9 +201,15 @@ export class PlanExecutorService {
         results: {
           assigned,
           recipients: eligible.length,
+          exploratory,
         } as Prisma.InputJsonValue,
       },
     });
-    return { status: 'EXECUTING', assigned, experimentId: experiment.id };
+    return {
+      status: 'EXECUTING',
+      assigned,
+      experimentId: experiment.id,
+      exploratory,
+    };
   }
 }

@@ -1033,7 +1033,7 @@ export class AgentToolsService {
       };
     };
     const view = {
-      note: 'SIMULATED no contactó a nadie. "results.evidence": SIGNAL_ONLY = señal sin prueba (muestra chica); INCREMENTAL = el plan sumó vueltas frente al grupo de control; NO_DIFFERENCE = sin diferencia. Nunca digas que un cliente volvió gracias a Flikker si "evidence" no es INCREMENTAL. Cada corrida del planificador recibe estos resultados y los usa para decidir la siguiente.',
+      note: 'SIMULATED no contactó a nadie. "results.evidence": OBSERVED_ONLY = campaña exploratoria sin grupo de control (solo lo observado, nunca causa); SIGNAL_ONLY = señal sin prueba (muestra chica); INCREMENTAL = el plan sumó vueltas frente al grupo de control; NO_DIFFERENCE = sin diferencia. Nunca digas que un cliente volvió gracias a Flikker si "evidence" no es INCREMENTAL. Cada corrida del planificador recibe estos resultados y los usa para decidir la siguiente.',
       contactability: analysisOf(runs[0]?.analysis).contactability ?? null,
       runs: runs.map((r) => {
         const a = analysisOf(r.analysis);

@@ -7,7 +7,9 @@ import {
   confidenceLabel,
   incentiveLabel,
   resultLine,
+  simulationLine,
   type AutonomousRunView,
+  type PlanView,
 } from "./activity-view";
 
 function run(overrides: Partial<AutonomousRunView> = {}): AutonomousRunView {
@@ -118,5 +120,20 @@ describe("planificador", () => {
 
   it("nunca presenta una señal como prueba", () => {
     expect(EVIDENCE_LABELS.SIGNAL_ONLY).toContain("sin prueba");
+    expect(EVIDENCE_LABELS.OBSERVED_ONLY).toContain("sin grupo de control");
+  });
+
+  it("una campaña exploratoria no promete grupo de control", () => {
+    const sim = (over: Partial<NonNullable<PlanView["simulation"]>>) => ({
+      currency: "UYU",
+      simulation: { recipients: 1, treated: 1, control: 0, cost: { total: 2 }, costKnown: true, ...over },
+    });
+    expect(simulationLine(sim({ exploratory: true }))).toBe(
+      "1 recibiría el mensaje · exploratoria, sin grupo de control · UYU 2",
+    );
+    expect(simulationLine(sim({ recipients: 14, treated: 11, control: 3, cost: { total: 22 } }))).toBe(
+      "11 recibirían el mensaje · 3 en grupo de control · UYU 22",
+    );
+    expect(simulationLine({ currency: null, simulation: null })).toBe("—");
   });
 });

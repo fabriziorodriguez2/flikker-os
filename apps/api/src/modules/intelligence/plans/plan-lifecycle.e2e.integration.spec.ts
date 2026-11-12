@@ -65,7 +65,7 @@ const call = (name: string, args: unknown): AgentStreamEvent => ({
   arguments: JSON.stringify(args),
 });
 const ONE_VISIT = JSON.stringify({ field: 'visitCount', op: 'eq', value: 1 });
-const submitOnePlan = () =>
+const submitOnePlan = (lapsed = 20) =>
   call('submit_plans', {
     observations: ['Muchos clientes vinieron una sola vez.'],
     hypotheses: [
@@ -88,8 +88,8 @@ const submitOnePlan = () =>
         evidence: [
           {
             metric: 'customers.single_visit_lapsed_30d',
-            value: 20,
-            statement: '20 clientes vinieron una sola vez y no volvieron.',
+            value: lapsed,
+            statement: `${lapsed} clientes vinieron una sola vez y no volvieron.`,
           },
         ],
         segment: {
@@ -132,7 +132,7 @@ describe('Plan comercial de punta a punta (integration, simulación)', () => {
   const ago = (d: number) => new Date(NOW.getTime() - d * 86_400_000);
   const later = (d: number) => new Date(NOW.getTime() + d * 86_400_000);
 
-  async function business(opts: { execute: boolean }) {
+  async function business(opts: { execute: boolean; customers?: number }) {
     const id = randomUUID();
     businesses.push(id);
     await prisma.business.create({
@@ -175,7 +175,7 @@ describe('Plan comercial de punta a punta (integration, simulación)', () => {
       },
     });
     // 20 clientes de una sola visita, todos con WhatsApp autorizado.
-    for (let i = 0; i < 20; i += 1) {
+    for (let i = 0; i < (opts.customers ?? 20); i += 1) {
       const c = await prisma.customer.create({
         data: {
           businessId: id,
@@ -418,6 +418,61 @@ describe('Plan comercial de punta a punta (integration, simulación)', () => {
       evidence: 'SIGNAL_ONLY',
       treated: { returned: 2 },
     });
+  });
+
+  it('con un único cliente: campaña exploratoria, sin grupo de control, solo lo observado', async () => {
+    if (!available) return;
+    const businessId = await business({ execute: true, customers: 1 });
+    provider.script = (_req, round) =>
+      round % 2 === 1
+        ? [call('plan_history', {}), done()]
+        : [submitOnePlan(1), done()];
+    const { run } = await planner.run(businessId, {
+      trigger: 'MANUAL',
+      now: NOW,
+    });
+    expect(`${run.status}: ${run.explanation}`).toMatch(/^EXECUTED/);
+    const plan = await prisma.intelligencePlan.findFirstOrThrow({
+      where: { runId: run.id },
+      include: { experiment: true },
+    });
+    expect(plan.simulation).toMatchObject({
+      recipients: 1,
+      treated: 1,
+      control: 0,
+      exploratory: true,
+    });
+    expect(plan.results).toMatchObject({ recipients: 1, exploratory: true });
+
+    // El único cliente recibe el mensaje: nunca queda en un "control" de uno.
+    await deliverAll(businessId, NOW);
+    const assignment = await prisma.retentionAssignment.findFirstOrThrow({
+      where: { experimentId: plan.experiment!.id },
+      include: { variant: true },
+    });
+    expect(assignment.variant.strategyType).toBe('REMINDER');
+    expect(assignment.status).toBe('SENT');
+    expect(mockProviderSend).toHaveBeenCalledTimes(1);
+
+    await prisma.visit.create({
+      data: {
+        businessId,
+        customerId: assignment.customerId,
+        messageId: assignment.messageId,
+        occurredAt: later(2),
+        visitDayKey: later(2).toISOString().slice(0, 10),
+        verificationType: 'persistent_session',
+      },
+    });
+    const results = await measurement.refresh(plan.id, later(3));
+    expect(results).toMatchObject({
+      evidence: 'OBSERVED_ONLY',
+      exploratory: true,
+      treated: { contacted: 1, returned: 1 },
+      control: { assigned: 0 },
+      liftPoints: null,
+    });
+    expect(results!.readout).toContain('no demuestra');
   });
 
   it('sin autorización de ejecución, el mismo plan solo se simula', async () => {
