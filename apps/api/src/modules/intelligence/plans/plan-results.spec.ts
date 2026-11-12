@@ -72,7 +72,9 @@ describe('measurePlan', () => {
       input({
         assignments: arm('t', 1, false),
         messages: { sent: 1, failed: 0 },
-        visits: [{ customerId: 't0', occurredAt: days(2), messageId: 'msg-t0' }],
+        visits: [
+          { customerId: 't0', occurredAt: days(2), messageId: 'msg-t0' },
+        ],
       }),
     );
     expect(r.exploratory).toBe(true);

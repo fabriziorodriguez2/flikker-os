@@ -541,7 +541,9 @@ describe('Plan comercial de punta a punta (integration, simulación)', () => {
     afterAll(async () => {
       if (!available) return;
       // Los AuditLog se borran con cada negocio (afterAll de arriba corre después).
-      await prisma.auditLog.deleteMany({ where: { actorUserId: { in: users } } });
+      await prisma.auditLog.deleteMany({
+        where: { actorUserId: { in: users } },
+      });
       await prisma.user.deleteMany({ where: { id: { in: users } } });
     });
 
@@ -580,7 +582,10 @@ describe('Plan comercial de punta a punta (integration, simulación)', () => {
       if (!available) return;
       const businessId = await business({ execute: true });
       const userId = await owner();
-      const a = await runPlan(businessId, { title: 'Plan A', maxRecipients: 10 });
+      const a = await runPlan(businessId, {
+        title: 'Plan A',
+        maxRecipients: 10,
+      });
       const b = await runPlan(businessId, {
         title: 'Plan B',
         rule: JSON.stringify({ field: 'visitCount', op: 'gte', value: 1 }),
@@ -624,9 +629,7 @@ describe('Plan comercial de punta a punta (integration, simulación)', () => {
       await deliverAll(businessId, NOW);
       const afterPause = await assignmentsOf(a.experiment!.id);
       expect(afterPause.filter((x) => x.status === 'SENT')).toHaveLength(1);
-      expect(
-        afterPause.filter((x) => x.status === 'SKIPPED'),
-      ).toHaveLength(0);
+      expect(afterPause.filter((x) => x.status === 'SKIPPED')).toHaveLength(0);
       const sentB = (await assignmentsOf(b.experiment!.id)).filter(
         (x) => x.status === 'SENT',
       );
@@ -706,7 +709,12 @@ describe('Plan comercial de punta a punta (integration, simulación)', () => {
       ).length;
       expect(sentBefore).toBeGreaterThan(0);
 
-      const cancelled = await planControl.cancel(businessId, plan.id, userId, NOW);
+      const cancelled = await planControl.cancel(
+        businessId,
+        plan.id,
+        userId,
+        NOW,
+      );
       expect(cancelled).toMatchObject({
         status: 'STOPPED',
         stopReason: 'CANCELLED_BY_OWNER',

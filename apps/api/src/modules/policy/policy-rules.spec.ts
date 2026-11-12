@@ -569,7 +569,9 @@ describe('policy rules — transición de 149 a 150 clientes', () => {
     });
     // Un mensaje suelto de Autopilot sí respeta el tope.
     expect(
-      codes(evaluatePolicy({ config: config(), effect, usage: full, now: NOW })),
+      codes(
+        evaluatePolicy({ config: config(), effect, usage: full, now: NOW }),
+      ),
     ).toEqual(['WEEKLY_RECIPIENTS_LIMIT']);
     // El destinatario de un plan aprobado, no: su lugar ya se contó.
     const planned = evaluatePolicy({

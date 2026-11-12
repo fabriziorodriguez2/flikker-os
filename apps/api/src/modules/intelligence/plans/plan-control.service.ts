@@ -150,7 +150,8 @@ export class PlanControlService {
     }
 
     const byReason: Record<string, number> = {};
-    for (const e of excluded) byReason[e.reason] = (byReason[e.reason] ?? 0) + 1;
+    for (const e of excluded)
+      byReason[e.reason] = (byReason[e.reason] ?? 0) + 1;
 
     await this.prisma.$transaction(async (tx) => {
       const moved = await tx.retentionExperiment.updateMany({
@@ -270,8 +271,7 @@ export class PlanControlService {
     for (const id of planIds) result.set(id, { paused: false, events: [] });
     for (const e of experiments) {
       const entry = result.get(e.intelligencePlanId!);
-      if (entry)
-        entry.paused = e.status === RetentionExperimentStatus.PAUSED;
+      if (entry) entry.paused = e.status === RetentionExperimentStatus.PAUSED;
     }
     for (const log of logs) {
       const entry = result.get(log.entityId!);
