@@ -6,7 +6,12 @@ import {
 } from '@nestjs/common';
 import { Job, Worker } from 'bullmq';
 import IORedis from 'ioredis';
-import { ExperienceVersion, RetentionAssignmentStatus } from '@prisma/client';
+import {
+  ExperienceVersion,
+  RetentionAssignmentStatus,
+  RetentionExperimentStatus,
+  RetentionObjective,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { createRedisConnection, REDIS_CONFIGURED } from '../redis-connection';
 import {
@@ -181,6 +186,14 @@ export class RetentionV2Worker implements OnModuleInit, OnModuleDestroy {
           isActive: true,
           experienceVersion: ExperienceVersion.CHECKIN_V2,
           retentionEngineV2Enabled: true,
+        },
+        // Una campaña de Intelligence pausada por el dueño espera: no se
+        // encola nada suyo hasta que la reanude.
+        NOT: {
+          experiment: {
+            objective: RetentionObjective.INTELLIGENCE_PLAN,
+            status: RetentionExperimentStatus.PAUSED,
+          },
         },
       },
       select: { id: true },

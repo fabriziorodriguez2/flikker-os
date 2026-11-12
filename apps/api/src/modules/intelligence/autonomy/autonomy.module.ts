@@ -7,6 +7,7 @@ import { PlannerService } from '../plans/planner.service';
 import { BusinessSnapshotService } from '../plans/business-snapshot.service';
 import { PlanExecutorService } from '../plans/plan-executor.service';
 import { PlanMeasurementService } from '../plans/plan-measurement.service';
+import { PlanControlService } from '../plans/plan-control.service';
 import { AutonomyService } from './autonomy.service';
 import { AutonomyAdminService } from './autonomy-admin.service';
 import {
@@ -31,6 +32,7 @@ import {
     BusinessSnapshotService,
     PlanExecutorService,
     PlanMeasurementService,
+    PlanControlService,
   ],
   exports: [
     AutonomyService,

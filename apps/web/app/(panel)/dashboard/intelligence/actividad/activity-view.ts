@@ -192,6 +192,63 @@ export interface PlanView {
   results?: PlanResultsView | { assigned: number; recipients: number } | null;
   estimatedCost: number | null;
   currency: string | null;
+  stopReason?: string | null;
+  /** Pausada por el dueño (solo esta campaña). */
+  paused?: boolean;
+  /** Pausas, reanudaciones y cancelaciones: quién y cuándo (más reciente primero). */
+  controlEvents?: PlanControlEvent[];
+}
+
+export interface PlanControlEvent {
+  action: "PAUSED" | "RESUMED" | "CANCELLED";
+  at: string;
+  by: { id: string; name: string } | null;
+}
+
+export type PlanControlAction = "pause" | "resume" | "cancel";
+
+/** Qué se puede hacer con una campaña: solo las que todavía pueden mandar algo. */
+export function planControls(plan: Pick<PlanView, "status" | "paused">): PlanControlAction[] {
+  if (plan.status !== "EXECUTING" && plan.status !== "MEASURING") return [];
+  return plan.paused ? ["resume", "cancel"] : ["pause", "cancel"];
+}
+
+export const CONTROL_LABELS: Record<PlanControlAction, string> = {
+  pause: "Pausar esta campaña",
+  resume: "Reanudar",
+  cancel: "Cancelar campaña",
+};
+
+const CONTROL_VERBS: Record<PlanControlEvent["action"], string> = {
+  PAUSED: "Pausada",
+  RESUMED: "Reanudada",
+  CANCELLED: "Cancelada",
+};
+
+/** "Pausada por Ana Pérez el 12/11 10:30". */
+export function controlEventLine(event: PlanControlEvent, timeZone?: string): string {
+  const when = new Date(event.at).toLocaleString("es-UY", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    ...(timeZone ? { timeZone } : {}),
+  });
+  return `${CONTROL_VERBS[event.action]}${event.by ? ` por ${event.by.name}` : ""} el ${when}`;
+}
+
+/** La etiqueta de estado, contando la pausa y la cancelación del dueño. */
+export function planStatusLabel(
+  plan: Pick<PlanView, "status" | "paused" | "stopReason">,
+): { label: string; tone: "ok" | "info" | "muted" | "warn" } {
+  if (plan.paused && (plan.status === "EXECUTING" || plan.status === "MEASURING")) {
+    return { label: "Pausada", tone: "warn" };
+  }
+  if (plan.status === "STOPPED" && plan.stopReason === "CANCELLED_BY_OWNER") {
+    return { label: "Cancelada", tone: "muted" };
+  }
+  return PLAN_STATUS_LABELS[plan.status];
 }
 
 export const PLAN_STATUS_LABELS: Record<PlanStatus, { label: string; tone: "ok" | "info" | "muted" | "warn" }> = {

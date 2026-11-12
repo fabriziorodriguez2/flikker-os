@@ -6,6 +6,7 @@ import {
 import { AutonomousRun, AutonomyMode, ExperienceVersion } from '@prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { AuditService } from '../../../common/services/audit.service';
+import { PlanControlService } from '../plans/plan-control.service';
 import {
   AutonomyService,
   strategyLabel,
@@ -23,6 +24,7 @@ export class AutonomyAdminService {
     private readonly prisma: PrismaService,
     private readonly autonomy: AutonomyService,
     private readonly audit: AuditService,
+    private readonly planControl: PlanControlService,
   ) {}
 
   async setMode(
@@ -235,6 +237,10 @@ export class AutonomyAdminService {
         orderBy: [{ rank: 'asc' }, { createdAt: 'asc' }],
       }),
     ]);
+    const control = await this.planControl.controlState(
+      businessId,
+      plans.map((p) => p.id),
+    );
     return {
       ...this.runView(
         run,
@@ -257,6 +263,12 @@ export class AutonomyAdminService {
         simulation: p.simulation,
         estimatedCost: p.estimatedCost == null ? null : Number(p.estimatedCost),
         currency: p.currency,
+        // Medición (sin clientes: solo conteos y la lectura de la evidencia).
+        results: p.results,
+        stopReason: p.stopReason,
+        // Pausa individual y quién hizo qué, cuándo.
+        paused: control.get(p.id)?.paused ?? false,
+        controlEvents: control.get(p.id)?.events ?? [],
       })),
     };
   }

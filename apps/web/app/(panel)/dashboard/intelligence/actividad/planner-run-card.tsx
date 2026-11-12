@@ -1,16 +1,22 @@
 "use client";
 
 import { useState } from "react";
+import Button from "@/components/ui/button";
 import SectionCard from "@/components/ui/section-card";
 import {
+  CONTROL_LABELS,
   EVIDENCE_LABELS,
-  PLAN_STATUS_LABELS,
   STATUS_LABELS,
+  controlEventLine,
+  planControls,
+  planStatusLabel,
   contactabilityLines,
   isMeasured,
   reachLine,
   simulationLine,
   type AutonomousRunView,
+  type PlanControlAction,
+  type PlanControlEvent,
   type PlanView,
 } from "./activity-view";
 
@@ -135,8 +141,9 @@ export default function PlannerRunCard({ run }: { run: AutonomousRunView }) {
   );
 }
 
-export function PlanItem({ plan }: { plan: PlanView }) {
-  const status = PLAN_STATUS_LABELS[plan.status];
+export function PlanItem({ plan: initial }: { plan: PlanView }) {
+  const [plan, setPlan] = useState(initial);
+  const status = planStatusLabel(plan);
   const measured = isMeasured(plan.results) ? plan.results : null;
   return (
     <article className="rounded-[12px] border border-[color:var(--panel-border)] p-4">
@@ -144,6 +151,7 @@ export function PlanItem({ plan }: { plan: PlanView }) {
         <h4 className="text-sm font-semibold text-[color:var(--panel-text)]">{plan.title}</h4>
         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${TONE_CLASS[status.tone]}`}>{status.label}</span>
       </div>
+      <PlanControls plan={plan} onChange={(next) => setPlan((p) => ({ ...p, ...next }))} />
       <p className="mt-1 text-sm text-[color:var(--panel-text-secondary)]">{plan.hypothesis}</p>
       <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2">
         <div className="min-w-0">
@@ -198,5 +206,100 @@ export function PlanItem({ plan }: { plan: PlanView }) {
         </details>
       ) : null}
     </article>
+  );
+}
+
+type ControlResult = Pick<PlanView, "status" | "stopReason" | "paused"> & { events: PlanControlEvent[] };
+
+/**
+ * Pausar, reanudar o cancelar ESTA campaña (las demás siguen). Cancelar pide
+ * confirmación en la misma tarjeta. Lo ya enviado no se toca; el botón global
+ * de emergencia sigue en Políticas.
+ */
+function PlanControls({
+  plan,
+  onChange,
+}: {
+  plan: PlanView;
+  onChange: (next: Partial<PlanView>) => void;
+}) {
+  const [busy, setBusy] = useState<PlanControlAction | null>(null);
+  const [confirming, setConfirming] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const actions = planControls(plan);
+  const events = plan.controlEvents ?? [];
+
+  async function run(action: PlanControlAction) {
+    setBusy(action);
+    setError(null);
+    try {
+      const res = await fetch(`${BASE}/plans/${plan.id}/${action}`, { method: "POST" });
+      const body = (await res.json().catch(() => ({}))) as Partial<ControlResult> & { message?: string };
+      if (!res.ok) throw new Error(body.message ?? "No pudimos hacer el cambio.");
+      onChange({
+        status: body.status ?? plan.status,
+        stopReason: body.stopReason ?? null,
+        paused: body.paused ?? false,
+        controlEvents: body.events ?? events,
+      });
+      setConfirming(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "No pudimos hacer el cambio.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  if (actions.length === 0 && events.length === 0) return null;
+  return (
+    <div className="mt-3 space-y-2">
+      {actions.length > 0 ? (
+        confirming ? (
+          <div className="rounded-[8px] bg-[color:var(--panel-surface-muted)] p-3 text-sm text-[color:var(--panel-text-secondary)]">
+            <p>
+              Lo que todavía no salió de esta campaña no se va a enviar nunca. Lo ya enviado no se toca y se sigue
+              midiendo. Las demás campañas siguen igual.
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              <Button size="sm" variant="danger" onClick={() => void run("cancel")} loading={busy === "cancel"} disabled={busy !== null}>
+                Sí, cancelar esta campaña
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setConfirming(false)} disabled={busy !== null}>
+                Volver
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {actions.map((action) => (
+              <Button
+                key={action}
+                size="sm"
+                variant={action === "cancel" ? "ghost" : "secondary"}
+                onClick={() => (action === "cancel" ? setConfirming(true) : void run(action))}
+                loading={busy === action}
+                disabled={busy !== null}
+              >
+                {CONTROL_LABELS[action]}
+              </Button>
+            ))}
+          </div>
+        )
+      ) : null}
+      {plan.paused ? (
+        <p className="text-xs text-[color:var(--panel-text-muted)]">
+          Pausada: no sale nada nuevo de esta campaña. Al reanudar se vuelve a revisar el consentimiento, la frecuencia y
+          el presupuesto de cada cliente.
+        </p>
+      ) : null}
+      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      {events.length > 0 ? (
+        <ul className="space-y-0.5 text-xs text-[color:var(--panel-text-muted)]">
+          {events.map((e) => (
+            <li key={`${e.action}-${e.at}`}>{controlEventLine(e)}</li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }

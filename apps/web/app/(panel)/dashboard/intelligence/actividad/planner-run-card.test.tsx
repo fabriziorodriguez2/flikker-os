@@ -72,4 +72,41 @@ describe("PlanItem", () => {
     expect(html).toContain("Señal (muestra chica, sin prueba)");
     expect(html).toContain("Volvieron 2 de 8 contactados");
   });
+
+  it("una campaña en curso se puede pausar o cancelar; una simulada no", () => {
+    expect(render(plan())).not.toContain("Pausar esta campaña");
+    const html = render(plan({ status: "EXECUTING", paused: false }));
+    expect(html).toContain("Pausar esta campaña");
+    expect(html).toContain("Cancelar campaña");
+    expect(html).not.toContain("Reanudar");
+  });
+
+  it("pausada: lo dice, ofrece reanudar y muestra quién la pausó", () => {
+    const html = render(
+      plan({
+        status: "EXECUTING",
+        paused: true,
+        controlEvents: [{ action: "PAUSED", at: "2026-11-12T13:30:00.000Z", by: { id: "u1", name: "Ana Pérez" } }],
+      }),
+    );
+    expect(html).toContain("Pausada");
+    expect(html).toContain("Reanudar");
+    expect(html).not.toContain("Pausar esta campaña");
+    expect(html).toContain("se vuelve a revisar el consentimiento");
+    expect(html).toContain("Pausada por Ana Pérez el");
+  });
+
+  it("cancelada por el dueño: sin botones, con el registro", () => {
+    const html = render(
+      plan({
+        status: "STOPPED",
+        stopReason: "CANCELLED_BY_OWNER",
+        controlEvents: [{ action: "CANCELLED", at: "2026-11-12T13:30:00.000Z", by: { id: "u1", name: "Ana Pérez" } }],
+      }),
+    );
+    expect(html).toContain("Cancelada");
+    expect(html).not.toContain("Reanudar");
+    expect(html).not.toContain("Pausar esta campaña");
+    expect(html).toContain("Cancelada por Ana Pérez");
+  });
 });

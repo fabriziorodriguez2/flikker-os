@@ -461,8 +461,9 @@ function IncentivesCard({ view, currency }: { view: PolicyView; currency: string
         </div>
 
         <p className="text-xs text-[color:var(--panel-text-muted)]">
-          Para limitar gastos, bajá el presupuesto (0 = sin costos de incentivos). Para frenar todo al instante, usá
-          &ldquo;Pausar todo&rdquo; arriba.
+          Para limitar gastos, bajá el presupuesto (0 = sin costos de incentivos). Para frenar una sola campaña,
+          pausala o cancelala desde Intelligence → Actividad. Para frenar todo al instante, usá &ldquo;Pausar
+          todo&rdquo; arriba.
         </p>
       </div>
     </SectionCard>

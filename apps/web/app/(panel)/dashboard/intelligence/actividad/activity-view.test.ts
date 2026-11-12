@@ -8,6 +8,9 @@ import {
   incentiveLabel,
   resultLine,
   simulationLine,
+  planControls,
+  controlEventLine,
+  planStatusLabel,
   type AutonomousRunView,
   type PlanView,
 } from "./activity-view";
@@ -121,6 +124,26 @@ describe("planificador", () => {
   it("nunca presenta una señal como prueba", () => {
     expect(EVIDENCE_LABELS.SIGNAL_ONLY).toContain("sin prueba");
     expect(EVIDENCE_LABELS.OBSERVED_ONLY).toContain("sin grupo de control");
+  });
+
+  it("solo una campaña en curso tiene controles, y pausada ofrece reanudar", () => {
+    expect(planControls({ status: "SIMULATED" })).toEqual([]);
+    expect(planControls({ status: "COMPLETED" })).toEqual([]);
+    expect(planControls({ status: "STOPPED", paused: true })).toEqual([]);
+    expect(planControls({ status: "EXECUTING" })).toEqual(["pause", "cancel"]);
+    expect(planControls({ status: "MEASURING", paused: true })).toEqual(["resume", "cancel"]);
+  });
+
+  it("el registro dice quién y cuándo", () => {
+    expect(
+      controlEventLine(
+        { action: "RESUMED", at: "2026-11-12T13:30:00.000Z", by: { id: "u", name: "Ana Pérez" } },
+        "America/Montevideo",
+      ),
+    ).toBe("Reanudada por Ana Pérez el 12/11, 10:30");
+    expect(planStatusLabel({ status: "EXECUTING", paused: true }).label).toBe("Pausada");
+    expect(planStatusLabel({ status: "STOPPED", stopReason: "CANCELLED_BY_OWNER" }).label).toBe("Cancelada");
+    expect(planStatusLabel({ status: "STOPPED", stopReason: "OPT_OUTS" }).label).toBe("Detenido");
   });
 
   it("una campaña exploratoria no promete grupo de control", () => {

@@ -28,6 +28,7 @@ import { JwtGuard } from '../../auth/guards/jwt.guard';
 import { AutonomyService } from './autonomy.service';
 import { AutonomyAdminService } from './autonomy-admin.service';
 import { PlannerService } from '../plans/planner.service';
+import { PlanControlService } from '../plans/plan-control.service';
 
 export class SetAutonomyModeDto {
   @IsEnum(AutonomyMode)
@@ -76,6 +77,7 @@ export class AutonomyController {
     private readonly admin: AutonomyAdminService,
     private readonly autonomy: AutonomyService,
     private readonly planner: PlannerService,
+    private readonly plans: PlanControlService,
   ) {}
 
   @Get()
@@ -109,6 +111,39 @@ export class AutonomyController {
       trigger: 'MANUAL',
     });
     return this.admin.run(req.currentBusinessId!, run.id);
+  }
+
+  /**
+   * Una campaña de Intelligence, sola: pausar (lo pendiente no sale),
+   * reanudar (revalida contra la política de hoy) o cancelar (lo pendiente no
+   * sale nunca). Lo ya enviado no se toca. El botón global sigue siendo
+   * "Pausar todo" en Políticas.
+   */
+  @Post('plans/:id/pause')
+  @HttpCode(200)
+  pausePlan(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.plans.pause(req.currentBusinessId!, id, req.user.id);
+  }
+
+  @Post('plans/:id/resume')
+  @HttpCode(200)
+  resumePlan(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.plans.resume(req.currentBusinessId!, id, req.user.id);
+  }
+
+  @Post('plans/:id/cancel')
+  @HttpCode(200)
+  cancelPlan(
+    @Req() req: AuthenticatedRequest,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.plans.cancel(req.currentBusinessId!, id, req.user.id);
   }
 
   @Post('disable')

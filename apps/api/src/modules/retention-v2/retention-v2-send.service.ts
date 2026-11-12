@@ -5,6 +5,7 @@ import {
   MessageStatus,
   Prisma,
   RetentionAssignmentStatus,
+  RetentionExperimentStatus,
   RetentionObjective,
   RetentionStrategyType,
   RewardGoalStatus,
@@ -91,6 +92,16 @@ export class RetentionV2SendService {
     }
 
     const settings = await this.settings.getOrCreate(assignment.businessId);
+
+    // Campaña de Intelligence pausada por el dueño: "todavía no", no "nunca".
+    // La asignación queda PENDING, sin tocar, y sale (revalidada) al reanudar.
+    if (
+      assignment.experiment.objective ===
+        RetentionObjective.INTELLIGENCE_PLAN &&
+      assignment.experiment.status === RetentionExperimentStatus.PAUSED
+    ) {
+      return { status: 'skipped', reasonCode: 'PLAN_PAUSED' };
+    }
 
     // ── Re-validation ────────────────────────────────────────────────────────
     const experimentRunning = await this.experiments.isRunning(

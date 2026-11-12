@@ -14,6 +14,7 @@ import { RetentionV2SendService } from '../../retention-v2/retention-v2-send.ser
 import { RetentionV2MessageDispatchService } from '../../retention-v2/retention-v2-message-dispatch.service';
 import { PlannerService } from './planner.service';
 import { PlanMeasurementService } from './plan-measurement.service';
+import { PlanControlService } from './plan-control.service';
 import { POLICY_VERSION } from '../../policy/policy-rules';
 
 // WhatsApp falso: ningún test de este archivo puede llegar al proveedor real.
@@ -65,7 +66,10 @@ const call = (name: string, args: unknown): AgentStreamEvent => ({
   arguments: JSON.stringify(args),
 });
 const ONE_VISIT = JSON.stringify({ field: 'visitCount', op: 'eq', value: 1 });
-const submitOnePlan = (lapsed = 20) =>
+const submitOnePlan = (
+  lapsed = 20,
+  over: { title?: string; rule?: string; maxRecipients?: number } = {},
+) =>
   call('submit_plans', {
     observations: ['Muchos clientes vinieron una sola vez.'],
     hypotheses: [
@@ -82,7 +86,7 @@ const submitOnePlan = (lapsed = 20) =>
     plans: [
       {
         schemaVersion: 1,
-        title: 'Segunda visita sin descuento',
+        title: over.title ?? 'Segunda visita sin descuento',
         objective: 'SECOND_VISIT',
         hypothesis: 'Quienes vinieron una sola vez vuelven si se los invita.',
         evidence: [
@@ -94,8 +98,8 @@ const submitOnePlan = (lapsed = 20) =>
         ],
         segment: {
           description: 'Una sola visita',
-          rule: ONE_VISIT,
-          maxRecipients: 50,
+          rule: over.rule ?? ONE_VISIT,
+          maxRecipients: over.maxRecipients ?? 50,
         },
         channel: 'WHATSAPP',
         variants: [
@@ -122,6 +126,7 @@ describe('Plan comercial de punta a punta (integration, simulación)', () => {
   let prisma: PrismaService;
   let planner: PlannerService;
   let measurement: PlanMeasurementService;
+  let planControl: PlanControlService;
   let send: RetentionV2SendService;
   let dispatch: RetentionV2MessageDispatchService;
   const provider = new ScriptedProvider();
@@ -233,6 +238,7 @@ describe('Plan comercial de punta a punta (integration, simulación)', () => {
       prisma = moduleRef.get(PrismaService);
       planner = moduleRef.get(PlannerService);
       measurement = moduleRef.get(PlanMeasurementService);
+      planControl = moduleRef.get(PlanControlService);
       send = moduleRef.get(RetentionV2SendService);
       dispatch = moduleRef.get(RetentionV2MessageDispatchService);
       await prisma.$connect();
@@ -515,6 +521,227 @@ describe('Plan comercial de punta a punta (integration, simulación)', () => {
     expect(skipped).toBe(0);
     expect(sent).toBeGreaterThan(1);
     expect(mockProviderSend).toHaveBeenCalledTimes(sent);
+  });
+
+  describe('pausar, reanudar y cancelar una campaña', () => {
+    const users: string[] = [];
+    async function owner() {
+      const u = await prisma.user.create({
+        data: {
+          email: `plan-owner-${randomUUID()}@test.local`,
+          passwordHash: 'x',
+          firstName: 'Dueña',
+          lastName: 'Ciclo',
+        },
+        select: { id: true },
+      });
+      users.push(u.id);
+      return u.id;
+    }
+    afterAll(async () => {
+      if (!available) return;
+      // Los AuditLog se borran con cada negocio (afterAll de arriba corre después).
+      await prisma.auditLog.deleteMany({ where: { actorUserId: { in: users } } });
+      await prisma.user.deleteMany({ where: { id: { in: users } } });
+    });
+
+    async function runPlan(
+      businessId: string,
+      over: Parameters<typeof submitOnePlan>[1],
+    ) {
+      provider.script = (_req, round) =>
+        round % 2 === 1
+          ? [call('plan_history', {}), done()]
+          : [submitOnePlan(20, over), done()];
+      provider.requests.length = 0;
+      const { run } = await planner.run(businessId, {
+        trigger: 'MANUAL',
+        now: NOW,
+      });
+      expect(`${run.status}: ${run.explanation}`).toMatch(/^EXECUTED/);
+      return prisma.intelligencePlan.findFirstOrThrow({
+        where: { runId: run.id },
+        include: { experiment: true },
+      });
+    }
+    const assignmentsOf = (experimentId: string) =>
+      prisma.retentionAssignment.findMany({
+        where: { experimentId },
+        select: {
+          id: true,
+          customerId: true,
+          status: true,
+          skipReason: true,
+          variant: { select: { strategyType: true } },
+        },
+      });
+
+    it('pausar una frena solo esa; reanudar revalida y no duplica contactos', async () => {
+      if (!available) return;
+      const businessId = await business({ execute: true });
+      const userId = await owner();
+      const a = await runPlan(businessId, { title: 'Plan A', maxRecipients: 10 });
+      const b = await runPlan(businessId, {
+        title: 'Plan B',
+        rule: JSON.stringify({ field: 'visitCount', op: 'gte', value: 1 }),
+        maxRecipients: 10,
+      });
+
+      // Un mensaje de A ya encolado (creado, sin despachar) antes de pausar.
+      const [firstA] = (await assignmentsOf(a.experiment!.id)).filter(
+        (x) => x.status === 'PENDING',
+      );
+      let queued: string | null = null;
+      for (const x of await assignmentsOf(a.experiment!.id)) {
+        const outcome = await send.processAssignment(x.id, NOW);
+        if (outcome.status === 'sent') {
+          queued = outcome.messageId;
+          break;
+        }
+      }
+      expect(firstA).toBeDefined();
+      expect(queued).not.toBeNull();
+
+      const paused = await planControl.pause(businessId, a.id, userId);
+      expect(paused).toMatchObject({ paused: true, status: 'EXECUTING' });
+      expect(paused.events[0]).toMatchObject({
+        action: 'PAUSED',
+        by: { id: userId, name: 'Dueña Ciclo' },
+      });
+      await expect(planControl.pause(businessId, a.id, userId)).rejects.toThrow(
+        'ya está pausada',
+      );
+      // Otro negocio no la ve (ni la puede pausar).
+      await expect(
+        planControl.pause(randomUUID(), a.id, userId),
+      ).rejects.toThrow('no encontrada');
+
+      // Lo encolado de A espera; lo pendiente de A no sale; B sale entero.
+      expect(await dispatch.dispatch(queued!, NOW)).toMatchObject({
+        status: 'deferred',
+        reasonCode: 'PLAN_PAUSED',
+      });
+      await deliverAll(businessId, NOW);
+      const afterPause = await assignmentsOf(a.experiment!.id);
+      expect(afterPause.filter((x) => x.status === 'SENT')).toHaveLength(1);
+      expect(
+        afterPause.filter((x) => x.status === 'SKIPPED'),
+      ).toHaveLength(0);
+      const sentB = (await assignmentsOf(b.experiment!.id)).filter(
+        (x) => x.status === 'SENT',
+      );
+      expect(sentB.length).toBeGreaterThan(0);
+      expect(mockProviderSend).toHaveBeenCalledTimes(sentB.length);
+
+      // Reanudar con el presupuesto agotado: sigue pausada y dice por qué.
+      await prisma.businessPolicy.update({
+        where: { businessId },
+        data: { messagingBudgetMonthly: 1 },
+      });
+      await expect(
+        planControl.resume(businessId, a.id, userId, NOW),
+      ).rejects.toThrow('sigue pausada');
+      expect(
+        (
+          await prisma.retentionExperiment.findUniqueOrThrow({
+            where: { id: a.experiment!.id },
+          })
+        ).status,
+      ).toBe('PAUSED');
+      await prisma.businessPolicy.update({
+        where: { businessId },
+        data: { messagingBudgetMonthly: 500 },
+      });
+
+      // Reanudar: quien ya recibió el mensaje de B queda afuera (frecuencia).
+      // El grupo de control no recibe nada: no se revalida ni se descarta.
+      const resumed = await planControl.resume(businessId, a.id, userId, NOW);
+      expect(resumed.paused).toBe(false);
+      expect(resumed.events.map((e) => e.action)).toEqual([
+        'RESUMED',
+        'PAUSED',
+      ]);
+      const contactedByB = new Set(sentB.map((x) => x.customerId));
+      for (const x of await assignmentsOf(a.experiment!.id)) {
+        const treated = x.variant.strategyType !== 'CONTROL';
+        if (
+          treated &&
+          x.status === 'PENDING' &&
+          contactedByB.has(x.customerId)
+        ) {
+          throw new Error('un cliente contactado por B siguió pendiente en A');
+        }
+        if (x.status === 'SKIPPED') {
+          expect(x.skipReason).toBe('RESUME_RECENT_PROMOTION');
+        }
+      }
+      expect(await dispatch.dispatch(queued!, NOW)).toMatchObject({
+        status: 'sent',
+      });
+      await deliverAll(businessId, NOW);
+      // Nadie recibió dos promociones.
+      const perCustomer = new Map<string, number>();
+      for (const m of await prisma.message.findMany({
+        where: { businessId, status: 'sent' },
+        select: { customerId: true },
+      })) {
+        perCustomer.set(m.customerId, (perCustomer.get(m.customerId) ?? 0) + 1);
+      }
+      expect(Math.max(...perCustomer.values())).toBe(1);
+    });
+
+    it('cancelar: lo enviado queda, lo pendiente no sale nunca y queda registrado', async () => {
+      if (!available) return;
+      const businessId = await business({ execute: true });
+      const userId = await owner();
+      const plan = await runPlan(businessId, { maxRecipients: 10 });
+      const pending = await assignmentsOf(plan.experiment!.id);
+      for (const x of pending.slice(0, 4)) {
+        const outcome = await send.processAssignment(x.id, NOW);
+        if (outcome.status === 'sent')
+          await dispatch.dispatch(outcome.messageId, NOW);
+      }
+      const sentBefore = (await assignmentsOf(plan.experiment!.id)).filter(
+        (x) => x.status === 'SENT',
+      ).length;
+      expect(sentBefore).toBeGreaterThan(0);
+
+      const cancelled = await planControl.cancel(businessId, plan.id, userId, NOW);
+      expect(cancelled).toMatchObject({
+        status: 'STOPPED',
+        stopReason: 'CANCELLED_BY_OWNER',
+        paused: false,
+      });
+      expect(cancelled.events[0]).toMatchObject({
+        action: 'CANCELLED',
+        by: { id: userId },
+      });
+      const after = await assignmentsOf(plan.experiment!.id);
+      expect(after.filter((x) => x.status === 'SENT')).toHaveLength(sentBefore);
+      expect(after.some((x) => x.status === 'PENDING')).toBe(false);
+      expect(
+        after.filter((x) => x.skipReason === 'PLAN_CANCELLED').length,
+      ).toBeGreaterThan(0);
+
+      const calls = mockProviderSend.mock.calls.length;
+      await deliverAll(businessId, later(1));
+      expect(mockProviderSend).toHaveBeenCalledTimes(calls);
+      await expect(
+        planControl.cancel(businessId, plan.id, userId, NOW),
+      ).rejects.toThrow('ya terminó');
+      await expect(
+        planControl.resume(businessId, plan.id, userId, NOW),
+      ).rejects.toThrow('ya terminó');
+
+      // La política global no se tocó.
+      expect(
+        (
+          await prisma.businessPolicy.findUniqueOrThrow({
+            where: { businessId },
+          })
+        ).paused,
+      ).toBe(false);
+    });
   });
 
   it('sin autorización de ejecución, el mismo plan solo se simula', async () => {

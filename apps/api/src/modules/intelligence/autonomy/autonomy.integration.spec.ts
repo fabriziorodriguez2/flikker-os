@@ -604,6 +604,54 @@ describe('Intelligence — modo autónomo (integration)', () => {
       ).toBe(403);
     });
 
+    it('pausar/reanudar/cancelar una campaña: solo dueño o admin, solo la propia', async () => {
+      const run = await prisma.autonomousRun.findFirstOrThrow({
+        where: { businessId: other.id },
+      });
+      const foreign = await prisma.intelligencePlan.create({
+        data: {
+          businessId: other.id,
+          runId: run.id,
+          status: 'EXECUTING',
+          title: 'Plan ajeno',
+          objective: 'SECOND_VISIT',
+          hypothesis: 'x',
+          plan: {},
+        },
+      });
+      for (const action of ['pause', 'resume', 'cancel']) {
+        const path = `/intelligence/autonomy/plans/${foreign.id}/${action}`;
+        // Conocer el id no alcanza: de otro negocio es un 404.
+        expect(
+          (await request(app.getHttpServer()).post(path).set(as(owner, biz.id)))
+            .status,
+        ).toBe(404);
+        // Un OPERATOR no controla campañas.
+        expect(
+          (
+            await request(app.getHttpServer())
+              .post(path)
+              .set(as(operator, biz.id))
+          ).status,
+        ).toBe(403);
+        // Un plan sin experimento (nunca salió) no se puede controlar.
+        expect(
+          (
+            await request(app.getHttpServer())
+              .post(path)
+              .set(as(outsider, other.id))
+          ).status,
+        ).toBe(409);
+      }
+      // Nada quedó registrado como si hubiera pasado.
+      expect(
+        await prisma.auditLog.count({
+          where: { entityId: foreign.id },
+        }),
+      ).toBe(0);
+      await prisma.intelligencePlan.delete({ where: { id: foreign.id } });
+    });
+
     it('la vista previa no guarda nada', async () => {
       const before = await prisma.autonomousRun.count({
         where: { businessId: biz.id },

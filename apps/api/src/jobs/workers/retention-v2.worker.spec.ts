@@ -1,4 +1,9 @@
-import { ExperienceVersion, RetentionAssignmentStatus } from '@prisma/client';
+import {
+  ExperienceVersion,
+  RetentionAssignmentStatus,
+  RetentionExperimentStatus,
+  RetentionObjective,
+} from '@prisma/client';
 import { Job } from 'bullmq';
 import { RetentionV2Worker } from './retention-v2.worker';
 import {
@@ -140,6 +145,13 @@ describe('RetentionV2Worker — evaluate job', () => {
             isActive: true,
             experienceVersion: ExperienceVersion.CHECKIN_V2,
             retentionEngineV2Enabled: true,
+          },
+          // Una campaña de Intelligence pausada por el dueño no se encola.
+          NOT: {
+            experiment: {
+              objective: RetentionObjective.INTELLIGENCE_PLAN,
+              status: RetentionExperimentStatus.PAUSED,
+            },
           },
         },
       }),

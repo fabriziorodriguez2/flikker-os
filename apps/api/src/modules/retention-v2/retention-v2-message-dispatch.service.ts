@@ -1,5 +1,9 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { MessageStatus, RetentionObjective } from '@prisma/client';
+import {
+  MessageStatus,
+  RetentionExperimentStatus,
+  RetentionObjective,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
   MessagingService,
@@ -70,6 +74,8 @@ const WINDOW_RETRY_DELAY_MS = 30 * 60_000;
 const PRIORITY_RETRY_DELAY_MS = 2 * 60_000;
 /** Canal caído: se reintenta cada tanto y se abandona pasado este plazo. */
 const CHANNEL_RETRY_DELAY_MS = 30 * 60_000;
+/** Campaña de Intelligence pausada: se vuelve a mirar cada hora. */
+const PLAN_PAUSED_RETRY_DELAY_MS = 60 * 60_000;
 const CHANNEL_GIVE_UP_MS = 48 * 60 * 60_000;
 
 type FailedSend = Extract<SendMessageOutcome, { status: 'failed' }>;
@@ -167,6 +173,22 @@ export class RetentionV2MessageDispatchService {
 
     if (!message.business.retentionEngineV2Enabled || !automationEnabled) {
       return this.skipTerminal(message, 'AUTOMATION_DISABLED');
+    }
+
+    // Una campaña de Intelligence pausada no despacha lo ya encolado (queda
+    // esperando, sin tocar); una cancelada o cerrada no lo despacha nunca.
+    if (isPlan) {
+      const experimentStatus = message.retentionAssignment.experiment.status;
+      if (experimentStatus === RetentionExperimentStatus.PAUSED) {
+        return this.deferNonTerminal(
+          message,
+          'PLAN_PAUSED',
+          PLAN_PAUSED_RETRY_DELAY_MS,
+        );
+      }
+      if (experimentStatus !== RetentionExperimentStatus.RUNNING) {
+        return this.skipTerminal(message, 'PLAN_STOPPED');
+      }
     }
 
     if (message.customer.optedOut) {
