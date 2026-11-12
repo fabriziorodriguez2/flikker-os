@@ -789,8 +789,8 @@ model RetentionSettings {
   automaticCampaignsEnabled Boolean @default(true) @map("automatic_campaigns_enabled")
 
   // Contact pressure limits — the owner's protection against over-messaging.
-  minimumDaysBetweenRetentionMessages Int @default(14) @map("minimum_days_between_retention_messages")
-  maximumRetentionMessagesPer30Days   Int @default(2) @map("maximum_retention_messages_per_30_days")
+  minimumDaysBetweenRetentionMessages Int @default(10) @map("minimum_days_between_retention_messages")
+  maximumRetentionMessagesPer30Days   Int @default(3) @map("maximum_retention_messages_per_30_days")
 
   /// Local sending window, evaluated in the business timezone.
   sendingHourStart   Int   @default(10) @map("sending_hour_start")
@@ -3887,10 +3887,14 @@ model BusinessPolicy {
 
   /// Tope mensual de mensajería de marketing, en la moneda confirmada.
   messagingBudgetMonthly     Decimal? @map("messaging_budget_monthly") @db.Decimal(12, 2)
+  /// Obsoleto desde la política v2 (reemplazado por `weeklyReachPercent`).
+  /// No se lee ni se escribe; se borra en una migración posterior.
   maxUniqueRecipientsPerWeek Int?     @map("max_unique_recipients_per_week")
+  /// % de la base contactable (WhatsApp autorizado) que se puede contactar
+  /// por semana. No aplica a negocios con menos de 150 clientes registrados.
+  weeklyReachPercent         Int?     @map("weekly_reach_percent")
   maxNewCampaignsPerWeek     Int?     @map("max_new_campaigns_per_week")
-  /// % de (mensajería + incentivos) que puede usar UNA campaña. Además de
-  /// esto, ninguna bolsa individual puede pasarse.
+  /// % de CADA presupuesto (mensajería, incentivos) que puede usar UNA campaña.
   maxCampaignSharePercent    Int?     @map("max_campaign_share_percent")
 
   /// Costo estimado de un mensaje. Lo fija Platform Admin (el proveedor

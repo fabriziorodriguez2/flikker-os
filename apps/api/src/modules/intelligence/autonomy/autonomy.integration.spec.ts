@@ -35,6 +35,7 @@ import {
 } from '../../reviews/reviews.test-helpers';
 import { AutonomyModule } from './autonomy.module';
 import { AutonomyService } from './autonomy.service';
+import { POLICY_VERSION } from '../../policy/policy-rules';
 
 /**
  * El modo autónomo contra Postgres real: lo que se prueba es que solo
@@ -115,11 +116,11 @@ describe('Intelligence — modo autónomo (integration)', () => {
         data: {
           businessId: id,
           acceptedAt: NOW,
-          acceptedVersion: 1,
+          acceptedVersion: POLICY_VERSION,
           confirmedCurrency: 'UYU',
           confirmedTimezone: TZ,
           messagingBudgetMonthly: 500,
-          maxUniqueRecipientsPerWeek: 25,
+          weeklyReachPercent: 25,
           maxNewCampaignsPerWeek: 2,
           maxCampaignSharePercent: 25,
           messageUnitCost: 2,
@@ -469,11 +470,12 @@ describe('Intelligence — modo autónomo (integration)', () => {
     });
 
     it('presupuesto que alcanza para pocos: achica el grupo en vez de saltear la regla', async () => {
-      // 3 × 2 = 6 de presupuesto: entran 3 mensajes, no 10.
+      // 3 × 2 = 6 de presupuesto: entran 3 mensajes, no 10. (Con el tope por
+      // campaña al 100% para aislar la regla del presupuesto mensual.)
       const biz = await business('shrink', {
         customers: 60,
         consented: 60,
-        policy: { messagingBudgetMonthly: 6 },
+        policy: { messagingBudgetMonthly: 6, maxCampaignSharePercent: 100 },
       });
       const run = await autonomy.runForBusiness(biz.id, NOW);
       expect(run?.status).toBe('EXECUTED');

@@ -14,6 +14,7 @@ import { RetentionV2SendService } from '../../retention-v2/retention-v2-send.ser
 import { RetentionV2MessageDispatchService } from '../../retention-v2/retention-v2-message-dispatch.service';
 import { PlannerService } from './planner.service';
 import { PlanMeasurementService } from './plan-measurement.service';
+import { POLICY_VERSION } from '../../policy/policy-rules';
 
 // WhatsApp falso: ningún test de este archivo puede llegar al proveedor real.
 const mockProviderSend = jest.fn();
@@ -159,11 +160,11 @@ describe('Plan comercial de punta a punta (integration, simulación)', () => {
       data: {
         businessId: id,
         acceptedAt: new Date(),
-        acceptedVersion: 1,
+        acceptedVersion: POLICY_VERSION,
         confirmedCurrency: 'UYU',
         confirmedTimezone: 'America/Montevideo',
         messagingBudgetMonthly: 500,
-        maxUniqueRecipientsPerWeek: 50,
+        weeklyReachPercent: 50,
         maxNewCampaignsPerWeek: 5,
         maxCampaignSharePercent: 100,
         messageUnitCost: 2,

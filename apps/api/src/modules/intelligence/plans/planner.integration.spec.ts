@@ -125,7 +125,7 @@ describe('PlannerService (integration)', () => {
     const settings = new RetentionSettingsService(prisma);
     const audit = new AuditService(prisma);
     const consent = new ConsentService(prisma);
-    const policies = new PolicyService(prisma, settings, consent, audit);
+    const policies = new PolicyService(prisma, settings, audit);
     return new PlannerService(
       prisma,
       config,
@@ -264,6 +264,7 @@ describe('PlannerService (integration)', () => {
       valid: true,
       matched: 8,
       reachable: 6,
+      availableNow: 6,
     });
 
     const plans = await prisma.intelligencePlan.findMany({
@@ -297,6 +298,108 @@ describe('PlannerService (integration)', () => {
       useCase: 'INTELLIGENCE_PLANNER_RUN',
       model: 'scripted-model',
     });
+  });
+
+  it('sin presupuesto de incentivos del dueño, el modelo no ve ningún premio; con presupuesto, sí', async () => {
+    if (!available) return;
+    const businessId = await business();
+    await prisma.retentionIncentiveDefinition.create({
+      data: {
+        businessId,
+        name: 'Café de regalo',
+        type: 'gift',
+        estimatedCost: 60,
+        automationEligible: true,
+      },
+    });
+    const contextOf = async () => {
+      const provider = new ScriptedProvider(() => [
+        submit([], {
+          decision: 'NO_ACTION',
+          noActionReason: 'Prueba de contexto.',
+          ownerSummary: 'Hoy no conviene escribirle a nadie.',
+        }),
+        done(),
+      ]);
+      await makePlanner(provider).run(businessId, {
+        trigger: 'MANUAL',
+        now: NOW,
+      });
+      const first = provider.requests[0].input[0] as { content: string };
+      return JSON.parse(first.content.slice(first.content.indexOf('{'))) as {
+        incentiveCatalog: { label: string }[];
+        limits: { incentiveBudgetSet: boolean };
+        customerBase: { registered: number; weeklyLimitMode: string };
+      };
+    };
+
+    const without = await contextOf();
+    expect(without.incentiveCatalog).toEqual([]);
+    expect(without.limits.incentiveBudgetSet).toBe(false);
+    // 8 clientes registrados: base chica, sin tope semanal por porcentaje.
+    expect(without.customerBase).toMatchObject({
+      registered: 8,
+      weeklyLimitMode: 'ADAPTIVE',
+    });
+
+    await prisma.retentionSettings.update({
+      where: { businessId },
+      data: { maxEstimatedIncentiveCostPerMonth: 500 },
+    });
+    const withBudget = await contextOf();
+    expect(withBudget.incentiveCatalog.map((i) => i.label)).toEqual([
+      'Café de regalo',
+    ]);
+    await prisma.retentionIncentiveDefinition.deleteMany({
+      where: { businessId },
+    });
+  });
+
+  it('quien recibió una promoción hace poco descansa: no entra en el plan', async () => {
+    if (!available) return;
+    const businessId = await business();
+    const consented = await prisma.customer.findMany({
+      where: { businessId, consentEvents: { some: {} } },
+      select: { id: true, phoneE164: true, name: true },
+      take: 2,
+    });
+    const campaign = await prisma.manualCampaign.create({
+      data: { businessId, messageBody: 'Hola' },
+    });
+    await prisma.manualCampaignContact.createMany({
+      data: consented.map((c) => ({
+        manualCampaignId: campaign.id,
+        businessId,
+        customerId: c.id,
+        phoneE164: c.phoneE164,
+        name: c.name ?? 'Cliente',
+        status: 'sent',
+        sentAt: ago(3),
+        createdAt: ago(3),
+      })),
+    });
+    const provider = new ScriptedProvider((_req, round) =>
+      round === 1
+        ? [call('preview_segment', { rule: ONE_VISIT }), done()]
+        : [submit([planArgs()]), done()],
+    );
+    const { run } = await makePlanner(provider).run(businessId, {
+      trigger: 'MANUAL',
+      now: NOW,
+    });
+    const preview = provider.requests[1].input.find(
+      (i) => 'type' in i && i.type === 'function_call_output',
+    ) as { output: string };
+    expect(JSON.parse(preview.output)).toMatchObject({
+      reachable: 6,
+      availableNow: 4,
+    });
+    const [plan] = await prisma.intelligencePlan.findMany({
+      where: { runId: run.id },
+    });
+    expect(plan.simulation).toMatchObject({ recipients: 4 });
+    await prisma.manualCampaignContact.deleteMany({ where: { businessId } });
+    await prisma.manualCampaign.deleteMany({ where: { businessId } });
   });
 
   it('un descuento inventado se devuelve para corregir, y el corregido se simula', async () => {

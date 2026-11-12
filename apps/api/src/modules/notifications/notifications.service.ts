@@ -725,9 +725,9 @@ export class NotificationsService {
       sendingHourEnd: settings?.sendingHourEnd ?? 20,
       allowedSendingDays: settings?.allowedSendingDays ?? [1, 2, 3, 4, 5, 6],
       minimumDaysBetweenRetentionMessages:
-        settings?.minimumDaysBetweenRetentionMessages ?? 14,
+        settings?.minimumDaysBetweenRetentionMessages ?? 10,
       maximumRetentionMessagesPer30Days:
-        settings?.maximumRetentionMessagesPer30Days ?? 2,
+        settings?.maximumRetentionMessagesPer30Days ?? 3,
       aiCopyEnabled: settings?.aiCopyEnabled ?? false,
       engineEnabled: business?.retentionEngineV2Enabled ?? false,
       // El único presupuesto que este panel expone (§3/§4) — el tope

@@ -3,9 +3,14 @@ import {
   autoPauseReason,
   configBlockers,
   effectiveConsent,
+  campaignCaps,
   evaluatePolicy,
+  frequencyExclusion,
   isWithinWindow,
+  POLICY_VERSION,
   roleMayProduce,
+  SMALL_BUSINESS_CUSTOMER_THRESHOLD,
+  weeklyRecipientCap,
   type ConsentStatus,
   type PolicyConfig,
   type PolicyEffect,
@@ -20,7 +25,7 @@ const DAY = 86_400_000;
 function config(overrides: Partial<PolicyConfig> = {}): PolicyConfig {
   return {
     acceptedAt: new Date('2026-11-01T12:00:00Z'),
-    acceptedVersion: 1,
+    acceptedVersion: POLICY_VERSION,
     confirmedCurrency: 'UYU',
     confirmedTimezone: TZ,
     businessCurrency: 'UYU',
@@ -29,11 +34,11 @@ function config(overrides: Partial<PolicyConfig> = {}): PolicyConfig {
     pausedReason: null,
     messagingBudgetMonthly: 500,
     incentiveBudgetMonthly: 1500,
-    maxUniqueRecipientsPerWeek: 25,
+    weeklyReachPercent: 25,
     maxNewCampaignsPerWeek: 2,
     maxCampaignSharePercent: 25,
-    minDaysBetweenPromotions: 14,
-    maxPromotionsPer30Days: 2,
+    minDaysBetweenPromotions: 10,
+    maxPromotionsPer30Days: 3,
     sendingHourStart: 10,
     sendingHourEnd: 20,
     allowedSendingDays: [1, 2, 3, 4, 5, 6],
@@ -56,6 +61,8 @@ function usage(
     incentiveLiabilityMonth: 0,
     recipientsThisWeek: new Set(),
     newCampaignsThisWeek: 0,
+    // 500 registrados y 100 contactables: el 25% son 25 por semana.
+    base: { registered: 500, contactable: 100 },
     contactsByCustomer: new Map(),
     consentByCustomer: new Map(candidates.map((id) => [id, consent])),
     ...overrides,
@@ -153,7 +160,7 @@ describe('policy rules — configuración', () => {
 
   it('topes sin configurar: deny-by-default', () => {
     const d = evaluatePolicy({
-      config: config({ maxUniqueRecipientsPerWeek: null }),
+      config: config({ weeklyReachPercent: null }),
       effect: promo(ids(1)),
       usage: usage(ids(1)),
       now: NOW,
@@ -299,10 +306,10 @@ describe('policy rules — consentimiento', () => {
 describe('policy rules — frecuencia por cliente', () => {
   const at = (daysAgo: number) => new Date(NOW.getTime() - daysAgo * DAY);
 
-  it('1 promoción cada 14 días: a los 13,9 días no, a los 14 sí', () => {
+  it('separación de 10 días: a los 9,9 días no, a los 10 sí', () => {
     const contacts = new Map([
-      ['recent', [at(13.9)]],
-      ['exact', [at(14)]],
+      ['recent', [at(9.9)]],
+      ['exact', [at(10)]],
     ]);
     const d = evaluatePolicy({
       config: config(),
@@ -316,21 +323,200 @@ describe('policy rules — frecuencia por cliente', () => {
     ]);
   });
 
-  it('máximo 2 en 30 días; lo de hace más de 30 no cuenta', () => {
+  it('máximo 3 en 30 días; lo de hace más de 30 no cuenta', () => {
     const contacts = new Map([
-      ['two', [at(15), at(29)]],
-      ['old', [at(15), at(31)]],
+      ['two', [at(10), at(20)]],
+      ['three', [at(10), at(20), at(29)]],
+      ['old', [at(10), at(20), at(31)]],
     ]);
     const d = evaluatePolicy({
       config: config(),
-      effect: promo(['two', 'old']),
-      usage: usage(['two', 'old'], { contactsByCustomer: contacts }),
+      effect: promo(['two', 'three', 'old']),
+      usage: usage(['two', 'three', 'old'], { contactsByCustomer: contacts }),
       now: NOW,
     });
-    expect(d.eligibleCustomerIds).toEqual(['old']);
+    expect(d.eligibleCustomerIds).toEqual(['two', 'old']);
     expect(d.excluded).toEqual([
-      { customerId: 'two', reason: 'MONTHLY_PROMOTION_LIMIT' },
+      { customerId: 'three', reason: 'MONTHLY_PROMOTION_LIMIT' },
     ]);
+  });
+
+  it('3 promociones con 10 días de separación entran justo en 30 días', () => {
+    // Día 0, 10 y 20: la tercera es posible; una cuarta al día 29, no.
+    expect(frequencyExclusion([], config(), NOW)).toBeNull();
+    expect(frequencyExclusion([at(10)], config(), NOW)).toBeNull();
+    expect(frequencyExclusion([at(20), at(10)], config(), NOW)).toBeNull();
+    expect(frequencyExclusion([at(29), at(19), at(10)], config(), NOW)).toBe(
+      'MONTHLY_PROMOTION_LIMIT',
+    );
+  });
+
+  it('saturación: cuenta los contactos de todos los motores juntos', () => {
+    // Uno de una promoción, uno de Autopilot y uno de Intelligence: llegan
+    // como una sola lista de contactos por cliente.
+    const contacts = new Map([['busy', [at(12), at(22), at(28)]]]);
+    const d = evaluatePolicy({
+      config: config(),
+      effect: promo(['busy'], { source: 'AUTOPILOT', actorRole: null }),
+      usage: usage(['busy'], { contactsByCustomer: contacts }),
+      now: NOW,
+    });
+    expect(d.excluded).toEqual([
+      { customerId: 'busy', reason: 'MONTHLY_PROMOTION_LIMIT' },
+    ]);
+    expect(codes(d)).toContain('NO_ELIGIBLE_RECIPIENTS');
+  });
+
+  it('una baja o una supresión gana aunque la frecuencia lo permita', () => {
+    const d = evaluatePolicy({
+      config: config(),
+      effect: promo(['revoked', 'suppressed']),
+      usage: usage([], {
+        consentByCustomer: new Map<string, ConsentStatus>([
+          ['revoked', 'REVOKED'],
+          ['suppressed', 'SUPPRESSED'],
+        ]),
+      }),
+      now: NOW,
+    });
+    expect(d.eligibleCustomerIds).toEqual([]);
+    expect(d.excluded.map((e) => e.reason)).toEqual([
+      'CONSENT_REVOKED',
+      'SUPPRESSED',
+    ]);
+  });
+});
+
+describe('policy rules — tope semanal según el tamaño del negocio', () => {
+  const cap = (registered: number, contactable: number, percent = 25) =>
+    weeklyRecipientCap(
+      { weeklyReachPercent: percent },
+      { registered, contactable },
+    );
+
+  it.each([
+    // [registrados, contactables, modo, tope]
+    [0, 0, 'ADAPTIVE', null],
+    [10, 10, 'ADAPTIVE', null],
+    [105, 80, 'ADAPTIVE', null],
+    [149, 149, 'ADAPTIVE', null],
+    [150, 40, 'PERCENT', 10],
+    [500, 500, 'PERCENT', 125],
+    [500, 120, 'PERCENT', 30],
+    [5000, 5000, 'PERCENT', 1250],
+    [5000, 1800, 'PERCENT', 450],
+  ])(
+    '%i registrados, %i contactables → %s, tope %p',
+    (registered, contactable, mode, expected) => {
+      expect(cap(registered, contactable)).toEqual({ mode, cap: expected });
+    },
+  );
+
+  it(`el umbral de base chica es ${SMALL_BUSINESS_CUSTOMER_THRESHOLD} clientes registrados`, () => {
+    expect(SMALL_BUSINESS_CUSTOMER_THRESHOLD).toBe(150);
+  });
+
+  it('se recalcula con la base: más contactables, más tope', () => {
+    expect(cap(1000, 200).cap).toBe(50);
+    expect(cap(1000, 400).cap).toBe(100);
+    expect(cap(1000, 400, 10).cap).toBe(40);
+  });
+
+  it('redondea hacia arriba: una base contactable chica no queda en 0', () => {
+    expect(cap(200, 3).cap).toBe(1);
+    expect(cap(200, 0).cap).toBe(0);
+  });
+
+  it('el % se calcula sobre los contactables, no sobre los registrados', () => {
+    // 5000 registrados pero solo 40 con WhatsApp: 10, no 1250.
+    expect(cap(5000, 40).cap).toBe(10);
+  });
+
+  it('105 clientes: Autopilot no queda bloqueado por el tamaño de la base', () => {
+    // 60 destinatarios en una semana de un negocio chico: sin tope por %.
+    const d = evaluatePolicy({
+      config: config({ messagingBudgetMonthly: 1000 }),
+      effect: promo(ids(60)),
+      usage: usage(ids(60), {
+        base: { registered: 105, contactable: 70 },
+        recipientsThisWeek: new Set(ids(20, 'w')),
+      }),
+      now: NOW,
+    });
+    expect(codes(d)).not.toContain('WEEKLY_RECIPIENTS_LIMIT');
+    expect(d.allowed).toBe(true);
+  });
+
+  it('base chica: igual valida presupuesto, consentimiento y frecuencia', () => {
+    const d = evaluatePolicy({
+      config: config(),
+      effect: promo(['ok', 'nope', 'rested']),
+      usage: usage([], {
+        base: { registered: 10, contactable: 8 },
+        messagingSpentMonth: 499,
+        consentByCustomer: new Map<string, ConsentStatus>([
+          ['ok', 'GRANTED'],
+          ['nope', 'UNKNOWN'],
+          ['rested', 'GRANTED'],
+        ]),
+        contactsByCustomer: new Map([
+          ['rested', [new Date(NOW.getTime() - 2 * DAY)]],
+        ]),
+      }),
+      now: NOW,
+    });
+    expect(d.eligibleCustomerIds).toEqual(['ok']);
+    // 1 mensaje × 2 = 2 > 1 que queda.
+    expect(codes(d)).toEqual(['MESSAGING_BUDGET_EXCEEDED']);
+  });
+
+  it('negocio sin clientes: no hay nadie a quien escribir', () => {
+    const d = evaluatePolicy({
+      config: config(),
+      effect: promo([]),
+      usage: usage([], { base: { registered: 0, contactable: 0 } }),
+      now: NOW,
+    });
+    expect(codes(d)).toEqual(['NO_ELIGIBLE_RECIPIENTS']);
+  });
+
+  it('5000 clientes: el tope semanal frena al pasarse', () => {
+    const base = { registered: 5000, contactable: 2000 }; // 25% = 500
+    const fits = evaluatePolicy({
+      config: config({ messagingBudgetMonthly: 100_000 }),
+      effect: promo(ids(100)),
+      usage: usage(ids(100), {
+        base,
+        recipientsThisWeek: new Set(ids(400, 'w')),
+      }),
+      now: NOW,
+    });
+    expect(codes(fits)).toEqual([]);
+    const over = evaluatePolicy({
+      config: config({ messagingBudgetMonthly: 100_000 }),
+      effect: promo(ids(101)),
+      usage: usage(ids(101), {
+        base,
+        recipientsThisWeek: new Set(ids(400, 'w')),
+      }),
+      now: NOW,
+    });
+    expect(codes(over)).toEqual(['WEEKLY_RECIPIENTS_LIMIT']);
+  });
+
+  it('el % nunca habilita a quien no autorizó WhatsApp', () => {
+    const d = evaluatePolicy({
+      config: config({ weeklyReachPercent: 100 }),
+      effect: promo(ids(10)),
+      usage: usage(
+        ids(10),
+        { base: { registered: 500, contactable: 0 } },
+        'UNKNOWN',
+      ),
+      now: NOW,
+    });
+    expect(d.eligibleCustomerIds).toEqual([]);
+    expect(d.allowed).toBe(false);
   });
 });
 
@@ -430,36 +616,124 @@ describe('policy rules — presupuestos', () => {
     expect(codes(d)).toContain('INCENTIVE_COST_UNKNOWN');
   });
 
-  it('una campaña puede usar hasta el 25% de las dos bolsas juntas (500 de 2000)', () => {
-    // 10 × (2 + 48) = 500 → entra justo.
+  it('una campaña usa hasta el 25% de CADA bolsa: 125 de mensajería, 375 de incentivos', () => {
+    expect(campaignCaps(config())).toEqual({ messaging: 125, incentives: 375 });
+    // 10 × 37,5 = 375 de incentivos y 20 de mensajería → entra justo.
     const fits = evaluatePolicy({
       config: config(),
-      effect: promo(ids(10), { incentive: { unitCost: 48 } }),
+      effect: promo(ids(10), { incentive: { unitCost: 37.5 } }),
       usage: usage(ids(10)),
       now: NOW,
     });
     expect(codes(fits)).toEqual([]);
     expect(fits.allowed).toBe(true);
-    // 10 × (2 + 48,01) = 500,10 → se pasa.
+    // 10 × 37,51 = 375,10 → se pasa la parte de incentivos.
     const over = evaluatePolicy({
       config: config(),
-      effect: promo(ids(10), { incentive: { unitCost: 48.01 } }),
+      effect: promo(ids(10), { incentive: { unitCost: 37.51 } }),
       usage: usage(ids(10)),
       now: NOW,
     });
     expect(codes(over)).toEqual(['CAMPAIGN_SHARE_EXCEEDED']);
   });
 
-  it('el 25% combinado nunca habilita romper una bolsa individual', () => {
-    // Sin premio, 100 mensajes × 2 = 200 ≤ 500 (25%), pero la mensajería ya
-    // usó 400 de 500: la bolsa individual manda.
+  it('un mensaje sin premio solo mira su bolsa: no lo achica el presupuesto de incentivos', () => {
+    // 60 × 2 = 120 ≤ 125 aunque no haya presupuesto de incentivos.
     const d = evaluatePolicy({
-      config: config({ maxUniqueRecipientsPerWeek: 1000 }),
-      effect: promo(ids(100)),
-      usage: usage(ids(100), { messagingSpentMonth: 400 }),
+      config: config({ incentiveBudgetMonthly: null }),
+      effect: promo(ids(60)),
+      usage: usage(ids(60), { base: { registered: 100, contactable: 60 } }),
+      now: NOW,
+    });
+    expect(codes(d)).toEqual([]);
+    // 63 × 2 = 126 > 125.
+    const over = evaluatePolicy({
+      config: config({ incentiveBudgetMonthly: null }),
+      effect: promo(ids(63)),
+      usage: usage(ids(63), { base: { registered: 100, contactable: 63 } }),
+      now: NOW,
+    });
+    expect(codes(over)).toEqual(['CAMPAIGN_SHARE_EXCEEDED']);
+  });
+
+  it('la parte por campaña nunca habilita romper una bolsa individual', () => {
+    // 50 mensajes × 2 = 100 ≤ 125, pero la mensajería ya usó 450 de 500.
+    const d = evaluatePolicy({
+      config: config({ weeklyReachPercent: 100 }),
+      effect: promo(ids(50)),
+      usage: usage(ids(50), { messagingSpentMonth: 450 }),
       now: NOW,
     });
     expect(codes(d)).toEqual(['MESSAGING_BUDGET_EXCEEDED']);
+  });
+});
+
+describe('policy rules — presupuesto de incentivos del dueño', () => {
+  it('sin presupuesto definido: ningún premio con costo, el mensaje solo sí', () => {
+    const withPrize = evaluatePolicy({
+      config: config({ incentiveBudgetMonthly: null }),
+      effect: promo(ids(5), { incentive: { unitCost: 50 } }),
+      usage: usage(ids(5)),
+      now: NOW,
+    });
+    expect(codes(withPrize)).toEqual(['INCENTIVE_BUDGET_NOT_SET']);
+    const plain = evaluatePolicy({
+      config: config({ incentiveBudgetMonthly: null }),
+      effect: promo(ids(5)),
+      usage: usage(ids(5)),
+      now: NOW,
+    });
+    expect(plain.allowed).toBe(true);
+  });
+
+  it('presupuesto 0: el dueño no quiere costos de incentivos', () => {
+    const d = evaluatePolicy({
+      config: config({ incentiveBudgetMonthly: 0 }),
+      effect: promo(ids(2), { incentive: { unitCost: 1 } }),
+      usage: usage(ids(2)),
+      now: NOW,
+    });
+    expect(codes(d)).toContain('INCENTIVE_BUDGET_EXCEEDED');
+    expect(d.allowed).toBe(false);
+  });
+
+  it('presupuesto insuficiente: lo comprometido más esta campaña no entra', () => {
+    const d = evaluatePolicy({
+      config: config({
+        incentiveBudgetMonthly: 300,
+        maxCampaignSharePercent: 100,
+      }),
+      effect: promo(ids(4), { incentive: { unitCost: 60 } }),
+      usage: usage(ids(4), { incentiveLiabilityMonth: 100 }),
+      now: NOW,
+    });
+    // 100 + 240 = 340 > 300.
+    expect(codes(d)).toEqual(['INCENTIVE_BUDGET_EXCEEDED']);
+    const smaller = evaluatePolicy({
+      config: config({
+        incentiveBudgetMonthly: 300,
+        maxCampaignSharePercent: 100,
+      }),
+      effect: promo(ids(3), { incentive: { unitCost: 60 } }),
+      usage: usage(ids(3), { incentiveLiabilityMonth: 100 }),
+      now: NOW,
+    });
+    expect(smaller.allowed).toBe(true);
+  });
+
+  it('un cambio de programa con premio también necesita el presupuesto', () => {
+    const d = evaluatePolicy({
+      config: config({ incentiveBudgetMonthly: null }),
+      effect: promo([], {
+        kind: 'PROGRAM',
+        source: 'INTELLIGENCE',
+        createsCampaign: false,
+        incentive: { unitCost: 20 },
+      }),
+      usage: usage([]),
+      now: NOW,
+    });
+    expect(codes(d)).toEqual(['INCENTIVE_BUDGET_NOT_SET']);
   });
 });
 

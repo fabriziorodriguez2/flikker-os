@@ -60,7 +60,8 @@ export const PLAN_LIMITS = {
   sendWithinDaysMax: 7,
   windowDaysMin: 7,
   windowDaysMax: 60,
-  maxRecipientsMax: 500,
+  // Cota de cordura, no un tope comercial: el alcance lo deciden la política y la IA.
+  maxRecipientsMax: 5000,
   optOutPercentMin: 1,
   optOutPercentMax: 10,
   failurePercentMin: 5,

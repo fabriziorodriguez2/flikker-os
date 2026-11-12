@@ -21,8 +21,18 @@ import type { SegmentRule } from './segment-rules';
  * verifica que lo elegido se pueda hacer sin romper ninguna regla.
  */
 
-/** Por debajo de esto no hay experimento que medir (control incluido). */
-export const MIN_PLAN_RECIPIENTS = 5;
+/**
+ * Un plan necesita al menos un cliente que se pueda contactar hoy. No hay un
+ * mínimo mayor: en un negocio chico, un gesto para 3 clientes puede valer la
+ * pena. Lo que cambia es qué se puede afirmar después (ver abajo).
+ */
+export const MIN_PLAN_RECIPIENTS = 1;
+/**
+ * Por debajo de esto el plan es una prueba chica: se ejecuta igual, pero su
+ * resultado es solo una señal y nadie (ni el modelo) puede presentarlo como
+ * evidencia estadística.
+ */
+export const SMALL_SAMPLE_RECIPIENTS = 5;
 /** Máximo de planes elegidos por corrida. */
 export const MAX_SELECTED_PLANS = 3;
 
@@ -47,25 +57,43 @@ export interface PlannerSubmission {
   plans: SubmittedPlan[];
 }
 
+/**
+ * Los límites de la política, con los mismos números y la misma cuenta que
+ * va a usar el motor al ejecutar: un plan que pasa acá no se cae después por
+ * un tope que el planificador no conocía.
+ */
 export interface PlannerBudget {
   /** Costo por mensaje; null = no cargado (el costo queda desconocido). */
   messageUnitCost: number | null;
   /** Lo que queda del mes; null = sin tope configurado. */
   messagingRemaining: number | null;
+  /**
+   * Lo que queda del presupuesto de incentivos. Solo cuenta si
+   * `incentiveBudgetSet`: sin presupuesto definido no se ofrece ningún premio.
+   */
   incentiveRemaining: number | null;
+  /** El dueño definió un presupuesto de incentivos (puede ser 0). */
+  incentiveBudgetSet?: boolean;
   /** Clientes nuevos que todavía se pueden contactar esta semana; null = sin tope. */
   weeklyRecipientsRemaining: number | null;
-  /**
-   * Lo máximo que puede costar UNA campaña según la política (su parte de
-   * los presupuestos). null o ausente = sin tope.
-   */
-  maxCostPerCampaign?: number | null;
+  /** ADAPTIVE: base chica, sin tope semanal por %. */
+  weeklyLimitMode?: 'ADAPTIVE' | 'PERCENT';
+  /** Campañas nuevas que quedan esta semana; null o ausente = sin tope. */
+  newCampaignsRemaining?: number | null;
+  /** Lo máximo que UNA campaña puede usar de cada bolsa; null = sin tope. */
+  maxMessagingPerCampaign?: number | null;
+  maxIncentivesPerCampaign?: number | null;
 }
 
 export interface EvaluationContext {
   snapshot: BusinessSnapshot;
   incentives: ReadonlyMap<string, AuthorizedIncentive>;
   budget: PlannerBudget;
+  /**
+   * Clientes con WhatsApp que hoy la regla de frecuencia deja afuera
+   * (promoción reciente o máximo de 30 días): no se cuentan para un plan.
+   */
+  resting?: ReadonlySet<string>;
   /** Huellas de planes recientes que no se repiten. */
   recentFingerprints: ReadonlySet<string>;
   now: Date;
@@ -94,6 +122,8 @@ export interface EvaluatedPlan {
   recipientIds: string[];
   cost: PlanCostEstimate | null;
   costKnown: boolean;
+  /** Menos de SMALL_SAMPLE_RECIPIENTS: solo señal, nunca evidencia. */
+  smallSample: boolean;
 }
 
 export interface SubmissionEvaluation {
@@ -110,6 +140,10 @@ export interface SubmissionEvaluation {
 
 /** Claves de métricas ("visits.last_28d"): el dueño no las entiende. */
 const METRIC_KEY = /\b(?:customers|visits|redemptions)\.[a-z0-9_.]+/i;
+
+function money(value: number): number {
+  return Math.round(value * 100) / 100;
+}
 
 function issue(path: string, code: string, message: string): PlanIssue {
   return { path, code, message };
@@ -227,6 +261,7 @@ export function evaluateSubmission(
       recipientIds: [],
       cost: null,
       costKnown: ctx.budget.messageUnitCost !== null,
+      smallSample: false,
     };
     const { rule, error } = parseRule(submitted.segment?.rule);
     if (!rule) {
@@ -293,9 +328,14 @@ export function evaluateSubmission(
   // Elegidos, en el orden del planificador: alcance real, sin repetir
   // clientes entre planes, dentro del presupuesto y de los topes.
   const taken = new Set<string>();
-  let messagingLeft = ctx.budget.messagingRemaining;
-  let incentivesLeft = ctx.budget.incentiveRemaining;
-  let weeklyLeft = ctx.budget.weeklyRecipientsRemaining;
+  const resting = ctx.resting ?? new Set<string>();
+  const { budget } = ctx;
+  let messagingLeft = budget.messagingRemaining;
+  // Sin presupuesto de incentivos definido no hay nada que comprometer.
+  let incentivesLeft =
+    budget.incentiveBudgetSet === false ? 0 : budget.incentiveRemaining;
+  let weeklyLeft = budget.weeklyRecipientsRemaining;
+  let campaignsLeft = budget.newCampaignsRemaining ?? null;
   const selected = evaluated
     .filter((e) => e.submitted.selected && e.status === 'NOT_SELECTED')
     .sort((a, b) => (a.rank ?? 99) - (b.rank ?? 99));
@@ -304,12 +344,35 @@ export function evaluateSubmission(
     const path = `plans[${e.index}]`;
     const plan = e.submitted;
     const rule = JSON.parse(plan.segment.rule) as SegmentRule;
-    const free = reachableCustomerIds(ctx.snapshot, rule)
-      .filter((id) => !taken.has(id))
-      .sort();
+    const contactable = reachableCustomerIds(ctx.snapshot, rule);
+    const available = contactable.filter((id) => !resting.has(id));
+    const free = available.filter((id) => !taken.has(id)).sort();
     let size = Math.min(free.length, plan.segment.maxRecipients);
     if (weeklyLeft !== null) size = Math.min(size, weeklyLeft);
 
+    const usesIncentive = plan.variants.some((v) => v.incentiveId);
+    if (usesIncentive && budget.incentiveBudgetSet === false) {
+      e.status = 'INFEASIBLE';
+      e.issues.push(
+        issue(
+          path,
+          'INCENTIVE_BUDGET_NOT_SET',
+          'El dueño todavía no definió un presupuesto de incentivos: el plan tiene que ir sin premio.',
+        ),
+      );
+      continue;
+    }
+    if (campaignsLeft !== null && campaignsLeft <= 0) {
+      e.status = 'INFEASIBLE';
+      e.issues.push(
+        issue(
+          path,
+          'WEEKLY_CAMPAIGNS',
+          'Ya no quedan campañas nuevas esta semana según la política.',
+        ),
+      );
+      continue;
+    }
     if ((e.reachable ?? 0) === 0) {
       e.status = 'INFEASIBLE';
       e.issues.push(
@@ -324,69 +387,95 @@ export function evaluateSubmission(
       continue;
     }
     if (size < MIN_PLAN_RECIPIENTS) {
+      const reason =
+        available.length === 0
+          ? 'RESTING'
+          : free.length === 0
+            ? 'OVERLAP'
+            : 'WEEKLY_REACH';
       e.status = 'INFEASIBLE';
       e.issues.push(
         issue(
           path,
-          free.length < (e.reachable ?? 0) ? 'OVERLAP' : 'TOO_SMALL',
-          free.length < (e.reachable ?? 0)
-            ? 'Casi todos sus clientes ya están en otro plan elegido.'
-            : `Quedan ${size} clientes contactables: hacen falta al menos ${MIN_PLAN_RECIPIENTS} para medir algo.`,
+          reason,
+          reason === 'RESTING'
+            ? 'Todos sus clientes contactables recibieron una promoción hace poco: hay que dejarlos descansar.'
+            : reason === 'OVERLAP'
+              ? 'Sus clientes ya están en otro plan elegido.'
+              : 'Ya se usó el alcance semanal de la política.',
         ),
       );
       continue;
     }
 
-    const unit = ctx.budget.messageUnitCost ?? 0;
-    let cost = estimatePlanCost(plan, size, ctx.incentives, unit);
-    // Si no entra en lo que queda del presupuesto o pasa el tope por campaña,
-    // se achica; si ni así, no va.
-    const campaignCap = ctx.budget.maxCostPerCampaign ?? null;
-    // El tope por campaña se controla como lo hace la política al ejecutar:
-    // en el peor caso, mensaje e incentivo más caro para todo el grupo.
-    const worstUnit =
-      unit +
-      Math.max(
-        0,
-        ...plan.variants.map((v) =>
-          v.incentiveId
-            ? (ctx.incentives.get(v.incentiveId)?.unitCost ?? 0)
-            : 0,
-        ),
-      );
-    const overCap = (n: number) =>
-      campaignCap !== null && n * worstUnit > campaignCap;
-    while (
-      size >= MIN_PLAN_RECIPIENTS &&
-      ((messagingLeft !== null && cost.messaging > messagingLeft) ||
-        (incentivesLeft !== null &&
-          cost.incentivesMaxLiability > incentivesLeft) ||
-        overCap(size))
-    ) {
-      size -= 1;
-      cost = estimatePlanCost(plan, size, ctx.incentives, unit);
-    }
+    // Lo que va a reservar la política al ejecutar: mensaje e incentivo más
+    // caro para TODO el grupo (control incluido). Es el peor caso, y es la
+    // misma cuenta que hace el motor: si entra acá, entra allá.
+    const unit = budget.messageUnitCost ?? 0;
+    const maxIncentive = Math.max(
+      0,
+      ...plan.variants.map((v) =>
+        v.incentiveId ? (ctx.incentives.get(v.incentiveId)?.unitCost ?? 0) : 0,
+      ),
+    );
+    const reserved = (n: number) => ({
+      messaging: money(n * unit),
+      incentives: money(n * maxIncentive),
+    });
+    const over = (n: number): 'MONTH' | 'CAMPAIGN' | null => {
+      const r = reserved(n);
+      if (
+        (messagingLeft !== null && r.messaging > messagingLeft) ||
+        (usesIncentive &&
+          incentivesLeft !== null &&
+          r.incentives > incentivesLeft)
+      ) {
+        return 'MONTH';
+      }
+      if (
+        (budget.maxMessagingPerCampaign != null &&
+          r.messaging > budget.maxMessagingPerCampaign) ||
+        (usesIncentive &&
+          budget.maxIncentivesPerCampaign != null &&
+          r.incentives > budget.maxIncentivesPerCampaign)
+      ) {
+        return 'CAMPAIGN';
+      }
+      return null;
+    };
+    // Si no entra, se achica el grupo; si ni con uno entra, no va.
+    while (size >= MIN_PLAN_RECIPIENTS && over(size)) size -= 1;
     if (size < MIN_PLAN_RECIPIENTS) {
+      const why = over(MIN_PLAN_RECIPIENTS);
       e.status = 'INFEASIBLE';
       e.issues.push(
         issue(
           path,
           'BUDGET',
-          overCap(MIN_PLAN_RECIPIENTS)
-            ? `Ni con ${MIN_PLAN_RECIPIENTS} clientes entra en el tope por campaña (${campaignCap}).`
-            : 'No entra en lo que queda del presupuesto del mes.',
+          why === 'CAMPAIGN'
+            ? 'Ni con un cliente entra en el tope por campaña.'
+            : usesIncentive
+              ? 'No entra en lo que queda del presupuesto del mes: probá sin incentivo o con uno más barato.'
+              : 'No entra en lo que queda del presupuesto de mensajería del mes.',
         ),
       );
       continue;
     }
 
+    const cost = estimatePlanCost(plan, size, ctx.incentives, unit);
+    const r = reserved(size);
     e.status = 'SIMULATED';
     e.recipientIds = free.slice(0, size);
     e.cost = cost;
+    e.smallSample = size < SMALL_SAMPLE_RECIPIENTS;
     e.recipientIds.forEach((id) => taken.add(id));
-    if (messagingLeft !== null) messagingLeft -= cost.messaging;
-    if (incentivesLeft !== null) incentivesLeft -= cost.incentivesMaxLiability;
+    if (messagingLeft !== null)
+      messagingLeft = money(messagingLeft - r.messaging);
+    if (usesIncentive && incentivesLeft !== null) {
+      incentivesLeft = money(incentivesLeft - r.incentives);
+    }
     if (weeklyLeft !== null) weeklyLeft -= size;
+    if (campaignsLeft !== null) campaignsLeft -= 1;
   }
 
   const summaryNumbers = ungroundedNumbers(
@@ -443,7 +532,13 @@ export function feedbackForModel(evaluation: SubmissionEvaluation): string {
   for (const e of evaluation.plans) {
     const label = `Plan ${e.index + 1} ("${e.submitted.title}")`;
     if (e.status === 'SIMULATED') {
-      lines.push(`- ${label}: OK, ${e.recipientIds.length} destinatarios.`);
+      lines.push(
+        `- ${label}: OK, ${e.recipientIds.length} destinatarios.${
+          e.smallSample
+            ? ' Es una prueba chica: no presentes su resultado como evidencia.'
+            : ''
+        }`,
+      );
     } else if (e.status === 'NOT_SELECTED') {
       lines.push(
         `- ${label}: válido (${e.reachable} contactables), no elegido.`,

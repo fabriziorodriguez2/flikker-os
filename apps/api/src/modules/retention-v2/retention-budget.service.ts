@@ -102,6 +102,15 @@ export class RetentionBudgetService {
           metadata: { limitType: 'POLICY_PAUSED' },
         };
       }
+      // Con la política, el presupuesto de incentivos lo define el dueño: sin
+      // él no se compromete gasto, aunque haya un tope por cantidad.
+      if (caps.maxEstimatedIncentiveCostPerMonth === null) {
+        return {
+          allowed: false,
+          reasonCode: 'MONTHLY_BUDGET_LIMIT',
+          metadata: { limitType: 'INCENTIVE_BUDGET_NOT_SET' },
+        };
+      }
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`policy:${params.businessId}`}))`;
       sharedCost = await promotionIncentiveLiability(tx, {
         businessId: params.businessId,

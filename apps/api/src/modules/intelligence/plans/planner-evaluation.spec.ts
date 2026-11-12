@@ -3,10 +3,13 @@ import type { AuthorizedIncentive } from './commercial-plan';
 import type { BusinessSnapshot } from './business-snapshot';
 import type { CustomerFeatures } from './segment-rules';
 import {
+  MIN_PLAN_RECIPIENTS,
+  SMALL_SAMPLE_RECIPIENTS,
   evaluateSubmission,
   feedbackForModel,
   ungroundedNumbers,
   type EvaluationContext,
+  type PlannerBudget,
   type PlannerSubmission,
   type SubmittedPlan,
 } from './planner-evaluation';
@@ -264,13 +267,13 @@ describe('evaluateSubmission', () => {
     const wide = plan({
       segment: { description: 'todos', rule: ANY_VISITS, maxRecipients: 50 },
     });
-    const budget = (maxCostPerCampaign: number) => ({
+    const budget = (maxMessagingPerCampaign: number) => ({
       budget: {
         messageUnitCost: 2,
         messagingRemaining: null,
         incentiveRemaining: null,
         weeklyRecipientsRemaining: null,
-        maxCostPerCampaign,
+        maxMessagingPerCampaign,
       },
     });
     const capped = evaluateSubmission(submission([wide]), ctx(budget(14)));
@@ -307,7 +310,7 @@ describe('evaluateSubmission', () => {
     expect(result.plans[0].recipientIds).toHaveLength(7);
   });
 
-  it('muy pocos clientes: no hay experimento que medir', () => {
+  it('pocos clientes: se puede actuar, marcado como prueba chica (sin evidencia)', () => {
     const result = evaluateSubmission(
       submission([
         plan({
@@ -316,7 +319,37 @@ describe('evaluateSubmission', () => {
       ]),
       ctx(),
     );
-    expect(result.plans[0].issues[0].code).toBe('TOO_SMALL');
+    expect(result.plans[0].status).toBe('SIMULATED');
+    expect(result.plans[0].recipientIds).toHaveLength(3);
+    expect(result.plans[0].smallSample).toBe(true);
+    expect(feedbackForModel(result)).toContain('prueba chica');
+  });
+
+  it(`un solo cliente disponible alcanza (mínimo ${MIN_PLAN_RECIPIENTS}); desde ${SMALL_SAMPLE_RECIPIENTS} deja de ser prueba chica`, () => {
+    const one = evaluateSubmission(
+      submission([
+        plan({
+          segment: { description: 'h', rule: REGULARS, maxRecipients: 1 },
+        }),
+      ]),
+      ctx(),
+    );
+    expect(one.plans[0]).toMatchObject({
+      status: 'SIMULATED',
+      smallSample: true,
+    });
+    const five = evaluateSubmission(
+      submission([
+        plan({
+          segment: { description: 'u', rule: ONE_VISIT, maxRecipients: 5 },
+        }),
+      ]),
+      ctx(),
+    );
+    expect(five.plans[0]).toMatchObject({
+      status: 'SIMULATED',
+      smallSample: false,
+    });
   });
 
   it('un plan repetido no se simula de nuevo', () => {
@@ -397,6 +430,181 @@ describe('evaluateSubmission', () => {
     expect(result.issues.map((i) => i.code)).toEqual(
       expect.arrayContaining(['DECISION_CONFLICT', 'TEXT']),
     );
+  });
+});
+
+describe('evaluateSubmission — límites de la política', () => {
+  const budget = (over: Partial<PlannerBudget> = {}): PlannerBudget => ({
+    messageUnitCost: 2,
+    messagingRemaining: null,
+    incentiveBudgetSet: true,
+    incentiveRemaining: null,
+    weeklyRecipientsRemaining: null,
+    ...over,
+  });
+  const wide = (over: Partial<SubmittedPlan> = {}) =>
+    plan({
+      segment: { description: 'todos', rule: ANY_VISITS, maxRecipients: 50 },
+      ...over,
+    });
+  /** Con variante sin premio y variante con café (60 por emisión). */
+  const withCoffee = (over: Partial<SubmittedPlan> = {}) =>
+    wide({
+      variants: [
+        {
+          key: 'A',
+          message: 'Hola {nombre}, ¡te esperamos de vuelta!',
+          incentiveId: null,
+          weightPercent: 40,
+        },
+        {
+          key: 'B',
+          message: 'Hola {nombre}, tu próximo café va de regalo.',
+          incentiveId: coffee.id,
+          weightPercent: 40,
+        },
+      ],
+      ...over,
+    });
+
+  it('los que recibieron una promoción hace poco descansan: no entran en el plan', () => {
+    const result = evaluateSubmission(
+      submission([wide()]),
+      ctx({ budget: budget(), resting: new Set(['c0', 'c2', 'r0']) }),
+    );
+    expect(result.plans[0].status).toBe('SIMULATED');
+    expect(result.plans[0].recipientIds).toHaveLength(7);
+    expect(result.plans[0].recipientIds).not.toContain('c0');
+  });
+
+  it('si todos están descansando, lo explica (no es "sin alcance")', () => {
+    const result = evaluateSubmission(
+      submission([
+        plan({
+          segment: { description: 'h', rule: REGULARS, maxRecipients: 9 },
+        }),
+      ]),
+      ctx({
+        budget: budget(),
+        resting: new Set(['r0', 'r2', 'r4', 'r6']),
+      }),
+    );
+    expect(result.plans[0].issues[0]).toMatchObject({ code: 'RESTING' });
+  });
+
+  it('sin presupuesto de incentivos del dueño: el plan con premio no va, el sin premio sí', () => {
+    const result = evaluateSubmission(
+      submission([
+        withCoffee(),
+        plan({
+          title: 'Habituales',
+          rank: 2,
+          segment: { description: 'h', rule: REGULARS, maxRecipients: 50 },
+        }),
+      ]),
+      ctx({ budget: budget({ incentiveBudgetSet: false }) }),
+    );
+    expect(result.plans[0]).toMatchObject({ status: 'INFEASIBLE' });
+    expect(result.plans[0].issues[0].code).toBe('INCENTIVE_BUDGET_NOT_SET');
+    expect(result.plans[1].status).toBe('SIMULATED');
+  });
+
+  it('presupuesto de incentivos insuficiente: achica con el peor caso; en 0, no va', () => {
+    // 10 contactables × 60 = 600 > 300 → entran 5 (5 × 60 = 300).
+    const tight = evaluateSubmission(
+      submission([withCoffee()]),
+      ctx({ budget: budget({ incentiveRemaining: 300 }) }),
+    );
+    expect(tight.plans[0].status).toBe('SIMULATED');
+    expect(tight.plans[0].recipientIds).toHaveLength(5);
+
+    const zero = evaluateSubmission(
+      submission([withCoffee()]),
+      ctx({ budget: budget({ incentiveRemaining: 0 }) }),
+    );
+    expect(zero.plans[0].issues[0]).toMatchObject({ code: 'BUDGET' });
+    expect(zero.plans[0].issues[0].message).toContain('sin incentivo');
+  });
+
+  it('tope por campaña de incentivos: la parte de esa bolsa, sin mirar la de mensajes', () => {
+    const result = evaluateSubmission(
+      submission([withCoffee()]),
+      ctx({
+        budget: budget({
+          maxIncentivesPerCampaign: 120,
+          maxMessagingPerCampaign: 1000,
+        }),
+      }),
+    );
+    expect(result.plans[0].recipientIds).toHaveLength(2);
+  });
+
+  it('dos planes que comparten presupuesto: el segundo usa lo que dejó el primero', () => {
+    const result = evaluateSubmission(
+      submission([
+        plan({
+          segment: { description: 'u', rule: ONE_VISIT, maxRecipients: 50 },
+        }),
+        plan({
+          title: 'Habituales',
+          rank: 2,
+          segment: { description: 'h', rule: REGULARS, maxRecipients: 50 },
+        }),
+      ]),
+      // 6 + 4 contactables × 2 = 20; quedan 16 → el segundo entra con 2.
+      ctx({ budget: budget({ messagingRemaining: 16 }) }),
+    );
+    expect(result.plans[0].recipientIds).toHaveLength(6);
+    expect(result.plans[1].recipientIds).toHaveLength(2);
+  });
+
+  it('no elige más planes que las campañas que quedan en la semana', () => {
+    const result = evaluateSubmission(
+      submission([
+        plan({
+          segment: { description: 'u', rule: ONE_VISIT, maxRecipients: 50 },
+        }),
+        plan({
+          title: 'Habituales',
+          rank: 2,
+          segment: { description: 'h', rule: REGULARS, maxRecipients: 50 },
+        }),
+      ]),
+      ctx({ budget: budget({ newCampaignsRemaining: 1 }) }),
+    );
+    expect(result.plans.map((p) => p.status)).toEqual([
+      'SIMULATED',
+      'INFEASIBLE',
+    ]);
+    expect(result.plans[1].issues[0].code).toBe('WEEKLY_CAMPAIGNS');
+  });
+
+  it('modo adaptativo (base chica): el tamaño lo decide el plan, no un tope fijo', () => {
+    const result = evaluateSubmission(
+      submission([wide()]),
+      ctx({
+        budget: budget({
+          weeklyLimitMode: 'ADAPTIVE',
+          weeklyRecipientsRemaining: null,
+        }),
+      }),
+    );
+    expect(result.plans[0].recipientIds).toHaveLength(10);
+  });
+
+  it('modo porcentaje: el alcance semanal que queda corta el grupo; en 0, lo explica', () => {
+    const left = (n: number) =>
+      evaluateSubmission(
+        submission([wide()]),
+        ctx({
+          budget: budget({
+            weeklyLimitMode: 'PERCENT',
+            weeklyRecipientsRemaining: n,
+          }),
+        }),
+      );
+    expect(left(4).plans[0].recipientIds).toHaveLength(4);
+    expect(left(0).plans[0].issues[0].code).toBe('WEEKLY_REACH');
   });
 });
 

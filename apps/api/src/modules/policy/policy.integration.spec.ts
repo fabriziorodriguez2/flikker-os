@@ -187,7 +187,7 @@ describe('Policy & Budget Engine (integration)', () => {
         confirmedCurrency: 'UYU',
         confirmedTimezone: 'America/Montevideo',
         messagingBudgetMonthly: BALANCED_PRESET.messagingBudgetMonthly,
-        maxUniqueRecipientsPerWeek: BALANCED_PRESET.maxUniqueRecipientsPerWeek,
+        weeklyReachPercent: BALANCED_PRESET.weeklyReachPercent,
         maxNewCampaignsPerWeek: BALANCED_PRESET.maxNewCampaignsPerWeek,
         maxCampaignSharePercent: BALANCED_PRESET.maxCampaignSharePercent,
         messageUnitCost: 2,
@@ -198,8 +198,8 @@ describe('Policy & Budget Engine (integration)', () => {
     await prisma.retentionSettings.update({
       where: { businessId },
       data: {
-        maxEstimatedIncentiveCostPerMonth:
-          BALANCED_PRESET.incentiveBudgetMonthly,
+        // El preset no propone incentivos: en estos tests el dueño definió 1500.
+        maxEstimatedIncentiveCostPerMonth: 1500,
       },
     });
   }
@@ -298,10 +298,10 @@ describe('Policy & Budget Engine (integration)', () => {
     const values = {
       messagingBudgetMonthly: 500,
       incentiveBudgetMonthly: 1500,
-      maxUniqueRecipientsPerWeek: 25,
+      weeklyReachPercent: 25,
       maxNewCampaignsPerWeek: 2,
-      minDaysBetweenPromotions: 14,
-      maxPromotionsPer30Days: 2,
+      minDaysBetweenPromotions: 10,
+      maxPromotionsPer30Days: 3,
       sendingHourStart: 10,
       sendingHourEnd: 20,
       maxCampaignSharePercent: 25,
@@ -315,7 +315,13 @@ describe('Policy & Budget Engine (integration)', () => {
       expect(res.body).toMatchObject({
         accepted: false,
         paused: false,
-        preset: { messagingBudgetMonthly: 500, maxUniqueRecipientsPerWeek: 25 },
+        preset: {
+          messagingBudgetMonthly: 500,
+          incentiveBudgetMonthly: null,
+          weeklyReachPercent: 25,
+          minDaysBetweenPromotions: 10,
+          maxPromotionsPer30Days: 3,
+        },
         blockers: [{ code: 'POLICY_NOT_ACCEPTED' }],
       });
       expect(
@@ -363,8 +369,8 @@ describe('Policy & Budget Engine (integration)', () => {
         where: { businessId: biz },
       });
       expect(settings).toMatchObject({
-        minimumDaysBetweenRetentionMessages: 14,
-        maximumRetentionMessagesPer30Days: 2,
+        minimumDaysBetweenRetentionMessages: 10,
+        maximumRetentionMessagesPer30Days: 3,
         sendingHourStart: 10,
         sendingHourEnd: 20,
       });
@@ -390,7 +396,7 @@ describe('Policy & Budget Engine (integration)', () => {
         .set(as(owner, biz))
         .send({
           ...values,
-          maxUniqueRecipientsPerWeek: 30,
+          weeklyReachPercent: 30,
           expectedVersion: version,
         });
       expect(first.status).toBe(200);
@@ -399,7 +405,7 @@ describe('Policy & Budget Engine (integration)', () => {
         .set(as(owner, biz))
         .send({
           ...values,
-          maxUniqueRecipientsPerWeek: 99,
+          weeklyReachPercent: 99,
           expectedVersion: version,
         });
       expect(stale.status).toBe(409);
@@ -413,7 +419,7 @@ describe('Policy & Budget Engine (integration)', () => {
           await prisma.businessPolicy.findUniqueOrThrow({
             where: { businessId: biz },
           })
-        ).maxUniqueRecipientsPerWeek,
+        ).weeklyReachPercent,
       ).toBe(30);
     });
 
@@ -706,7 +712,7 @@ describe('Policy & Budget Engine (integration)', () => {
       ).toBe(1);
     });
 
-    it('frecuencia: quien recibió una promoción no recibe otra antes de 14 días', async () => {
+    it('frecuencia: quien recibió una promoción no recibe otra antes de 10 días', async () => {
       const biz = await business('freq');
       const owner = await user('freq-owner', biz, MembershipRole.OWNER);
       await accept(biz);
@@ -837,7 +843,10 @@ describe('Policy & Budget Engine (integration)', () => {
     beforeAll(async () => {
       biz = await business('res');
       owner = await user('res-owner', biz, MembershipRole.OWNER);
-      await accept(biz, { maxNewCampaignsPerWeek: 3 });
+      await accept(biz, {
+        maxNewCampaignsPerWeek: 3,
+        maxCampaignSharePercent: 30,
+      });
     });
 
     afterEach(async () => {
@@ -868,7 +877,7 @@ describe('Policy & Budget Engine (integration)', () => {
     });
 
     it('presupuesto de incentivos bajo concurrencia: nunca se pasa la bolsa', async () => {
-      // 1500 de tope, 25% por campaña = 500; cada reserva: 1 × (2 + 400) = 402.
+      // 1500 de tope, 30% por campaña = 450 de incentivos; cada reserva: 400.
       const groups = await Promise.all(
         Array.from({ length: 6 }, () => customers(biz, 1, true)),
       );
@@ -1056,6 +1065,278 @@ describe('Policy & Budget Engine (integration)', () => {
         allowed: false,
         reasonCode: 'POLICY_PAUSED',
       });
+    });
+
+    it('sin presupuesto de incentivos del dueño, Autopilot no emite aunque tenga tope por cantidad', async () => {
+      const biz = await business('nobudget-auto');
+      await accept(biz);
+      await prisma.retentionSettings.update({
+        where: { businessId: biz },
+        data: { maxEstimatedIncentiveCostPerMonth: null },
+      });
+      const result = await prisma.$transaction((tx) =>
+        budget.checkWithinCaps(tx, {
+          businessId: biz,
+          timezone: 'America/Montevideo',
+          now: new Date(),
+          caps: {
+            maxAutomatedIncentivesPerMonth: 50,
+            maxEstimatedIncentiveCostPerMonth: null,
+          },
+          estimatedCostOfThisIssue: 10,
+          averageTicketAmount: null,
+        }),
+      );
+      expect(result).toMatchObject({
+        allowed: false,
+        metadata: { limitType: 'INCENTIVE_BUDGET_NOT_SET' },
+      });
+    });
+
+    it('la pantalla muestra lo comprometido, lo consumido y por qué incentivo', async () => {
+      const biz = await business('breakdown');
+      const owner = await user('breakdown-owner', biz, MembershipRole.OWNER);
+      await accept(biz);
+      const [a, b] = await customers(biz, 2, true);
+      const benefit = await prisma.benefit.create({
+        data: { businessId: biz, type: BenefitType.gift, title: 'Medialuna' },
+      });
+      await prisma.retentionIncentiveDefinition.create({
+        data: {
+          businessId: biz,
+          name: 'Medialuna de regalo',
+          type: BenefitType.gift,
+          benefitId: benefit.id,
+          estimatedCost: 80,
+        },
+      });
+      await prisma.benefitParticipation.createMany({
+        data: [
+          {
+            businessId: biz,
+            benefitId: benefit.id,
+            customerId: a,
+            source: BenefitIssuanceSource.PROMOTION,
+            redeemedAt: new Date(),
+          },
+          {
+            businessId: biz,
+            benefitId: benefit.id,
+            customerId: b,
+            source: BenefitIssuanceSource.PROMOTION,
+          },
+        ],
+      });
+      const res = await request(app.getHttpServer())
+        .get('/policy')
+        .set(as(owner, biz));
+      expect(res.status).toBe(200);
+      expect(res.body.incentives).toMatchObject({
+        budgetSet: true,
+        committed: 160,
+        consumed: 80,
+        byIncentive: [
+          {
+            label: 'Medialuna de regalo',
+            issued: 2,
+            redeemed: 1,
+            committedCost: 160,
+            consumedCost: 80,
+          },
+        ],
+        campaigns: [],
+      });
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  describe('v2: alcance semanal según la base y presupuesto del dueño', () => {
+    /** Clientes de una sola vez, en bloque: `granted` de ellos con WhatsApp. */
+    async function bulk(businessId: string, total: number, granted: number) {
+      const rows = Array.from({ length: total }, () => {
+        phoneSeq += 1;
+        return {
+          id: randomUUID(),
+          businessId,
+          name: `Cliente ${phoneSeq}`,
+          phoneE164: `+5989${phonePrefix}${String(phoneSeq).padStart(4, '0')}`,
+        };
+      });
+      await prisma.customer.createMany({ data: rows });
+      await prisma.customerConsentEvent.createMany({
+        data: rows.slice(0, granted).map((r) => ({
+          businessId,
+          customerId: r.id,
+          channel: 'WHATSAPP' as const,
+          action: 'GRANTED' as const,
+          source: 'CHECKIN_FORM' as const,
+        })),
+      });
+      return rows.map((r) => r.id);
+    }
+
+    it('105 clientes: modo adaptativo, sin tope semanal por porcentaje', async () => {
+      const biz = await business('small');
+      const owner = await user('small-owner', biz, MembershipRole.OWNER);
+      await accept(biz);
+      await bulk(biz, 105, 70);
+      const res = await request(app.getHttpServer())
+        .get('/policy')
+        .set(as(owner, biz));
+      expect(res.body.weeklyReach).toMatchObject({
+        mode: 'ADAPTIVE',
+        threshold: 150,
+        registeredCustomers: 105,
+        contactableCustomers: 70,
+        capThisWeek: null,
+      });
+    });
+
+    it('500 clientes: el tope es el % de los contactables y se recalcula al crecer', async () => {
+      const biz = await business('mid');
+      const owner = await user('mid-owner', biz, MembershipRole.OWNER);
+      await accept(biz);
+      const ids = await bulk(biz, 500, 120);
+      const view = async (): Promise<unknown> => {
+        const res = await request(app.getHttpServer())
+          .get('/policy')
+          .set(as(owner, biz));
+        return (res.body as { weeklyReach: unknown }).weeklyReach;
+      };
+      expect(await view()).toMatchObject({
+        mode: 'PERCENT',
+        contactableCustomers: 120,
+        capThisWeek: 30,
+      });
+      // Una baja y una supresión salen de la base; un alta nueva entra.
+      await consent.record({
+        businessId: biz,
+        customerId: ids[0],
+        channel: 'WHATSAPP',
+        action: 'REVOKED',
+        source: 'STAFF',
+      });
+      await consent.record({
+        businessId: biz,
+        customerId: ids[1],
+        channel: 'WHATSAPP',
+        action: 'SUPPRESSED',
+        source: 'COMPLAINT',
+      });
+      for (const id of ids.slice(200, 202)) {
+        await consent.record({
+          businessId: biz,
+          customerId: id,
+          channel: 'WHATSAPP',
+          action: 'GRANTED',
+          source: 'CHECKIN_FORM',
+        });
+      }
+      expect(await view()).toMatchObject({
+        contactableCustomers: 120,
+        capThisWeek: 30,
+      });
+      await bulk(biz, 40, 40);
+      expect(await view()).toMatchObject({
+        registeredCustomers: 540,
+        contactableCustomers: 160,
+        capThisWeek: 40,
+      });
+    });
+
+    it('el motor aplica el tope calculado: 30 entran, 31 no', async () => {
+      const biz = await business('cap');
+      await accept(biz, { messagingBudgetMonthly: 10_000 });
+      const ids = await bulk(biz, 500, 120);
+      const evaluate = (group: string[]) =>
+        gate.evaluate({ businessId: biz, effect: effect(group) });
+      expect((await evaluate(ids.slice(0, 30))).decision.allowed).toBe(true);
+      const over = await evaluate(ids.slice(0, 31));
+      expect(over.decision.blockers.map((b) => b.code)).toEqual([
+        'WEEKLY_RECIPIENTS_LIMIT',
+      ]);
+    });
+
+    it('aceptar sin presupuesto de incentivos: vale, y ningún premio con costo sale', async () => {
+      const biz = await business('noincentive');
+      const owner = await user('noincentive-owner', biz, MembershipRole.OWNER);
+      const ok = await request(app.getHttpServer())
+        .post('/policy/accept')
+        .set(as(owner, biz))
+        .send({
+          messagingBudgetMonthly: 500,
+          incentiveBudgetMonthly: null,
+          weeklyReachPercent: 25,
+          maxNewCampaignsPerWeek: 2,
+          minDaysBetweenPromotions: 10,
+          maxPromotionsPer30Days: 3,
+          sendingHourStart: 0,
+          sendingHourEnd: 24,
+          maxCampaignSharePercent: 25,
+          confirmedCurrency: 'UYU',
+          confirmedTimezone: 'America/Montevideo',
+          policyVersion: POLICY_VERSION,
+        });
+      expect(ok.status).toBe(200);
+      expect(ok.body.values.incentiveBudgetMonthly).toBeNull();
+      expect(ok.body.missing).toContain('INCENTIVE_BUDGET');
+      expect(ok.body.incentives.budgetSet).toBe(false);
+      const settings = await prisma.retentionSettings.findUniqueOrThrow({
+        where: { businessId: biz },
+      });
+      expect(settings.maxEstimatedIncentiveCostPerMonth).toBeNull();
+
+      await prisma.businessPolicy.update({
+        where: { businessId: biz },
+        data: { messageUnitCost: 2, messageUnitCostCurrency: 'UYU' },
+      });
+      const [customer] = await customers(biz, 1, true);
+      const withPrize = await gate.evaluate({
+        businessId: biz,
+        effect: effect([customer], { incentive: { unitCost: 50 } }),
+      });
+      expect(withPrize.decision.blockers.map((b) => b.code)).toEqual([
+        'INCENTIVE_BUDGET_NOT_SET',
+      ]);
+      const plain = await gate.evaluate({
+        businessId: biz,
+        effect: effect([customer]),
+      });
+      expect(plain.decision.allowed).toBe(true);
+    });
+
+    it('un % fuera de rango o el campo viejo se rechazan', async () => {
+      const biz = await business('badpct');
+      const owner = await user('badpct-owner', biz, MembershipRole.OWNER);
+      const base = {
+        messagingBudgetMonthly: 500,
+        incentiveBudgetMonthly: 0,
+        maxNewCampaignsPerWeek: 2,
+        minDaysBetweenPromotions: 10,
+        maxPromotionsPer30Days: 3,
+        sendingHourStart: 10,
+        sendingHourEnd: 20,
+        maxCampaignSharePercent: 25,
+        confirmedCurrency: 'UYU',
+        confirmedTimezone: 'America/Montevideo',
+        policyVersion: POLICY_VERSION,
+      };
+      const send = (body: Record<string, unknown>) =>
+        request(app.getHttpServer())
+          .post('/policy/accept')
+          .set(as(owner, biz))
+          .send(body);
+      expect((await send({ ...base, weeklyReachPercent: 0 })).status).toBe(400);
+      expect((await send({ ...base, weeklyReachPercent: 101 })).status).toBe(
+        400,
+      );
+      expect(
+        (await send({ ...base, maxUniqueRecipientsPerWeek: 25 })).status,
+      ).toBe(400);
+      // Presupuesto 0: válido (el dueño no quiere costos de incentivos).
+      expect((await send({ ...base, weeklyReachPercent: 25 })).status).toBe(
+        200,
+      );
     });
   });
 });

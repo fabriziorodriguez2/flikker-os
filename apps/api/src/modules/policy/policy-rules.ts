@@ -13,8 +13,20 @@ import { getLocalDateTimeParts } from '../../common/utils/timezone.util';
  * acá: solo números que el servidor leyó de la base.
  */
 
-/** Sube cuando cambia el texto de la política: obliga a volver a aceptarla. */
-export const POLICY_VERSION = 1;
+/**
+ * Sube cuando cambia el texto de la política: obliga a volver a aceptarla.
+ * v2: tope semanal como % de la base contactable, presupuesto de incentivos
+ * definido por el dueño y tope por campaña sobre cada bolsa.
+ */
+export const POLICY_VERSION = 2;
+
+/**
+ * Por debajo de esta cantidad de clientes registrados no hay tope semanal
+ * por porcentaje: con una base chica el % deja grupos sin sentido. Intelligence
+ * decide cuántos contactar y el motor sigue validando presupuesto,
+ * consentimiento y frecuencia por persona.
+ */
+export const SMALL_BUSINESS_CUSTOMER_THRESHOLD = 150;
 
 /** Versión vigente del texto de WhatsApp (ver consent-texts.ts). */
 export { CONSENT_TEXT_VERSIONS } from './consent-texts';
@@ -22,17 +34,26 @@ export { CONSENT_TEXT_VERSIONS } from './consent-texts';
 /** Cuánto vive una reserva sin confirmarse antes de dejar de contar. */
 export const RESERVATION_TTL_MS = 60 * 60_000;
 
+const MS_PER_DAY = 86_400_000;
+
+/** Redondeo a centavos: los topes se comparan en la misma unidad que se guardan. */
+function money(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 /**
  * Preset "Equilibrado". Es el punto de partida que ve el dueño, editable;
- * nunca se aplica solo. Los montos están en la moneda que confirme.
+ * nunca se aplica solo. Los montos están en la moneda que confirme. El
+ * presupuesto de incentivos no tiene propuesta: lo decide el dueño, y hasta
+ * entonces no se ofrece ningún premio con costo.
  */
 export const BALANCED_PRESET = {
   messagingBudgetMonthly: 500,
-  incentiveBudgetMonthly: 1500,
-  maxUniqueRecipientsPerWeek: 25,
+  incentiveBudgetMonthly: null,
+  weeklyReachPercent: 25,
   maxNewCampaignsPerWeek: 2,
-  minDaysBetweenPromotions: 14,
-  maxPromotionsPer30Days: 2,
+  minDaysBetweenPromotions: 10,
+  maxPromotionsPer30Days: 3,
   sendingHourStart: 10,
   sendingHourEnd: 20,
   maxCampaignSharePercent: 25,
@@ -49,8 +70,9 @@ export interface PolicyConfig {
   paused: boolean;
   pausedReason: PolicyPauseReason | null;
   messagingBudgetMonthly: number | null;
+  /** null = el dueño todavía no lo definió: ningún premio con costo. */
   incentiveBudgetMonthly: number | null;
-  maxUniqueRecipientsPerWeek: number | null;
+  weeklyReachPercent: number | null;
   maxNewCampaignsPerWeek: number | null;
   maxCampaignSharePercent: number | null;
   minDaysBetweenPromotions: number;
@@ -86,9 +108,93 @@ export interface PolicyUsage {
   incentiveLiabilityMonth: number;
   recipientsThisWeek: ReadonlySet<string>;
   newCampaignsThisWeek: number;
+  /** Base del negocio para el tope semanal. */
+  base: CustomerBase;
   /** Contactos de marketing de los últimos 30 días, por candidato. */
   contactsByCustomer: ReadonlyMap<string, readonly Date[]>;
   consentByCustomer: ReadonlyMap<string, ConsentStatus>;
+}
+
+export interface CustomerBase {
+  /** Clientes activos registrados. */
+  registered: number;
+  /** Clientes activos únicos que hoy pueden recibir promociones por WhatsApp. */
+  contactable: number;
+}
+
+export interface WeeklyCap {
+  /** ADAPTIVE: base chica, sin tope por %. PERCENT: % de la base contactable. */
+  mode: 'ADAPTIVE' | 'PERCENT';
+  /** Clientes distintos por semana; null = sin tope (ADAPTIVE o sin configurar). */
+  cap: number | null;
+}
+
+/**
+ * Tope de clientes distintos por semana. Se recalcula en cada evaluación con
+ * la base de ese momento: crece cuando crece la base contactable.
+ */
+export function weeklyRecipientCap(
+  config: Pick<PolicyConfig, 'weeklyReachPercent'>,
+  base: CustomerBase,
+): WeeklyCap {
+  if (base.registered < SMALL_BUSINESS_CUSTOMER_THRESHOLD) {
+    return { mode: 'ADAPTIVE', cap: null };
+  }
+  if (config.weeklyReachPercent === null) return { mode: 'PERCENT', cap: null };
+  return {
+    mode: 'PERCENT',
+    cap: Math.ceil((base.contactable * config.weeklyReachPercent) / 100),
+  };
+}
+
+/** Lo máximo que puede usar UNA campaña de cada bolsa; null = sin bolsa. */
+export function campaignCaps(
+  config: Pick<
+    PolicyConfig,
+    | 'messagingBudgetMonthly'
+    | 'incentiveBudgetMonthly'
+    | 'maxCampaignSharePercent'
+  >,
+): { messaging: number | null; incentives: number | null } {
+  const share = config.maxCampaignSharePercent;
+  const part = (budget: number | null) =>
+    budget === null || share === null ? null : money((budget * share) / 100);
+  return {
+    messaging: part(config.messagingBudgetMonthly),
+    incentives: part(config.incentiveBudgetMonthly),
+  };
+}
+
+/**
+ * Regla de frecuencia por persona, sobre los contactos de marketing de los
+ * últimos 30 días de TODOS los motores (promociones, Autopilot, Intelligence).
+ * Es un máximo: nada obliga a llegar a él.
+ */
+export function frequencyExclusion(
+  contacts: readonly Date[],
+  config: Pick<
+    PolicyConfig,
+    'minDaysBetweenPromotions' | 'maxPromotionsPer30Days'
+  >,
+  now: Date,
+): 'RECENT_PROMOTION' | 'MONTHLY_PROMOTION_LIMIT' | null {
+  const recent = contacts.filter(
+    (at) => now.getTime() - at.getTime() < 30 * MS_PER_DAY,
+  );
+  const last = recent.reduce<number | null>(
+    (max, at) => (max === null || at.getTime() > max ? at.getTime() : max),
+    null,
+  );
+  if (
+    last !== null &&
+    now.getTime() - last < config.minDaysBetweenPromotions * MS_PER_DAY
+  ) {
+    return 'RECENT_PROMOTION';
+  }
+  if (recent.length >= config.maxPromotionsPer30Days) {
+    return 'MONTHLY_PROMOTION_LIMIT';
+  }
+  return null;
 }
 
 export type PolicyBlockerCode =
@@ -102,6 +208,7 @@ export type PolicyBlockerCode =
   | 'MESSAGE_COST_CURRENCY_MISMATCH'
   | 'INCENTIVE_COST_UNKNOWN'
   | 'BUDGET_NOT_CONFIGURED'
+  | 'INCENTIVE_BUDGET_NOT_SET'
   | 'NO_ELIGIBLE_RECIPIENTS'
   | 'WEEKLY_RECIPIENTS_LIMIT'
   | 'WEEKLY_CAMPAIGNS_LIMIT'
@@ -237,13 +344,6 @@ export function configBlockers(config: PolicyConfig): PolicyBlocker[] {
   return blockers;
 }
 
-const MS_PER_DAY = 86_400_000;
-
-/** Redondeo a centavos: los topes se comparan en la misma unidad que se guardan. */
-function money(value: number): number {
-  return Math.round(value * 100) / 100;
-}
-
 /**
  * La decisión completa. Bloquea todo el efecto cuando una regla de negocio
  * (presupuesto, topes semanales, configuración) dice que no; excluye
@@ -303,8 +403,9 @@ export function evaluatePolicy(input: {
     }
     if (config.incentiveBudgetMonthly === null) {
       blockers.push({
-        code: 'BUDGET_NOT_CONFIGURED',
-        message: 'Falta configurar el tope mensual de incentivos.',
+        code: 'INCENTIVE_BUDGET_NOT_SET',
+        message:
+          'Todavía no definiste un presupuesto de incentivos (Políticas): hasta entonces solo salen acciones sin beneficios con costo.',
       });
     }
   }
@@ -341,18 +442,18 @@ export function evaluatePolicy(input: {
   }
   const capsMissing =
     config.messagingBudgetMonthly === null ||
-    config.maxUniqueRecipientsPerWeek === null ||
+    config.weeklyReachPercent === null ||
     config.maxNewCampaignsPerWeek === null ||
     config.maxCampaignSharePercent === null;
   if (capsMissing) {
     blockers.push({
       code: 'BUDGET_NOT_CONFIGURED',
       message:
-        'Faltan topes de la política (presupuesto, destinatarios o campañas por semana).',
+        'Faltan topes de la política (presupuesto de mensajería, alcance semanal o campañas por semana).',
     });
   }
 
-  // Por persona: consentimiento y frecuencia.
+  // Por persona: consentimiento y frecuencia. Un id repetido cuenta una vez.
   const excluded: PolicyDecision['excluded'] = [];
   const eligible: string[] = [];
   const seen = new Set<string>();
@@ -372,23 +473,13 @@ export function evaluatePolicy(input: {
       });
       continue;
     }
-    const contacts = usage.contactsByCustomer.get(customerId) ?? [];
-    const recent = contacts.filter(
-      (at) => now.getTime() - at.getTime() < 30 * MS_PER_DAY,
+    const frequency = frequencyExclusion(
+      usage.contactsByCustomer.get(customerId) ?? [],
+      config,
+      now,
     );
-    const last = recent.reduce<number | null>(
-      (max, at) => (max === null || at.getTime() > max ? at.getTime() : max),
-      null,
-    );
-    if (
-      last !== null &&
-      now.getTime() - last < config.minDaysBetweenPromotions * MS_PER_DAY
-    ) {
-      excluded.push({ customerId, reason: 'RECENT_PROMOTION' });
-      continue;
-    }
-    if (recent.length >= config.maxPromotionsPer30Days) {
-      excluded.push({ customerId, reason: 'MONTHLY_PROMOTION_LIMIT' });
+    if (frequency) {
+      excluded.push({ customerId, reason: frequency });
       continue;
     }
     eligible.push(customerId);
@@ -408,16 +499,18 @@ export function evaluatePolicy(input: {
   const cost = { currency, messaging, incentives, total };
 
   if (!capsMissing && eligible.length > 0) {
+    const weekly = weeklyRecipientCap(config, usage.base);
+    // Quien ya recibió algo esta semana no vuelve a sumar.
     const newRecipients = eligible.filter(
       (id) => !usage.recipientsThisWeek.has(id),
     ).length;
     if (
-      usage.recipientsThisWeek.size + newRecipients >
-      config.maxUniqueRecipientsPerWeek!
+      weekly.cap !== null &&
+      usage.recipientsThisWeek.size + newRecipients > weekly.cap
     ) {
       blockers.push({
         code: 'WEEKLY_RECIPIENTS_LIMIT',
-        message: `Supera el tope de ${config.maxUniqueRecipientsPerWeek} clientes distintos por semana (ya van ${usage.recipientsThisWeek.size}; esta campaña suma ${newRecipients}).`,
+        message: `Supera el alcance semanal: ${weekly.cap} clientes distintos (el ${config.weeklyReachPercent}% de ${usage.base.contactable} contactables; ya van ${usage.recipientsThisWeek.size} y esta campaña suma ${newRecipients}).`,
       });
     }
     if (
@@ -447,13 +540,23 @@ export function evaluatePolicy(input: {
         });
       }
     }
-    // 25% de las dos bolsas juntas, además de no romper ninguna por separado.
-    const combined = messagingBudget + (config.incentiveBudgetMonthly ?? 0);
-    const shareCap = money((combined * config.maxCampaignSharePercent!) / 100);
-    if (total > shareCap) {
+    // Una campaña usa hasta su parte de CADA bolsa autorizada: un mensaje sin
+    // premio no se achica por un presupuesto de incentivos que no usa.
+    const share = campaignCaps(config);
+    if (share.messaging !== null && messaging > share.messaging) {
       blockers.push({
         code: 'CAMPAIGN_SHARE_EXCEEDED',
-        message: `Una sola campaña puede usar hasta el ${config.maxCampaignSharePercent}% de los presupuestos (${currency} ${shareCap}); esta cuesta ${total}.`,
+        message: `Una sola campaña puede usar hasta el ${config.maxCampaignSharePercent}% del presupuesto de mensajería (${currency} ${share.messaging}); esta usa ${messaging}.`,
+      });
+    }
+    if (
+      effect.incentive &&
+      share.incentives !== null &&
+      incentives > share.incentives
+    ) {
+      blockers.push({
+        code: 'CAMPAIGN_SHARE_EXCEEDED',
+        message: `Una sola campaña puede usar hasta el ${config.maxCampaignSharePercent}% del presupuesto de incentivos (${currency} ${share.incentives}); esta compromete ${incentives}.`,
       });
     }
   }

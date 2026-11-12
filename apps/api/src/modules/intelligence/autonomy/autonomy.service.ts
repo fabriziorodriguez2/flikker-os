@@ -21,7 +21,11 @@ import { PolicyService } from '../../policy/policy.service';
 import { PolicyGateService } from '../../policy/policy-gate.service';
 import { PlannerService } from '../plans/planner.service';
 import { loadUsage, whatsappConsent } from '../../policy/policy-usage';
-import type { PolicyBlocker, PolicyEffect } from '../../policy/policy-rules';
+import {
+  weeklyRecipientCap,
+  type PolicyBlocker,
+  type PolicyEffect,
+} from '../../policy/policy-rules';
 import {
   STRATEGIES,
   chooseStrategy,
@@ -379,7 +383,7 @@ export class AutonomyService {
       campaignsThisWeek: usage.newCampaignsThisWeek,
       campaignsCap: config.maxNewCampaignsPerWeek,
       recipientsThisWeek: usage.recipientsThisWeek.size,
-      recipientsCap: config.maxUniqueRecipientsPerWeek,
+      recipientsCap: weeklyRecipientCap(config, usage.base).cap,
       messagingSpentMonth: Math.round(usage.messagingSpentMonth * 100) / 100,
       messagingBudget: config.messagingBudgetMonthly,
       currency: config.confirmedCurrency ?? config.businessCurrency,

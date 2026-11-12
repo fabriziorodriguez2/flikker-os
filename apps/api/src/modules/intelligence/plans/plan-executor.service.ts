@@ -98,7 +98,7 @@ export class PlanExecutorService {
         status: 'BLOCKED',
         code: 'TOO_SMALL_AFTER_POLICY',
         messages: [
-          `Después de la frecuencia máxima quedan ${eligible.length} clientes: hacen falta al menos ${MIN_PLAN_RECIPIENTS}.`,
+          'Ningún cliente del plan se puede contactar hoy: todos recibieron una promoción hace poco o ya no tienen WhatsApp autorizado.',
         ],
       };
     }

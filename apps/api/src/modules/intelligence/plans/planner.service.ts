@@ -22,8 +22,14 @@ import {
 import { estimateIncentiveCost } from '../../retention-v2/incentive-cost';
 import { PolicyService } from '../../policy/policy.service';
 import { loadUsage } from '../../policy/policy-usage';
+import {
+  campaignCaps,
+  frequencyExclusion,
+  weeklyRecipientCap,
+  type CustomerBase,
+} from '../../policy/policy-rules';
 import type { AuthorizedIncentive } from './commercial-plan';
-import { previewSegment } from './business-snapshot';
+import { previewSegment, reachableCustomerIds } from './business-snapshot';
 import { BusinessSnapshotService } from './business-snapshot.service';
 import { PlanExecutorService } from './plan-executor.service';
 import { planExecutionAllowed } from '../../policy/plan-execution';
@@ -41,6 +47,7 @@ import {
   PLANNER_INSTRUCTIONS,
   PLANNER_TOOLS,
   buildPlannerContext,
+  type PlannerPolicyInfo,
 } from './planner-prompt';
 
 /** Rondas con el modelo por corrida (herramientas + correcciones). */
@@ -205,21 +212,41 @@ export class PlannerService {
       };
     }
 
-    const [incentives, budget, policyInfo, recentFingerprints] =
-      await Promise.all([
-        this.authorizedIncentives(businessId),
-        this.budget(businessId, now),
-        this.policyInfo(businessId),
-        this.recentFingerprints(businessId, now),
-      ]);
+    const [catalog, limits, recentFingerprints] = await Promise.all([
+      this.authorizedIncentives(businessId),
+      this.limits(businessId, [...snapshot.consented], now),
+      this.recentFingerprints(businessId, now),
+    ]);
+    const { budget, resting, base } = limits;
+    // Sin presupuesto de incentivos definido por el dueño, el planificador no
+    // ve ningún premio: diseña sin comprometer gasto.
+    const incentives = budget.incentiveBudgetSet ? catalog : [];
+    const baseView = {
+      registered: base.registered,
+      contactable: snapshot.consented.size,
+      availableNow: snapshot.consented.size - resting.size,
+      resting: resting.size,
+    };
     const ctx: EvaluationContext = {
       snapshot,
       incentives: new Map(incentives.map((i) => [i.id, i])),
       budget,
+      resting,
       recentFingerprints,
       now,
       today,
-      previewNumbers: [],
+      // Lo que el modelo ve en el contexto también se puede citar.
+      previewNumbers: [
+        ...Object.values(baseView),
+        ...[
+          budget.messagingRemaining,
+          budget.incentiveRemaining,
+          budget.weeklyRecipientsRemaining,
+          budget.newCampaignsRemaining,
+          budget.maxMessagingPerCampaign,
+          budget.maxIncentivesPerCampaign,
+        ].filter((n): n is number => typeof n === 'number'),
+      ],
     };
 
     const input: AgentInputItem[] = [
@@ -234,8 +261,9 @@ export class PlannerService {
             snapshot,
             incentives,
             budget,
-            policy: policyInfo,
+            policy: limits.policy,
             contactability,
+            base: baseView,
           },
         )}`,
       },
@@ -413,6 +441,7 @@ export class PlannerService {
                   })),
                   cost: e.cost,
                   costKnown: e.costKnown,
+                  smallSample: e.smallSample,
                   startOn: e.submitted.schedule.startOn,
                 } as unknown as Prisma.InputJsonValue)
               : Prisma.JsonNull,
@@ -545,8 +574,14 @@ export class PlannerService {
       });
     }
     const preview = previewSegment(ctx.snapshot, rule as SegmentRule);
-    ctx.previewNumbers.push(preview.matched, preview.reachable);
-    return JSON.stringify({ valid: true, ...preview });
+    const resting = ctx.resting ?? new Set<string>();
+    // Contactables que hoy no están en descanso por la frecuencia máxima.
+    const availableNow = reachableCustomerIds(
+      ctx.snapshot,
+      rule as SegmentRule,
+    ).filter((id) => !resting.has(id)).length;
+    ctx.previewNumbers.push(preview.matched, preview.reachable, availableNow);
+    return JSON.stringify({ valid: true, ...preview, availableNow });
   }
 
   private async history(businessId: string, now: Date): Promise<string> {
@@ -647,56 +682,75 @@ export class PlannerService {
     }));
   }
 
-  private async budget(businessId: string, now: Date): Promise<PlannerBudget> {
+  /**
+   * Los límites de la política para esta corrida, con la misma cuenta que el
+   * motor (ver `PlannerBudget`), y quiénes de los contactables están hoy en
+   * descanso por la regla de frecuencia (contactos de todos los motores).
+   */
+  private async limits(
+    businessId: string,
+    consentedIds: string[],
+    now: Date,
+  ): Promise<{
+    budget: PlannerBudget;
+    resting: Set<string>;
+    base: CustomerBase;
+    policy: PlannerPolicyInfo;
+  }> {
     const { config, averageTicketAmount } =
       await this.policies.getConfig(businessId);
     const usage = await loadUsage(this.prisma, {
       businessId,
       timezone: config.businessTimezone,
       now,
-      candidates: [],
+      candidates: consentedIds,
       messageUnitCost: config.messageUnitCost,
       averageTicketAmount,
     });
     const left = (cap: number | null, used: number) =>
       cap === null ? null : Math.max(0, Math.round((cap - used) * 100) / 100);
-    return {
-      messageUnitCost: config.messageUnitCost,
-      messagingRemaining: left(
-        config.messagingBudgetMonthly,
-        usage.messagingSpentMonth,
+    const weekly = weeklyRecipientCap(config, usage.base);
+    const perCampaign = campaignCaps(config);
+    const resting = new Set(
+      consentedIds.filter((id) =>
+        frequencyExclusion(usage.contactsByCustomer.get(id) ?? [], config, now),
       ),
-      incentiveRemaining: left(
-        config.incentiveBudgetMonthly,
-        usage.incentiveLiabilityMonth,
-      ),
-      weeklyRecipientsRemaining:
-        config.maxUniqueRecipientsPerWeek === null
-          ? null
-          : Math.max(
-              0,
-              config.maxUniqueRecipientsPerWeek - usage.recipientsThisWeek.size,
-            ),
-      // La misma cuenta que la política: su parte de las dos bolsas juntas.
-      maxCostPerCampaign:
-        config.messagingBudgetMonthly === null ||
-        config.maxCampaignSharePercent === null
-          ? null
-          : Math.round(
-              (config.messagingBudgetMonthly +
-                (config.incentiveBudgetMonthly ?? 0)) *
-                config.maxCampaignSharePercent,
-            ) / 100,
-    };
-  }
-
-  private async policyInfo(businessId: string) {
-    const { config } = await this.policies.getConfig(businessId);
+    );
     return {
-      accepted: Boolean(config.acceptedAt),
-      minDaysBetweenPromotions: config.minDaysBetweenPromotions,
-      maxPromotionsPer30Days: config.maxPromotionsPer30Days,
-      sendingHours: `${config.sendingHourStart}–${config.sendingHourEnd} h`,
+      budget: {
+        messageUnitCost: config.messageUnitCost,
+        messagingRemaining: left(
+          config.messagingBudgetMonthly,
+          usage.messagingSpentMonth,
+        ),
+        incentiveBudgetSet: config.incentiveBudgetMonthly !== null,
+        incentiveRemaining: left(
+          config.incentiveBudgetMonthly,
+          usage.incentiveLiabilityMonth,
+        ),
+        weeklyLimitMode: weekly.mode,
+        weeklyRecipientsRemaining:
+          weekly.cap === null
+            ? null
+            : Math.max(0, weekly.cap - usage.recipientsThisWeek.size),
+        newCampaignsRemaining:
+          config.maxNewCampaignsPerWeek === null
+            ? null
+            : Math.max(
+                0,
+                config.maxNewCampaignsPerWeek - usage.newCampaignsThisWeek,
+              ),
+        maxMessagingPerCampaign: perCampaign.messaging,
+        maxIncentivesPerCampaign: perCampaign.incentives,
+      },
+      resting,
+      base: usage.base,
+      policy: {
+        accepted: Boolean(config.acceptedAt),
+        minDaysBetweenPromotions: config.minDaysBetweenPromotions,
+        maxPromotionsPer30Days: config.maxPromotionsPer30Days,
+        sendingHours: `${config.sendingHourStart}–${config.sendingHourEnd} h`,
+      },
     };
   }
 

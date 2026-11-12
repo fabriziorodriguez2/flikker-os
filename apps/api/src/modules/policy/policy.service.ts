@@ -4,22 +4,30 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { BusinessPolicy, PolicyPauseReason, Prisma } from '@prisma/client';
+import {
+  BusinessPolicy,
+  IntelligencePlanStatus,
+  PolicyPauseReason,
+  Prisma,
+} from '@prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuditService } from '../../common/services/audit.service';
 import { RetentionSettingsService } from '../retention-v2/retention-settings.service';
 import {
   BALANCED_PRESET,
   POLICY_VERSION,
+  SMALL_BUSINESS_CUSTOMER_THRESHOLD,
   configBlockers,
+  weeklyRecipientCap,
   type PolicyConfig,
 } from './policy-rules';
 import {
+  customerBase,
   heldAmounts,
   incentiveLiabilityThisMonth,
+  loadUsage,
   marketingMessagesSentThisMonth,
 } from './policy-usage';
-import { ConsentService } from './consent.service';
 import type { PolicyValuesDto } from './dto/policy.dto';
 
 /**
@@ -33,7 +41,6 @@ export class PolicyService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly settings: RetentionSettingsService,
-    private readonly consent: ConsentService,
     private readonly audit: AuditService,
   ) {}
 
@@ -70,7 +77,7 @@ export class PolicyService {
         pausedReason: policy?.pausedReason ?? null,
         messagingBudgetMonthly: num(policy?.messagingBudgetMonthly),
         incentiveBudgetMonthly: num(settings.maxEstimatedIncentiveCostPerMonth),
-        maxUniqueRecipientsPerWeek: policy?.maxUniqueRecipientsPerWeek ?? null,
+        weeklyReachPercent: policy?.weeklyReachPercent ?? null,
         maxNewCampaignsPerWeek: policy?.maxNewCampaignsPerWeek ?? null,
         maxCampaignSharePercent: policy?.maxCampaignSharePercent ?? null,
         minDaysBetweenPromotions: settings.minimumDaysBetweenRetentionMessages,
@@ -98,7 +105,7 @@ export class PolicyService {
     const { config, policy, averageTicketAmount } =
       await this.getConfig(businessId);
     const tz = config.businessTimezone;
-    const [sent, liability, held, consented] = await Promise.all([
+    const [sent, liability, held, base, week, campaigns] = await Promise.all([
       marketingMessagesSentThisMonth(this.prisma, businessId, tz, now),
       incentiveLiabilityThisMonth(this.prisma, {
         businessId,
@@ -108,8 +115,38 @@ export class PolicyService {
         includeReactivation: true,
       }),
       heldAmounts(this.prisma, businessId, tz, now),
-      this.consent.grantedWhatsappCount(businessId),
+      customerBase(this.prisma, businessId),
+      loadUsage(this.prisma, {
+        businessId,
+        timezone: tz,
+        now,
+        candidates: [],
+        messageUnitCost: config.messageUnitCost,
+        averageTicketAmount,
+      }),
+      // Campañas de Intelligence en curso, con su costo estimado.
+      this.prisma.intelligencePlan.findMany({
+        where: {
+          businessId,
+          status: {
+            in: [
+              IntelligencePlanStatus.EXECUTING,
+              IntelligencePlanStatus.MEASURING,
+            ],
+          },
+        },
+        orderBy: { executedAt: 'desc' },
+        take: 10,
+        select: {
+          id: true,
+          title: true,
+          status: true,
+          executedAt: true,
+          estimatedCost: true,
+        },
+      }),
     ]);
+    const weekly = weeklyRecipientCap(config, base);
     const missing: string[] = [];
     if (config.messageUnitCost === null) missing.push('MESSAGE_UNIT_COST');
     if (config.acceptedAt && config.messagingBudgetMonthly === null) {
@@ -138,7 +175,7 @@ export class PolicyService {
       values: {
         messagingBudgetMonthly: config.messagingBudgetMonthly,
         incentiveBudgetMonthly: config.incentiveBudgetMonthly,
-        maxUniqueRecipientsPerWeek: config.maxUniqueRecipientsPerWeek,
+        weeklyReachPercent: config.weeklyReachPercent,
         maxNewCampaignsPerWeek: config.maxNewCampaignsPerWeek,
         minDaysBetweenPromotions: config.minDaysBetweenPromotions,
         maxPromotionsPer30Days: config.maxPromotionsPer30Days,
@@ -155,7 +192,35 @@ export class PolicyService {
           sent * (config.messageUnitCost ?? 0) + held.messaging,
         incentiveLiabilityThisMonth: liability.cost + held.incentives,
         issuancesWithUnknownCost: liability.unknownCost,
-        customersWithWhatsappConsent: consented,
+        customersWithWhatsappConsent: base.contactable,
+      },
+      incentives: {
+        budgetSet: config.incentiveBudgetMonthly !== null,
+        committed: round2(liability.cost),
+        consumed: round2(liability.consumed),
+        /** Reservado por campañas que están saliendo ahora. */
+        inFlight: round2(held.incentives),
+        byIncentive: liability.byIncentive.map((i) => ({
+          ...i,
+          committedCost: round2(i.committedCost),
+          consumedCost: round2(i.consumedCost),
+        })),
+        campaigns: campaigns.map((c) => ({
+          id: c.id,
+          title: c.title,
+          status: c.status,
+          executedAt: c.executedAt,
+          estimatedCost:
+            c.estimatedCost === null ? null : Number(c.estimatedCost),
+        })),
+      },
+      weeklyReach: {
+        mode: weekly.mode,
+        threshold: SMALL_BUSINESS_CUSTOMER_THRESHOLD,
+        registeredCustomers: base.registered,
+        contactableCustomers: base.contactable,
+        capThisWeek: weekly.cap,
+        contactedThisWeek: week.recipientsThisWeek.size,
       },
       blockers: configBlockers(config),
       missing,
@@ -429,10 +494,14 @@ function assertWindow(start: number, end: number) {
   }
 }
 
+function round2(value: number): number {
+  return Math.round(value * 100) / 100;
+}
+
 function policyColumns(dto: PolicyValuesDto) {
   return {
     messagingBudgetMonthly: dto.messagingBudgetMonthly,
-    maxUniqueRecipientsPerWeek: dto.maxUniqueRecipientsPerWeek,
+    weeklyReachPercent: dto.weeklyReachPercent,
     maxNewCampaignsPerWeek: dto.maxNewCampaignsPerWeek,
     maxCampaignSharePercent: dto.maxCampaignSharePercent,
   };
@@ -441,7 +510,7 @@ function policyColumns(dto: PolicyValuesDto) {
 function valuesOf(v: {
   messagingBudgetMonthly: number | null;
   incentiveBudgetMonthly: number | null;
-  maxUniqueRecipientsPerWeek: number | null;
+  weeklyReachPercent: number | null;
   maxNewCampaignsPerWeek: number | null;
   maxCampaignSharePercent: number | null;
   minDaysBetweenPromotions: number;
@@ -452,7 +521,7 @@ function valuesOf(v: {
   return {
     messagingBudgetMonthly: v.messagingBudgetMonthly,
     incentiveBudgetMonthly: v.incentiveBudgetMonthly,
-    maxUniqueRecipientsPerWeek: v.maxUniqueRecipientsPerWeek,
+    weeklyReachPercent: v.weeklyReachPercent,
     maxNewCampaignsPerWeek: v.maxNewCampaignsPerWeek,
     maxCampaignSharePercent: v.maxCampaignSharePercent,
     minDaysBetweenPromotions: v.minDaysBetweenPromotions,

@@ -14,6 +14,7 @@ import { estimateIncentiveCost } from '../retention-v2/incentive-cost';
 import {
   effectiveConsent,
   type ConsentStatus,
+  type CustomerBase,
   type PolicyUsage,
 } from './policy-rules';
 
@@ -105,7 +106,7 @@ export async function incentiveLiabilityThisMonth(
     averageTicketAmount: Prisma.Decimal | number | null;
     includeReactivation: boolean;
   },
-): Promise<{ cost: number; count: number; unknownCost: number }> {
+): Promise<IncentiveLiability> {
   const { businessId, timezone, now } = params;
   const from = startOfLocalMonth(now, timezone);
   const to = startOfNextLocalMonth(now, timezone);
@@ -113,6 +114,7 @@ export async function incentiveLiabilityThisMonth(
     ? [BenefitIssuanceSource.PROMOTION, BenefitIssuanceSource.REACTIVATION]
     : [BenefitIssuanceSource.PROMOTION];
   const definitionSelect = {
+    name: true,
     estimatedCost: true,
     percentageValue: true,
     fixedValue: true,
@@ -132,8 +134,12 @@ export async function incentiveLiabilityThisMonth(
       ],
     },
     select: {
+      redeemedAt: true,
       benefit: {
-        select: { retentionIncentiveDefinition: { select: definitionSelect } },
+        select: {
+          title: true,
+          retentionIncentiveDefinition: { select: definitionSelect },
+        },
       },
       retentionAssignment: {
         select: {
@@ -145,7 +151,9 @@ export async function incentiveLiabilityThisMonth(
     },
   });
   let cost = 0;
+  let consumed = 0;
   let unknownCost = 0;
+  const byLabel = new Map<string, IncentiveLiability['byIncentive'][number]>();
   for (const row of rows) {
     const definition =
       row.retentionAssignment?.variant.incentiveDefinition ??
@@ -153,10 +161,57 @@ export async function incentiveLiabilityThisMonth(
     const estimate = definition
       ? estimateIncentiveCost(definition, params.averageTicketAmount)
       : null;
-    if (estimate) cost += estimate.cost;
-    else unknownCost += 1;
+    const label = definition?.name ?? row.benefit.title;
+    const item = byLabel.get(label) ?? {
+      label,
+      issued: 0,
+      redeemed: 0,
+      committedCost: 0,
+      consumedCost: 0,
+      unknownCost: 0,
+    };
+    item.issued += 1;
+    if (row.redeemedAt) item.redeemed += 1;
+    if (estimate) {
+      cost += estimate.cost;
+      item.committedCost += estimate.cost;
+      if (row.redeemedAt) {
+        consumed += estimate.cost;
+        item.consumedCost += estimate.cost;
+      }
+    } else {
+      unknownCost += 1;
+      item.unknownCost += 1;
+    }
+    byLabel.set(label, item);
   }
-  return { cost, count: rows.length, unknownCost };
+  return {
+    cost,
+    consumed,
+    count: rows.length,
+    unknownCost,
+    byIncentive: [...byLabel.values()].sort(
+      (a, b) => b.committedCost - a.committedCost,
+    ),
+  };
+}
+
+export interface IncentiveLiability {
+  /** Comprometido: canjeado o todavía canjeable (costo estimado). */
+  cost: number;
+  /** Consumido: lo ya canjeado. */
+  consumed: number;
+  count: number;
+  /** Emisiones sin costo estimable: se informan, nunca se inventan. */
+  unknownCost: number;
+  byIncentive: {
+    label: string;
+    issued: number;
+    redeemed: number;
+    committedCost: number;
+    consumedCost: number;
+    unknownCost: number;
+  }[];
 }
 
 /** Lo reservado y todavía en vuelo para el mes actual. */
@@ -217,6 +272,57 @@ export async function whatsappConsent(
 }
 
 /**
+ * Clientes activos únicos con WhatsApp autorizado HOY: último GRANTED/REVOKED
+ * es GRANTED, sin baja vieja (`opted_out`) y sin una supresión vigente. Es la
+ * base del tope semanal y lo que ve la pantalla de políticas.
+ */
+export async function contactableWhatsappCount(
+  db: Db,
+  businessId: string,
+): Promise<number> {
+  const rows = await db.$queryRaw<{ count: bigint }[]>`
+    SELECT COUNT(*)::bigint AS count FROM (
+      SELECT DISTINCT ON (e.customer_id) e.customer_id, e.action
+      FROM customer_consent_events e
+      JOIN "Customer" c ON c.id = e.customer_id
+      WHERE e.business_id = ${businessId}
+        AND c."businessId" = ${businessId}
+        AND e.channel = 'WHATSAPP'
+        AND e.action IN ('GRANTED', 'REVOKED')
+        AND c."isActive" = true
+        AND c.opted_out = false
+      ORDER BY e.customer_id, e.created_at DESC
+    ) latest
+    WHERE latest.action = 'GRANTED'
+      AND NOT EXISTS (
+        SELECT 1 FROM customer_consent_events s
+        WHERE s.customer_id = latest.customer_id
+          AND s.channel = 'WHATSAPP'
+          AND s.action = 'SUPPRESSED'
+          AND NOT EXISTS (
+            SELECT 1 FROM customer_consent_events u
+            WHERE u.customer_id = s.customer_id
+              AND u.channel = 'WHATSAPP'
+              AND u.action = 'UNSUPPRESSED'
+              AND u.created_at > s.created_at
+          )
+      )`;
+  return Number(rows[0]?.count ?? 0);
+}
+
+/** Registrados y contactables: la base sobre la que se calcula el tope semanal. */
+export async function customerBase(
+  db: Db,
+  businessId: string,
+): Promise<CustomerBase> {
+  const [registered, contactable] = await Promise.all([
+    db.customer.count({ where: { businessId, isActive: true } }),
+    contactableWhatsappCount(db, businessId),
+  ]);
+  return { registered, contactable };
+}
+
+/**
  * Todo lo que necesita `evaluatePolicy` para un efecto sobre `candidates`.
  * `excludeMessageId`: el mensaje de Autopilot que se está despachando, que
  * ya existe como fila y no debe contarse contra sí mismo.
@@ -251,6 +357,7 @@ export async function loadUsage(
     candidateContacts,
     candidateMessages,
     consent,
+    base,
   ] = await Promise.all([
     marketingMessagesSentThisMonth(db, businessId, timezone, now),
     incentiveLiabilityThisMonth(db, {
@@ -338,6 +445,7 @@ export async function loadUsage(
         })
       : Promise.resolve([]),
     whatsappConsent(db, businessId, candidates),
+    customerBase(db, businessId),
   ]);
 
   const currentWeek = weekKey(now, timezone);
@@ -384,6 +492,7 @@ export async function loadUsage(
     incentiveLiabilityMonth: liability.cost + held.incentives,
     recipientsThisWeek,
     newCampaignsThisWeek: campaignsThisWeek + heldCampaigns,
+    base,
     contactsByCustomer,
     consentByCustomer: consent,
   };

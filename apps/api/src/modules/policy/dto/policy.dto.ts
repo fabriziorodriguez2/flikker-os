@@ -31,15 +31,21 @@ export class PolicyValuesDto {
   @Max(10_000_000)
   messagingBudgetMonthly!: number;
 
+  /**
+   * Lo decide el dueño. null = todavía no lo definió: Intelligence diseña sin
+   * premios con costo. 0 = no quiere asumir costos de incentivos.
+   */
+  @ValidateIf((_, value) => value !== null)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @Max(10_000_000)
-  incentiveBudgetMonthly!: number;
+  incentiveBudgetMonthly!: number | null;
 
+  /** % de la base contactable por semana (no aplica a bases chicas). */
   @IsInt()
   @Min(1)
-  @Max(5000)
-  maxUniqueRecipientsPerWeek!: number;
+  @Max(100)
+  weeklyReachPercent!: number;
 
   @IsInt()
   @Min(0)

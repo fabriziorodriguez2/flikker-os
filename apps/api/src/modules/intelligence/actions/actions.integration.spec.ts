@@ -46,6 +46,7 @@ import { AgentToolsService } from '../agent/agent-tools.service';
 import { UNVERIFIED_ANSWER_TEXT } from '../agent/agent-prompt';
 import { ActionsService, type ActionView } from './actions.service';
 import type { ActionParams } from './action-plan';
+import { POLICY_VERSION } from '../../policy/policy-rules';
 import { zonedMidnightToUtc } from '../../../jobs/owner-lifecycle-time';
 
 // Los envíos pasan por MessagingService, que le pide el proveedor a la
@@ -385,12 +386,12 @@ describe('Intelligence actions (integration)', () => {
       data: {
         businessId: biz,
         acceptedAt: NOW,
-        acceptedVersion: 1,
+        acceptedVersion: POLICY_VERSION,
         acceptedByUserId: owner,
         confirmedCurrency: business.currency,
         confirmedTimezone: business.timezone,
         messagingBudgetMonthly: 500,
-        maxUniqueRecipientsPerWeek: 25,
+        weeklyReachPercent: 25,
         maxNewCampaignsPerWeek: 2,
         maxCampaignSharePercent: 25,
         messageUnitCost: 2,

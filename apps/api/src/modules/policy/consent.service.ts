@@ -9,6 +9,7 @@ import { PrismaService } from '../../prisma/prisma.service';
 import { normalizeToE164 } from '../../common/utils/phone.util';
 import { effectiveConsent, type ConsentStatus } from './policy-rules';
 import { CONSENT_TEXT_VERSIONS } from './consent-texts';
+import { contactableWhatsappCount } from './policy-usage';
 
 export interface RecordConsentInput {
   businessId: string;
@@ -180,33 +181,7 @@ export class ConsentService {
 
   /** Clientes activos con WhatsApp autorizado, para la pantalla de políticas. */
   async grantedWhatsappCount(businessId: string): Promise<number> {
-    const rows = await this.prisma.$queryRaw<{ count: bigint }[]>`
-      SELECT COUNT(*)::bigint AS count FROM (
-        SELECT DISTINCT ON (e.customer_id) e.customer_id, e.action
-        FROM customer_consent_events e
-        JOIN "Customer" c ON c.id = e.customer_id
-        WHERE e.business_id = ${businessId}
-          AND e.channel = 'WHATSAPP'
-          AND e.action IN ('GRANTED', 'REVOKED')
-          AND c."isActive" = true
-          AND c.opted_out = false
-        ORDER BY e.customer_id, e.created_at DESC
-      ) latest
-      WHERE latest.action = 'GRANTED'
-        AND NOT EXISTS (
-          SELECT 1 FROM customer_consent_events s
-          WHERE s.customer_id = latest.customer_id
-            AND s.channel = 'WHATSAPP'
-            AND s.action = 'SUPPRESSED'
-            AND NOT EXISTS (
-              SELECT 1 FROM customer_consent_events u
-              WHERE u.customer_id = s.customer_id
-                AND u.channel = 'WHATSAPP'
-                AND u.action = 'UNSUPPRESSED'
-                AND u.created_at > s.created_at
-            )
-        )`;
-    return Number(rows[0]?.count ?? 0);
+    return contactableWhatsappCount(this.prisma, businessId);
   }
 
   /**
