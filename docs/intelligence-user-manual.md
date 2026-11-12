@@ -32,10 +32,23 @@ que inventar. Los reportes se pueden exportar en CSV o PDF (dueño y admin).
 
 ## Tu política de envíos (Configuración → Políticas)
 
-Ahí fijás cuánto podés gastar por mes en mensajes y en premios, a cuántos
-clientes escribirles por semana, en qué horario y cada cuánto como máximo
-a la misma persona. Nada de esto se aplica hasta que lo aceptás.
+Ahí fijás cuánto podés gastar por mes en mensajes y en premios, a qué
+porcentaje de tus clientes con WhatsApp escribirles por semana, en qué
+horario y cada cuánto como máximo a la misma persona. Nada de esto se
+aplica hasta que lo aceptás. Todos son máximos, no metas: Intelligence
+puede usar menos si le parece mejor.
 
+- **Presupuesto de beneficios e incentivos:** lo decidís vos. Mientras no
+  lo definas, Intelligence solo propone acciones sin premios con costo.
+  Podés ponerlo en 0. Cambiarlo te pide una confirmación, y en la misma
+  pantalla ves cuánto está comprometido, cuánto se canjeó y en qué
+  incentivos.
+- **Alcance semanal:** por defecto, el 25 % de tus clientes con WhatsApp
+  autorizado. Si tenés menos de 150 clientes registrados no hay tope por
+  porcentaje: Intelligence decide cuántos contactar, siempre dentro del
+  presupuesto, el consentimiento y la frecuencia.
+- **Frecuencia por cliente:** hasta 3 promociones cada 30 días, con 10
+  días de separación como mínimo, sumando todo lo que le manda Flikker.
 - **Pausar todo:** frena al instante cualquier envío o cambio con costo.
 - **Consentimiento:** solo les llegan promociones a los clientes que
   marcaron "Quiero recibir promociones por WhatsApp" en el check-in, o

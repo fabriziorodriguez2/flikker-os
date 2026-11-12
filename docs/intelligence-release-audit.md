@@ -80,7 +80,7 @@ Con el costo por turno medido. Son supuestos, no resultados:
 | Tope diario agotado todos los días (60/día) | 1.800 | ~US$ 1,40 con el consumo medido |
 | Peor caso teórico (60/día, 4 rondas, ~20 k tokens de entrada) | 1.800 | ~US$ 27 |
 
-La mensajería y las recompensas no dependen de la IA. Las acotan las bolsas de la política de cada negocio; el preset es UYU 500 de mensajería y UYU 1.500 de incentivos por mes. Hoy no hay telemetría real de mensajería ni de recompensas de Intelligence porque nada salió todavía.
+La mensajería y las recompensas no dependen de la IA. Las acotan las bolsas de la política de cada negocio. El preset propone UYU 500 de mensajería por mes; el presupuesto de incentivos no tiene propuesta, lo define el dueño, y sin él no se compromete ningún premio con costo (política v2). Hoy no hay telemetría real de mensajería ni de recompensas de Intelligence porque nada salió todavía.
 
 ## 4. Lista verificable para habilitar producción
 

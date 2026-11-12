@@ -43,7 +43,18 @@ Medir y aprender son las fases siguientes (ver Pendientes).
 - Si el mensaje promete algo que el incentivo no tiene.
 - A quién se puede contactar: consentimiento de WhatsApp, siempre.
 - Que dos planes no compartan clientes.
-- Presupuesto, tope semanal y muestra mínima de 5.
+- Que no entren clientes en descanso por la frecuencia máxima (3 cada 30
+  días, 10 días entre una y otra, contando todos los motores).
+- Presupuesto con la misma cuenta que el motor de políticas (peor caso,
+  control incluido), tope por campaña de cada bolsa, campañas que quedan en
+  la semana y alcance semanal. El alcance es el % de la base contactable, y
+  no hay tope por % con menos de 150 clientes registrados (modo adaptativo:
+  el tamaño del grupo lo decide la IA).
+- Sin presupuesto de incentivos definido por el dueño, el modelo recibe el
+  catálogo vacío.
+- Un plan necesita al menos 1 cliente disponible. Con menos de 5 queda
+  marcado como prueba chica: se puede ejecutar, pero su resultado no se
+  presenta como evidencia.
 - Grupo de control obligatorio.
 - No repetir un plan simulado en los últimos 7 días.
 - Topes de uso de la IA.
