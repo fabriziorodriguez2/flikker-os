@@ -10,8 +10,12 @@ const SQL = readFileSync(
   join(__dirname, '../../../../docs/pilot-diagnosis-queries.sql'),
   'utf8',
 );
-/** Sin comentarios: lo que de verdad ejecuta Postgres. */
-const CODE = SQL.split('\n')
+/**
+ * Sin comentarios: lo que de verdad ejecuta Postgres. Se corta también en
+ * CRLF (checkout en Windows): `.` no matchea `\r`, y un `--` seguido de `\r`
+ * dejaba el comentario entero como si fuera código.
+ */
+const CODE = SQL.split(/\r?\n/)
   .map((line) => line.replace(/--.*$/, ''))
   .join('\n');
 const statements = CODE.split(';')
