@@ -6,8 +6,9 @@
 
 export interface PolicyValues {
   messagingBudgetMonthly: number | null;
+  /** null = el dueño todavía no lo definió (ningún premio con costo). */
   incentiveBudgetMonthly: number | null;
-  maxUniqueRecipientsPerWeek: number | null;
+  weeklyReachPercent: number | null;
   maxNewCampaignsPerWeek: number | null;
   minDaysBetweenPromotions: number;
   maxPromotionsPer30Days: number;
@@ -33,7 +34,8 @@ export interface PolicyView {
   pausedReason: PauseReason | null;
   pausedAt: string | null;
   values: PolicyValues;
-  preset: Required<{ [K in keyof PolicyValues]: number }>;
+  /** El preset no propone presupuesto de incentivos: lo decide el dueño. */
+  preset: { [K in keyof PolicyValues]: K extends "incentiveBudgetMonthly" ? null : number };
   messageUnitCost: number | null;
   messageUnitCostCurrency: string | null;
   usage: {
@@ -43,16 +45,48 @@ export interface PolicyView {
     issuancesWithUnknownCost: number;
     customersWithWhatsappConsent: number;
   };
+  incentives: {
+    budgetSet: boolean;
+    committed: number;
+    consumed: number;
+    inFlight: number;
+    byIncentive: {
+      label: string;
+      issued: number;
+      redeemed: number;
+      committedCost: number;
+      consumedCost: number;
+      unknownCost: number;
+    }[];
+    campaigns: {
+      id: string;
+      title: string;
+      status: string;
+      executedAt: string | null;
+      estimatedCost: number | null;
+    }[];
+  };
+  weeklyReach: {
+    mode: "ADAPTIVE" | "PERCENT";
+    threshold: number;
+    registeredCustomers: number;
+    contactableCustomers: number;
+    capThisWeek: number | null;
+    contactedThisWeek: number;
+  };
   blockers: { code: string; message: string }[];
   missing: string[];
 }
 
 export type PolicyForm = Record<keyof PolicyValues, string>;
+export type ParsedPolicyValues = Omit<Record<keyof PolicyValues, number>, "incentiveBudgetMonthly"> & {
+  incentiveBudgetMonthly: number | null;
+};
 
 export const FIELD_ORDER: (keyof PolicyValues)[] = [
   "messagingBudgetMonthly",
   "incentiveBudgetMonthly",
-  "maxUniqueRecipientsPerWeek",
+  "weeklyReachPercent",
   "maxNewCampaignsPerWeek",
   "minDaysBetweenPromotions",
   "maxPromotionsPer30Days",
@@ -65,7 +99,7 @@ export const FIELD_ORDER: (keyof PolicyValues)[] = [
 const RANGES: Record<keyof PolicyValues, [number, number, boolean]> = {
   messagingBudgetMonthly: [0, 10_000_000, true],
   incentiveBudgetMonthly: [0, 10_000_000, true],
-  maxUniqueRecipientsPerWeek: [1, 5000, false],
+  weeklyReachPercent: [1, 100, false],
   maxNewCampaignsPerWeek: [0, 50, false],
   minDaysBetweenPromotions: [1, 90, false],
   maxPromotionsPer30Days: [1, 10, false],
@@ -83,19 +117,27 @@ export function initialForm(view: PolicyView): PolicyForm {
   const form = {} as PolicyForm;
   for (const key of FIELD_ORDER) {
     const saved = view.accepted ? view.values[key] : null;
-    form[key] = String(saved ?? view.preset[key]);
+    // El presupuesto de incentivos no tiene propuesta: vacío hasta que el
+    // dueño lo define (y si lo dejó sin definir, sigue vacío).
+    const value = key === "incentiveBudgetMonthly" ? saved : (saved ?? view.preset[key]);
+    form[key] = value === null ? "" : String(value);
   }
   return form;
 }
 
 export function parseForm(
   form: PolicyForm,
-): { ok: true; values: Record<keyof PolicyValues, number> } | { ok: false; error: string } {
-  const values = {} as Record<keyof PolicyValues, number>;
+): { ok: true; values: ParsedPolicyValues } | { ok: false; error: string } {
+  const values = {} as ParsedPolicyValues;
   for (const key of FIELD_ORDER) {
     const raw = form[key].trim().replace(",", ".");
     const [min, max, decimals] = RANGES[key];
     const n = Number(raw);
+    // Vacío = "todavía no lo definí": solo vale para el presupuesto de incentivos.
+    if (key === "incentiveBudgetMonthly" && raw === "") {
+      values.incentiveBudgetMonthly = null;
+      continue;
+    }
     if (raw === "" || !Number.isFinite(n)) {
       return { ok: false, error: `Completá "${FIELD_LABELS[key]}".` };
     }
@@ -115,15 +157,53 @@ export function parseForm(
 
 export const FIELD_LABELS: Record<keyof PolicyValues, string> = {
   messagingBudgetMonthly: "Presupuesto de mensajería por mes",
-  incentiveBudgetMonthly: "Tope de incentivos por mes",
-  maxUniqueRecipientsPerWeek: "Clientes distintos por semana",
+  incentiveBudgetMonthly: "Presupuesto de beneficios e incentivos por mes",
+  weeklyReachPercent: "Alcance semanal (% de clientes con WhatsApp)",
   maxNewCampaignsPerWeek: "Campañas nuevas por semana",
   minDaysBetweenPromotions: "Días mínimos entre promociones a un cliente",
-  maxPromotionsPer30Days: "Promociones por cliente cada 30 días",
+  maxPromotionsPer30Days: "Máximo de promociones por cliente cada 30 días",
   sendingHourStart: "Enviar desde (hora)",
   sendingHourEnd: "Enviar hasta (hora)",
-  maxCampaignSharePercent: "Máximo por campaña (% de ambas bolsas)",
+  maxCampaignSharePercent: "Máximo por campaña (% de cada presupuesto)",
 };
+
+/** Ayudas debajo de los campos que más se malinterpretan. */
+export const FIELD_HINTS: Partial<Record<keyof PolicyValues, string>> = {
+  incentiveBudgetMonthly:
+    "Lo decidís vos. Vacío: Intelligence solo propone acciones sin beneficios con costo. 0: no querés asumir costos de incentivos.",
+  maxPromotionsPer30Days: "Es un máximo, no una meta: Intelligence puede mandar menos.",
+};
+
+/** Qué tope semanal rige hoy, en palabras del dueño. */
+export function weeklyReachText(view: PolicyView): string {
+  const w = view.weeklyReach;
+  if (w.mode === "ADAPTIVE") {
+    return `Tu negocio tiene ${w.registeredCustomers} clientes registrados (menos de ${w.threshold}): no hay tope semanal por porcentaje. Intelligence decide cuántos contactar, siempre dentro del presupuesto, el consentimiento y la frecuencia por cliente.`;
+  }
+  if (w.capThisWeek === null) {
+    return "Definí el porcentaje para calcular el alcance semanal.";
+  }
+  return `Esta semana: hasta ${w.capThisWeek} clientes distintos (${view.values.weeklyReachPercent ?? "—"}% de ${w.contactableCustomers} con WhatsApp autorizado). Ya van ${w.contactedThisWeek}. Se recalcula a medida que crece tu base.`;
+}
+
+/**
+ * Si el cambio toca el presupuesto de incentivos de una política ya aceptada,
+ * el texto que el dueño tiene que confirmar. null = no hace falta confirmar.
+ */
+export function incentiveBudgetChange(
+  view: PolicyView,
+  next: ParsedPolicyValues,
+): string | null {
+  if (!view.accepted) return null;
+  const before = view.values.incentiveBudgetMonthly;
+  const after = next.incentiveBudgetMonthly;
+  if (before === after) return null;
+  const currency = view.confirmed.currency ?? view.business.currency;
+  const label = (v: number | null) => (v === null ? "sin definir" : formatMoney(currency, v));
+  return `Vas a cambiar el presupuesto de beneficios e incentivos de ${label(before)} a ${label(after)} por mes.${
+    after === null || after === 0 ? " Intelligence va a dejar de comprometer gastos en incentivos." : ""
+  }`;
+}
 
 export function pauseReasonLabel(reason: PauseReason | null): string {
   switch (reason) {

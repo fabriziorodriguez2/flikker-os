@@ -9,12 +9,17 @@ import { Input } from "@/components/ui/input";
 import { useToast } from "@/components/ui/toast";
 import { useRole } from "../../../role-context";
 import {
+  FIELD_HINTS,
   FIELD_LABELS,
   FIELD_ORDER,
   budgetLine,
+  formatMoney,
+  incentiveBudgetChange,
   initialForm,
   parseForm,
   pauseReasonLabel,
+  weeklyReachText,
+  type ParsedPolicyValues,
   type PolicyForm,
   type PolicyView,
 } from "./policy-view";
@@ -50,11 +55,14 @@ export default function PolicyClient() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"save" | "pause" | "resume" | null>(null);
+  /** Cambio del presupuesto de incentivos esperando la confirmación del dueño. */
+  const [pending, setPending] = useState<{ message: string; values: ParsedPolicyValues } | null>(null);
 
   const apply = useCallback((next: PolicyView) => {
     setView(next);
     setForm(initialForm(next));
     setConfirmed(false);
+    setPending(null);
   }, []);
 
   useEffect(() => {
@@ -100,10 +108,23 @@ export default function PolicyClient() {
       setFormError("Confirmá la moneda y la zona horaria del negocio para aceptar.");
       return;
     }
+    // Cambiar cuánto se puede gastar en incentivos pide una confirmación aparte.
+    const change = incentiveBudgetChange(view, parsed.values);
+    if (change) {
+      setFormError(null);
+      setPending({ message: change, values: parsed.values });
+      return;
+    }
+    submit(parsed.values);
+  }
+
+  function submit(values: ParsedPolicyValues) {
+    if (!view) return;
+    setPending(null);
     const body = view.accepted
-      ? { ...parsed.values, expectedVersion: view.version }
+      ? { ...values, expectedVersion: view.version }
       : {
-          ...parsed.values,
+          ...values,
           confirmedCurrency: view.business.currency,
           confirmedTimezone: view.business.timezone,
           policyVersion: view.policyVersion,
@@ -214,7 +235,7 @@ export default function PolicyClient() {
       ) : null}
 
       <SectionCard title="Este mes" description="Uso real, contado desde los envíos y premios del mes.">
-        <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-4">
+        <dl className="grid gap-4 text-sm sm:grid-cols-2 lg:grid-cols-5">
           <Fact
             term="Mensajería"
             value={budgetLine(currency, view.usage.messagingSpentThisMonth, view.values.messagingBudgetMonthly)}
@@ -222,7 +243,11 @@ export default function PolicyClient() {
           />
           <Fact
             term="Incentivos comprometidos"
-            value={budgetLine(currency, view.usage.incentiveLiabilityThisMonth, view.values.incentiveBudgetMonthly)}
+            value={
+              view.incentives.budgetSet
+                ? budgetLine(currency, view.usage.incentiveLiabilityThisMonth, view.values.incentiveBudgetMonthly)
+                : `${formatMoney(currency, view.usage.incentiveLiabilityThisMonth)} · sin presupuesto`
+            }
             hint={
               view.usage.issuancesWithUnknownCost > 0
                 ? `${view.usage.issuancesWithUnknownCost} premios sin costo estimado`
@@ -231,8 +256,23 @@ export default function PolicyClient() {
           />
           <Fact
             term="Con WhatsApp autorizado"
-            value={`${view.usage.customersWithWhatsappConsent} clientes`}
+            value={`${view.usage.customersWithWhatsappConsent} de ${view.weeklyReach.registeredCustomers} clientes`}
             hint="Solo a ellos les pueden llegar promociones"
+          />
+          <Fact
+            term="Alcance esta semana"
+            value={
+              view.weeklyReach.mode === "ADAPTIVE"
+                ? `${view.weeklyReach.contactedThisWeek} contactados · sin tope por %`
+                : view.weeklyReach.capThisWeek === null
+                  ? `${view.weeklyReach.contactedThisWeek} contactados`
+                  : `${view.weeklyReach.contactedThisWeek} de ${view.weeklyReach.capThisWeek} clientes`
+            }
+            hint={
+              view.weeklyReach.mode === "ADAPTIVE"
+                ? `Base chica (menos de ${view.weeklyReach.threshold} clientes): decide Intelligence`
+                : "Clientes distintos, todos los motores juntos"
+            }
           />
           <Fact
             term="Costo por mensaje"
@@ -246,9 +286,11 @@ export default function PolicyClient() {
         </dl>
       </SectionCard>
 
+      <IncentivesCard view={view} currency={currency} />
+
       <SectionCard
         title={view.accepted ? "Topes de tu negocio" : "Preset Equilibrado (editable)"}
-        description="Reglas duras: nadie las saltea, ni la pantalla, ni Intelligence, ni un reintento. Una campaña puede usar hasta el % indicado de las dos bolsas juntas sin pasarse de ninguna."
+        description="Reglas duras: nadie las saltea, ni la pantalla, ni Intelligence, ni un reintento. Son máximos, no metas: Intelligence puede usar menos. Una campaña puede usar hasta el % indicado de cada presupuesto."
       >
         <form
           className="space-y-5"
@@ -257,6 +299,7 @@ export default function PolicyClient() {
             save();
           }}
         >
+          <p className="text-sm text-[color:var(--panel-text-secondary)]">{weeklyReachText(view)}</p>
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {FIELD_ORDER.map((key) => (
               <label key={key} className="block min-w-0 text-sm">
@@ -267,9 +310,13 @@ export default function PolicyClient() {
                 <Input
                   inputMode="decimal"
                   value={form[key]}
+                  placeholder={key === "incentiveBudgetMonthly" ? "Sin definir" : undefined}
                   disabled={!isOwner || busy !== null}
                   onChange={(event) => setForm({ ...form, [key]: event.target.value })}
                 />
+                {FIELD_HINTS[key] ? (
+                  <span className="mt-1 block text-xs text-[color:var(--panel-text-muted)]">{FIELD_HINTS[key]}</span>
+                ) : null}
               </label>
             ))}
           </div>
@@ -295,7 +342,23 @@ export default function PolicyClient() {
             </p>
           ) : null}
 
-          {isOwner ? (
+          {pending ? (
+            <div
+              role="alertdialog"
+              aria-label="Confirmar presupuesto de incentivos"
+              className="space-y-3 rounded-[var(--panel-radius-card)] border border-[color:var(--panel-border)] bg-[color:var(--panel-surface-muted)] p-4"
+            >
+              <p className="text-sm text-[color:var(--panel-text)]">{pending.message}</p>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="primary" onClick={() => submit(pending.values)} disabled={busy !== null}>
+                  Confirmar cambio
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => setPending(null)} disabled={busy !== null}>
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          ) : isOwner ? (
             <Button type="submit" variant="primary" loading={busy === "save"} disabled={busy !== null}>
               {view.accepted ? "Guardar cambios" : "Aceptar política"}
             </Button>
@@ -305,6 +368,104 @@ export default function PolicyClient() {
         </form>
       </SectionCard>
     </div>
+  );
+}
+
+/**
+ * En qué se va el presupuesto de beneficios: lo comprometido (canjeado o
+ * todavía canjeable), lo ya consumido, lo reservado por envíos en curso, por
+ * incentivo y por campaña de Intelligence.
+ */
+function IncentivesCard({ view, currency }: { view: PolicyView; currency: string }) {
+  const { incentives } = view;
+  const money = (v: number) => formatMoney(currency, v);
+  return (
+    <SectionCard
+      title="Beneficios e incentivos"
+      description="El presupuesto lo definís vos. Intelligence busca el mejor resultado dentro de él: gastarlo todo no es el objetivo."
+    >
+      <div className="space-y-5">
+        {!incentives.budgetSet ? (
+          <InlineNotice tone="info" title="Todavía no definiste un presupuesto de incentivos">
+            Hasta que lo definas, Intelligence solo diseña acciones sin beneficios con costo (recordatorios,
+            novedades, invitaciones) y no compromete gastos. Podés cargarlo en los topes de abajo, incluso en 0.
+          </InlineNotice>
+        ) : null}
+
+        <dl className="grid gap-4 text-sm sm:grid-cols-3">
+          <Fact
+            term="Comprometido este mes"
+            value={budgetLine(currency, incentives.committed + incentives.inFlight, view.values.incentiveBudgetMonthly)}
+            hint="Canjeado, todavía canjeable o reservado por envíos en curso"
+          />
+          <Fact term="Consumido" value={money(incentives.consumed)} hint="Beneficios ya canjeados" />
+          <Fact
+            term="Reservado ahora"
+            value={money(incentives.inFlight)}
+            hint="Campañas saliendo en este momento"
+          />
+        </dl>
+
+        {incentives.byIncentive.length > 0 ? (
+          <div className="overflow-x-auto">
+            <table className="flk-table w-full min-w-[560px] text-left text-sm">
+              <thead className="text-[12px] uppercase tracking-[0.08em] text-[color:var(--panel-text-muted)]">
+                <tr>
+                  <th className="px-4 py-3 font-semibold">Incentivo</th>
+                  <th className="px-4 py-3 font-semibold">Entregados</th>
+                  <th className="px-4 py-3 font-semibold">Canjeados</th>
+                  <th className="px-4 py-3 font-semibold">Comprometido</th>
+                  <th className="px-4 py-3 font-semibold">Consumido</th>
+                </tr>
+              </thead>
+              <tbody>
+                {incentives.byIncentive.map((row) => (
+                  <tr key={row.label} className="border-t border-[color:var(--panel-border)]">
+                    <td className="px-4 py-3 font-semibold text-[color:var(--panel-text)]">
+                      {row.label}
+                      {row.unknownCost > 0 ? (
+                        <span className="ml-2 text-xs font-normal text-[color:var(--panel-text-muted)]">
+                          ({row.unknownCost} sin costo estimado)
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-3">{row.issued}</td>
+                    <td className="px-4 py-3">{row.redeemed}</td>
+                    <td className="px-4 py-3">{money(row.committedCost)}</td>
+                    <td className="px-4 py-3">{money(row.consumedCost)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="text-sm text-[color:var(--panel-text-muted)]">Este mes todavía no se entregó ningún beneficio.</p>
+        )}
+
+        <div>
+          <p className="text-sm font-semibold text-[color:var(--panel-text)]">Campañas de Intelligence en curso</p>
+          {incentives.campaigns.length === 0 ? (
+            <p className="mt-1 text-sm text-[color:var(--panel-text-muted)]">Ninguna en este momento.</p>
+          ) : (
+            <ul className="mt-2 space-y-1 text-sm">
+              {incentives.campaigns.map((c) => (
+                <li key={c.id} className="flex flex-wrap justify-between gap-2">
+                  <span className="min-w-0 text-[color:var(--panel-text)]">{c.title}</span>
+                  <span className="text-[color:var(--panel-text-secondary)]">
+                    {c.estimatedCost === null ? "Costo sin estimar" : `Costo estimado ${money(c.estimatedCost)}`}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <p className="text-xs text-[color:var(--panel-text-muted)]">
+          Para limitar gastos, bajá el presupuesto (0 = sin costos de incentivos). Para frenar todo al instante, usá
+          &ldquo;Pausar todo&rdquo; arriba.
+        </p>
+      </div>
+    </SectionCard>
   );
 }
 
