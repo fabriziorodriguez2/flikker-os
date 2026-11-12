@@ -102,7 +102,7 @@ Cada ítem dice cómo se verifica. Nada de esto está hecho en producción.
   `SELECT migration_name, finished_at FROM _prisma_migrations WHERE migration_name = '20260813120000_message_templates_business_fk';`
   - Si no está aplicada: se aplica normal y crea la FK.
   - Si ya está aplicada: confirmar en staging que `prisma migrate deploy` no frena por el checksum distinto, antes de producción.
-- [ ] **B3. Migraciones nuevas aplicadas** primero en staging (o una copia) y después en producción, con `npm run start:release`: `20261109090000_intelligence_conversations`, `20261110090000_intelligence_reports`, `20261111090000_intelligence_actions`, `20261112090000_policy_engine` y `20261113090000_intelligence_autonomy`. *Verificar:* `npx prisma migrate status` sin pendientes.
+- [ ] **B3. Migraciones nuevas aplicadas** primero en staging (o una copia) y después en producción, con `npm run start:release`: `20261109090000_intelligence_conversations`, `20261110090000_intelligence_reports`, `20261111090000_intelligence_actions`, `20261112090000_policy_engine`, `20261113090000_intelligence_autonomy` y `20261118090000_policy_adaptive_limits`. *Verificar:* `npx prisma migrate status` sin pendientes.
 
 ### C. Configuración
 - [ ] **C1. Variables:** `OPENAI_API_KEY`, `AI_MODEL`, `AI_PRICE_INPUT_PER_MILLION_USD`, `AI_PRICE_OUTPUT_PER_MILLION_USD`, `AI_MAX_DAILY_INTELLIGENCE_TURNS` y `REDIS_URL`. **Sin Redis no corren Autopilot ni el modo autónomo.** *Verificar:* en el log de arranque, la cola `retention-v2` registrada.

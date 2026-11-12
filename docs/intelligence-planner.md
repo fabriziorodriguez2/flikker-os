@@ -49,13 +49,19 @@ Medir y aprender son las fases siguientes (ver Pendientes).
   control incluido), tope por campaña de cada bolsa, campañas que quedan en
   la semana y alcance semanal. El alcance es el % de la base contactable, y
   no hay tope por % con menos de 150 clientes registrados (modo adaptativo:
-  el tamaño del grupo lo decide la IA).
-- Sin presupuesto de incentivos definido por el dueño, el modelo recibe el
-  catálogo vacío.
-- Un plan necesita al menos 1 cliente disponible. Con menos de 5 queda
-  marcado como prueba chica: se puede ejecutar, pero su resultado no se
-  presenta como evidencia.
-- Grupo de control obligatorio.
+  el tamaño del grupo lo decide la IA). El modo lo fija la base al empezar
+  la semana local: cruzar 150 a mitad de semana cambia el modo recién el
+  lunes. Los destinatarios de un plan ya aprobado no se recortan por el
+  tope semanal al enviarse (`authorizedCampaign`); consentimiento,
+  frecuencia, presupuesto y pausa sí se revisan en cada mensaje.
+- Sin presupuesto de incentivos definido por el dueño, el modelo solo
+  recibe los incentivos de costo cero verificable (`isVerifiedZeroCost`:
+  costo declarado 0 y sin descuento). Un incentivo de costo desconocido
+  nunca se emite con la política aceptada.
+- Un plan necesita al menos 1 cliente disponible. Con menos de 5 es
+  exploratorio: se ejecuta sin grupo de control (todos reciben) y su
+  resultado es `OBSERVED_ONLY`, sin afirmar causalidad ni incrementalidad.
+- Grupo de control obligatorio desde 5 destinatarios.
 - No repetir un plan simulado en los últimos 7 días.
 - Topes de uso de la IA.
 
@@ -131,13 +137,28 @@ consentimiento de WhatsApp, horarios, topes de frecuencia y
 cualquier incentivo. Las reglas fijas y el optimizador nunca reutilizan esos
 experimentos.
 
+**Control por campaña.** `PlanControlService` (`POST
+/intelligence/autonomy/plans/:id/{pause,resume,cancel}`, dueño o admin):
+- pausar pone el experimento en PAUSED: el worker no encola lo pendiente,
+  `processAssignment` lo deja PENDING y el despacho aplaza (no descarta)
+  un mensaje ya encolado;
+- reanudar revalida con la política de hoy lo que falta enviar; si algo
+  bloquea, sigue pausada; los que ya no se pueden contactar quedan
+  SKIPPED con `RESUME_<motivo>`;
+- cancelar saltea lo pendiente (`PLAN_CANCELLED`) y cierra el plan como
+  STOPPED con `CANCELLED_BY_OWNER`; lo enviado se sigue midiendo.
+
+Cada acción va al AuditLog en la misma transacción, con quién y cuándo. La
+pausa global (`BusinessPolicy.paused`) no cambia.
+
 **Medición.** `measurePlan` separa tres lecturas:
 - correlación: volvió después del mensaje;
 - atribución: la visita trae el `messageId` o hubo canje;
 - incrementalidad: test de dos proporciones contra el control.
 
-Con menos de 30 clientes por brazo la etiqueta es `SIGNAL_ONLY`: hay señal,
-pero no prueba. El plan se detiene solo (STOPPED) si las bajas o los fallos
+Sin grupo de control (plan exploratorio) la etiqueta es `OBSERVED_ONLY`.
+Con menos de 30 clientes por brazo es `SIGNAL_ONLY`: hay señal, pero no
+prueba. El plan se detiene solo (STOPPED) si las bajas o los fallos
 pasan su umbral. Si no, al vencer `measureUntil` pasa a COMPLETED. El worker
 refresca las mediciones antes de cada evaluación diaria.
 

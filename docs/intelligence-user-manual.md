@@ -42,11 +42,18 @@ puede usar menos si le parece mejor.
   lo definas, Intelligence solo propone acciones sin premios con costo.
   Podés ponerlo en 0. Cambiarlo te pide una confirmación, y en la misma
   pantalla ves cuánto está comprometido, cuánto se canjeó y en qué
-  incentivos.
+  incentivos. Un premio que cargaste con costo 0 y sin descuento (por
+  ejemplo, un sticker de la casa) se puede usar aunque no haya presupuesto
+  y no lo consume. Un premio sin costo cargado nunca se entrega
+  automáticamente: primero cargale cuánto te cuesta.
 - **Alcance semanal:** por defecto, el 25 % de tus clientes con WhatsApp
   autorizado. Si tenés menos de 150 clientes registrados no hay tope por
   porcentaje: Intelligence decide cuántos contactar, siempre dentro del
-  presupuesto, el consentimiento y la frecuencia.
+  presupuesto, el consentimiento y la frecuencia. El modo se fija con los
+  clientes que tenías al empezar la semana: si llegás a 150 un miércoles, el
+  porcentaje rige desde el lunes siguiente, y la pantalla te avisa cuál va a
+  ser el cupo. Las campañas que ya estaban saliendo no se cortan por el
+  cambio.
 - **Frecuencia por cliente:** hasta 3 promociones cada 30 días, con 10
   días de separación como mínimo, sumando todo lo que le manda Flikker.
 - **Pausar todo:** frena al instante cualquier envío o cambio con costo.
@@ -67,6 +74,17 @@ pasa a Autopilot, que les escribe dentro de tu política.
 - **Cuando no hace nada,** te dice por qué (por ejemplo, "ningún cliente
   autorizó WhatsApp") y qué podés hacer.
 - **Apagar:** el botón está en la misma pantalla.
+- **Pausar, reanudar o cancelar una campaña:** cada campaña en curso tiene
+  sus botones. Pausar frena lo que falta enviar de esa campaña y nada más.
+  Al reanudar se vuelve a revisar el consentimiento, la frecuencia y el
+  presupuesto de cada cliente. Si algo no da, la campaña sigue pausada y
+  te dice por qué. Cancelar hace que lo pendiente no salga nunca. Lo ya
+  enviado no se toca y se sigue midiendo. Queda anotado quién hizo cada
+  cosa y cuándo.
+- **Campañas con pocos clientes (1 a 4):** se pueden hacer si hay una
+  oportunidad real. Le llegan a todos, sin grupo de control, y el
+  resultado se muestra como "lo observado": no prueba que el mensaje los
+  haya hecho volver.
 
 ## Cuánto cuesta
 
